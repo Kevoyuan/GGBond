@@ -1,28 +1,45 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Loader2, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, Bot, User, Settings, Plus, Sun, Moon, Info, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
-}
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface Message {
   role: 'user' | 'model';
   content: string;
   error?: boolean;
-  stats?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  stats?: Record<string, any>;
   sessionId?: string;
 }
 
+interface ChatSettings {
+  model: string;
+  systemInstruction: string;
+}
+
+const AVAILABLE_MODELS = [
+  { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro Preview' },
+  { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash Preview' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+];
+
 export default function Home() {
-  const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [expandedStats, setExpandedStats] = useState<number | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState<ChatSettings>({
+    model: 'gemini-2.5-flash',
+    systemInstruction: '',
+  });
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -32,6 +49,24 @@ export default function Home() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    // Check system preference
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setTheme('dark');
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    if (theme === 'light') {
+      setTheme('dark');
+      document.documentElement.classList.add('dark');
+    } else {
+      setTheme('light');
+      document.documentElement.classList.remove('dark');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +81,11 @@ export default function Home() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userMessage.content }),
+        body: JSON.stringify({ 
+          prompt: userMessage.content,
+          model: settings.model,
+          systemInstruction: settings.systemInstruction
+        }),
       });
 
       const data = await response.json();
@@ -55,13 +94,11 @@ export default function Home() {
         throw new Error(data.error || 'Failed to fetch response');
       }
 
-      // Handle gemini CLI output structure
-      // Expected structure: { response: "...", session_id: "...", stats: {...} }
-      // Or fallback to content/data
+      // Handle different response structures
       const content = data.response || data.content || (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
       const stats = data.stats;
       const sessionId = data.session_id;
-      
+
       setMessages((prev) => [...prev, { 
         role: 'model', 
         content,
@@ -79,118 +116,235 @@ export default function Home() {
     }
   };
 
-  const toggleStats = (index: number) => {
-    setExpandedStats(expandedStats === index ? null : index);
-  };
-
-
   return (
-    <div className="flex flex-col h-screen bg-gray-900 text-gray-100">
-      <header className="flex items-center p-4 border-b border-gray-800 bg-gray-950">
-        <Bot className="w-6 h-6 mr-2 text-blue-400" />
-        <h1 className="text-xl font-bold">Gemini CLI GUI</h1>
-        <div className="ml-auto text-xs text-gray-500">
-          No API Key Required • Auto-Auth
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+      {/* Sidebar */}
+      <aside className="w-64 bg-card border-r border-border flex flex-col hidden md:flex">
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <h1 className="font-bold text-xl flex items-center gap-2">
+            <Bot className="w-6 h-6 text-primary" />
+            Gemini UI
+          </h1>
+          <button onClick={toggleTheme} className="p-2 hover:bg-muted rounded-full transition-colors">
+            {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+          </button>
         </div>
-      </header>
-
-      <main className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-50">
-            <Bot className="w-16 h-16 mb-4" />
-            <p>Start a conversation with Gemini CLI</p>
-          </div>
-        )}
         
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={cn(
-              "flex w-full",
-              msg.role === 'user' ? "justify-end" : "justify-start"
-            )}
+        <div className="p-4">
+          <button 
+            onClick={() => setMessages([])}
+            className="w-full flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-opacity"
           >
-            <div
-              className={cn(
-                "max-w-[80%] rounded-lg p-3",
-                msg.role === 'user' 
-                  ? "bg-blue-600 text-white" 
-                  : msg.error 
-                    ? "bg-red-900/50 border border-red-800" 
-                    : "bg-gray-800 text-gray-100"
-              )}
-            >
-              <div className="flex items-center gap-2 mb-1 opacity-70 text-xs">
-                {msg.role === 'user' ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
-                <span>{msg.role === 'user' ? 'You' : 'Gemini'}</span>
-              </div>
-              <div className="prose prose-invert prose-sm max-w-none">
-                 {msg.role === 'model' ? (
-                   <ReactMarkdown>{msg.content}</ReactMarkdown>
-                 ) : (
-                   <p className="whitespace-pre-wrap">{msg.content}</p>
-                 )}
-              </div>
-              
-              {/* Stats / Metadata Section */}
-              {msg.role === 'model' && (msg.stats || msg.sessionId) && (
-                <div className="mt-2 pt-2 border-t border-gray-700/50">
-                  <button 
-                    onClick={() => toggleStats(index)}
-                    className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+            <Plus className="w-4 h-4" />
+            New Chat
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="text-sm font-medium text-muted-foreground mb-2">Configuration</div>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-medium mb-1 block">Model</label>
+              <select 
+                value={settings.model}
+                onChange={(e) => setSettings(prev => ({ ...prev, model: e.target.value }))}
+                className="w-full bg-background border border-border rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {AVAILABLE_MODELS.map(model => (
+                  <option key={model.value} value={model.value}>{model.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium mb-1 block">System Instructions</label>
+              <textarea 
+                value={settings.systemInstruction}
+                onChange={(e) => setSettings(prev => ({ ...prev, systemInstruction: e.target.value }))}
+                placeholder="You are a helpful assistant..."
+                className="w-full bg-background border border-border rounded-md px-2 py-1 text-sm h-24 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-border text-xs text-muted-foreground">
+          v0.1.0 • gemini-cli
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col relative">
+        {/* Mobile Header */}
+        <div className="md:hidden p-4 border-b border-border flex items-center justify-between bg-card">
+          <h1 className="font-bold text-lg">Gemini UI</h1>
+          <button onClick={() => setShowSettings(!showSettings)} className="p-2">
+            <Settings className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+          {messages.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground opacity-50">
+              <Bot className="w-16 h-16 mb-4" />
+              <h2 className="text-2xl font-bold mb-2">How can I help you today?</h2>
+              <p>Configure settings in the sidebar and start chatting.</p>
+            </div>
+          ) : (
+            messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={cn(
+                  "flex gap-4 max-w-4xl mx-auto animate-fade-in",
+                  msg.role === 'user' ? "justify-end" : "justify-start"
+                )}
+              >
+                {msg.role === 'model' && (
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1">
+                    <Bot className="w-5 h-5 text-primary" />
+                  </div>
+                )}
+                
+                <div className={cn(
+                  "flex flex-col max-w-[85%] md:max-w-[75%]",
+                  msg.role === 'user' ? "items-end" : "items-start"
+                )}>
+                  <div
+                    className={cn(
+                      "rounded-2xl px-4 py-3 shadow-sm",
+                      msg.role === 'user' 
+                        ? "bg-primary text-primary-foreground rounded-br-sm" 
+                        : "bg-card border border-border rounded-bl-sm"
+                    )}
                   >
-                    <Info className="w-3 h-3" />
-                    <span>Debug Info</span>
-                    {expandedStats === index ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  </button>
-                  
-                  {expandedStats === index && (
-                    <div className="mt-2 text-xs font-mono bg-black/20 p-2 rounded overflow-x-auto text-gray-400">
-                      {msg.sessionId && (
-                        <div className="mb-1">
-                          <span className="text-gray-500">Session ID:</span> {msg.sessionId}
+                    {msg.role === 'model' ? (
+                      <div className="prose dark:prose-invert prose-sm max-w-none break-words">
+                        <ReactMarkdown
+                          components={{
+                            code({className, children, ...props}) {
+                              const match = /language-(\w+)/.exec(className || '')
+                              return match ? (
+                                // @ts-expect-error - react-syntax-highlighter types incompatibility
+                                <SyntaxHighlighter
+                                  {...props}
+                                  style={vscDarkPlus}
+                                  language={match[1]}
+                                  PreTag="div"
+                                >
+                                  {String(children).replace(/\n$/, '')}
+                                </SyntaxHighlighter>
+                              ) : (
+                                <code {...props} className={className}>
+                                  {children}
+                                </code>
+                              )
+                            }
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <div className="whitespace-pre-wrap">{msg.content}</div>
+                    )}
+                  </div>
+
+                  {msg.role === 'model' && (msg.stats || msg.sessionId) && (
+                    <div className="mt-2 ml-1">
+                      <button 
+                        onClick={() => setExpandedStats(expandedStats === idx ? null : idx)}
+                        className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors"
+                      >
+                        <Info className="w-3 h-3" />
+                        {expandedStats === idx ? 'Hide details' : 'Show details'}
+                      </button>
+                      
+                      {expandedStats === idx && (
+                        <div className="mt-2 p-3 bg-muted rounded-md text-xs font-mono overflow-x-auto animate-fade-in border border-border">
+                          {msg.sessionId && (
+                            <div className="mb-2 pb-2 border-b border-border/50">
+                              <span className="font-semibold">Session ID:</span> {msg.sessionId}
+                            </div>
+                          )}
+                          <pre>{JSON.stringify(msg.stats, null, 2)}</pre>
                         </div>
-                      )}
-                      {msg.stats && (
-                        <pre>{JSON.stringify(msg.stats, null, 2)}</pre>
                       )}
                     </div>
                   )}
+                  
+                  {msg.error && (
+                    <div className="text-destructive text-sm mt-1 flex items-center gap-1">
+                      <Info className="w-3 h-3" />
+                      Error processing request
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-800 rounded-lg p-3 flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-              <span className="text-sm text-gray-400">Gemini is thinking...</span>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </main>
 
-      <footer className="p-4 border-t border-gray-800 bg-gray-950">
-        <form onSubmit={handleSubmit} className="flex gap-2 max-w-4xl mx-auto">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 bg-gray-800 border-gray-700 text-gray-100 rounded-md focus:ring-blue-500 focus:border-blue-500 p-2"
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md transition-colors flex items-center"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
-      </footer>
+                {msg.role === 'user' && (
+                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 mt-1">
+                    <User className="w-5 h-5 text-secondary-foreground" />
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+          {isLoading && (
+            <div className="flex gap-4 max-w-4xl mx-auto">
+               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1">
+                <Bot className="w-5 h-5 text-primary" />
+              </div>
+              <div className="bg-card border border-border rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Thinking...</span>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input Area */}
+        <div className="p-4 border-t border-border bg-background/80 backdrop-blur-sm sticky bottom-0">
+          <div className="max-w-4xl mx-auto">
+            <form onSubmit={handleSubmit} className="relative flex items-end gap-2 bg-card border border-border rounded-xl p-2 focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all shadow-sm">
+              <button 
+                type="button" 
+                className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted"
+                title="Attach file (coming soon)"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+              
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+                placeholder="Type your message..."
+                className="flex-1 bg-transparent border-0 focus:ring-0 resize-none max-h-32 py-2 text-sm"
+                rows={1}
+                style={{ minHeight: '40px' }}
+              />
+
+              <button
+                type="submit"
+                disabled={!input.trim() || isLoading}
+                className="p-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </form>
+            <div className="text-center text-xs text-muted-foreground mt-2">
+              Gemini CLI GUI • Powered by Next.js & Tailwind v4
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
