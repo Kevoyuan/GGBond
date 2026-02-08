@@ -1,30 +1,30 @@
 @import "tailwindcss";
 
 @theme {
-  /* Semantic color tokens using OKLCH for better color perception */
+  /* Semantic color tokens - IDE/Zinc Theme */
   --color-background: oklch(100% 0 0);
-  --color-foreground: oklch(14.5% 0.025 264);
+  --color-foreground: oklch(20% 0 0);
 
-  --color-primary: oklch(14.5% 0.025 264);
-  --color-primary-foreground: oklch(98% 0.01 264);
+  --color-primary: oklch(20% 0 0);
+  --color-primary-foreground: oklch(98% 0 0);
 
-  --color-secondary: oklch(96% 0.01 264);
-  --color-secondary-foreground: oklch(14.5% 0.025 264);
+  --color-secondary: oklch(96% 0 0);
+  --color-secondary-foreground: oklch(20% 0 0);
 
-  --color-muted: oklch(96% 0.01 264);
-  --color-muted-foreground: oklch(46% 0.02 264);
+  --color-muted: oklch(96% 0 0);
+  --color-muted-foreground: oklch(55% 0 0);
 
-  --color-accent: oklch(96% 0.01 264);
-  --color-accent-foreground: oklch(14.5% 0.025 264);
+  --color-accent: oklch(96% 0 0);
+  --color-accent-foreground: oklch(20% 0 0);
 
-  --color-destructive: oklch(53% 0.22 27);
-  --color-destructive-foreground: oklch(98% 0.01 264);
+  --color-destructive: oklch(55% 0.2 25);
+  --color-destructive-foreground: oklch(98% 0 0);
 
-  --color-border: oklch(91% 0.01 264);
-  --color-ring: oklch(14.5% 0.025 264);
+  --color-border: oklch(92% 0 0);
+  --color-ring: oklch(20% 0 0);
 
   --color-card: oklch(100% 0 0);
-  --color-card-foreground: oklch(14.5% 0.025 264);
+  --color-card-foreground: oklch(20% 0 0);
 
   /* Radius tokens */
   --radius-sm: 0.25rem;
@@ -50,29 +50,33 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 .dark {
-  --color-background: oklch(14.5% 0.025 264);
-  --color-foreground: oklch(98% 0.01 264);
+  /* Dark Zinc Theme - IDE Style */
+  --color-background: oklch(15% 0 0); /* #18181b */
+  --color-foreground: oklch(98% 0 0);
 
-  --color-primary: oklch(98% 0.01 264);
-  --color-primary-foreground: oklch(14.5% 0.025 264);
+  --color-primary: oklch(98% 0 0);
+  --color-primary-foreground: oklch(15% 0 0);
 
-  --color-secondary: oklch(22% 0.02 264);
-  --color-secondary-foreground: oklch(98% 0.01 264);
+  --color-secondary: oklch(20% 0 0);
+  --color-secondary-foreground: oklch(98% 0 0);
 
-  --color-muted: oklch(22% 0.02 264);
-  --color-muted-foreground: oklch(65% 0.02 264);
+  --color-muted: oklch(20% 0 0);
+  --color-muted-foreground: oklch(70% 0 0);
 
-  --color-accent: oklch(22% 0.02 264);
-  --color-accent-foreground: oklch(98% 0.01 264);
+  --color-accent: oklch(20% 0 0);
+  --color-accent-foreground: oklch(98% 0 0);
 
-  --color-destructive: oklch(42% 0.15 27);
-  --color-destructive-foreground: oklch(98% 0.01 264);
+  --color-destructive: oklch(45% 0.15 25);
+  --color-destructive-foreground: oklch(98% 0 0);
 
-  --color-border: oklch(22% 0.02 264);
-  --color-ring: oklch(83% 0.02 264);
+  --color-border: oklch(25% 0 0);
+  --color-ring: oklch(80% 0 0);
 
-  --color-card: oklch(14.5% 0.025 264);
-  --color-card-foreground: oklch(98% 0.01 264);
+  --color-card: oklch(17% 0 0); /* Slightly lighter than bg */
+  --color-card-foreground: oklch(98% 0 0);
+
+  /* Code Block Background */
+  --color-code-bg: oklch(13% 0 0); /* Slightly darker than bg */
 }
 
 @layer base {
@@ -82,5 +86,34 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+  }
+  
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: oklch(35% 0 0);
+    border-radius: 5px;
+    border: 2px solid var(--color-background);
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(45% 0 0);
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: oklch(30% 0 0);
+    border: 2px solid var(--color-background);
+  }
+  
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: oklch(40% 0 0);
   }
 }
