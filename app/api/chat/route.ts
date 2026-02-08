@@ -3,31 +3,14 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
-import { addMessage, createSession, getSession } from '@/lib/db';
-import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(req: Request) {
   try {
-    const { prompt, sessionId } = await req.json();
+    const { prompt } = await req.json();
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
-
-    // Handle session
-    let currentSessionId = sessionId;
-    if (!currentSessionId) {
-      currentSessionId = uuidv4();
-      createSession(currentSessionId, prompt.slice(0, 30) + '...');
-    } else {
-      const exists = getSession(currentSessionId);
-      if (!exists) {
-        createSession(currentSessionId, prompt.slice(0, 30) + '...');
-      }
-    }
-
-    // Save user message
-    addMessage(currentSessionId, 'user', prompt);
 
     // Resolve gemini executable path
     let geminiScriptPath = '';
@@ -81,12 +64,7 @@ export async function POST(req: Request) {
             if (jsonStart !== -1 && jsonEnd !== -1) {
               const jsonStr = stdout.substring(jsonStart, jsonEnd + 1);
               const data = JSON.parse(jsonStr);
-              
-              // Save model response
-              const content = data.response || data.content || JSON.stringify(data);
-              addMessage(currentSessionId, 'model', content, data.stats);
-              
-              resolve(NextResponse.json({ ...data, sessionId: currentSessionId }));
+              resolve(NextResponse.json(data));
               return;
             }
           } catch (e) {
@@ -101,21 +79,13 @@ export async function POST(req: Request) {
             if (jsonStart !== -1 && jsonEnd !== -1) {
               const jsonStr = stdout.substring(jsonStart, jsonEnd + 1);
               const data = JSON.parse(jsonStr);
-              
-              // Save model response
-              const content = data.response || data.content || (typeof data === 'string' ? data : JSON.stringify(data));
-              addMessage(currentSessionId, 'model', content, data.stats);
-
-              resolve(NextResponse.json({ ...data, sessionId: currentSessionId }));
+              resolve(NextResponse.json(data));
             } else {
-              const content = stdout;
-              addMessage(currentSessionId, 'model', content);
-              resolve(NextResponse.json({ content, sessionId: currentSessionId }));
+              resolve(NextResponse.json({ content: stdout }));
             }
           } catch (e) {
             console.error('Failed to parse JSON:', e);
-            addMessage(currentSessionId, 'model', stdout, { raw: true });
-            resolve(NextResponse.json({ content: stdout, raw: true, sessionId: currentSessionId }));
+            resolve(NextResponse.json({ content: stdout, raw: true }));
           }
         }
       });
