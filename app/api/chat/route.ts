@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { execSync } from 'child_process';
 
 export async function POST(req: Request) {
   try {
-    const { prompt } = await req.json();
+    const { prompt, model, systemInstruction } = await req.json();
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
@@ -16,24 +15,36 @@ export async function POST(req: Request) {
     let geminiScriptPath = '';
     try {
       const geminiBin = execSync('which gemini').toString().trim();
-      // It's likely a symlink to the JS file
       geminiScriptPath = fs.realpathSync(geminiBin);
-    } catch (e) {
-      console.error('Failed to find gemini executable:', e);
+    } catch {
+      console.error('Failed to find gemini executable');
       return NextResponse.json({ error: 'Gemini CLI not found' }, { status: 500 });
     }
 
-    const args = [geminiScriptPath, '-p', prompt, '--output-format', 'json'];
+    // Construct arguments
+    const args = [geminiScriptPath, '--output-format', 'json'];
     
+    // Add model if provided
+    if (model) {
+      args.push('--model', model);
+    }
+
+    // Add prompt (prepend system instruction if present)
+    let fullPrompt = prompt;
+    if (systemInstruction) {
+      fullPrompt = `System Instruction: ${systemInstruction}\n\nUser Request: ${prompt}`;
+    }
+    args.push('-p', fullPrompt);
+
     // Set HOME to local gemini-home to isolate config and history
     const localHome = path.join(process.cwd(), 'gemini-home');
     
     console.log('Running gemini with HOME:', localHome);
     console.log('Script path:', geminiScriptPath);
 
-    return new Promise((resolve) => {
+    return new Promise<NextResponse>((resolve) => {
       // Spawn 'node' directly with the script
-      const gemini = spawn('node', args, {
+      const gemini = spawn(process.execPath, args, {
         env: { 
           ...process.env, 
           HOME: localHome, 
@@ -45,11 +56,11 @@ export async function POST(req: Request) {
       let stdout = '';
       let stderr = '';
 
-      gemini.stdout.on('data', (data) => {
+      gemini.stdout.on('data', (data: Buffer) => {
         stdout += data.toString();
       });
 
-      gemini.stderr.on('data', (data) => {
+      gemini.stderr.on('data', (data: Buffer) => {
         stderr += data.toString();
       });
 
@@ -67,7 +78,7 @@ export async function POST(req: Request) {
               resolve(NextResponse.json(data));
               return;
             }
-          } catch (e) {
+          } catch {
             // ignore
           }
           resolve(NextResponse.json({ error: stderr || 'Gemini CLI failed', details: stdout }, { status: 500 }));
