@@ -19,7 +19,7 @@ interface MessageBubbleProps {
   isLast: boolean;
 }
 
-export function MessageBubble({ message, isLast }: MessageBubbleProps) {
+export function MessageBubble({ message }: MessageBubbleProps) {
   const [expandedStats, setExpandedStats] = useState(false);
   const isUser = message.role === 'user';
 

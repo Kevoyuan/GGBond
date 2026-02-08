@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, Menu, Paperclip, Mic } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { MessageBubble, LoadingBubble, Message } from '../components/MessageBubble';
+import { SkillsDialog } from '../components/SkillsDialog';
 import { cn } from '@/lib/utils';
 
 import { ChatInput } from '../components/ChatInput';
@@ -25,7 +26,6 @@ export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
   // Settings state
@@ -36,6 +36,7 @@ export default function Home() {
 
   // UI state
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -129,20 +130,30 @@ export default function Home() {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  const handleSendMessage = async (text: string) => {
+    if (!text.trim() || isLoading) return;
 
-    const userMessage: Message = { role: 'user', content: input };
+    // Handle slash commands
+    const trimmedInput = text.trim();
+    if (trimmedInput === '/skills') {
+      setSkillsOpen(true);
+      return;
+    }
+    if (trimmedInput.startsWith('/clear')) {
+      handleNewChat();
+      return;
+    }
+
+    const userMessage: Message = { role: 'user', content: text };
     setMessages((prev) => [...prev, userMessage]);
-    setInput('');
     setIsLoading(true);
 
     // Map UI model aliases to actual CLI model IDs
     let actualModel = settings.model;
     if (settings.model === 'auto-gemini-3') {
-      actualModel = 'gemini-3-flash-preview'; // Default for Auto (Gemini 3)
+      actualModel = 'gemini-3-pro-preview';
     } else if (settings.model === 'auto-gemini-2.5') {
-      actualModel = 'gemini-2.5-flash'; // Default for Auto (Gemini 2.5)
+      actualModel = 'gemini-2.5-pro';
     }
 
     try {
@@ -219,10 +230,16 @@ export default function Home() {
           onSelectSession={handleSelectSession}
           onDeleteSession={handleDeleteSession}
           onNewChat={handleNewChat}
+          onOpenSkills={() => setSkillsOpen(true)}
           isDark={theme === 'dark'}
           toggleTheme={toggleTheme}
         />
       </div>
+
+      <SkillsDialog 
+        open={skillsOpen} 
+        onClose={() => setSkillsOpen(false)} 
+      />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-background">
@@ -236,13 +253,17 @@ export default function Home() {
         <div className="flex-1 overflow-y-auto scroll-smooth relative" ref={scrollContainerRef}>
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center p-8 text-center opacity-0 animate-fade-in" style={{ animationDelay: '0.1s', opacity: 1 }}>
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-transparent flex items-center justify-center mb-6 border border-primary/10">
-                <Bot className="w-8 h-8 text-primary" />
+              <div className="text-center space-y-4 max-w-lg mx-auto">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto mb-6 shadow-xl ring-1 ring-white/20">
+                  <Bot className="w-10 h-10 text-primary" />
+                </div>
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  How can I help you today?
+                </h2>
+                <p className="text-muted-foreground leading-relaxed">
+                  I can help you write code, debug issues, or answer questions about your project.
+                </p>
               </div>
-              <h1 className="text-2xl font-semibold mb-2 tracking-tight">How can I help you today?</h1>
-              <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
-                I'm ready to assist with your coding tasks, planning, or general questions.
-              </p>
             </div>
           ) : (
             <div className="max-w-3xl mx-auto w-full pb-8 pt-6 px-4 flex flex-col gap-6">
@@ -260,11 +281,7 @@ export default function Home() {
         </div>
 
         {/* Input Area */}
-        <ChatInput onSend={(text) => {
-          setInput(text);
-          // Small timeout to allow state update before sending
-          setTimeout(handleSendMessage, 0);
-        }} isLoading={isLoading} />
+        <ChatInput onSend={handleSendMessage} isLoading={isLoading} />
       </div>
     </div>
   );
