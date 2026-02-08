@@ -24,8 +24,19 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filteredCommands, setFilteredCommands] = useState<CommandItem[]>(BASE_COMMANDS);
   const [installedSkills, setInstalledSkills] = useState<CommandItem[]>([]);
-  const [activeSkill, setActiveSkill] = useState<CommandItem | null>(null);
+  const [activeSkills, setActiveSkills] = useState<CommandItem[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const commandListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Scroll selected item into view
+    if (showCommands && commandListRef.current) {
+      const selectedElement = commandListRef.current.children[selectedIndex + 1] as HTMLElement; // +1 for the sticky header
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [selectedIndex, showCommands]);
 
   useEffect(() => {
     // Fetch installed skills
@@ -144,9 +155,9 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
     }
 
     // Handle removing active skill with Backspace
-    if (e.key === 'Backspace' && input === '' && activeSkill) {
+    if (e.key === 'Backspace' && input === '' && activeSkills.length > 0) {
       e.preventDefault();
-      setActiveSkill(null);
+      setActiveSkills(prev => prev.slice(0, -1));
     }
   };
 
@@ -154,13 +165,22 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
     // If it's a skill command, set it as active badge
     if (cmd.startsWith('/skill ')) {
       const skillName = cmd.replace('/skill ', '');
+      
+      // Prevent duplicates
+      if (activeSkills.some(s => s.command === cmd)) {
+          setInput('');
+          setShowCommands(false);
+          textareaRef.current?.focus();
+          return;
+      }
+
       const skillCmd = installedSkills.find(s => s.command === cmd) || {
         command: cmd,
         description: 'Selected skill',
         icon: Sparkles
       };
       
-      setActiveSkill(skillCmd);
+      setActiveSkills(prev => [...prev, skillCmd]);
       setInput('');
       setShowCommands(false);
       textareaRef.current?.focus();
@@ -174,16 +194,17 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
   };
 
   const handleSend = () => {
-    if ((!input.trim() && !activeSkill) || isLoading) return;
+    if ((!input.trim() && activeSkills.length === 0) || isLoading) return;
     
     let finalMessage = input;
-    if (activeSkill) {
-        finalMessage = `${activeSkill.command} ${input}`;
+    if (activeSkills.length > 0) {
+        const skillCommands = activeSkills.map(s => s.command).join(' ');
+        finalMessage = `${skillCommands} ${input}`;
     }
     
     onSend(finalMessage);
     setInput('');
-    setActiveSkill(null);
+    setActiveSkills([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -195,7 +216,7 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
         {/* Command Suggestions */}
         {showCommands && (
           <div className="absolute bottom-full left-0 mb-2 w-64 bg-card border rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50">
-            <div className="max-h-64 overflow-y-auto p-1">
+            <div className="max-h-64 overflow-y-auto p-1" ref={commandListRef}>
               <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-b mb-1 sticky top-0 bg-card z-10">
                 Commands
               </div>
@@ -228,18 +249,20 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
           "relative flex flex-col gap-2 p-2 rounded-xl border bg-muted/20 transition-all duration-200",
           "focus-within:bg-background focus-within:ring-1 focus-within:ring-primary/20 focus-within:border-primary/30"
         )}>
-          {activeSkill && (
-            <div className="flex items-center gap-2 px-2 pt-2 animate-in fade-in slide-in-from-bottom-1">
-               <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 text-sm font-medium">
-                 <Sparkles className="w-3.5 h-3.5" />
-                 <span>{activeSkill.command.replace('/skill ', '')}</span>
-                 <button 
-                    onClick={() => setActiveSkill(null)}
-                    className="ml-1 p-0.5 hover:bg-primary/10 rounded-full transition-colors"
-                 >
-                   <X className="w-3 h-3" />
-                 </button>
-               </div>
+          {activeSkills.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 px-2 pt-2 animate-in fade-in slide-in-from-bottom-1">
+               {activeSkills.map((skill) => (
+                 <div key={skill.command} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 text-sm font-medium">
+                   <Sparkles className="w-3.5 h-3.5" />
+                   <span>{skill.command.replace('/skill ', '')}</span>
+                   <button 
+                      onClick={() => setActiveSkills(prev => prev.filter(s => s.command !== skill.command))}
+                      className="ml-1 p-0.5 hover:bg-primary/10 rounded-full transition-colors"
+                   >
+                     <X className="w-3 h-3" />
+                   </button>
+                 </div>
+               ))}
             </div>
           )}
           <textarea
@@ -247,7 +270,7 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={activeSkill ? "Type your message..." : "Ask anything... (@ to mention)"}
+            placeholder={activeSkills.length > 0 ? "Type your message..." : "Ask anything... (@ to mention)"}
             className="w-full bg-transparent border-none focus:outline-none resize-none min-h-[40px] max-h-[200px] text-sm leading-relaxed px-2 py-1"
             rows={1}
           />
