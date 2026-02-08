@@ -135,10 +135,6 @@ export default function Home() {
 
     // Handle slash commands
     const trimmedInput = text.trim();
-    if (trimmedInput === '/skills') {
-      setSkillsOpen(true);
-      return;
-    }
     if (trimmedInput.startsWith('/clear')) {
       handleNewChat();
       return;
