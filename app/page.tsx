@@ -1,45 +1,39 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Settings, Plus, Sun, Moon, Info, Loader2 } from 'lucide-react';
+import { Send, Plus, Bot, Menu } from 'lucide-react';
+import { Sidebar } from '../components/Sidebar';
+import { MessageBubble, LoadingBubble, Message } from '../components/MessageBubble';
 import { cn } from '@/lib/utils';
-import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-
-interface Message {
-  role: 'user' | 'model';
-  content: string;
-  error?: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  stats?: Record<string, any>;
-  sessionId?: string;
-}
 
 interface ChatSettings {
   model: string;
   systemInstruction: string;
 }
 
-const AVAILABLE_MODELS = [
-  { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro Preview' },
-  { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash Preview' },
-  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
-];
+interface Session {
+  id: string;
+  title: string;
+  updated_at: number;
+}
 
 export default function Home() {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [expandedStats, setExpandedStats] = useState<number | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+  
+  // Settings state
   const [settings, setSettings] = useState<ChatSettings>({
     model: 'gemini-2.5-flash',
     systemInstruction: '',
   });
+
+  // UI state
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -48,10 +42,10 @@ export default function Home() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isLoading]);
 
+  // Load Theme
   useEffect(() => {
-    // Check system preference
     if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
       setTheme('dark');
       document.documentElement.classList.add('dark');
@@ -65,6 +59,69 @@ export default function Home() {
     } else {
       setTheme('light');
       document.documentElement.classList.remove('dark');
+    }
+  };
+
+  // Fetch Sessions on Mount
+  const fetchSessions = async () => {
+    try {
+      const res = await fetch('/api/sessions');
+      if (res.ok) {
+        const data = await res.json();
+        setSessions(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch sessions', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchSessions();
+  }, []);
+
+  // Handle Session Selection
+  const handleSelectSession = async (id: string) => {
+    if (id === currentSessionId) return;
+    
+    setIsLoading(true);
+    setCurrentSessionId(id);
+    try {
+      const res = await fetch(`/api/sessions/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(data.messages || []);
+        // Also update settings if stored in session (future feature)
+      }
+    } catch (error) {
+      console.error('Failed to load session', error);
+    } finally {
+      setIsLoading(false);
+      // Close sidebar on mobile
+      if (window.innerWidth < 768) {
+        setSidebarOpen(false);
+      }
+    }
+  };
+
+  const handleNewChat = () => {
+    setCurrentSessionId(null);
+    setMessages([]);
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  };
+
+  const handleDeleteSession = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this chat?')) return;
+    
+    try {
+      await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+      setSessions(prev => prev.filter(s => s.id !== id));
+      if (currentSessionId === id) {
+        handleNewChat();
+      }
+    } catch (error) {
+      console.error('Failed to delete session', error);
     }
   };
 
@@ -84,7 +141,8 @@ export default function Home() {
         body: JSON.stringify({ 
           prompt: userMessage.content,
           model: settings.model,
-          systemInstruction: settings.systemInstruction
+          systemInstruction: settings.systemInstruction,
+          sessionId: currentSessionId
         }),
       });
 
@@ -94,17 +152,29 @@ export default function Home() {
         throw new Error(data.error || 'Failed to fetch response');
       }
 
-      // Handle different response structures
+      // Handle response
       const content = data.response || data.content || (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
       const stats = data.stats;
-      const sessionId = data.session_id;
+      const responseSessionId = data.session_id;
 
-      setMessages((prev) => [...prev, { 
+      const modelMessage: Message = { 
         role: 'model', 
         content,
         stats,
-        sessionId
-      }]);
+        sessionId: responseSessionId
+      };
+
+      setMessages((prev) => [...prev, modelMessage]);
+
+      // If it was a new session, update state and refresh list
+      if (!currentSessionId && responseSessionId) {
+        setCurrentSessionId(responseSessionId);
+        fetchSessions(); // Refresh list to show new title
+      } else {
+        // Just refresh list to update timestamp
+        fetchSessions();
+      }
+
     } catch (error) {
       console.error('Chat error:', error);
       setMessages((prev) => [
@@ -118,194 +188,83 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-card border-r border-border flex flex-col hidden md:flex">
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <h1 className="font-bold text-xl flex items-center gap-2">
-            <Bot className="w-6 h-6 text-primary" />
-            Gemini UI
-          </h1>
-          <button onClick={toggleTheme} className="p-2 hover:bg-muted rounded-full transition-colors">
-            {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-          </button>
-        </div>
-        
-        <div className="p-4">
-          <button 
-            onClick={() => setMessages([])}
-            className="w-full flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-opacity"
-          >
-            <Plus className="w-4 h-4" />
-            New Chat
-          </button>
-        </div>
+      <div className={cn(
+        "fixed md:relative z-50 h-full transition-transform duration-300 ease-in-out transform",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      )}>
+        <Sidebar 
+          sessions={sessions}
+          currentSessionId={currentSessionId}
+          onSelectSession={handleSelectSession}
+          onNewChat={handleNewChat}
+          onDeleteSession={handleDeleteSession}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          settings={settings}
+          setSettings={setSettings}
+        />
+      </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="text-sm font-medium text-muted-foreground mb-2">Configuration</div>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-medium mb-1 block">Model</label>
-              <select 
-                value={settings.model}
-                onChange={(e) => setSettings(prev => ({ ...prev, model: e.target.value }))}
-                className="w-full bg-background border border-border rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {AVAILABLE_MODELS.map(model => (
-                  <option key={model.value} value={model.value}>{model.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium mb-1 block">System Instructions</label>
-              <textarea 
-                value={settings.systemInstruction}
-                onChange={(e) => setSettings(prev => ({ ...prev, systemInstruction: e.target.value }))}
-                placeholder="You are a helpful assistant..."
-                className="w-full bg-background border border-border rounded-md px-2 py-1 text-sm h-24 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col relative w-full">
+        {/* Header */}
+        <div className="p-4 border-b border-border flex items-center justify-between bg-card/50 backdrop-blur-sm z-10">
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="md:hidden p-2 hover:bg-muted rounded-md"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <h2 className="font-semibold truncate">
+              {currentSessionId 
+                ? sessions.find(s => s.id === currentSessionId)?.title || 'Chat'
+                : 'New Chat'}
+            </h2>
+          </div>
+          <div className="text-xs text-muted-foreground hidden sm:block">
+            {settings.model}
           </div>
         </div>
 
-        <div className="p-4 border-t border-border text-xs text-muted-foreground">
-          v0.1.0 • gemini-cli
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col relative">
-        {/* Mobile Header */}
-        <div className="md:hidden p-4 border-b border-border flex items-center justify-between bg-card">
-          <h1 className="font-bold text-lg">Gemini UI</h1>
-          <button onClick={() => setShowSettings(!showSettings)} className="p-2">
-            <Settings className="w-5 h-5" />
-          </button>
-        </div>
-
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scroll-smooth">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground opacity-50">
-              <Bot className="w-16 h-16 mb-4" />
+            <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground opacity-50 p-8">
+              <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+                <Bot className="w-12 h-12 text-primary" />
+              </div>
               <h2 className="text-2xl font-bold mb-2">How can I help you today?</h2>
-              <p>Configure settings in the sidebar and start chatting.</p>
+              <p className="max-w-md">
+                I'm ready to assist with your coding tasks. Configure the model in the sidebar and start chatting.
+              </p>
             </div>
           ) : (
-            messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={cn(
-                  "flex gap-4 max-w-4xl mx-auto animate-fade-in",
-                  msg.role === 'user' ? "justify-end" : "justify-start"
-                )}
-              >
-                {msg.role === 'model' && (
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1">
-                    <Bot className="w-5 h-5 text-primary" />
-                  </div>
-                )}
-                
-                <div className={cn(
-                  "flex flex-col max-w-[85%] md:max-w-[75%]",
-                  msg.role === 'user' ? "items-end" : "items-start"
-                )}>
-                  <div
-                    className={cn(
-                      "rounded-2xl px-4 py-3 shadow-sm",
-                      msg.role === 'user' 
-                        ? "bg-primary text-primary-foreground rounded-br-sm" 
-                        : "bg-card border border-border rounded-bl-sm"
-                    )}
-                  >
-                    {msg.role === 'model' ? (
-                      <div className="prose dark:prose-invert prose-sm max-w-none break-words">
-                        <ReactMarkdown
-                          components={{
-                            code({className, children, ...props}) {
-                              const match = /language-(\w+)/.exec(className || '')
-                              return match ? (
-                                // @ts-expect-error - react-syntax-highlighter types incompatibility
-                                <SyntaxHighlighter
-                                  {...props}
-                                  style={vscDarkPlus}
-                                  language={match[1]}
-                                  PreTag="div"
-                                >
-                                  {String(children).replace(/\n$/, '')}
-                                </SyntaxHighlighter>
-                              ) : (
-                                <code {...props} className={className}>
-                                  {children}
-                                </code>
-                              )
-                            }
-                          }}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
-                      </div>
-                    ) : (
-                      <div className="whitespace-pre-wrap">{msg.content}</div>
-                    )}
-                  </div>
-
-                  {msg.role === 'model' && (msg.stats || msg.sessionId) && (
-                    <div className="mt-2 ml-1">
-                      <button 
-                        onClick={() => setExpandedStats(expandedStats === idx ? null : idx)}
-                        className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors"
-                      >
-                        <Info className="w-3 h-3" />
-                        {expandedStats === idx ? 'Hide details' : 'Show details'}
-                      </button>
-                      
-                      {expandedStats === idx && (
-                        <div className="mt-2 p-3 bg-muted rounded-md text-xs font-mono overflow-x-auto animate-fade-in border border-border">
-                          {msg.sessionId && (
-                            <div className="mb-2 pb-2 border-b border-border/50">
-                              <span className="font-semibold">Session ID:</span> {msg.sessionId}
-                            </div>
-                          )}
-                          <pre>{JSON.stringify(msg.stats, null, 2)}</pre>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {msg.error && (
-                    <div className="text-destructive text-sm mt-1 flex items-center gap-1">
-                      <Info className="w-3 h-3" />
-                      Error processing request
-                    </div>
-                  )}
-                </div>
-
-                {msg.role === 'user' && (
-                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 mt-1">
-                    <User className="w-5 h-5 text-secondary-foreground" />
-                  </div>
-                )}
-              </div>
-            ))
+            <>
+              {messages.map((msg, idx) => (
+                <MessageBubble 
+                  key={idx} 
+                  message={msg} 
+                  isLast={idx === messages.length - 1} 
+                />
+              ))}
+              {isLoading && <LoadingBubble />}
+              <div ref={messagesEndRef} />
+            </>
           )}
-          {isLoading && (
-            <div className="flex gap-4 max-w-4xl mx-auto">
-               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1">
-                <Bot className="w-5 h-5 text-primary" />
-              </div>
-              <div className="bg-card border border-border rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Thinking...</span>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
         </div>
 
         {/* Input Area */}
-        <div className="p-4 border-t border-border bg-background/80 backdrop-blur-sm sticky bottom-0">
+        <div className="p-4 border-t border-border bg-background/80 backdrop-blur-sm sticky bottom-0 z-20">
           <div className="max-w-4xl mx-auto">
             <form onSubmit={handleSubmit} className="relative flex items-end gap-2 bg-card border border-border rounded-xl p-2 focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all shadow-sm">
               <button 
@@ -326,21 +285,21 @@ export default function Home() {
                   }
                 }}
                 placeholder="Type your message..."
-                className="flex-1 bg-transparent border-0 focus:ring-0 resize-none max-h-32 py-2 text-sm"
+                className="flex-1 bg-transparent border-0 focus:ring-0 resize-none max-h-32 py-2 text-sm placeholder:text-muted-foreground/50"
                 rows={1}
-                style={{ minHeight: '40px' }}
+                style={{ minHeight: '44px' }}
               />
 
               <button
                 type="submit"
                 disabled={!input.trim() || isLoading}
-                className="p-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="p-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
               >
                 <Send className="w-5 h-5" />
               </button>
             </form>
-            <div className="text-center text-xs text-muted-foreground mt-2">
-              Gemini CLI GUI • Powered by Next.js & Tailwind v4
+            <div className="text-center text-[10px] text-muted-foreground mt-2 opacity-70">
+              Gemini CLI GUI • Powered by Next.js & Tailwind v4 • {settings.model}
             </div>
           </div>
         </div>
