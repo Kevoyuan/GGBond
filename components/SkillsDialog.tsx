@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Plug, AlertCircle, Loader2, Play, Pause, Trash, Plus, Download } from 'lucide-react';
+import { X, Plug, AlertCircle, Loader2, Play, Pause, Trash, Plus, Download, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skill } from '@/app/api/skills/route';
 
@@ -15,6 +15,12 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
   const [processing, setProcessing] = useState<string | null>(null);
   const [showInstall, setShowInstall] = useState(false);
   const [installSource, setInstallSource] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredSkills = skills.filter(skill => 
+    skill.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (skill.description && skill.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   useEffect(() => {
     if (open) {
@@ -148,6 +154,22 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
           </div>
         )}
 
+        {/* Search Bar */}
+        {!loading && !error && skills.length > 0 && (
+          <div className="px-4 py-3 border-b bg-muted/5">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search skills..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-sm rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
@@ -172,9 +194,14 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
               <p>No skills discovered.</p>
               <p className="text-xs opacity-70">Use <code>gemini skills install</code> via CLI to add skills.</p>
             </div>
+          ) : filteredSkills.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
+              <Search className="w-8 h-8 opacity-20" />
+              <p>No skills match "{searchQuery}"</p>
+            </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {skills.map((skill) => (
+              {filteredSkills.map((skill) => (
                 <div 
                   key={skill.name}
                   className={cn(

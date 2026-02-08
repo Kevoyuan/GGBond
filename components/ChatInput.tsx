@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Image as ImageIcon, AtSign, Slash, Command, Sparkles } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, AtSign, Slash, Command, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ChatInputProps {
@@ -14,7 +14,7 @@ interface CommandItem {
 }
 
 const BASE_COMMANDS: CommandItem[] = [
-  { command: '/skills', description: 'Manage agent skills', icon: Command },
+  { command: '/skill', description: 'Use an installed skill', icon: Sparkles },
   { command: '/clear', description: 'Clear conversation history', icon: Slash },
 ];
 
@@ -24,6 +24,7 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filteredCommands, setFilteredCommands] = useState<CommandItem[]>(BASE_COMMANDS);
   const [installedSkills, setInstalledSkills] = useState<CommandItem[]>([]);
+  const [activeSkill, setActiveSkill] = useState<CommandItem | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -59,10 +60,7 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
     adjustHeight();
   }, [input]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setInput(value);
-    
+  const updateSuggestions = (value: string) => {
     // Show commands when input starts with /
     if (value.startsWith('/')) {
         const trimmed = value.trim();
@@ -80,6 +78,12 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
                  setShowCommands(true);
                  setSelectedIndex(0);
                  return;
+             } else if (search === '' && installedSkills.length > 0) {
+                 // Show all skills if just "/skill " and we have skills
+                 setFilteredCommands(installedSkills);
+                 setShowCommands(true);
+                 setSelectedIndex(0);
+                 return;
              }
         }
         
@@ -87,7 +91,7 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
         if (!value.includes(' ')) {
             const search = value.toLowerCase();
             const matches = BASE_COMMANDS.filter(c => c.command.toLowerCase().startsWith(search));
-            // Add a generic "/skill" hint if not present and input matches partial
+            
             if (matches.length > 0) {
                 setFilteredCommands(matches);
                 setShowCommands(true);
@@ -101,6 +105,12 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
     } else {
       setShowCommands(false);
     }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setInput(value);
+    updateSuggestions(value);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -118,9 +128,7 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
         const cmd = filteredCommands[selectedIndex];
-        // If it's a skill command, we might want to just set it and let user type more or send
-        setInput(cmd.command + (cmd.command.startsWith('/skill ') ? '' : ' '));
-        setShowCommands(false);
+        handleCommandSelect(cmd.command);
         return;
       }
       if (e.key === 'Escape') {
@@ -132,19 +140,50 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+      return;
+    }
+
+    // Handle removing active skill with Backspace
+    if (e.key === 'Backspace' && input === '' && activeSkill) {
+      e.preventDefault();
+      setActiveSkill(null);
     }
   };
 
   const handleCommandSelect = (cmd: string) => {
-    setInput(cmd + (cmd.startsWith('/skill ') ? '' : ' '));
-    setShowCommands(false);
+    // If it's a skill command, set it as active badge
+    if (cmd.startsWith('/skill ')) {
+      const skillName = cmd.replace('/skill ', '');
+      const skillCmd = installedSkills.find(s => s.command === cmd) || {
+        command: cmd,
+        description: 'Selected skill',
+        icon: Sparkles
+      };
+      
+      setActiveSkill(skillCmd);
+      setInput('');
+      setShowCommands(false);
+      textareaRef.current?.focus();
+      return;
+    }
+
+    const newValue = cmd + (cmd.startsWith('/skill') ? ' ' : ' ');
+    setInput(newValue);
     textareaRef.current?.focus();
+    updateSuggestions(newValue);
   };
 
   const handleSend = () => {
-    if (!input.trim() || isLoading) return;
-    onSend(input);
+    if ((!input.trim() && !activeSkill) || isLoading) return;
+    
+    let finalMessage = input;
+    if (activeSkill) {
+        finalMessage = `${activeSkill.command} ${input}`;
+    }
+    
+    onSend(finalMessage);
     setInput('');
+    setActiveSkill(null);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -155,9 +194,9 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
       <div className="max-w-3xl mx-auto relative">
         {/* Command Suggestions */}
         {showCommands && (
-          <div className="absolute bottom-full left-0 mb-2 w-64 bg-popover border rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50">
-            <div className="p-1">
-              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-b mb-1">
+          <div className="absolute bottom-full left-0 mb-2 w-64 bg-card border rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50">
+            <div className="max-h-64 overflow-y-auto p-1">
+              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-b mb-1 sticky top-0 bg-card z-10">
                 Commands
               </div>
               {filteredCommands.map((cmd, index) => (
@@ -189,12 +228,26 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
           "relative flex flex-col gap-2 p-2 rounded-xl border bg-muted/20 transition-all duration-200",
           "focus-within:bg-background focus-within:ring-1 focus-within:ring-primary/20 focus-within:border-primary/30"
         )}>
+          {activeSkill && (
+            <div className="flex items-center gap-2 px-2 pt-2 animate-in fade-in slide-in-from-bottom-1">
+               <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 text-sm font-medium">
+                 <Sparkles className="w-3.5 h-3.5" />
+                 <span>{activeSkill.command.replace('/skill ', '')}</span>
+                 <button 
+                    onClick={() => setActiveSkill(null)}
+                    className="ml-1 p-0.5 hover:bg-primary/10 rounded-full transition-colors"
+                 >
+                   <X className="w-3 h-3" />
+                 </button>
+               </div>
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Ask anything... (@ to mention)"
+            placeholder={activeSkill ? "Type your message..." : "Ask anything... (@ to mention)"}
             className="w-full bg-transparent border-none focus:outline-none resize-none min-h-[40px] max-h-[200px] text-sm leading-relaxed px-2 py-1"
             rows={1}
           />
