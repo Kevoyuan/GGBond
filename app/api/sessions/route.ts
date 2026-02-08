@@ -11,7 +11,7 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST() {
     // Maybe allow creating a session explicitly?
     // For now, sessions are created via chat
     return NextResponse.json({ message: 'Use /api/chat to create a session' }, { status: 405 });

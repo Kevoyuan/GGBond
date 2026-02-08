@@ -16,6 +16,7 @@ export async function GET(
     const messages = db.prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC').all(id);
     
     // Parse stats JSON
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const parsedMessages = messages.map((msg: any) => ({
       ...msg,
       stats: msg.stats ? JSON.parse(msg.stats) : undefined

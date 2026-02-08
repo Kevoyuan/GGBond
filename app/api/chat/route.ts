@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { spawn, execSync } from 'child_process';
-import path from 'path';
-import fs from 'fs';
+import { spawn } from 'child_process';
 import db from '@/lib/db';
+import { getGeminiPath, getGeminiEnv } from '@/lib/gemini-utils';
 
 export async function POST(req: Request) {
   try {
@@ -15,8 +14,7 @@ export async function POST(req: Request) {
     // Resolve gemini executable path
     let geminiScriptPath = '';
     try {
-      const geminiBin = execSync('which gemini').toString().trim();
-      geminiScriptPath = fs.realpathSync(geminiBin);
+      geminiScriptPath = getGeminiPath();
     } catch {
       console.error('Failed to find gemini executable');
       return NextResponse.json({ error: 'Gemini CLI not found' }, { status: 500 });
@@ -42,21 +40,16 @@ export async function POST(req: Request) {
       args.push('--resume', sessionId);
     }
 
-    // Set HOME to local gemini-home to isolate config and history
-    const localHome = path.join(process.cwd(), 'gemini-home');
+    // Get environment variables with keychain bypass
+    const env = getGeminiEnv();
     
-    console.log('Running gemini with HOME:', localHome);
+    console.log('Running gemini with HOME:', env.HOME);
     console.log('Script path:', geminiScriptPath);
 
     return new Promise<NextResponse>((resolve) => {
       // Spawn 'node' directly with the script
       const gemini = spawn(process.execPath, args, {
-        env: { 
-          ...process.env, 
-          HOME: localHome, 
-          TERM: 'dumb',
-          GEMINI_FORCE_FILE_STORAGE: 'true' // Disable keychain usage to prevent popups
-        }
+        env
       });
       
       let stdout = '';
@@ -73,7 +66,7 @@ export async function POST(req: Request) {
       gemini.on('close', (code) => {
         console.log('Gemini exited with code:', code);
         
-        let responseData: any = null;
+        let responseData: unknown = null;
         let finalSessionId = sessionId;
 
         // Try to parse JSON output
@@ -84,8 +77,9 @@ export async function POST(req: Request) {
           if (jsonStart !== -1 && jsonEnd !== -1) {
             const jsonStr = stdout.substring(jsonStart, jsonEnd + 1);
             responseData = JSON.parse(jsonStr);
-            if (responseData.session_id) {
-              finalSessionId = responseData.session_id;
+            if (responseData && typeof responseData === 'object' && 'session_id' in responseData) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              finalSessionId = (responseData as any).session_id;
             }
           }
         } catch (e) {
@@ -124,9 +118,11 @@ export async function POST(req: Request) {
             );
 
             // Insert Model Response
-            if (responseData) {
-              const content = responseData.response || responseData.content || JSON.stringify(responseData);
-              const stats = responseData.stats ? JSON.stringify(responseData.stats) : null;
+            if (responseData && typeof responseData === 'object') {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const typedResponse = responseData as any;
+              const content = typedResponse.response || typedResponse.content || JSON.stringify(responseData);
+              const stats = typedResponse.stats ? JSON.stringify(typedResponse.stats) : null;
               
               db.prepare('INSERT INTO messages (session_id, role, content, stats, created_at) VALUES (?, ?, ?, ?, ?)').run(
                 finalSessionId,

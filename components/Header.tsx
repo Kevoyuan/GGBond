@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronDown, Code2, MessageSquare, Zap, ChevronRight, ArrowLeft } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronDown, Code2, Zap, ChevronRight, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {

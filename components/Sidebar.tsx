@@ -9,10 +9,7 @@ import {
   FolderOpen,
   Box,
   Search,
-  FileText,
-  ChevronRight,
-  ChevronDown,
-  MoreHorizontal
+  Plug
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +25,7 @@ interface SidebarProps {
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
   onNewChat: () => void;
+  onOpenSkills: () => void;
   isDark: boolean;
   toggleTheme: () => void;
 }
@@ -40,6 +38,7 @@ export function Sidebar({
   onSelectSession, 
   onDeleteSession, 
   onNewChat,
+  onOpenSkills,
   isDark,
   toggleTheme
 }: SidebarProps) {
@@ -117,6 +116,13 @@ export function Sidebar({
             onClick={() => setActiveView('files')}
             icon={FolderOpen}
             label="Files"
+          />
+
+          <NavButton 
+            active={false} 
+            onClick={onOpenSkills}
+            icon={Plug}
+            label="Skills"
           />
         </div>
 
@@ -219,7 +225,7 @@ export function Sidebar({
   );
 }
 
-function NavButton({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: any; label: string }) {
+function NavButton({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: React.ElementType; label: string }) {
   return (
     <button 
       onClick={onClick}
