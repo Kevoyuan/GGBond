@@ -1,12 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2 } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getModelInfo } from '@/lib/pricing';
+import { AnimatePresence, motion } from 'framer-motion';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
   isLoading: boolean;
   currentModel: string;
   onModelChange: (model: string) => void;
+  sessionStats?: {
+    totalTokens: number;
+    [key: string]: any;
+  };
 }
 
 interface CommandItem {
@@ -30,7 +36,7 @@ const MODELS = [
   { id: 'gemini-2.5-flash-lite', name: '2.5 Flash Lite', icon: Zap },
 ];
 
-export function ChatInput({ onSend, isLoading, currentModel, onModelChange }: ChatInputProps) {
+export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [showModelMenu, setShowModelMenu] = useState(false);
@@ -40,6 +46,37 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange }: Ch
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const commandListRef = useRef<HTMLDivElement>(null);
   const [cursorPosition, setCursorPosition] = useState(0);
+  const [showContextTooltip, setShowContextTooltip] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
+
+  // Calculate context usage
+  const { pricing } = getModelInfo(currentModel);
+  const contextLimit = pricing.contextWindow;
+  const totalTokens = sessionStats?.totalTokens || 0;
+  const contextPercent = Math.min((totalTokens / contextLimit) * 100, 100);
+  
+  // Ring calculations
+  const radius = 7;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (contextPercent / 100) * circumference;
+
+  const handleCompress = async () => {
+    setIsCompressing(true);
+    try {
+      // Simulate compression since CLI doesn't expose it directly yet
+      // In a real implementation, this would call an endpoint that summarizes history
+      // For now we'll just send a "system" style message to the user prompting them
+      // or actually trigger a summarization prompt to the model.
+      
+      // Let's implement a client-side trigger that sends a summarization request
+      onSend("Please summarize our conversation so far to reduce context usage while retaining key technical details and decisions.");
+      setShowContextTooltip(false);
+    } catch (error) {
+      console.error('Compression failed:', error);
+    } finally {
+      setIsCompressing(false);
+    }
+  };
 
   // Helper to get current word bounds
   const getCursorWordBounds = (text: string, index: number) => {
@@ -310,10 +347,103 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange }: Ch
                 <ImageIcon className="w-4 h-4" />
               </button>
               
-              <button className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors hidden sm:flex">
-                <AtSign className="w-3.5 h-3.5" />
-                <span>Context</span>
-              </button>
+              <div 
+                className="relative flex items-center gap-1.5"
+                onMouseEnter={() => setShowContextTooltip(true)}
+                onMouseLeave={() => setShowContextTooltip(false)}
+              >
+                <button
+                  className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors hidden sm:flex group"
+                >
+                  <div className="relative w-4 h-4 flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90">
+                      <circle
+                        cx="8"
+                        cy="8"
+                        r={radius}
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        fill="transparent"
+                        className="text-muted/20"
+                      />
+                      <circle
+                        cx="8"
+                        cy="8"
+                        r={radius}
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        fill="transparent"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={strokeDashoffset}
+                        strokeLinecap="round"
+                        className={cn(
+                          "transition-all duration-500",
+                          contextPercent > 90 ? "text-red-500" : 
+                          contextPercent > 75 ? "text-yellow-500" : 
+                          "text-primary"
+                        )}
+                      />
+                    </svg>
+                  </div>
+                  <span>{contextPercent.toFixed(0)}%</span>
+                </button>
+
+                <AnimatePresence>
+                  {showContextTooltip && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-64 p-3 rounded-xl bg-[#1e1e1e] border border-white/10 shadow-2xl z-50 text-white"
+                    >
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs font-medium text-gray-400">Context Usage</span>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-lg font-semibold tracking-tight">
+                              {contextPercent.toFixed(0)}%
+                            </span>
+                            <span className="text-xs text-gray-500 font-mono">
+                              of {(contextLimit / 1000).toFixed(0)}K
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-gray-600 font-mono mt-0.5">
+                            {totalTokens.toLocaleString()} tokens used
+                          </div>
+                        </div>
+
+                        <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                          <div 
+                            className={cn(
+                              "h-full rounded-full transition-all duration-500",
+                              contextPercent > 90 ? "bg-red-500" : 
+                              contextPercent > 75 ? "bg-yellow-500" : 
+                              "bg-blue-500"
+                            )}
+                            style={{ width: `${contextPercent}%` }}
+                          />
+                        </div>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCompress();
+                          }}
+                          disabled={isCompressing}
+                          className="w-full flex items-center justify-center gap-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 transition-colors text-xs font-medium text-gray-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <RefreshCw className={cn("w-3.5 h-3.5", isCompressing && "animate-spin")} />
+                          {isCompressing ? "Compressing..." : "Compress Context"}
+                        </button>
+                      </div>
+                      
+                      {/* Arrow */}
+                      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#1e1e1e] border-b border-r border-white/10 rotate-45" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
