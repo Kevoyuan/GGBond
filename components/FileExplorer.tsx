@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Folder, 
-  File, 
-  ChevronRight, 
-  ChevronDown, 
+import {
+  Folder,
+  File,
+  ChevronRight,
+  ChevronDown,
   Loader2,
   FileCode,
   FileJson,
@@ -24,9 +24,10 @@ interface FileEntry {
 interface FileExplorerProps {
   initialPath?: string;
   onFileSelect?: (file: FileEntry) => void;
+  className?: string;
 }
 
-export function FileExplorer({ initialPath, onFileSelect }: FileExplorerProps) {
+export function FileExplorer({ initialPath, onFileSelect, className }: FileExplorerProps) {
   const [currentPath, setCurrentPath] = useState<string>('');
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,10 +39,10 @@ export function FileExplorer({ initialPath, onFileSelect }: FileExplorerProps) {
     try {
       const params = new URLSearchParams();
       if (path) params.append('path', path);
-      
+
       const res = await fetch(`/api/files?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load files');
-      
+
       const data = await res.json();
       setFiles(data.files);
       setCurrentPath(data.path);
@@ -54,7 +55,8 @@ export function FileExplorer({ initialPath, onFileSelect }: FileExplorerProps) {
   };
 
   useEffect(() => {
-    loadFiles(initialPath);
+    loadFiles(initialPath || undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPath]);
 
   const handleEntryClick = (entry: FileEntry) => {
@@ -78,7 +80,7 @@ export function FileExplorer({ initialPath, onFileSelect }: FileExplorerProps) {
 
   const getFileIcon = (entry: FileEntry) => {
     if (entry.type === 'directory') return <Folder className="w-4 h-4 text-blue-400" />;
-    
+
     switch (entry.extension) {
       case '.ts':
       case '.tsx':
@@ -100,17 +102,17 @@ export function FileExplorer({ initialPath, onFileSelect }: FileExplorerProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-muted/5">
+    <div className={cn("flex flex-col h-full bg-muted/5", className)}>
       {/* Header / Breadcrumbs */}
       <div className="p-3 border-b bg-card/50 flex items-center gap-2">
-        <button 
-          onClick={() => loadFiles(undefined)} // Go to root/home
+        <button
+          onClick={() => loadFiles(initialPath || undefined)} // Go to workspace root
           className="p-1.5 hover:bg-accent rounded-md text-muted-foreground hover:text-foreground transition-colors"
           title="Go to Home"
         >
           <Home className="w-4 h-4" />
         </button>
-        <button 
+        <button
           onClick={navigateUp}
           className="p-1.5 hover:bg-accent rounded-md text-muted-foreground hover:text-foreground transition-colors"
           title="Go Up"
@@ -118,7 +120,7 @@ export function FileExplorer({ initialPath, onFileSelect }: FileExplorerProps) {
           <ArrowUp className="w-4 h-4" />
         </button>
         <div className="text-xs text-muted-foreground truncate flex-1 font-mono direction-rtl">
-            {currentPath}
+          {currentPath}
         </div>
       </div>
 

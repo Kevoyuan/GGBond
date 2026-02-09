@@ -16,8 +16,8 @@ export async function POST(req: Request) {
       try {
         const result = db.prepare('SELECT COUNT(*) as count FROM messages WHERE session_id = ? AND role = ?').get(sessionId, 'user') as { count: number };
         if (result && result.count >= modelSettings.maxSessionTurns) {
-          return NextResponse.json({ 
-            error: `Session turn limit reached (${modelSettings.maxSessionTurns} turns). Please start a new chat.` 
+          return NextResponse.json({
+            error: `Session turn limit reached (${modelSettings.maxSessionTurns} turns). Please start a new chat.`
           }, { status: 403 });
         }
       } catch (e) {
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
 
     // Construct arguments
     const args = [geminiScriptPath, '--output-format', 'stream-json'];
-    
+
     // Add model if provided
     if (model) {
       args.push('--model', model);
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
 
     // Get environment variables with keychain bypass
     const env = getGeminiEnv();
-    
+
     console.log('Running gemini with HOME:', env.HOME || process.env.HOME);
     console.log('Script path:', geminiScriptPath);
 
@@ -69,8 +69,12 @@ export async function POST(req: Request) {
 
     const stream = new ReadableStream({
       start(controller) {
-        const gemini = spawn(process.execPath, args, { env });
-        
+        const spawnOptions: { env: typeof env; cwd?: string } = { env };
+        if (workspace) {
+          spawnOptions.cwd = workspace;
+        }
+        const gemini = spawn(process.execPath, args, spawnOptions);
+
         let lineBuffer = '';
 
         gemini.stdout.on('data', (data: Buffer) => {
@@ -92,12 +96,12 @@ export async function POST(req: Request) {
               if (parsed.type === 'init') {
                 if (parsed.session_id) detectedSessionId = parsed.session_id;
                 if (parsed.model) detectedModel = parsed.model;
-                
+
                 if (detectedSessionId) {
                   try {
                     const now = Date.now();
                     const existingSession = db.prepare('SELECT id FROM sessions WHERE id = ?').get(detectedSessionId);
-                    
+
                     if (!existingSession) {
                       const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
                       db.prepare(`
@@ -139,7 +143,7 @@ export async function POST(req: Request) {
                 try {
                   const now = Date.now();
                   if (detectedSessionId) {
-                     db.prepare('INSERT INTO messages (session_id, role, content, stats, created_at) VALUES (?, ?, ?, ?, ?)').run(
+                    db.prepare('INSERT INTO messages (session_id, role, content, stats, created_at) VALUES (?, ?, ?, ?, ?)').run(
                       detectedSessionId,
                       'model',
                       fullResponseContent,
@@ -148,7 +152,7 @@ export async function POST(req: Request) {
                     );
                   }
                 } catch (dbErr) {
-                   console.error('DB Error on result:', dbErr);
+                  console.error('DB Error on result:', dbErr);
                 }
               }
 
@@ -159,12 +163,12 @@ export async function POST(req: Request) {
         });
 
         gemini.stderr.on('data', (data) => {
-           console.error('Gemini stderr:', data.toString());
+          console.error('Gemini stderr:', data.toString());
         });
 
         gemini.on('close', (code) => {
           if (code !== 0) {
-             console.error('Gemini exited with code', code);
+            console.error('Gemini exited with code', code);
           }
           controller.close();
         });
