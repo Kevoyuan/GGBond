@@ -57,9 +57,6 @@ export async function POST(req: Request) {
     // Get environment variables with keychain bypass
     const env = getGeminiEnv();
     
-    console.log('Running gemini with HOME:', env.HOME || process.env.HOME);
-    console.log('Script path:', geminiScriptPath);
-
     const encoder = new TextEncoder();
     let fullResponseContent = '';
     let finalStats: any = null;
