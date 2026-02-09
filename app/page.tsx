@@ -67,6 +67,18 @@ export default function Home() {
     }, { inputTokens: 0, outputTokens: 0, totalTokens: 0, totalCost: 0 });
   }, [messages]);
 
+  const currentContextUsage = useMemo(() => {
+    if (messages.length === 0) return 0;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const stats = messages[i].stats;
+      if (stats) {
+        return (stats.totalTokenCount || stats.total_tokens || 
+               ((stats.inputTokenCount || stats.input_tokens || 0) + (stats.outputTokenCount || stats.output_tokens || 0)));
+      }
+    }
+    return 0;
+  }, [messages]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -397,6 +409,7 @@ export default function Home() {
           currentModel={settings.model}
           onModelChange={(model) => setSettings(s => ({ ...s, model }))}
           sessionStats={sessionStats}
+          currentContextUsage={currentContextUsage}
         />
       </div>
     </div>
