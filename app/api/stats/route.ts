@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import db from '@/lib/db';
 
 interface StatEntry {
   inputTokens: number;
@@ -57,8 +56,6 @@ const calculateCost = (model: string, input: number, output: number, cached: num
 };
 
 export async function GET() {
-  const logPath = join(process.cwd(), '.gemini', 'telemetry.log');
-  
   const stats: UsageStats = {
     daily: createEmptyStat(),
     weekly: createEmptyStat(),
@@ -66,34 +63,35 @@ export async function GET() {
     total: createEmptyStat(),
   };
 
-  if (!existsSync(logPath)) {
-    return NextResponse.json(stats);
-  }
-
   try {
-    const lines = readFileSync(logPath, 'utf-8').split('\n').filter(Boolean);
-    const apiResponses = lines
-      .map(l => { try { return JSON.parse(l); } catch { return null; } })
-      .filter(l => l && l.name === 'gemini_cli.api_response');
+    // Fetch all messages with stats
+    // We only care about 'model' messages that have stats
+    const messages = db.prepare(`
+      SELECT stats, created_at
+      FROM messages
+      WHERE role = ? AND stats IS NOT NULL
+    `).all('model') as { stats: string; created_at: number }[];
 
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).getTime();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
-    for (const event of apiResponses) {
-      // Try to find timestamp
-      let timestamp = Date.now(); // Default to now if missing (which shouldn't happen in good telemetry)
-      if (event.timestamp) timestamp = new Date(event.timestamp).getTime();
-      else if (event.time) timestamp = new Date(event.time).getTime();
-      else if (event.date) timestamp = new Date(event.date).getTime();
-      else if (event.attributes?.timestamp) timestamp = new Date(event.attributes.timestamp).getTime();
+    for (const row of messages) {
+      let parsedStats;
+      try {
+        parsedStats = JSON.parse(row.stats);
+      } catch {
+        continue; // Skip malformed JSON
+      }
+
+      const timestamp = row.created_at;
       
-      const model = event.attributes?.model || 'unknown';
-      const input = event.attributes?.input_token_count || 0;
-      const output = event.attributes?.output_token_count || 0;
-      const cached = event.attributes?.cached_content_token_count || 0;
-      const total = (event.attributes?.total_token_count || (input + output)); // Sometimes total is provided
+      const model = parsedStats.model || 'unknown';
+      const input = parsedStats.input_token_count || 0;
+      const output = parsedStats.output_token_count || 0;
+      const cached = parsedStats.cached_content_token_count || 0;
+      const total = parsedStats.total_token_count || (input + output);
       
       const cost = calculateCost(model, input, output, cached);
 
@@ -127,7 +125,7 @@ export async function GET() {
 
     return NextResponse.json(stats);
   } catch (error) {
-    console.error('Failed to parse telemetry:', error);
+    console.error('Failed to calculate stats:', error);
     // Return empty stats on error to avoid UI crash
     return NextResponse.json(stats);
   }
