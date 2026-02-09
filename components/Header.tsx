@@ -1,23 +1,51 @@
 import React from 'react';
+import { Zap, Coins } from 'lucide-react';
 
-export function Header() {
+interface HeaderProps {
+  stats?: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    totalCost: number;
+  };
+}
+
+export function Header({ stats }: HeaderProps) {
   return (
     <header className="h-14 border-b bg-card flex items-center justify-between px-4 shrink-0 z-20 relative">
       <div className="flex items-center gap-4">
         <span className="font-semibold text-lg tracking-tight">Gemini Chat</span>
       </div>
 
-      {/* Modes / Right Actions - Keeping these for now as placeholders or future use */}
-      <div className="flex items-center bg-muted/50 p-1 rounded-lg">
-        <button className="px-3 py-1 rounded-md bg-background shadow-sm text-xs font-medium text-foreground">
-          Code
-        </button>
-        <button className="px-3 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-          Plan
-        </button>
-        <button className="px-3 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-          Ask
-        </button>
+      <div className="flex items-center gap-4">
+        {stats && stats.totalTokens > 0 && (
+          <div className="flex items-center gap-3 text-xs text-muted-foreground bg-muted/30 px-3 py-1.5 rounded-full border border-border/40">
+            <div className="flex items-center gap-1.5" title="Total Tokens">
+              <Zap className="w-3.5 h-3.5" />
+              <span className="font-medium">{stats.totalTokens.toLocaleString()}</span>
+            </div>
+            
+            <span className="w-px h-3 bg-border" />
+            
+            <div className="flex items-center gap-1.5" title="Total Cost">
+              <Coins className="w-3.5 h-3.5" />
+              <span className="font-medium">${stats.totalCost.toFixed(4)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Modes / Right Actions */}
+        <div className="flex items-center bg-muted/50 p-1 rounded-lg">
+          <button className="px-3 py-1 rounded-md bg-background shadow-sm text-xs font-medium text-foreground">
+            Code
+          </button>
+          <button className="px-3 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+            Plan
+          </button>
+          <button className="px-3 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+            Ask
+          </button>
+        </div>
       </div>
     </header>
   );
