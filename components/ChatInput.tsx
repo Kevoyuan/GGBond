@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -14,6 +14,8 @@ interface ChatInputProps {
     [key: string]: any;
   };
   currentContextUsage?: number;
+  mode?: string;
+  onModeChange?: (mode: string) => void;
 }
 
 interface CommandItem {
@@ -52,6 +54,19 @@ const BASE_COMMANDS: CommandItem[] = [
   { command: '/theme', description: 'Change theme', icon: Palette, group: 'Built-in' },
 ];
 
+interface ModeOption {
+  value: string;
+  label: string;
+  icon: React.ElementType;
+  description: string;
+}
+
+const MODE_OPTIONS: ModeOption[] = [
+  { value: 'code', label: 'Code', icon: Code2, description: '读写文件 & 执行命令' },
+  { value: 'plan', label: 'Plan', icon: ClipboardList, description: '分析规划，不执行' },
+  { value: 'ask', label: 'Ask', icon: HelpCircle, description: '仅回答问题' },
+];
+
 const MODELS = [
   { id: 'auto-gemini-3', name: 'Gemini 3 Auto', icon: Zap },
   { id: 'auto-gemini-2.5', name: 'Gemini 2.5 Auto', icon: Zap },
@@ -62,18 +77,22 @@ const MODELS = [
   { id: 'gemini-2.5-flash-lite', name: '2.5 Flash Lite', icon: Zap },
 ];
 
-export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage }: ChatInputProps) {
+export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [showModelMenu, setShowModelMenu] = useState(false);
+  const [showModeMenu, setShowModeMenu] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filteredCommands, setFilteredCommands] = useState<CommandItem[]>(BASE_COMMANDS);
   const [installedSkills, setInstalledSkills] = useState<CommandItem[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const commandListRef = useRef<HTMLDivElement>(null);
+  const modeMenuRef = useRef<HTMLDivElement>(null);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [showContextTooltip, setShowContextTooltip] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
+
+  const currentMode = MODE_OPTIONS.find(m => m.value === mode) || MODE_OPTIONS[0];
 
   // Calculate context usage
   const { pricing } = getModelInfo(currentModel);
@@ -81,7 +100,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
   // Use currentContextUsage if available, otherwise fallback to sessionStats.totalTokens (legacy) or 0
   const usedTokens = currentContextUsage !== undefined ? currentContextUsage : (sessionStats?.totalTokens || 0);
   const contextPercent = Math.min((usedTokens / contextLimit) * 100, 100);
-  
+
   // Ring calculations
   const radius = 7;
   const circumference = 2 * Math.PI * radius;
@@ -104,11 +123,11 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
   const getCursorWordBounds = (text: string, index: number) => {
     let start = index;
     while (start > 0 && /\S/.test(text[start - 1])) {
-        start--;
+      start--;
     }
     let end = index;
     while (end < text.length && /\S/.test(text[end])) {
-        end++;
+      end++;
     }
     return { start, end, word: text.slice(start, end) };
   };
@@ -159,34 +178,34 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
 
   const updateSuggestions = (value: string, cursorIndex: number) => {
     const { word } = getCursorWordBounds(value, cursorIndex);
-    
+
     // Check if word starts with /
     if (word.startsWith('/')) {
-        const search = word.toLowerCase();
-        
-        // Combine base commands and skills
-        const allCommands = [...BASE_COMMANDS, ...installedSkills];
-        
-        const matches = allCommands.filter(c => 
-            c.command.toLowerCase().startsWith(search) || 
-            (word.length > 1 && c.description.toLowerCase().includes(search.replace(/^\//, '')))
-        );
-        
-        // Sort: Built-in first, then Skills
-        matches.sort((a, b) => {
-            if (a.group === b.group) return 0;
-            return a.group === 'Built-in' ? -1 : 1;
-        });
-        
-        if (matches.length > 0) {
-            setFilteredCommands(matches);
-            setShowCommands(true);
-            setSelectedIndex(0);
-        } else {
-            setShowCommands(false);
-        }
-    } else {
+      const search = word.toLowerCase();
+
+      // Combine base commands and skills
+      const allCommands = [...BASE_COMMANDS, ...installedSkills];
+
+      const matches = allCommands.filter(c =>
+        c.command.toLowerCase().startsWith(search) ||
+        (word.length > 1 && c.description.toLowerCase().includes(search.replace(/^\//, '')))
+      );
+
+      // Sort: Built-in first, then Skills
+      matches.sort((a, b) => {
+        if (a.group === b.group) return 0;
+        return a.group === 'Built-in' ? -1 : 1;
+      });
+
+      if (matches.length > 0) {
+        setFilteredCommands(matches);
+        setShowCommands(true);
+        setSelectedIndex(0);
+      } else {
         setShowCommands(false);
+      }
+    } else {
+      setShowCommands(false);
     }
   };
 
@@ -197,7 +216,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     setCursorPosition(newCursorPos);
     updateSuggestions(value, newCursorPos);
   };
-  
+
   const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
     const target = e.currentTarget;
     setCursorPosition(target.selectionStart);
@@ -239,28 +258,28 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     const { start, end } = getCursorWordBounds(input, cursorPosition);
     const before = input.slice(0, start);
     const after = input.slice(end);
-    
+
     const newValue = before + cmd + ' ' + after;
     setInput(newValue);
-    
+
     // Move cursor to end of inserted command
     const newCursorPos = start + cmd.length + 1;
-    
+
     setShowCommands(false);
-    
+
     // Use timeout to ensure state update has processed and DOM is ready
     setTimeout(() => {
-        if (textareaRef.current) {
-            textareaRef.current.focus();
-            textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
-            // Update suggestions based on new state? Probably not needed immediately
-        }
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        // Update suggestions based on new state? Probably not needed immediately
+      }
     }, 0);
   };
 
   const handleSend = () => {
     if (!input.trim() || isLoading) return;
-    
+
     onSend(input);
     setInput('');
     if (textareaRef.current) {
@@ -294,8 +313,8 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
                       onClick={() => handleCommandSelect(cmd.command)}
                       className={cn(
                         "w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors",
-                        index === selectedIndex 
-                          ? "bg-accent text-accent-foreground" 
+                        index === selectedIndex
+                          ? "bg-accent text-accent-foreground"
                           : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                       )}
                       onMouseEnter={() => setSelectedIndex(index)}
@@ -329,12 +348,12 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
             className="w-full bg-transparent border-none focus:outline-none resize-none min-h-[40px] max-h-[200px] text-sm leading-relaxed px-2 py-1"
             rows={1}
           />
-          
+
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-1 relative">
               {/* Model Selector */}
               <div className="relative">
-                <button 
+                <button
                   onClick={() => setShowModelMenu(!showModelMenu)}
                   className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors mr-1"
                   title="Select Model"
@@ -343,7 +362,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
                   <span>{getModelName(currentModel)}</span>
                   <ChevronDown className="w-3 h-3 opacity-50" />
                 </button>
-                
+
                 {showModelMenu && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowModelMenu(false)} />
@@ -357,8 +376,8 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
                           }}
                           className={cn(
                             "w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors",
-                            currentModel === model.id 
-                              ? "bg-accent text-accent-foreground" 
+                            currentModel === model.id
+                              ? "bg-accent text-accent-foreground"
                               : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                           )}
                         >
@@ -374,14 +393,62 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
 
               <div className="w-px h-4 bg-border mx-1" />
 
+              {/* Mode Selector */}
+              <div className="relative" ref={modeMenuRef}>
+                <button
+                  onClick={() => setShowModeMenu(!showModeMenu)}
+                  className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                  title={`Mode: ${currentMode.label}`}
+                >
+                  <currentMode.icon className="w-3.5 h-3.5" />
+                  <span>{currentMode.label}</span>
+                  <ChevronDown className={cn("w-3 h-3 opacity-50 transition-transform duration-200", showModeMenu && "rotate-180")} />
+                </button>
+
+                {showModeMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowModeMenu(false)} />
+                    <div className="absolute bottom-full left-0 mb-2 w-56 bg-background border rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50 py-1">
+                      {MODE_OPTIONS.map(opt => {
+                        const isActive = opt.value === mode;
+                        return (
+                          <button
+                            key={opt.value}
+                            onClick={() => {
+                              onModeChange?.(opt.value);
+                              setShowModeMenu(false);
+                            }}
+                            className={cn(
+                              "w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 transition-colors",
+                              isActive
+                                ? "bg-accent text-accent-foreground"
+                                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                            )}
+                          >
+                            <opt.icon className="w-4 h-4 shrink-0" />
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-medium">{opt.label}</span>
+                              <span className="text-[10px] opacity-70">{opt.description}</span>
+                            </div>
+                            {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="w-px h-4 bg-border mx-1" />
+
               <button className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors" title="Attach file">
                 <Paperclip className="w-4 h-4" />
               </button>
               <button className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors" title="Add Image">
                 <ImageIcon className="w-4 h-4" />
               </button>
-              
-              <div 
+
+              <div
                 className="relative flex items-center gap-1.5"
                 onMouseEnter={() => setShowContextTooltip(true)}
                 onMouseLeave={() => setShowContextTooltip(false)}
@@ -412,9 +479,9 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
                         strokeLinecap="round"
                         className={cn(
                           "transition-all duration-500",
-                          contextPercent > 90 ? "text-red-500" : 
-                          contextPercent > 75 ? "text-yellow-500" : 
-                          "text-primary"
+                          contextPercent > 90 ? "text-red-500" :
+                            contextPercent > 75 ? "text-yellow-500" :
+                              "text-primary"
                         )}
                       />
                     </svg>
@@ -448,12 +515,12 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
                         </div>
 
                         <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className={cn(
                               "h-full rounded-full transition-all duration-500",
-                              contextPercent > 90 ? "bg-red-500" : 
-                              contextPercent > 75 ? "bg-yellow-500" : 
-                              "bg-blue-500"
+                              contextPercent > 90 ? "bg-red-500" :
+                                contextPercent > 75 ? "bg-yellow-500" :
+                                  "bg-blue-500"
                             )}
                             style={{ width: `${contextPercent}%` }}
                           />
@@ -471,7 +538,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
                           {isCompressing ? "Compressing..." : "Compress Context"}
                         </button>
                       </div>
-                      
+
                       {/* Arrow */}
                       <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#1e1e1e] border-b border-r border-white/10 rotate-45" />
                     </motion.div>
@@ -481,16 +548,16 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
             </div>
 
             <div className="flex items-center gap-2">
-               <span className="text-[10px] text-muted-foreground hidden sm:inline-block">
-                 Cmd+Enter
-               </span>
-               <button
+              <span className="text-[10px] text-muted-foreground hidden sm:inline-block">
+                Cmd+Enter
+              </span>
+              <button
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
                 className={cn(
                   "p-1.5 rounded-md transition-all duration-200 flex items-center justify-center",
-                  input.trim() && !isLoading 
-                    ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm" 
+                  input.trim() && !isLoading
+                    ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
                     : "bg-muted text-muted-foreground cursor-not-allowed"
                 )}
               >

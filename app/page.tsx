@@ -52,6 +52,7 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showUsageStats, setShowUsageStats] = useState(false);
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
+  const [mode, setMode] = useState<'code' | 'plan' | 'ask'>('code');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -262,6 +263,7 @@ export default function Home() {
           systemInstruction: settings.systemInstruction,
           sessionId: currentSessionId,
           workspace: currentWorkspace,
+          mode,
           modelSettings: settings.modelSettings
         }),
       });
@@ -449,6 +451,8 @@ export default function Home() {
           onModelChange={(model) => setSettings(s => ({ ...s, model }))}
           sessionStats={sessionStats}
           currentContextUsage={currentContextUsage}
+          mode={mode}
+          onModeChange={(m) => setMode(m as 'code' | 'plan' | 'ask')}
         />
       </div>
     </div>
