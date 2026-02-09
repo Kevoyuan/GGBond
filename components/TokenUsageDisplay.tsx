@@ -22,12 +22,14 @@ interface TokenUsageDisplayProps {
 export function TokenUsageDisplay({ stats, compact = true, className }: TokenUsageDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(!compact);
 
-  // Safely extract values with defaults
-  const inputTokens = stats.inputTokenCount || 0;
-  const outputTokens = stats.outputTokenCount || 0;
-  const totalTokens = stats.totalTokenCount || (inputTokens + outputTokens);
+  // Safely extract values with defaults (handling both camelCase and snake_case)
+  const inputTokens = stats.inputTokenCount || stats.input_tokens || 0;
+  const outputTokens = stats.outputTokenCount || stats.output_tokens || 0;
+  const totalTokens = stats.totalTokenCount || stats.total_tokens || (inputTokens + outputTokens);
   const cost = stats.totalCost !== undefined ? `$${stats.totalCost.toFixed(6)}` : null;
-  const duration = stats.duration ? `${(stats.duration / 1000).toFixed(2)}s` : null;
+  const durationMs = stats.duration || stats.duration_ms;
+  const duration = durationMs ? `${(durationMs / 1000).toFixed(2)}s` : null;
+  const cachedTokens = stats.cachedContentTokenCount || stats.cached || 0;
   
   // Calculate percentages for the bar
   const inputPercent = totalTokens > 0 ? (inputTokens / totalTokens) * 100 : 0;
@@ -115,7 +117,7 @@ export function TokenUsageDisplay({ stats, compact = true, className }: TokenUsa
                 <div className="flex flex-col">
                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Cache</span>
                    <span className="text-xs font-medium">
-                     {stats.cachedContentTokenCount ? stats.cachedContentTokenCount.toLocaleString() : '0'}
+                     {cachedTokens.toLocaleString()}
                    </span>
                 </div>
               </div>

@@ -10,6 +10,7 @@ import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
 import { cn } from '@/lib/utils';
 
 import { ChatInput } from '../components/ChatInput';
+import { UsageStatsDialog } from '../components/UsageStatsDialog';
 
 interface Session {
   id: string;
@@ -36,6 +37,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showUsageStats, setShowUsageStats] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -44,9 +46,9 @@ export default function Home() {
   const sessionStats = useMemo(() => {
     return messages.reduce((acc, msg) => {
       if (msg.stats) {
-        acc.inputTokens += msg.stats.inputTokenCount || 0;
-        acc.outputTokens += msg.stats.outputTokenCount || 0;
-        acc.totalTokens += msg.stats.totalTokenCount || ((msg.stats.inputTokenCount || 0) + (msg.stats.outputTokenCount || 0));
+        acc.inputTokens += msg.stats.inputTokenCount || msg.stats.input_tokens || 0;
+        acc.outputTokens += msg.stats.outputTokenCount || msg.stats.output_tokens || 0;
+        acc.totalTokens += msg.stats.totalTokenCount || msg.stats.total_tokens || ((msg.stats.inputTokenCount || msg.stats.input_tokens || 0) + (msg.stats.outputTokenCount || msg.stats.output_tokens || 0));
         acc.totalCost += msg.stats.totalCost || 0;
       }
       return acc;
@@ -317,6 +319,7 @@ export default function Home() {
           onOpenSettings={() => setSettingsOpen(true)}
           isDark={theme === 'dark'}
           toggleTheme={toggleTheme}
+          onShowStats={() => setShowUsageStats(true)}
         />
       </div>
 
@@ -332,10 +335,15 @@ export default function Home() {
         onSave={handleSaveSettings}
       />
 
+      <UsageStatsDialog 
+        open={showUsageStats} 
+        onClose={() => setShowUsageStats(false)} 
+      />
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-background">
         {/* Header */}
-        <Header stats={sessionStats} />
+        <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} />
 
         {/* Chat Area */}
         <div className="flex-1 overflow-y-auto scroll-smooth relative" ref={scrollContainerRef}>
