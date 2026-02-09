@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Bot } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
@@ -40,6 +40,18 @@ export default function Home() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const sessionStats = useMemo(() => {
+    return messages.reduce((acc, msg) => {
+      if (msg.stats) {
+        acc.inputTokens += msg.stats.inputTokenCount || 0;
+        acc.outputTokens += msg.stats.outputTokenCount || 0;
+        acc.totalTokens += msg.stats.totalTokenCount || ((msg.stats.inputTokenCount || 0) + (msg.stats.outputTokenCount || 0));
+        acc.totalCost += msg.stats.totalCost || 0;
+      }
+      return acc;
+    }, { inputTokens: 0, outputTokens: 0, totalTokens: 0, totalCost: 0 });
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -247,6 +259,17 @@ export default function Home() {
                   return newMessages;
                });
             }
+
+            if (data.type === 'result' && data.stats) {
+               setMessages(prev => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg.role === 'model') {
+                     lastMsg.stats = data.stats;
+                  }
+                  return newMessages;
+               });
+            }
           } catch (e) {
              console.error('JSON parse error', e);
           }
@@ -312,7 +335,7 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-background">
         {/* Header */}
-        <Header />
+        <Header stats={sessionStats} />
 
         {/* Chat Area */}
         <div className="flex-1 overflow-y-auto scroll-smooth relative" ref={scrollContainerRef}>

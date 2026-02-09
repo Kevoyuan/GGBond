@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useState } from 'react';
+import { TokenUsageDisplay } from './TokenUsageDisplay';
 
 export interface Message {
   role: 'user' | 'model';
@@ -20,7 +21,6 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message }: MessageBubbleProps) {
-  const [expandedStats, setExpandedStats] = useState(false);
   const isUser = message.role === 'user';
 
   return (
@@ -78,26 +78,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           )}
         </div>
 
-        {!isUser && (message.stats || message.sessionId) && (
-          <div className="mt-2 ml-1 flex items-center gap-2">
-            <button 
-              onClick={() => setExpandedStats(!expandedStats)}
-              className="text-[10px] text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors uppercase tracking-wider font-medium opacity-60 hover:opacity-100"
-            >
-              <Info className="w-3 h-3" />
-              {expandedStats ? 'Hide Details' : 'Details'}
-            </button>
-            
-            {expandedStats && (
-              <div className="absolute mt-6 p-3 bg-popover rounded-md text-xs font-mono shadow-lg border border-border z-10 animate-fade-in min-w-[200px]">
-                {message.sessionId && (
-                  <div className="mb-2 pb-2 border-b border-border/50">
-                    <span className="font-semibold text-muted-foreground">ID:</span> {message.sessionId}
-                  </div>
-                )}
-                {message.stats && <pre>{JSON.stringify(message.stats, null, 2)}</pre>}
-              </div>
-            )}
+        {!isUser && message.stats && (
+          <div className="mt-1 ml-1">
+            <TokenUsageDisplay stats={message.stats} />
           </div>
         )}
         
