@@ -98,3 +98,20 @@ export interface HooksData {
   notifications: boolean;
   hooks: Hook[];
 }
+
+export interface ChatSettings {
+  model: string;
+  systemInstruction: string;
+  ui: {
+    footer: {
+      hideModelInfo: boolean;
+      hideContextPercentage: boolean;
+    };
+    showMemoryUsage: boolean;
+  };
+  modelSettings: {
+    compressionThreshold: number;
+    maxSessionTurns: number;
+    tokenBudget: number;
+  };
+}

@@ -103,7 +103,7 @@ export function StateSnapshotDisplay({ content }: StateSnapshotDisplayProps) {
   );
 }
 
-function Section({ icon: Icon, title, content, color }: { icon: any, title: string, content: string | null, color: string }) {
+function Section({ icon: Icon, title, content, color }: { icon: React.ElementType, title: string, content: string | null, color: string }) {
   if (!content) return null;
   return (
     <div className="space-y-2">

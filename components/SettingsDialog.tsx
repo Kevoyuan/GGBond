@@ -1,23 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Settings, Save, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-export interface ChatSettings {
-  model: string;
-  systemInstruction: string;
-  ui: {
-    footer: {
-      hideModelInfo: boolean;
-      hideContextPercentage: boolean;
-    };
-    showMemoryUsage: boolean;
-  };
-  modelSettings: {
-    compressionThreshold: number;
-    maxSessionTurns: number;
-    tokenBudget: number;
-  };
-}
+import { ChatSettings } from '@/lib/types/gemini';
 
 interface SettingsDialogProps {
   open: boolean;
@@ -40,6 +24,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
   const [localSettings, setLocalSettings] = useState<ChatSettings>(settings);
 
   useEffect(() => {
+    if (!open) return;
     // Merge provided settings with defaults to ensure all fields exist
     setLocalSettings({
       ...settings,
@@ -56,7 +41,10 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
         tokenBudget: settings.modelSettings?.tokenBudget ?? 2000,
       }
     });
-  }, [settings, open]);
+    // We only want to reset when the dialog opens or settings change.
+    // Using JSON.stringify to avoid infinite loops if the settings object is recreated on every render but has the same values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, JSON.stringify(settings)]);
 
   const handleSave = () => {
     onSave(localSettings);

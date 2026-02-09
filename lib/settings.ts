@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
@@ -20,33 +20,37 @@ export async function readSettingsJson(scope: 'user' | 'project' = 'user') {
 }
 
 export async function writeSettingsJson(
-  settings: Record<string, any>,
+  settings: Record<string, unknown>,
   scope: 'user' | 'project' = 'user'
 ) {
   const path = getSettingsPath(scope);
   // Ensure directory exists
   const dir = scope === 'project' ? join(process.cwd(), '.gemini') : join(homedir(), '.gemini');
   if (!existsSync(dir)) {
-    const fs = require('fs');
-    fs.mkdirSync(dir, { recursive: true });
+    mkdirSync(dir, { recursive: true });
   }
   writeFileSync(path, JSON.stringify(settings, null, 2), 'utf-8');
 }
 
-function deepMerge(target: any, source: any): any {
+function deepMerge(target: unknown, source: unknown): unknown {
   if (typeof target !== 'object' || target === null) return source;
   if (typeof source !== 'object' || source === null) return source;
 
-  const output = { ...target };
-  Object.keys(source).forEach(key => {
-    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
-      if (key in target) {
-        output[key] = deepMerge(target[key], source[key]);
+  const t = target as Record<string, unknown>;
+  const s = source as Record<string, unknown>;
+
+  const output = { ...t };
+  Object.keys(s).forEach(key => {
+    const sVal = s[key];
+    const tVal = t[key];
+    if (sVal && typeof sVal === 'object' && !Array.isArray(sVal)) {
+      if (key in t) {
+        output[key] = deepMerge(tVal, sVal);
       } else {
-        output[key] = source[key];
+        output[key] = sVal;
       }
     } else {
-      output[key] = source[key];
+      output[key] = sVal;
     }
   });
   return output;

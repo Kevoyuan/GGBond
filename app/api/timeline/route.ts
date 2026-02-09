@@ -4,7 +4,8 @@ import { Checkpoint } from '@/lib/types/gemini';
 
 export async function GET() {
   try {
-    const data = await runGeminiCommand('/chat list');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await runGeminiCommand('/chat list') as any;
     
     // Transform CLI output to Checkpoint[]
     let checkpoints: Checkpoint[] = [];

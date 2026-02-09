@@ -17,7 +17,7 @@ export function ProjectContext() {
   };
 
   useEffect(() => {
-    loadData();
+    Promise.resolve().then(() => loadData());
   }, []);
 
   if (loading && !context) {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ModuleCard } from './ModuleCard';
 import { Settings, Palette, Command, Info, ToggleLeft, ToggleRight, User } from 'lucide-react';
 import { fetchSettings, updateSettings } from '@/lib/api/gemini';
+import { ChatSettings } from '@/lib/types/gemini';
 
 export function AuthManager() {
   // Static for now as auth is not fully exposed in CLI API
@@ -32,7 +33,7 @@ export function AuthManager() {
 }
 
 export function SettingsManager() {
-  const [settings, setSettings] = useState<any>(null);
+  const [settings, setSettings] = useState<ChatSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -49,7 +50,8 @@ export function SettingsManager() {
     const newSettings = JSON.parse(JSON.stringify(settings));
     
     // Navigate and set value
-    let current = newSettings;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let current: any = newSettings;
     for (let i = 0; i < path.length - 1; i++) {
       if (!current[path[i]]) current[path[i]] = {};
       current = current[path[i]];

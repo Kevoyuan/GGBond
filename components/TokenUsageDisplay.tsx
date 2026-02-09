@@ -11,7 +11,13 @@ interface TokenStats {
   totalCost?: number;
   duration?: number;
   model?: string;
-  [key: string]: any;
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  duration_ms?: number;
+  cached?: number;
+  cachedContentTokenCount?: number;
+  [key: string]: unknown;
 }
 
 interface TokenUsageDisplayProps {

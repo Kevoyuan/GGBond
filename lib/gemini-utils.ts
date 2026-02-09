@@ -19,7 +19,7 @@ export function getGeminiEnv(): NodeJS.ProcessEnv {
   };
 }
 
-export async function runGeminiCommand(prompt: string, args: string[] = []): Promise<any> {
+export async function runGeminiCommand(prompt: string, args: string[] = []): Promise<unknown> {
   const geminiPath = getGeminiPath();
   const env = getGeminiEnv();
   

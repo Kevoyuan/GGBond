@@ -7,7 +7,7 @@ export async function GET() {
   
   // 将 hooks 转为前端友好的格式
   const hooks = Object.entries(settings.hooks || {}).map(
-    ([name, configs]: [string, any]) => ({
+    ([name, configs]: [string, unknown]) => ({
       name,
       configs: Array.isArray(configs) ? configs : [],
       enabled: !disabledList.includes(name),

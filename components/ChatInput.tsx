@@ -11,7 +11,7 @@ interface ChatInputProps {
   onModelChange: (model: string) => void;
   sessionStats?: {
     totalTokens: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   currentContextUsage?: number;
 }
@@ -129,8 +129,12 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
       try {
         const res = await fetch('/api/skills');
         if (res.ok) {
-          const skills = await res.json();
-          const skillCommands = skills.map((skill: any) => ({
+          interface Skill {
+            name: string;
+            description?: string;
+          }
+          const skills: Skill[] = await res.json();
+          const skillCommands = skills.map((skill) => ({
             command: `/skill ${skill.name}`,
             description: skill.description || `Use ${skill.name} skill`,
             icon: Sparkles,

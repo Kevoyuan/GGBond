@@ -197,7 +197,7 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
           ) : filteredSkills.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
               <Search className="w-8 h-8 opacity-20" />
-              <p>No skills match "{searchQuery}"</p>
+              <p>No skills match &quot;{searchQuery}&quot;</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">

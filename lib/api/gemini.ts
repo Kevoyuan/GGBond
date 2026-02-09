@@ -1,4 +1,4 @@
-import { Checkpoint, ProjectContext, MCPServer, UsageMetrics, Session, Tool, Extension, Hook, HookConfig, HooksData } from '@/lib/types/gemini';
+import { Checkpoint, ProjectContext, MCPServer, UsageMetrics, Session, Tool, Extension, Hook, HookConfig, HooksData, ChatSettings } from '@/lib/types/gemini';
 
 const STANDARD_TOOLS = [
   'read_file', 'write_file', 'list_directory', 'search_files', 
@@ -51,15 +51,18 @@ export async function fetchMCPServers(): Promise<MCPServer[]> {
   if (!res.ok) throw new Error('Failed to fetch MCP servers');
   const data = await res.json();
   // Backend returns Record<string, config>
-  return Object.entries(data).map(([name, config]: [string, any]) => ({
-    name,
-    ...config,
-    // Add enabled status if present, default to true?
-    enabled: config.enabled !== false
-  }));
+  return Object.entries(data).map(([name, config]: [string, unknown]) => {
+    const serverConfig = config as MCPServer & { enabled?: boolean };
+    return {
+      name,
+      ...serverConfig,
+      // Add enabled status if present, default to true?
+      enabled: serverConfig.enabled !== false
+    };
+  });
 }
 
-export async function addMCPServer(name: string, config: any): Promise<void> {
+export async function addMCPServer(name: string, config: unknown): Promise<void> {
   const res = await fetch('/api/mcp', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -102,13 +105,13 @@ export async function fetchAnalytics(): Promise<UsageMetrics> {
 }
 
 // Settings
-export async function fetchSettings(): Promise<any> {
+export async function fetchSettings(): Promise<ChatSettings> {
   const res = await fetch('/api/settings');
   if (!res.ok) throw new Error('Failed to fetch settings');
   return res.json();
 }
 
-export async function updateSettings(settings: any): Promise<any> {
+export async function updateSettings(settings: Partial<ChatSettings>): Promise<ChatSettings> {
   const res = await fetch('/api/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -250,7 +253,7 @@ export async function fetchMemory(): Promise<{ content: string }> {
   const data = await res.json(); // [{ path, content }]
   
   // Find project memory first
-  const projectMem = data.find((m: any) => m.path.includes(process.cwd()));
+  const projectMem = data.find((m: { path: string; content: string }) => m.path.includes(process.cwd()));
   const content = projectMem ? projectMem.content : (data[0]?.content || '');
   
   return { content };

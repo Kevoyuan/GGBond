@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { readdirSync, readFileSync } from 'fs';
+import { readdirSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { spawnSync } from 'child_process';
@@ -8,7 +8,7 @@ import { getGeminiPath, getGeminiEnv } from '@/lib/gemini-utils';
 export async function GET() {
   // 直接读扩展目录
   const extensionsDir = join(homedir(), '.gemini', 'extensions');
-  if (!require('fs').existsSync(extensionsDir)) {
+  if (!existsSync(extensionsDir)) {
       return NextResponse.json([]);
   }
   
@@ -53,8 +53,9 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json({ success: true, output: result.stdout });
-  } catch (error: any) {
+  } catch (error) {
       console.error('Extension action failed:', error);
-      return NextResponse.json({ error: error.message || 'Extension action failed' }, { status: 500 });
+      const errorMessage = error instanceof Error ? error.message : 'Extension action failed';
+      return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

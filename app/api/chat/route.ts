@@ -62,7 +62,11 @@ export async function POST(req: Request) {
 
     const encoder = new TextEncoder();
     let fullResponseContent = '';
-    let finalStats: any = null;
+    interface Stats {
+      [key: string]: unknown;
+      model?: string;
+    }
+    let finalStats: Stats | null = null;
     let detectedSessionId = sessionId;
     let detectedModel = model || ''; // Use requested model or capture from init
     let userMessageSaved = false;

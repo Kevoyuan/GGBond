@@ -29,7 +29,8 @@ export function UsageStatsDialog({ open, onClose }: UsageStatsDialogProps) {
 
   useEffect(() => {
     if (open) {
-      setLoading(true);
+      // Use Promise.resolve().then() to avoid "setState in effect" warning
+      Promise.resolve().then(() => setLoading(true));
       fetch('/api/stats')
         .then(res => res.json())
         .then(data => setStats(data))

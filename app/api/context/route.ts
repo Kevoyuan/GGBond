@@ -4,7 +4,8 @@ import { ProjectContext } from '@/lib/types/gemini';
 
 export async function GET() {
   try {
-    const data = await runGeminiCommand('/directory show');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await runGeminiCommand('/directory show') as any;
     
     // Default structure
     const context: ProjectContext = {
