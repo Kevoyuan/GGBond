@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { pbkdf2Sync, randomBytes } from 'node:crypto';
 
 // Ensure the directory exists
 const dbPath = path.join(process.cwd(), 'gemini-home', 'gem-ui.db');
@@ -31,6 +32,14 @@ db.exec(`
     created_at INTEGER NOT NULL,
     FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
 `);
 
 // Migration: Add workspace column if it doesn't exist
@@ -43,6 +52,28 @@ try {
   }
 } catch (error) {
   console.error('Failed to migrate sessions table:', error);
+}
+
+// Seed default user if not exists
+try {
+  const userCount = (db.prepare('SELECT count(*) as count FROM users').get() as { count: number }).count;
+
+  if (userCount === 0) {
+    const salt = randomBytes(16).toString('hex');
+    // Default password: "admin"
+    const hash = pbkdf2Sync('admin', salt, 1000, 64, 'sha512').toString('hex');
+
+    db.prepare('INSERT INTO users (id, username, password_hash, salt, created_at) VALUES (?, ?, ?, ?, ?)').run(
+      'default-admin',
+      'admin',
+      hash,
+      salt,
+      Date.now()
+    );
+    console.log('Default admin user created with password "admin".');
+  }
+} catch (error) {
+  console.error('Failed to seed default user:', error);
 }
 
 export default db;
@@ -61,5 +92,13 @@ export interface DbMessage {
   role: 'user' | 'model';
   content: string;
   stats?: string; // JSON string
+  created_at: number;
+}
+
+export interface DbUser {
+  id: string;
+  username: string;
+  password_hash: string;
+  salt: string;
   created_at: number;
 }
