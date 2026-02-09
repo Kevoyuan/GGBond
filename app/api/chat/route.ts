@@ -2,9 +2,22 @@ import { NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import db from '@/lib/db';
 import { getGeminiPath, getGeminiEnv } from '@/lib/gemini-utils';
+import { rateLimit } from '@/lib/rate-limit';
+
+const limiter = rateLimit({
+  interval: 60 * 1000, // 60 seconds
+  uniqueTokenPerInterval: 500, // Max 500 users per second
+});
 
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get('x-forwarded-for') || '127.0.0.1';
+    const isRateLimited = limiter.check(20, ip); // 20 requests per minute per IP
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 });
+    }
+
     const { prompt, model, systemInstruction, sessionId, workspace, modelSettings } = await req.json();
 
     if (!prompt) {
