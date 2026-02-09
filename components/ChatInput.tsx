@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Image as ImageIcon, AtSign, Slash, Command, Sparkles, X } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, AtSign, Slash, Command, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ChatInputProps {
@@ -24,9 +24,22 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filteredCommands, setFilteredCommands] = useState<CommandItem[]>(BASE_COMMANDS);
   const [installedSkills, setInstalledSkills] = useState<CommandItem[]>([]);
-  const [activeSkills, setActiveSkills] = useState<CommandItem[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const commandListRef = useRef<HTMLDivElement>(null);
+  const [cursorPosition, setCursorPosition] = useState(0);
+
+  // Helper to get current word bounds
+  const getCursorWordBounds = (text: string, index: number) => {
+    let start = index;
+    while (start > 0 && /\S/.test(text[start - 1])) {
+        start--;
+    }
+    let end = index;
+    while (end < text.length && /\S/.test(text[end])) {
+        end++;
+    }
+    return { start, end, word: text.slice(start, end) };
+  };
 
   useEffect(() => {
     // Scroll selected item into view
@@ -71,57 +84,47 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
     adjustHeight();
   }, [input]);
 
-  const updateSuggestions = (value: string) => {
-    // Show commands when input starts with /
-    if (value.startsWith('/')) {
-        const trimmed = value.trim();
-        // If exact match or starts with /skill, show skills
-        if (trimmed === '/skill' || trimmed.startsWith('/skill ')) {
-             // Filter installed skills based on search
-             const search = trimmed.replace(/^\/skill\s*/, '').toLowerCase();
-             const matchedSkills = installedSkills.filter(s => 
-                 s.command.toLowerCase().includes(search) || 
-                 s.description.toLowerCase().includes(search)
-             );
-             
-             if (matchedSkills.length > 0) {
-                 setFilteredCommands(matchedSkills);
-                 setShowCommands(true);
-                 setSelectedIndex(0);
-                 return;
-             } else if (search === '' && installedSkills.length > 0) {
-                 // Show all skills if just "/skill " and we have skills
-                 setFilteredCommands(installedSkills);
-                 setShowCommands(true);
-                 setSelectedIndex(0);
-                 return;
-             }
-        }
+  const updateSuggestions = (value: string, cursorIndex: number) => {
+    const { word } = getCursorWordBounds(value, cursorIndex);
+    
+    // Check if word starts with /
+    if (word.startsWith('/')) {
+        const search = word.toLowerCase();
         
-        // Default behavior: show base commands + filter
-        if (!value.includes(' ')) {
-            const search = value.toLowerCase();
-            const matches = BASE_COMMANDS.filter(c => c.command.toLowerCase().startsWith(search));
-            
-            if (matches.length > 0) {
-                setFilteredCommands(matches);
-                setShowCommands(true);
-                setSelectedIndex(0);
-            } else {
-                setShowCommands(false);
-            }
+        // Combine base commands and skills
+        // We filter out the generic "/skill" from BASE_COMMANDS if we have specific skills to show
+        // to avoid redundancy, or keep it. Let's keep it simple.
+        const allCommands = [...BASE_COMMANDS, ...installedSkills];
+        
+        const matches = allCommands.filter(c => 
+            c.command.toLowerCase().startsWith(search) || 
+            (word.length > 1 && c.description.toLowerCase().includes(search.replace(/^\//, '')))
+        );
+        
+        if (matches.length > 0) {
+            setFilteredCommands(matches);
+            setShowCommands(true);
+            setSelectedIndex(0);
         } else {
             setShowCommands(false);
         }
     } else {
-      setShowCommands(false);
+        setShowCommands(false);
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
+    const newCursorPos = e.target.selectionStart;
     setInput(value);
-    updateSuggestions(value);
+    setCursorPosition(newCursorPos);
+    updateSuggestions(value, newCursorPos);
+  };
+  
+  const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    const target = e.currentTarget;
+    setCursorPosition(target.selectionStart);
+    updateSuggestions(target.value, target.selectionStart);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -153,58 +156,36 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
       handleSend();
       return;
     }
-
-    // Handle removing active skill with Backspace
-    if (e.key === 'Backspace' && input === '' && activeSkills.length > 0) {
-      e.preventDefault();
-      setActiveSkills(prev => prev.slice(0, -1));
-    }
   };
 
   const handleCommandSelect = (cmd: string) => {
-    // If it's a skill command, set it as active badge
-    if (cmd.startsWith('/skill ')) {
-      const skillName = cmd.replace('/skill ', '');
-      
-      // Prevent duplicates
-      if (activeSkills.some(s => s.command === cmd)) {
-          setInput('');
-          setShowCommands(false);
-          textareaRef.current?.focus();
-          return;
-      }
-
-      const skillCmd = installedSkills.find(s => s.command === cmd) || {
-        command: cmd,
-        description: 'Selected skill',
-        icon: Sparkles
-      };
-      
-      setActiveSkills(prev => [...prev, skillCmd]);
-      setInput('');
-      setShowCommands(false);
-      textareaRef.current?.focus();
-      return;
-    }
-
-    const newValue = cmd + (cmd.startsWith('/skill') ? ' ' : ' ');
+    const { start, end } = getCursorWordBounds(input, cursorPosition);
+    const before = input.slice(0, start);
+    const after = input.slice(end);
+    
+    const newValue = before + cmd + ' ' + after;
     setInput(newValue);
-    textareaRef.current?.focus();
-    updateSuggestions(newValue);
+    
+    // Move cursor to end of inserted command
+    const newCursorPos = start + cmd.length + 1;
+    
+    setShowCommands(false);
+    
+    // Use timeout to ensure state update has processed and DOM is ready
+    setTimeout(() => {
+        if (textareaRef.current) {
+            textareaRef.current.focus();
+            textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+            // Update suggestions based on new state? Probably not needed immediately
+        }
+    }, 0);
   };
 
   const handleSend = () => {
-    if ((!input.trim() && activeSkills.length === 0) || isLoading) return;
+    if (!input.trim() || isLoading) return;
     
-    let finalMessage = input;
-    if (activeSkills.length > 0) {
-        const skillCommands = activeSkills.map(s => s.command).join(' ');
-        finalMessage = `${skillCommands} ${input}`;
-    }
-    
-    onSend(finalMessage);
+    onSend(input);
     setInput('');
-    setActiveSkills([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -249,28 +230,13 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
           "relative flex flex-col gap-2 p-2 rounded-xl border bg-muted/20 transition-all duration-200",
           "focus-within:bg-background focus-within:ring-1 focus-within:ring-primary/20 focus-within:border-primary/30"
         )}>
-          {activeSkills.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 px-2 pt-2 animate-in fade-in slide-in-from-bottom-1">
-               {activeSkills.map((skill) => (
-                 <div key={skill.command} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 text-sm font-medium">
-                   <Sparkles className="w-3.5 h-3.5" />
-                   <span>{skill.command.replace('/skill ', '')}</span>
-                   <button 
-                      onClick={() => setActiveSkills(prev => prev.filter(s => s.command !== skill.command))}
-                      className="ml-1 p-0.5 hover:bg-primary/10 rounded-full transition-colors"
-                   >
-                     <X className="w-3 h-3" />
-                   </button>
-                 </div>
-               ))}
-            </div>
-          )}
           <textarea
             ref={textareaRef}
             value={input}
             onChange={handleInputChange}
+            onSelect={handleSelect}
             onKeyDown={handleKeyDown}
-            placeholder={activeSkills.length > 0 ? "Type your message..." : "Ask anything... (@ to mention)"}
+            placeholder="Ask anything... (Type / for commands)"
             className="w-full bg-transparent border-none focus:outline-none resize-none min-h-[40px] max-h-[200px] text-sm leading-relaxed px-2 py-1"
             rows={1}
           />

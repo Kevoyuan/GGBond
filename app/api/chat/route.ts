@@ -5,7 +5,7 @@ import { getGeminiPath, getGeminiEnv } from '@/lib/gemini-utils';
 
 export async function POST(req: Request) {
   try {
-    const { prompt, model, systemInstruction, sessionId } = await req.json();
+    const { prompt, model, systemInstruction, sessionId, workspace } = await req.json();
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     // Get environment variables with keychain bypass
     const env = getGeminiEnv();
     
-    console.log('Running gemini with HOME:', env.HOME);
+    console.log('Running gemini with HOME:', env.HOME || process.env.HOME);
     console.log('Script path:', geminiScriptPath);
 
     return new Promise<NextResponse>((resolve) => {
@@ -98,11 +98,12 @@ export async function POST(req: Request) {
               // Create new session
               // Use first 50 chars of prompt as title
               const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
-              db.prepare('INSERT INTO sessions (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)').run(
+              db.prepare('INSERT INTO sessions (id, title, created_at, updated_at, workspace) VALUES (?, ?, ?, ?, ?)').run(
                 finalSessionId,
                 title,
                 now,
-                now
+                now,
+                workspace || 'Default' // Default workspace if none provided
               );
             } else {
               // Update timestamp
