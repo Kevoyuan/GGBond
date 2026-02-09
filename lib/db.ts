@@ -31,6 +31,13 @@ db.exec(`
     created_at INTEGER NOT NULL,
     FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
 `);
 
 // Migration: Add workspace column if it doesn't exist
@@ -61,5 +68,12 @@ export interface DbMessage {
   role: 'user' | 'model';
   content: string;
   stats?: string; // JSON string
+  created_at: number;
+}
+
+export interface User {
+  id: string;
+  username: string;
+  password_hash: string;
   created_at: number;
 }

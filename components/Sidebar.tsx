@@ -14,7 +14,8 @@ import {
   ChevronRight,
   Folder,
   BarChart2,
-  LayoutGrid
+  LayoutGrid,
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -99,6 +100,15 @@ export function Sidebar({
     return result;
   }, [groupedSessions, searchTerm]);
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Logout failed', error);
+    }
+  };
+
   return (
     <div className="flex h-full border-r bg-muted/10">
       {/* Navigation Rail */}
@@ -160,8 +170,17 @@ export function Sidebar({
           <button 
             onClick={onOpenSettings}
             className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            title="Settings"
           >
             <Settings className="w-5 h-5" />
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            title="Log Out"
+          >
+            <LogOut className="w-5 h-5" />
           </button>
           
           <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium text-secondary-foreground border border-border">

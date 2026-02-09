@@ -24,9 +24,10 @@ interface FileEntry {
 interface FileExplorerProps {
   initialPath?: string;
   onFileSelect?: (file: FileEntry) => void;
+  className?: string;
 }
 
-export function FileExplorer({ initialPath, onFileSelect }: FileExplorerProps) {
+export function FileExplorer({ initialPath, onFileSelect, className }: FileExplorerProps) {
   const [currentPath, setCurrentPath] = useState<string>('');
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -100,7 +101,7 @@ export function FileExplorer({ initialPath, onFileSelect }: FileExplorerProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-muted/5">
+    <div className={cn("flex flex-col h-full bg-muted/5", className)}>
       {/* Header / Breadcrumbs */}
       <div className="p-3 border-b bg-card/50 flex items-center gap-2">
         <button 
