@@ -12,11 +12,13 @@ import {
   Plug,
   ChevronDown,
   ChevronRight,
-  Folder
+  Folder,
+  BarChart2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { FileExplorer } from './FileExplorer';
+import { UsageStatsDialog } from './UsageStatsDialog';
 
 interface Session {
   id: string;
@@ -36,6 +38,8 @@ interface SidebarProps {
   onOpenSettings: () => void;
   isDark: boolean;
   toggleTheme: () => void;
+  className?: string;
+  onShowStats?: () => void;
 }
 
 type SidebarView = 'chat' | 'files';
@@ -50,7 +54,9 @@ export function Sidebar({
   onOpenSkills,
   onOpenSettings,
   isDark,
-  toggleTheme
+  toggleTheme,
+  className,
+  onShowStats
 }: SidebarProps) {
   const [activeView, setActiveView] = useState<SidebarView>('chat');
   const [searchTerm, setSearchTerm] = useState('');
@@ -244,9 +250,19 @@ export function Sidebar({
                 </div>
               )}
             </div>
+
+            <div className="p-3 border-t bg-card/50 backdrop-blur-sm">
+              <button 
+                onClick={onShowStats}
+                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-md text-sm text-muted-foreground transition-colors"
+              >
+                <BarChart2 className="w-4 h-4" />
+                <span>Usage Dashboard</span>
+              </button>
+            </div>
           </>
         ) : (
-          <FileExplorer />
+          <FileExplorer className="h-full" />
         )}
       </div>
     </div>

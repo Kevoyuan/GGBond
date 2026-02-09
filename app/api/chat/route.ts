@@ -50,6 +50,7 @@ export async function POST(req: Request) {
     let fullResponseContent = '';
     let finalStats: any = null;
     let detectedSessionId = sessionId;
+    let detectedModel = model || ''; // Use requested model or capture from init
     let userMessageSaved = false;
 
     const stream = new ReadableStream({
@@ -74,34 +75,37 @@ export async function POST(req: Request) {
               const parsed = JSON.parse(line);
 
               // 1. Handle Init -> Save Session & User Message
-              if (parsed.type === 'init' && parsed.session_id) {
-                detectedSessionId = parsed.session_id;
+              if (parsed.type === 'init') {
+                if (parsed.session_id) detectedSessionId = parsed.session_id;
+                if (parsed.model) detectedModel = parsed.model;
                 
-                try {
-                  const now = Date.now();
-                  const existingSession = db.prepare('SELECT id FROM sessions WHERE id = ?').get(detectedSessionId);
-                  
-                  if (!existingSession) {
-                    const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
-                    db.prepare(`
-                      INSERT INTO sessions (id, title, created_at, updated_at, workspace)
-                      VALUES (?, ?, ?, ?, ?)
-                    `).run(detectedSessionId, title, now, now, workspace || null);
-                  } else {
-                    db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(now, detectedSessionId);
-                  }
+                if (detectedSessionId) {
+                  try {
+                    const now = Date.now();
+                    const existingSession = db.prepare('SELECT id FROM sessions WHERE id = ?').get(detectedSessionId);
+                    
+                    if (!existingSession) {
+                      const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
+                      db.prepare(`
+                        INSERT INTO sessions (id, title, created_at, updated_at, workspace)
+                        VALUES (?, ?, ?, ?, ?)
+                      `).run(detectedSessionId, title, now, now, workspace || null);
+                    } else {
+                      db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(now, detectedSessionId);
+                    }
 
-                  if (!userMessageSaved) {
-                    db.prepare('INSERT INTO messages (session_id, role, content, created_at) VALUES (?, ?, ?, ?)').run(
-                      detectedSessionId,
-                      'user',
-                      prompt,
-                      now
-                    );
-                    userMessageSaved = true;
+                    if (!userMessageSaved) {
+                      db.prepare('INSERT INTO messages (session_id, role, content, created_at) VALUES (?, ?, ?, ?)').run(
+                        detectedSessionId,
+                        'user',
+                        prompt,
+                        now
+                      );
+                      userMessageSaved = true;
+                    }
+                  } catch (dbErr) {
+                    console.error('DB Error on init:', dbErr);
                   }
-                } catch (dbErr) {
-                  console.error('DB Error on init:', dbErr);
                 }
               }
 
@@ -113,6 +117,11 @@ export async function POST(req: Request) {
               // 3. Handle Result -> Save Assistant Message
               if (parsed.type === 'result') {
                 finalStats = parsed.stats;
+                // Inject model into stats if available
+                if (finalStats && detectedModel) {
+                  finalStats.model = detectedModel;
+                }
+
                 try {
                   const now = Date.now();
                   if (detectedSessionId) {
