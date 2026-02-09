@@ -1,79 +1,125 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect, useState } from 'react';
 import { ModuleCard } from '../ModuleCard';
-import { FileCode, FolderGit2, RefreshCw, Eye, Edit3 } from 'lucide-react';
-import { mockContext } from '@/lib/api/gemini-mock';
+import { FolderGit2, FileCode, RefreshCw, Eye, Edit3, Loader2, Save } from 'lucide-react';
+
+interface GeminiMdFile {
+  path: string;
+  scope: 'global' | 'project';
+  content: string;
+  size: number;
+}
 
 export function ProjectContext() {
-  const context = mockContext;
+  const [files, setFiles] = useState<GeminiMdFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const fetchFiles = () => {
+    setLoading(true);
+    fetch('/api/memory')
+      .then(r => r.json())
+      .then(data => setFiles(Array.isArray(data) ? data : []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchFiles(); }, []);
+
+  const startEdit = (idx: number) => {
+    setEditingIdx(idx);
+    setEditContent(files[idx].content);
+  };
+
+  const handleSave = async () => {
+    if (editingIdx === null) return;
+    setSaving(true);
+    try {
+      await fetch('/api/memory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: files[editingIdx].path, content: editContent }),
+      });
+      setEditingIdx(null);
+      fetchFiles();
+    } catch (err) {
+      console.error('Failed to save:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <ModuleCard title="Project Context" description="GEMINI.md files" icon={FolderGit2}>
+        <div className="flex items-center justify-center py-12"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
+      </ModuleCard>
+    );
+  }
 
   return (
-    <ModuleCard 
-      title="Project Context" 
-      description="Active rules and file indexing" 
+    <ModuleCard
+      title="Project Context"
+      description={`${files.length} GEMINI.md file${files.length !== 1 ? 's' : ''}`}
       icon={FolderGit2}
       actions={
-        <button className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors text-zinc-500">
+        <button onClick={fetchFiles} className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors text-zinc-500">
           <RefreshCw size={14} />
         </button>
       }
     >
-      <div className="space-y-6">
-        {/* GEMINI.md Section */}
-        <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 rounded-lg">
-          <div className="flex justify-between items-start mb-2">
-            <div className="flex items-center gap-2 text-amber-900 dark:text-amber-100 font-medium text-sm">
-              <FileCode size={16} />
-              GEMINI.md
-            </div>
-            <div className="flex gap-1">
-              <button className="p-1 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded text-amber-700 dark:text-amber-300">
-                <Eye size={14} />
-              </button>
-              <button className="p-1 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded text-amber-700 dark:text-amber-300">
-                <Edit3 size={14} />
-              </button>
-            </div>
-          </div>
-          <p className="text-xs text-amber-800/80 dark:text-amber-200/70 line-clamp-2">
-            Project-specific rules: Next.js 14 App Router, Tailwind CSS, Lucide Icons. Always use strict TypeScript.
-          </p>
-        </div>
-
-        {/* Index Status */}
-        <div>
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Indexed Files</h4>
-          <div className="space-y-2">
-            {context.memoryFiles.map((file, i) => (
-              <div key={i} className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50 transition-colors group">
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <FileCode size={14} className="text-muted-foreground shrink-0" />
-                  <span className="truncate font-mono text-xs">{file.path.split('/').pop()}</span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                    file.status === 'active' 
-                      ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/30'
-                      : 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
-                  }`}>
-                    {file.status}
+      <div className="space-y-4">
+        {files.length === 0 ? (
+          <div className="text-center py-6 text-sm text-muted-foreground">No GEMINI.md files found</div>
+        ) : (
+          files.map((file, i) => (
+            <div key={file.path} className={`p-3 rounded-lg border ${file.scope === 'global'
+                ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/10 dark:border-blue-900/30'
+                : 'bg-amber-50/50 border-amber-200 dark:bg-amber-900/10 dark:border-amber-900/30'
+              }`}>
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex items-center gap-2">
+                  <FileCode size={14} className={file.scope === 'global' ? 'text-blue-600 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400'} />
+                  <span className="font-medium text-sm">{file.path.split('/').pop()}</span>
+                  <span className={`px-1.5 py-0.5 text-[10px] rounded-full border ${file.scope === 'global'
+                      ? 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900/50'
+                      : 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900/50'
+                    }`}>
+                    {file.scope}
                   </span>
                 </div>
+                <div className="flex gap-1">
+                  {editingIdx === i ? (
+                    <button onClick={handleSave} disabled={saving} className="p-1 hover:bg-green-100 dark:hover:bg-green-900/30 rounded text-green-600">
+                      <Save size={14} />
+                    </button>
+                  ) : (
+                    <button onClick={() => startEdit(i)} className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-muted-foreground">
+                      <Edit3 size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
-          <div>
-            <div className="text-2xl font-bold text-foreground">{context.totalIndexedFiles}</div>
-            <div className="text-xs text-muted-foreground">Files Indexed</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-foreground">{context.contextSize}</div>
-            <div className="text-xs text-muted-foreground">Context Size</div>
-          </div>
-        </div>
+              {editingIdx === i ? (
+                <textarea
+                  value={editContent}
+                  onChange={e => setEditContent(e.target.value)}
+                  className="w-full h-32 px-2 py-1.5 text-xs font-mono bg-background border border-zinc-200 dark:border-zinc-700 rounded resize-y"
+                />
+              ) : (
+                <p className="text-xs text-muted-foreground line-clamp-3 font-mono whitespace-pre-wrap">
+                  {file.content.slice(0, 200)}{file.content.length > 200 ? '...' : ''}
+                </p>
+              )}
+
+              <div className="mt-2 text-[10px] text-muted-foreground font-mono truncate">{file.path}</div>
+            </div>
+          ))
+        )}
       </div>
     </ModuleCard>
   );

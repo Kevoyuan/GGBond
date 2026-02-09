@@ -1,147 +1,200 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect, useState } from 'react';
 import { ModuleCard } from './ModuleCard';
-import { Settings, Palette, Command, Info, ToggleLeft, ToggleRight, User, Brain, FolderOpen, Plus, Trash2 } from 'lucide-react';
-import { mockContext } from '@/lib/api/gemini-mock';
+import { Settings, Palette, Command, Info, Loader2, Cpu, Tag, ChevronRight, Check, RefreshCw } from 'lucide-react';
 
-export function AuthManager() {
-  return (
-    <ModuleCard title="Authentication" description="User & API Keys" icon={User}>
-      <div className="space-y-4">
-        <div className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
-          <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
-            JD
-          </div>
-          <div>
-            <div className="font-medium text-sm text-zinc-900 dark:text-zinc-100">John Doe</div>
-            <div className="text-xs text-zinc-500">Pro Plan • Active</div>
-          </div>
-        </div>
-        <div className="space-y-2">
-           <div className="flex justify-between items-center text-sm">
-             <span className="text-zinc-500">API Key</span>
-             <span className="font-mono text-xs">sk_...8d9a</span>
-           </div>
-           <button className="w-full py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-             Rotate Key
-           </button>
-        </div>
-      </div>
-    </ModuleCard>
-  );
-}
-
-export function MemoryManager() {
-  return (
-    <ModuleCard title="Memory & Storage" description="Vector DB & Cache" icon={Brain}>
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs text-zinc-500 mb-1">
-             <span>Vector Index</span>
-             <span>84%</span>
-          </div>
-          <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-            <div className="h-full bg-purple-500 w-[84%]" />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs text-zinc-500 mb-1">
-             <span>Cache Usage</span>
-             <span>230MB / 1GB</span>
-          </div>
-          <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 w-[23%]" />
-          </div>
-        </div>
-        <div className="flex gap-2 mt-2">
-           <button className="flex-1 py-1.5 text-xs bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded hover:opacity-90">
-             Optimize
-           </button>
-           <button className="flex-1 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400">
-             Purge
-           </button>
-        </div>
-      </div>
-    </ModuleCard>
-  );
-}
-
-export function DirectoryManager() {
-  const dirs = mockContext.includedDirectories;
-  
-  return (
-    <ModuleCard title="Included Directories" description="Context sources" icon={FolderOpen}>
-      <div className="space-y-2">
-        {dirs.map((dir, i) => (
-          <div key={i} className="flex items-center justify-between p-2 text-sm border border-zinc-100 dark:border-zinc-800 rounded group hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
-            <span className="font-mono text-xs text-zinc-600 dark:text-zinc-400 truncate max-w-[180px]" title={dir}>
-              {dir}
-            </span>
-            <button className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-500 transition-opacity">
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ))}
-        <button className="w-full py-2 border border-dashed border-zinc-300 dark:border-zinc-700 rounded text-xs text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-center gap-2">
-          <Plus size={14} /> Add Directory
-        </button>
-      </div>
-    </ModuleCard>
-  );
+// ─── Module 4: Model Selector ────────────────────────────
+interface ModelInfo {
+  id: string;
+  name: string;
+  tier: string;
+  contextWindow: string;
 }
 
 export function SettingsManager() {
+  const [currentModel, setCurrentModel] = useState('');
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [customAliases, setCustomAliases] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/models')
+      .then(r => r.json())
+      .then(data => {
+        setCurrentModel(data.current || '');
+        setModels(data.known || []);
+        setCustomAliases(data.customAliases || {});
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSwitch = async (modelId: string) => {
+    setSaving(true);
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: { name: modelId } }),
+      });
+      setCurrentModel(modelId);
+    } catch (err) { console.error('Failed to switch model:', err); }
+    finally { setSaving(false); }
+  };
+
+  if (loading) {
+    return (
+      <ModuleCard title="Model Selector" description="Switch Gemini models" icon={Cpu}>
+        <div className="flex items-center justify-center py-8"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
+      </ModuleCard>
+    );
+  }
+
   return (
-    <ModuleCard title="General Settings" description="Global configuration" icon={Settings}>
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Auto-save sessions</span>
-          <ToggleRight className="text-blue-500" size={24} />
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Stream responses</span>
-          <ToggleRight className="text-blue-500" size={24} />
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Notifications</span>
-          <ToggleLeft className="text-zinc-300 dark:text-zinc-600" size={24} />
-        </div>
+    <ModuleCard title="Model Selector" description={currentModel || 'Default'} icon={Cpu}>
+      <div className="space-y-2">
+        {models.map(model => {
+          const isCurrent = currentModel === model.id;
+          return (
+            <button
+              key={model.id}
+              onClick={() => handleSwitch(model.id)}
+              disabled={saving}
+              className={`w-full text-left p-3 rounded-lg border transition-all ${isCurrent
+                  ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/10 dark:border-blue-900/30'
+                  : 'bg-card border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Cpu size={14} className={isCurrent ? 'text-blue-500' : 'text-muted-foreground'} />
+                  <span className={`font-medium text-sm ${isCurrent ? 'text-blue-700 dark:text-blue-300' : ''}`}>{model.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full border ${model.tier === 'pro'
+                      ? 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-900/40'
+                      : model.tier === 'flash'
+                        ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-900/40'
+                        : 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
+                    }`}>
+                    {model.tier}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{model.contextWindow}</span>
+                  {isCurrent && <Check size={14} className="text-blue-500" />}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+
+        {Object.keys(customAliases).length > 0 && (
+          <div className="pt-3 border-t border-border">
+            <h4 className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1"><Tag size={12} /> Custom Aliases</h4>
+            {Object.entries(customAliases).map(([alias, config]) => (
+              <div key={alias} className="flex items-center justify-between py-2 text-sm">
+                <span className="font-mono text-foreground">{alias}</span>
+                <span className="text-xs text-muted-foreground">{typeof config === 'string' ? config : JSON.stringify(config)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </ModuleCard>
   );
 }
 
+// ─── Module 10: Custom Commands Editor ───────────────────
 export function ThemeSelector() {
-  const themes = ['System', 'Light', 'Dark', 'Midnight', 'Forest'];
-  
+  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(setSettings)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <ModuleCard title="Theme & UI" description="Appearance settings" icon={Palette}>
+        <div className="flex items-center justify-center py-8"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
+      </ModuleCard>
+    );
+  }
+
+  const theme = settings?.ui?.theme || 'Default';
+  const footer = settings?.ui?.footer || {};
+  const general = settings?.general || {};
+
   return (
-    <ModuleCard title="Theme & Appearance" description="UI customization" icon={Palette}>
-      <div className="grid grid-cols-3 gap-2">
-        {themes.map(t => (
-          <button key={t} className="p-2 text-xs border border-zinc-200 dark:border-zinc-800 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-            {t}
-          </button>
-        ))}
+    <ModuleCard title="Theme & UI" description={`Theme: ${theme}`} icon={Palette}>
+      <div className="space-y-3">
+        <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-2 mb-2">
+            <Palette size={14} className="text-purple-500" />
+            <span className="text-sm font-medium">Current Theme</span>
+          </div>
+          <span className="text-lg font-bold text-foreground">{theme}</span>
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-muted-foreground">General</h4>
+          <div className="flex justify-between items-center py-1.5 text-sm">
+            <span className="text-muted-foreground">Editor</span>
+            <span className="font-mono text-foreground">{general.preferredEditor || 'Default'}</span>
+          </div>
+          <div className="flex justify-between items-center py-1.5 text-sm">
+            <span className="text-muted-foreground">Preview Features</span>
+            <span className={general.previewFeatures ? 'text-green-500' : 'text-muted-foreground'}>
+              {general.previewFeatures ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-xs font-semibold text-muted-foreground">Footer Display</h4>
+          <div className="flex justify-between items-center py-1.5 text-sm">
+            <span className="text-muted-foreground">Model Info</span>
+            <span className={!footer.hideModelInfo ? 'text-green-500' : 'text-muted-foreground'}>
+              {!footer.hideModelInfo ? 'Visible' : 'Hidden'}
+            </span>
+          </div>
+          <div className="flex justify-between items-center py-1.5 text-sm">
+            <span className="text-muted-foreground">Context %</span>
+            <span className={!footer.hideContextPercentage ? 'text-green-500' : 'text-muted-foreground'}>
+              {!footer.hideContextPercentage ? 'Visible' : 'Hidden'}
+            </span>
+          </div>
+        </div>
       </div>
     </ModuleCard>
   );
 }
 
-
+// ─── Module 15: Shortcuts / Keyboard Bindings ────────────
 export function ShortcutsPanel() {
   const shortcuts = [
-    { key: '⌘ + K', desc: 'Command Palette' },
-    { key: '⌘ + /', desc: 'Toggle Sidebar' },
-    { key: '⌘ + Enter', desc: 'Send Message' },
-    { key: 'Esc', desc: 'Cancel / Close' },
+    { key: '/', desc: 'Slash commands' },
+    { key: '@', desc: 'Reference files' },
+    { key: '!', desc: 'Shell commands' },
+    { key: 'Enter', desc: 'Send message (non-interactive)' },
+    { key: 'Ctrl+C', desc: 'Cancel' },
+    { key: 'Ctrl+D', desc: 'Exit' },
   ];
 
   return (
     <ModuleCard title="Shortcuts" description="Keyboard bindings" icon={Command}>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {shortcuts.map(s => (
-          <div key={s.key} className="flex justify-between items-center text-sm">
-            <span className="text-zinc-600 dark:text-zinc-400">{s.desc}</span>
-            <kbd className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs font-mono text-zinc-500 dark:text-zinc-400">{s.key}</kbd>
+          <div key={s.key} className="flex items-center justify-between py-2 px-2 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+            <span className="text-sm text-muted-foreground">{s.desc}</span>
+            <kbd className="px-2 py-0.5 text-xs font-mono bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-foreground">
+              {s.key}
+            </kbd>
           </div>
         ))}
       </div>
@@ -149,24 +202,47 @@ export function ShortcutsPanel() {
   );
 }
 
+// ─── Module 15: System Info ──────────────────────────────
 export function SystemInfo() {
+  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(setSettings)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <ModuleCard title="System Info" description="Environment" icon={Info}>
+        <div className="flex items-center justify-center py-8"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
+      </ModuleCard>
+    );
+  }
+
   return (
-    <ModuleCard title="System Info" description="Version and policies" icon={Info}>
-      <div className="space-y-4 text-sm">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="text-zinc-500">CLI Version</div>
-          <div className="text-right font-mono">v1.2.0</div>
-          <div className="text-zinc-500">UI Version</div>
-          <div className="text-right font-mono">v1.0.0</div>
-          <div className="text-zinc-500">Environment</div>
-          <div className="text-right text-green-600">Production</div>
+    <ModuleCard title="System Info" description="Environment & Config" icon={Info}>
+      <div className="space-y-2">
+        <div className="flex justify-between items-center py-1.5 text-sm">
+          <span className="text-muted-foreground">Auth Type</span>
+          <span className="font-mono text-foreground text-xs">{settings?.selectedAuthType || settings?.security?.auth?.selectedType || 'Unknown'}</span>
         </div>
-        <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800">
-          <div className="font-medium mb-2 text-zinc-900 dark:text-zinc-100">Active Policies</div>
-          <div className="flex flex-wrap gap-2">
-            <span className="px-2 py-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 text-xs rounded-full">Safe Mode</span>
-            <span className="px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-xs rounded-full">Audit Log</span>
-          </div>
+        <div className="flex justify-between items-center py-1.5 text-sm">
+          <span className="text-muted-foreground">IDE Integration</span>
+          <span className={settings?.ide?.enabled ? 'text-green-500 text-xs' : 'text-muted-foreground text-xs'}>
+            {settings?.ide?.enabled ? 'Enabled' : 'Disabled'}
+          </span>
+        </div>
+        <div className="flex justify-between items-center py-1.5 text-sm">
+          <span className="text-muted-foreground">MCP Servers</span>
+          <span className="font-mono text-foreground text-xs">{Object.keys(settings?.mcpServers || {}).length}</span>
+        </div>
+        <div className="flex justify-between items-center py-1.5 text-sm">
+          <span className="text-muted-foreground">Disabled Skills</span>
+          <span className="font-mono text-foreground text-xs">{settings?.skills?.disabled?.length || 0}</span>
         </div>
       </div>
     </ModuleCard>
