@@ -3,6 +3,8 @@ import { spawn } from 'child_process';
 import db from '@/lib/db';
 import { getGeminiPath, getGeminiEnv } from '@/lib/gemini-utils';
 
+const MODEL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-._]*$/;
+
 export async function POST(req: Request) {
   try {
     const { prompt, model, systemInstruction, sessionId, workspace, modelSettings } = await req.json();
@@ -39,6 +41,9 @@ export async function POST(req: Request) {
     
     // Add model if provided
     if (model) {
+      if (!MODEL_REGEX.test(model)) {
+        return NextResponse.json({ error: 'Invalid model parameter' }, { status: 400 });
+      }
       args.push('--model', model);
     }
 
@@ -51,6 +56,9 @@ export async function POST(req: Request) {
 
     // Resume session if ID provided
     if (sessionId) {
+      if (typeof sessionId === 'string' && sessionId.startsWith('-')) {
+        return NextResponse.json({ error: 'Invalid session ID' }, { status: 400 });
+      }
       args.push('--resume', sessionId);
     }
 
