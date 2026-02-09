@@ -5,7 +5,7 @@ import { ChatManager } from '@/components/modules/ChatModules';
 import { ToolManager, MCPManager, ExtensionManager } from '@/components/modules/SystemModules';
 import { MemoryManager, DirectoryManager, HooksManager } from '@/components/modules/ContextModules';
 import { SettingsManager, ThemeSelector, ShortcutsPanel, SystemInfo } from '@/components/modules/ConfigModules';
-import { ShellManager, AuthManager, FileManager } from '@/components/modules/ActionModules';
+// import { ShellManager, AuthManager, FileManager } from '@/components/modules/ActionModules';
 
 // New Opcode-inspired modules
 import { SessionTimeline } from '@/components/modules/timeline/SessionTimeline';
@@ -36,6 +36,7 @@ export default function ModulesPage() {
              <SessionTimeline />
              <ProjectContext />
              <DirectoryManager />
+             <HooksManager />
           </div>
 
           {/* Middle Column: Core Management (Width: 6/12) */}
@@ -45,7 +46,7 @@ export default function ModulesPage() {
               <ChatManager />
             </div>
             
-            <ShellManager />
+            {/* <ShellManager /> */}
             
             <div className="grid grid-cols-2 gap-6">
               <ToolManager />
@@ -57,11 +58,11 @@ export default function ModulesPage() {
 
           {/* Right Column: Configuration & Meta (Width: 3/12) */}
           <div className="col-span-12 lg:col-span-3 space-y-6">
-            <AuthManager />
+            {/* <AuthManager /> */}
             <SettingsManager />
             <MemoryManager />
             <div className="grid grid-cols-1 gap-6">
-              <ThemeSelector />
+              {/* <ThemeSelector /> */}
               <ShortcutsPanel />
             </div>
             <SystemInfo />

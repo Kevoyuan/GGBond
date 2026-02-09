@@ -1,6 +1,5 @@
-import { Zap, Coins, Clock, Database, Activity, Calendar, BarChart3, Layers, X } from 'lucide-react';
+import { Zap, Database, Activity, Calendar, BarChart3, Layers, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 
 interface StatEntry {
@@ -38,6 +37,15 @@ export function UsageStatsDialog({ open, onClose }: UsageStatsDialogProps) {
         .finally(() => setLoading(false));
     }
   }, [open]);
+
+  const defaultStat: StatEntry = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cachedTokens: 0,
+    totalTokens: 0,
+    cost: 0,
+    count: 0,
+  };
 
   return (
     <AnimatePresence>
@@ -84,22 +92,22 @@ export function UsageStatsDialog({ open, onClose }: UsageStatsDialogProps) {
                   <StatCard 
                     title="Today" 
                     icon={<Activity className="w-4 h-4 text-blue-500" />} 
-                    data={stats.daily} 
+                    data={stats.daily || defaultStat} 
                   />
                   <StatCard 
                     title="This Week" 
                     icon={<Calendar className="w-4 h-4 text-purple-500" />} 
-                    data={stats.weekly} 
+                    data={stats.weekly || defaultStat} 
                   />
                   <StatCard 
                     title="This Month" 
                     icon={<BarChart3 className="w-4 h-4 text-green-500" />} 
-                    data={stats.monthly} 
+                    data={stats.monthly || defaultStat} 
                   />
                   <StatCard 
                     title="All Time" 
                     icon={<Layers className="w-4 h-4 text-orange-500" />} 
-                    data={stats.total} 
+                    data={stats.total || defaultStat} 
                   />
                 </div>
               )}
@@ -112,6 +120,9 @@ export function UsageStatsDialog({ open, onClose }: UsageStatsDialogProps) {
 }
 
 function StatCard({ title, icon, data }: { title: string, icon: React.ReactNode, data: StatEntry }) {
+  // Safe guard against undefined data
+  if (!data) return null;
+  
   // Calculate percentages
   const inputPercent = data.totalTokens > 0 ? (data.inputTokens / data.totalTokens) * 100 : 0;
   const outputPercent = data.totalTokens > 0 ? (data.outputTokens / data.totalTokens) * 100 : 0;

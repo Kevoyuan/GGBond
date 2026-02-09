@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
-import { calculateCost } from '@/lib/pricing';
-import { startOfDay, startOfWeek, startOfMonth, isAfter } from 'date-fns';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 
 interface StatEntry {
   inputTokens: number;
@@ -19,88 +18,117 @@ interface UsageStats {
   total: StatEntry;
 }
 
-const initialStat: StatEntry = {
+const createEmptyStat = (): StatEntry => ({
   inputTokens: 0,
   outputTokens: 0,
   cachedTokens: 0,
   totalTokens: 0,
   cost: 0,
   count: 0,
+});
+
+const calculateCost = (model: string, input: number, output: number, cached: number): number => {
+  // Estimated costs per 1M tokens (approximate values)
+  // These should ideally come from a config or constant file
+  let inputRate = 0;
+  let outputRate = 0;
+  let cachedRate = 0;
+
+  if (model.includes('gemini-1.5-pro')) {
+    inputRate = 3.50;
+    outputRate = 10.50;
+    cachedRate = 0.875;
+  } else if (model.includes('gemini-1.5-flash')) {
+    inputRate = 0.075;
+    outputRate = 0.30;
+    cachedRate = 0.01875;
+  } else if (model.includes('gemini-2.0-flash')) {
+      inputRate = 0.10;
+      outputRate = 0.40;
+      cachedRate = 0.025; // Assumption
+  } else {
+      // Default to Pro rates for unknown high-end models, or Flash for others?
+      // Let's go with a middle ground or 0 if completely unknown
+      inputRate = 0;
+      outputRate = 0;
+  }
+
+  return (input * inputRate + output * outputRate + cached * cachedRate) / 1_000_000;
 };
 
 export async function GET() {
+  const logPath = join(process.cwd(), '.gemini', 'telemetry.log');
+  
+  const stats: UsageStats = {
+    daily: createEmptyStat(),
+    weekly: createEmptyStat(),
+    monthly: createEmptyStat(),
+    total: createEmptyStat(),
+  };
+
+  if (!existsSync(logPath)) {
+    return NextResponse.json(stats);
+  }
+
   try {
-    // Fetch all messages with stats
-    // We only care about 'model' messages that have stats
-    const messages = db.prepare(`
-      SELECT stats, created_at 
-      FROM messages 
-      WHERE role = 'model' AND stats IS NOT NULL
-    `).all() as { stats: string; created_at: number }[];
+    const lines = readFileSync(logPath, 'utf-8').split('\n').filter(Boolean);
+    const apiResponses = lines
+      .map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(l => l && l.name === 'gemini_cli.api_response');
 
     const now = new Date();
-    const dayStart = startOfDay(now);
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday start
-    const monthStart = startOfMonth(now);
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).getTime();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
-    const stats: UsageStats = {
-      daily: { ...initialStat },
-      weekly: { ...initialStat },
-      monthly: { ...initialStat },
-      total: { ...initialStat },
-    };
+    for (const event of apiResponses) {
+      // Try to find timestamp
+      let timestamp = Date.now(); // Default to now if missing (which shouldn't happen in good telemetry)
+      if (event.timestamp) timestamp = new Date(event.timestamp).getTime();
+      else if (event.time) timestamp = new Date(event.time).getTime();
+      else if (event.date) timestamp = new Date(event.date).getTime();
+      else if (event.attributes?.timestamp) timestamp = new Date(event.attributes.timestamp).getTime();
+      
+      const model = event.attributes?.model || 'unknown';
+      const input = event.attributes?.input_token_count || 0;
+      const output = event.attributes?.output_token_count || 0;
+      const cached = event.attributes?.cached_content_token_count || 0;
+      const total = (event.attributes?.total_token_count || (input + output)); // Sometimes total is provided
+      
+      const cost = calculateCost(model, input, output, cached);
 
-    for (const msg of messages) {
-      try {
-        const data = JSON.parse(msg.stats);
-        const createdAt = new Date(msg.created_at);
+      const updateStat = (stat: StatEntry) => {
+        stat.inputTokens += input;
+        stat.outputTokens += output;
+        stat.cachedTokens += cached;
+        stat.totalTokens += total;
+        stat.cost += cost;
+        stat.count += 1;
+      };
 
-        // Normalize field names (CLI uses snake_case, UI might use camelCase)
-        const input = data.input_tokens || data.inputTokenCount || 0;
-        const output = data.output_tokens || data.outputTokenCount || 0;
-        const cached = data.cached || data.cachedContentTokenCount || 0;
-        const total = data.total_tokens || data.totalTokenCount || (input + output);
-        
-        // Use provided cost or calculate it
-        const modelName = data.model || 'auto-gemini-3'; // Default to auto-gemini-3 (Gemini 3 Pro) if not found
-        const cost = data.totalCost || calculateCost(input, output, cached, modelName);
+      // Update Total
+      updateStat(stats.total);
 
-        // Helper to accumulate
-        const accumulate = (entry: StatEntry) => {
-          entry.inputTokens += input;
-          entry.outputTokens += output;
-          entry.cachedTokens += cached;
-          entry.totalTokens += total;
-          entry.cost += cost;
-          entry.count += 1;
-        };
+      // Update Daily
+      if (timestamp >= startOfDay) {
+        updateStat(stats.daily);
+      }
 
-        // Total
-        accumulate(stats.total);
+      // Update Weekly
+      if (timestamp >= startOfWeek) {
+        updateStat(stats.weekly);
+      }
 
-        // Daily
-        if (isAfter(createdAt, dayStart)) {
-          accumulate(stats.daily);
-        }
-
-        // Weekly
-        if (isAfter(createdAt, weekStart)) {
-          accumulate(stats.weekly);
-        }
-
-        // Monthly
-        if (isAfter(createdAt, monthStart)) {
-          accumulate(stats.monthly);
-        }
-
-      } catch (e) {
-        // Ignore bad JSON
+      // Update Monthly
+      if (timestamp >= startOfMonth) {
+        updateStat(stats.monthly);
       }
     }
 
     return NextResponse.json(stats);
   } catch (error) {
-    console.error('Failed to fetch stats:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error('Failed to parse telemetry:', error);
+    // Return empty stats on error to avoid UI crash
+    return NextResponse.json(stats);
   }
 }

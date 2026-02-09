@@ -1,10 +1,27 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ModuleCard } from '../ModuleCard';
 import { GitCommit, GitBranch, GitPullRequest, Clock, RotateCcw } from 'lucide-react';
-import { mockCheckpoints } from '@/lib/api/gemini-mock';
+import { fetchCheckpoints } from '@/lib/api/gemini';
+import { Checkpoint } from '@/lib/types/gemini';
 
 export function SessionTimeline() {
-  const checkpoints = mockCheckpoints;
+  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchCheckpoints()
+      .then(setCheckpoints)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <ModuleCard title="Session Timeline" description="Checkpoints & Restore Points" icon={GitBranch} className="h-full">
+        <div className="flex items-center justify-center h-40 text-sm text-zinc-500">Loading timeline...</div>
+      </ModuleCard>
+    );
+  }
 
   return (
     <ModuleCard title="Session Timeline" description="Checkpoints & Restore Points" icon={GitBranch} className="h-full">

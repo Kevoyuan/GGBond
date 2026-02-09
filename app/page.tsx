@@ -7,6 +7,7 @@ import { Header } from '../components/Header';
 import { MessageBubble, LoadingBubble, Message } from '../components/MessageBubble';
 import { SkillsDialog } from '../components/SkillsDialog';
 import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
+import { fetchSettings, updateSettings } from '@/lib/api/gemini';
 import { cn } from '@/lib/utils';
 
 import { ChatInput } from '../components/ChatInput';
@@ -112,17 +113,27 @@ export default function Home() {
 
   // Load Settings
   useEffect(() => {
-    const saved = localStorage.getItem('gem-ui-settings');
-    if (saved) {
+    const loadSettings = async () => {
       try {
-        setSettings(JSON.parse(saved));
-      } catch (e) { console.error('Failed to parse settings', e); }
-    }
+        const remoteSettings = await fetchSettings();
+        setSettings(prev => ({
+          ...prev,
+          ...remoteSettings
+        }));
+      } catch (error) {
+        console.error('Failed to fetch settings', error);
+      }
+    };
+    loadSettings();
   }, []);
 
-  const handleSaveSettings = (newSettings: ChatSettings) => {
+  const handleSaveSettings = async (newSettings: ChatSettings) => {
     setSettings(newSettings);
-    localStorage.setItem('gem-ui-settings', JSON.stringify(newSettings));
+    try {
+      await updateSettings(newSettings);
+    } catch (error) {
+      console.error('Failed to save settings', error);
+    }
   };
 
   // Load Theme

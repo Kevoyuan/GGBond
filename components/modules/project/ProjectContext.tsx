@@ -1,10 +1,34 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ModuleCard } from '../ModuleCard';
 import { FileCode, FolderGit2, RefreshCw, Eye, Edit3 } from 'lucide-react';
-import { mockContext } from '@/lib/api/gemini-mock';
+import { fetchContext } from '@/lib/api/gemini';
+import { ProjectContext as ProjectContextType } from '@/lib/types/gemini';
 
 export function ProjectContext() {
-  const context = mockContext;
+  const [context, setContext] = useState<ProjectContextType | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadData = () => {
+    setLoading(true);
+    fetchContext()
+      .then(setContext)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  if (loading && !context) {
+    return (
+      <ModuleCard title="Project Context" description="Active rules and file indexing" icon={FolderGit2}>
+        <div className="flex items-center justify-center h-40 text-sm text-zinc-500">Loading context...</div>
+      </ModuleCard>
+    );
+  }
+
+  if (!context) return null;
 
   return (
     <ModuleCard 
@@ -12,8 +36,11 @@ export function ProjectContext() {
       description="Active rules and file indexing" 
       icon={FolderGit2}
       actions={
-        <button className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors text-zinc-500">
-          <RefreshCw size={14} />
+        <button 
+          onClick={loadData}
+          className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors text-zinc-500"
+        >
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
         </button>
       }
     >

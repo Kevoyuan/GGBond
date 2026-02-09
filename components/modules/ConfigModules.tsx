@@ -1,109 +1,90 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ModuleCard } from './ModuleCard';
-import { Settings, Palette, Command, Info, ToggleLeft, ToggleRight, User, Brain, FolderOpen, Plus, Trash2 } from 'lucide-react';
-import { mockContext } from '@/lib/api/gemini-mock';
+import { Settings, Palette, Command, Info, ToggleLeft, ToggleRight, User } from 'lucide-react';
+import { fetchSettings, updateSettings } from '@/lib/api/gemini';
 
 export function AuthManager() {
+  // Static for now as auth is not fully exposed in CLI API
   return (
     <ModuleCard title="Authentication" description="User & API Keys" icon={User}>
       <div className="space-y-4">
         <div className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
           <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
-            JD
+            G
           </div>
           <div>
-            <div className="font-medium text-sm text-zinc-900 dark:text-zinc-100">John Doe</div>
-            <div className="text-xs text-zinc-500">Pro Plan • Active</div>
+            <div className="font-medium text-sm text-zinc-900 dark:text-zinc-100">Gemini User</div>
+            <div className="text-xs text-zinc-500">Local Environment</div>
           </div>
         </div>
         <div className="space-y-2">
            <div className="flex justify-between items-center text-sm">
              <span className="text-zinc-500">API Key</span>
-             <span className="font-mono text-xs">sk_...8d9a</span>
+             <span className="font-mono text-xs">Set in Environment</span>
            </div>
            <button className="w-full py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-             Rotate Key
+             Manage Keys
            </button>
         </div>
-      </div>
-    </ModuleCard>
-  );
-}
-
-export function MemoryManager() {
-  return (
-    <ModuleCard title="Memory & Storage" description="Vector DB & Cache" icon={Brain}>
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs text-zinc-500 mb-1">
-             <span>Vector Index</span>
-             <span>84%</span>
-          </div>
-          <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-            <div className="h-full bg-purple-500 w-[84%]" />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs text-zinc-500 mb-1">
-             <span>Cache Usage</span>
-             <span>230MB / 1GB</span>
-          </div>
-          <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 w-[23%]" />
-          </div>
-        </div>
-        <div className="flex gap-2 mt-2">
-           <button className="flex-1 py-1.5 text-xs bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded hover:opacity-90">
-             Optimize
-           </button>
-           <button className="flex-1 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400">
-             Purge
-           </button>
-        </div>
-      </div>
-    </ModuleCard>
-  );
-}
-
-export function DirectoryManager() {
-  const dirs = mockContext.includedDirectories;
-  
-  return (
-    <ModuleCard title="Included Directories" description="Context sources" icon={FolderOpen}>
-      <div className="space-y-2">
-        {dirs.map((dir, i) => (
-          <div key={i} className="flex items-center justify-between p-2 text-sm border border-zinc-100 dark:border-zinc-800 rounded group hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
-            <span className="font-mono text-xs text-zinc-600 dark:text-zinc-400 truncate max-w-[180px]" title={dir}>
-              {dir}
-            </span>
-            <button className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-500 transition-opacity">
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ))}
-        <button className="w-full py-2 border border-dashed border-zinc-300 dark:border-zinc-700 rounded text-xs text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center justify-center gap-2">
-          <Plus size={14} /> Add Directory
-        </button>
       </div>
     </ModuleCard>
   );
 }
 
 export function SettingsManager() {
+  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchSettings()
+      .then(setSettings)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggleSetting = async (path: string[], value: boolean) => {
+    if (!settings) return;
+    
+    // Deep clone to avoid mutation
+    const newSettings = JSON.parse(JSON.stringify(settings));
+    
+    // Navigate and set value
+    let current = newSettings;
+    for (let i = 0; i < path.length - 1; i++) {
+      if (!current[path[i]]) current[path[i]] = {};
+      current = current[path[i]];
+    }
+    current[path[path.length - 1]] = value;
+
+    setSettings(newSettings);
+    try {
+      await updateSettings(newSettings);
+    } catch (err) {
+      console.error('Failed to update settings', err);
+      // Revert on error? For now just log.
+    }
+  };
+
+  if (loading) return <ModuleCard title="General Settings" description="Loading..." icon={Settings}><div className="h-20" /></ModuleCard>;
+
+  const showMemoryUsage = settings?.ui?.showMemoryUsage ?? true;
+  const hideModelInfo = settings?.ui?.footer?.hideModelInfo ?? false;
+  const hideContextPercentage = settings?.ui?.footer?.hideContextPercentage ?? false;
+
   return (
     <ModuleCard title="General Settings" description="Global configuration" icon={Settings}>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Auto-save sessions</span>
-          <ToggleRight className="text-blue-500" size={24} />
+        <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleSetting(['ui', 'showMemoryUsage'], !showMemoryUsage)}>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Show Memory Usage</span>
+          {showMemoryUsage ? <ToggleRight className="text-blue-500" size={24} /> : <ToggleLeft className="text-zinc-300 dark:text-zinc-600" size={24} />}
         </div>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Stream responses</span>
-          <ToggleRight className="text-blue-500" size={24} />
+        <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleSetting(['ui', 'footer', 'hideModelInfo'], !hideModelInfo)}>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Hide Model Info</span>
+          {hideModelInfo ? <ToggleRight className="text-blue-500" size={24} /> : <ToggleLeft className="text-zinc-300 dark:text-zinc-600" size={24} />}
         </div>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Notifications</span>
-          <ToggleLeft className="text-zinc-300 dark:text-zinc-600" size={24} />
+        <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleSetting(['ui', 'footer', 'hideContextPercentage'], !hideContextPercentage)}>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Hide Context %</span>
+          {hideContextPercentage ? <ToggleRight className="text-blue-500" size={24} /> : <ToggleLeft className="text-zinc-300 dark:text-zinc-600" size={24} />}
         </div>
       </div>
     </ModuleCard>
