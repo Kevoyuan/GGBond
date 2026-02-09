@@ -15,12 +15,15 @@ export interface Message {
   sessionId?: string;
 }
 
+import { ChatSettings } from './SettingsDialog';
+
 interface MessageBubbleProps {
   message: Message;
   isLast: boolean;
+  settings?: ChatSettings;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, settings }: MessageBubbleProps) {
   const isUser = message.role === 'user';
 
   return (
@@ -80,7 +83,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
         {!isUser && message.stats && (
           <div className="mt-1 ml-1">
-            <TokenUsageDisplay stats={message.stats} />
+            <TokenUsageDisplay 
+              stats={message.stats} 
+              hideModelInfo={settings?.ui?.footer?.hideModelInfo}
+              hideContextPercentage={settings?.ui?.footer?.hideContextPercentage}
+              showMemoryUsage={settings?.ui?.showMemoryUsage}
+            />
           </div>
         )}
         

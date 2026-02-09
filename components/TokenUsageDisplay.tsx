@@ -1,7 +1,8 @@
-import { Zap, Clock, Coins, Database, ChevronDown, ChevronUp } from 'lucide-react';
+import { Zap, Clock, Coins, Database, ChevronDown, ChevronUp, Cpu, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getModelInfo } from '@/lib/pricing';
 
 interface TokenStats {
   inputTokenCount?: number;
@@ -17,9 +18,12 @@ interface TokenUsageDisplayProps {
   stats: TokenStats;
   compact?: boolean;
   className?: string;
+  hideModelInfo?: boolean;
+  hideContextPercentage?: boolean;
+  showMemoryUsage?: boolean;
 }
 
-export function TokenUsageDisplay({ stats, compact = true, className }: TokenUsageDisplayProps) {
+export function TokenUsageDisplay({ stats, compact = true, className, hideModelInfo = false, hideContextPercentage = false, showMemoryUsage = true }: TokenUsageDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(!compact);
 
   // Safely extract values with defaults (handling both camelCase and snake_case)
@@ -31,6 +35,12 @@ export function TokenUsageDisplay({ stats, compact = true, className }: TokenUsa
   const duration = durationMs ? `${(durationMs / 1000).toFixed(2)}s` : null;
   const cachedTokens = stats.cachedContentTokenCount || stats.cached || 0;
   
+  // Model info for context window
+  const modelName = stats.model || 'auto-gemini-3';
+  const { pricing, name: resolvedModelName } = getModelInfo(modelName);
+  const contextLimit = pricing.contextWindow;
+  const contextPercent = Math.min((totalTokens / contextLimit) * 100, 100);
+
   // Calculate percentages for the bar
   const inputPercent = totalTokens > 0 ? (inputTokens / totalTokens) * 100 : 0;
   const outputPercent = totalTokens > 0 ? (outputTokens / totalTokens) * 100 : 0;
@@ -100,28 +110,69 @@ export function TokenUsageDisplay({ stats, compact = true, className }: TokenUsa
                     style={{ width: `${outputPercent}%` }}
                   />
                 </div>
-                <div className="flex justify-between text-[10px] font-mono text-foreground/80">
+                <div className="flex justify-between text-[10px] text-muted-foreground">
                   <span>{inputTokens.toLocaleString()}</span>
                   <span>{outputTokens.toLocaleString()}</span>
                 </div>
               </div>
 
-              {/* Grid Stats */}
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/30">
-                {stats.model && (
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Model</span>
-                    <span className="text-xs font-medium truncate" title={stats.model}>{stats.model}</span>
+              {/* Context Window Usage */}
+              {!hideContextPercentage && (
+                <div className="space-y-1.5 pt-1 border-t border-border/30">
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="uppercase tracking-wider font-semibold text-muted-foreground flex items-center gap-1">
+                      <Cpu className="w-3 h-3" /> Context Window
+                    </span>
+                    {!hideModelInfo && (
+                      <span className="text-muted-foreground font-medium">
+                        {resolvedModelName.replace('gemini-', '')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="h-1.5 w-full bg-muted/50 rounded-full overflow-hidden relative group/ctx">
+                    <div 
+                      className={cn(
+                        "h-full transition-all duration-500",
+                        contextPercent > 90 ? "bg-red-500/70" : 
+                        contextPercent > 70 ? "bg-yellow-500/70" : 
+                        "bg-purple-500/70"
+                      )}
+                      style={{ width: `${Math.max(contextPercent, 1)}%` }} // Ensure at least 1% visible
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>{((totalTokens / contextLimit) * 100).toFixed(2)}% used</span>
+                    <span>{Math.round(contextLimit / 1024)}k limit</span>
+                  </div>
+                  <div className="text-[9px] text-muted-foreground/60 pt-0.5 flex items-center gap-1">
+                    <Info className="w-2.5 h-2.5" />
+                    <a 
+                      href="https://ai.google.dev/gemini-api/docs/gemini-3?hl=zh-cn" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="hover:text-primary underline decoration-dotted transition-colors"
+                    >
+                      Context Window Info
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Extra Details Grid */}
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/30">
+                {showMemoryUsage && (
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <Database className="w-3 h-3" />
+                    <span>Cached: {cachedTokens.toLocaleString()}</span>
                   </div>
                 )}
-                <div className="flex flex-col">
-                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Cache</span>
-                   <span className="text-xs font-medium">
-                     {cachedTokens.toLocaleString()}
-                   </span>
-                </div>
+                {duration && (
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <Clock className="w-3 h-3" />
+                    <span>Time: {duration}</span>
+                  </div>
+                )}
               </div>
-
             </div>
           </motion.div>
         )}

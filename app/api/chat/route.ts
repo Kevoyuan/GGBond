@@ -5,10 +5,24 @@ import { getGeminiPath, getGeminiEnv } from '@/lib/gemini-utils';
 
 export async function POST(req: Request) {
   try {
-    const { prompt, model, systemInstruction, sessionId, workspace } = await req.json();
+    const { prompt, model, systemInstruction, sessionId, workspace, modelSettings } = await req.json();
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+    }
+
+    // Check max session turns if configured
+    if (sessionId && modelSettings?.maxSessionTurns > 0) {
+      try {
+        const result = db.prepare('SELECT COUNT(*) as count FROM messages WHERE session_id = ? AND role = ?').get(sessionId, 'user') as { count: number };
+        if (result && result.count >= modelSettings.maxSessionTurns) {
+          return NextResponse.json({ 
+            error: `Session turn limit reached (${modelSettings.maxSessionTurns} turns). Please start a new chat.` 
+          }, { status: 403 });
+        }
+      } catch (e) {
+        console.error('Failed to check session turns:', e);
+      }
     }
 
     // Resolve gemini executable path

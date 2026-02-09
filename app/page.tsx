@@ -31,6 +31,18 @@ export default function Home() {
   const [settings, setSettings] = useState<ChatSettings>({
     model: 'auto-gemini-3',
     systemInstruction: '',
+    ui: {
+      footer: {
+        hideModelInfo: false,
+        hideContextPercentage: false,
+      },
+      showMemoryUsage: true,
+    },
+    modelSettings: {
+      compressionThreshold: 0.5,
+      maxSessionTurns: -1,
+      tokenBudget: 2000,
+    }
   });
 
   // UI state
@@ -206,7 +218,8 @@ export default function Home() {
           model: actualModel,
           systemInstruction: settings.systemInstruction,
           sessionId: currentSessionId,
-          workspace: currentWorkspace // Pass current workspace
+          workspace: currentWorkspace,
+          modelSettings: settings.modelSettings
         }),
       });
 
@@ -368,6 +381,7 @@ export default function Home() {
                   key={idx} 
                   message={msg} 
                   isLast={idx === messages.length - 1} 
+                  settings={settings}
                 />
               ))}
               {isLoading && messages[messages.length - 1]?.role !== 'model' && <LoadingBubble />}
@@ -382,6 +396,7 @@ export default function Home() {
           isLoading={isLoading} 
           currentModel={settings.model}
           onModelChange={(model) => setSettings(s => ({ ...s, model }))}
+          sessionStats={sessionStats}
         />
       </div>
     </div>
