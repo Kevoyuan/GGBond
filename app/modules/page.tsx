@@ -1,73 +1,90 @@
 'use client';
 
 import React from 'react';
+import { AnalyticsDashboard } from '@/components/modules/analytics/AnalyticsDashboard';
+import { PerformancePanel } from '@/components/modules/analytics/PerformancePanel';
+import { SessionTimeline } from '@/components/modules/timeline/SessionTimeline';
+import { ProjectContext } from '@/components/modules/project/ProjectContext';
 import { ChatManager } from '@/components/modules/ChatModules';
 import { ToolManager, MCPManager, ExtensionManager } from '@/components/modules/SystemModules';
 import { MemoryManager, DirectoryManager, HooksManager } from '@/components/modules/ContextModules';
 import { SettingsManager, ThemeSelector, ShortcutsPanel, SystemInfo } from '@/components/modules/ConfigModules';
 import { ShellManager, AuthManager, FileManager } from '@/components/modules/ActionModules';
+import { SkillsManager } from '@/components/modules/SkillsManager';
 
-// New Opcode-inspired modules
-import { SessionTimeline } from '@/components/modules/timeline/SessionTimeline';
-import { ProjectContext } from '@/components/modules/project/ProjectContext';
-import { AnalyticsDashboard } from '@/components/modules/analytics/AnalyticsDashboard';
+function SectionTitle({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="mb-4">
+      <h2 className="text-xl font-bold text-foreground">{title}</h2>
+      <p className="text-sm text-muted-foreground">{description}</p>
+    </div>
+  );
+}
 
 export default function ModulesPage() {
   return (
-    <div className="p-6 h-full overflow-y-auto bg-background">
-      <div className="max-w-[1600px] mx-auto space-y-8">
-        <header className="flex items-center justify-between pb-6 border-b">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Control Center</h1>
-            <p className="text-muted-foreground mt-1 text-sm">
-              Manage your Gemini CLI environment, sessions, and integrations
-            </p>
-          </div>
-          <div className="flex gap-3">
-             {/* Global Actions could go here */}
-          </div>
-        </header>
-
-        {/* Dashboard Grid - Layout inspired by Opcode */}
-        <div className="grid grid-cols-12 gap-6">
-          
-          {/* Left Column: Timeline & Context (Width: 3/12) */}
-          <div className="col-span-12 lg:col-span-3 space-y-6">
-             <SessionTimeline />
-             <ProjectContext />
-             <DirectoryManager />
-          </div>
-
-          {/* Middle Column: Core Management (Width: 6/12) */}
-          <div className="col-span-12 lg:col-span-6 space-y-6">
-            <div className="grid grid-cols-2 gap-6">
-              <AnalyticsDashboard />
-              <ChatManager />
-            </div>
-            
-            <ShellManager />
-            
-            <div className="grid grid-cols-2 gap-6">
-              <ToolManager />
-              <MCPManager />
-            </div>
-            
-            <ExtensionManager />
-          </div>
-
-          {/* Right Column: Configuration & Meta (Width: 3/12) */}
-          <div className="col-span-12 lg:col-span-3 space-y-6">
-            <AuthManager />
-            <SettingsManager />
-            <MemoryManager />
-            <div className="grid grid-cols-1 gap-6">
-              <ThemeSelector />
-              <ShortcutsPanel />
-            </div>
-            <SystemInfo />
-          </div>
-
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <h1 className="text-2xl font-bold text-foreground">Gemini CLI Modules</h1>
+          <p className="text-sm text-muted-foreground mt-1">15 core modules — all connected to real Gemini CLI data</p>
         </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-6 space-y-10">
+        {/* ─── Section 1: Monitoring & Analytics ──────────────── */}
+        <section>
+          <SectionTitle title="📊 Monitoring & Analytics" description="Token usage, cost tracking, and performance telemetry" />
+          <div className="grid lg:grid-cols-2 gap-4">
+            <AnalyticsDashboard />
+            <PerformancePanel />
+          </div>
+        </section>
+
+        {/* ─── Section 2: Session & Chat ──────────────────────── */}
+        <section>
+          <SectionTitle title="💬 Sessions & Chat" description="Session history and checkpointing" />
+          <div className="grid lg:grid-cols-2 gap-4">
+            <ChatManager />
+            <SessionTimeline />
+          </div>
+        </section>
+
+        {/* ─── Section 3: System Integration ─────────────────── */}
+        <section>
+          <SectionTitle title="⚙️ System Integration" description="MCP servers, tools, extensions, and skills" />
+          <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            <MCPManager />
+            <ToolManager />
+            <ExtensionManager />
+            <SkillsManager />
+            <ShellManager />
+            <AuthManager />
+          </div>
+        </section>
+
+        {/* ─── Section 4: Context & Memory ────────────────────── */}
+        <section>
+          <SectionTitle title="🧠 Context & Memory" description="GEMINI.md, directories, hooks, and project context" />
+          <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            <MemoryManager />
+            <DirectoryManager />
+            <HooksManager />
+            <ProjectContext />
+          </div>
+        </section>
+
+        {/* ─── Section 5: Configuration ───────────────────────── */}
+        <section>
+          <SectionTitle title="🎨 Configuration" description="Model selection, theme, shortcuts, and system info" />
+          <div className="grid lg:grid-cols-2 xl:grid-cols-4 gap-4">
+            <SettingsManager />
+            <ThemeSelector />
+            <SystemInfo />
+            <FileManager />
+          </div>
+        </section>
       </div>
     </div>
   );
