@@ -70,15 +70,20 @@ export async function POST(req: Request) {
     const geminiPath = getGeminiPath();
     const env = getGeminiEnv();
 
+    const NAME_REGEX = /^[a-zA-Z0-9-]+$/;
+
     let args: string[] = [];
     if (action === 'enable') {
+      if (!name || !NAME_REGEX.test(name)) return NextResponse.json({ error: 'Invalid skill name' }, { status: 400 });
       args = ['skills', 'enable', name];
     } else if (action === 'disable') {
+      if (!name || !NAME_REGEX.test(name)) return NextResponse.json({ error: 'Invalid skill name' }, { status: 400 });
       args = ['skills', 'disable', name];
     } else if (action === 'install') {
       if (!source) return NextResponse.json({ error: 'Source required' }, { status: 400 });
       args = ['skills', 'install', source];
     } else if (action === 'uninstall') {
+        if (!name || !NAME_REGEX.test(name)) return NextResponse.json({ error: 'Invalid skill name' }, { status: 400 });
         args = ['skills', 'uninstall', name];
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
