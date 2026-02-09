@@ -69,14 +69,37 @@ export default function Home() {
 
   const currentContextUsage = useMemo(() => {
     if (messages.length === 0) return 0;
+    
+    let lastStatsUsage = 0;
+    let lastStatsIndex = -1;
+
+    // Find the last message with stats
     for (let i = messages.length - 1; i >= 0; i--) {
       const stats = messages[i].stats;
       if (stats) {
-        return (stats.totalTokenCount || stats.total_tokens || 
+        lastStatsUsage = (stats.totalTokenCount || stats.total_tokens || 
                ((stats.inputTokenCount || stats.input_tokens || 0) + (stats.outputTokenCount || stats.output_tokens || 0)));
+        lastStatsIndex = i;
+        break;
       }
     }
-    return 0;
+
+    if (lastStatsIndex === -1) return 0;
+
+    // Check for simulated compression messages starting from the last stats message itself
+    // because the compression confirmation message might carry the stats of the "before" state
+    let adjustment = 0;
+    for (let i = lastStatsIndex; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg.role === 'model' && msg.content.includes('<state_snapshot>')) {
+        const match = msg.content.match(/预计节省 Token:\s*~?(\d+)/);
+        if (match) {
+          adjustment += parseInt(match[1], 10);
+        }
+      }
+    }
+
+    return Math.max(0, lastStatsUsage - adjustment);
   }, [messages]);
 
   const scrollToBottom = () => {

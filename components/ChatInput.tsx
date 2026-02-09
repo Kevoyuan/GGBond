@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -20,11 +20,36 @@ interface CommandItem {
   command: string;
   description: string;
   icon: React.ElementType;
+  group?: string;
 }
 
 const BASE_COMMANDS: CommandItem[] = [
-  { command: '/skill', description: 'Use an installed skill', icon: Sparkles },
-  { command: '/clear', description: 'Clear conversation history', icon: Slash },
+  // Chat Management
+  { command: '/chat', description: 'Manage chat sessions (save, list, resume)', icon: MessageSquare, group: 'Built-in' },
+  { command: '/clear', description: 'Clear conversation history', icon: Slash, group: 'Built-in' },
+  { command: '/resume', description: 'Resume previous session', icon: History, group: 'Built-in' },
+  { command: '/rewind', description: 'Rewind conversation', icon: RotateCcw, group: 'Built-in' },
+  { command: '/restore', description: 'Restore state', icon: ArchiveRestore, group: 'Built-in' },
+  { command: '/compress', description: 'Compress context', icon: Shrink, group: 'Built-in' },
+  { command: '/copy', description: 'Copy last response', icon: Copy, group: 'Built-in' },
+
+  // Tools & MCP
+  { command: '/tools', description: 'Manage tools', icon: Hammer, group: 'Built-in' },
+  { command: '/mcp', description: 'Manage MCP servers', icon: Server, group: 'Built-in' },
+
+  // Skills & Extensions
+  { command: '/skills', description: 'Manage skills', icon: Sparkles, group: 'Built-in' },
+  { command: '/extensions', description: 'Manage extensions', icon: Puzzle, group: 'Built-in' },
+
+  // Context & Memory
+  { command: '/memory', description: 'Manage memory/context', icon: Brain, group: 'Built-in' },
+  { command: '/init', description: 'Initialize GEMINI.md', icon: FileText, group: 'Built-in' },
+  { command: '/directory', description: 'Manage working directories', icon: Folder, group: 'Built-in' },
+
+  // Settings
+  { command: '/settings', description: 'Open settings', icon: Settings, group: 'Built-in' },
+  { command: '/model', description: 'Select model', icon: Cpu, group: 'Built-in' },
+  { command: '/theme', description: 'Change theme', icon: Palette, group: 'Built-in' },
 ];
 
 const MODELS = [
@@ -65,13 +90,8 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
   const handleCompress = async () => {
     setIsCompressing(true);
     try {
-      // Simulate compression since CLI doesn't expose it directly yet
-      // In a real implementation, this would call an endpoint that summarizes history
-      // For now we'll just send a "system" style message to the user prompting them
-      // or actually trigger a summarization prompt to the model.
-      
-      // Let's implement a client-side trigger that sends a summarization request
-      onSend("Please summarize our conversation so far to reduce context usage while retaining key technical details and decisions.");
+      // Use the native /compress command from gemini-cli
+      onSend("/compress");
       setShowContextTooltip(false);
     } catch (error) {
       console.error('Compression failed:', error);
@@ -96,7 +116,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
   useEffect(() => {
     // Scroll selected item into view
     if (showCommands && commandListRef.current) {
-      const selectedElement = commandListRef.current.children[selectedIndex + 1] as HTMLElement; // +1 for the sticky header
+      const selectedElement = commandListRef.current.querySelector(`[data-index="${selectedIndex}"]`) as HTMLElement;
       if (selectedElement) {
         selectedElement.scrollIntoView({ block: 'nearest' });
       }
@@ -113,7 +133,8 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
           const skillCommands = skills.map((skill: any) => ({
             command: `/skill ${skill.name}`,
             description: skill.description || `Use ${skill.name} skill`,
-            icon: Sparkles
+            icon: Sparkles,
+            group: 'Skills'
           }));
           setInstalledSkills(skillCommands);
         }
@@ -144,14 +165,18 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
         const search = word.toLowerCase();
         
         // Combine base commands and skills
-        // We filter out the generic "/skill" from BASE_COMMANDS if we have specific skills to show
-        // to avoid redundancy, or keep it. Let's keep it simple.
         const allCommands = [...BASE_COMMANDS, ...installedSkills];
         
         const matches = allCommands.filter(c => 
             c.command.toLowerCase().startsWith(search) || 
             (word.length > 1 && c.description.toLowerCase().includes(search.replace(/^\//, '')))
         );
+        
+        // Sort: Built-in first, then Skills
+        matches.sort((a, b) => {
+            if (a.group === b.group) return 0;
+            return a.group === 'Built-in' ? -1 : 1;
+        });
         
         if (matches.length > 0) {
             setFilteredCommands(matches);
@@ -255,30 +280,37 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
         {showCommands && (
           <div className="absolute bottom-full left-0 mb-2 w-64 bg-card border rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50">
             <div className="max-h-64 overflow-y-auto p-1" ref={commandListRef}>
-              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-b mb-1 sticky top-0 bg-card z-10">
-                Commands
-              </div>
-              {filteredCommands.map((cmd, index) => (
-                <button
-                  key={cmd.command}
-                  onClick={() => handleCommandSelect(cmd.command)}
-                  className={cn(
-                    "w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors",
-                    index === selectedIndex 
-                      ? "bg-accent text-accent-foreground" 
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  )}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  <div className="flex items-center justify-center w-5 h-5 rounded bg-background border shadow-sm">
-                    <cmd.icon className="w-3 h-3" />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-medium">{cmd.command}</span>
-                    <span className="text-[10px] opacity-70 truncate">{cmd.description}</span>
-                  </div>
-                </button>
-              ))}
+              {filteredCommands.map((cmd, index) => {
+                const showHeader = index === 0 || cmd.group !== filteredCommands[index - 1].group;
+                return (
+                  <React.Fragment key={cmd.command}>
+                    {showHeader && (
+                      <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground bg-muted/30 border-y first:border-t-0 border-border sticky top-0 z-10 backdrop-blur-sm">
+                        {cmd.group || 'Commands'}
+                      </div>
+                    )}
+                    <button
+                      data-index={index}
+                      onClick={() => handleCommandSelect(cmd.command)}
+                      className={cn(
+                        "w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors",
+                        index === selectedIndex 
+                          ? "bg-accent text-accent-foreground" 
+                          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                      )}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                    >
+                      <div className="flex items-center justify-center w-5 h-5 rounded bg-background border shadow-sm">
+                        <cmd.icon className="w-3 h-3" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-medium">{cmd.command}</span>
+                        <span className="text-[10px] opacity-70 truncate">{cmd.description}</span>
+                      </div>
+                    </button>
+                  </React.Fragment>
+                );
+              })}
             </div>
           </div>
         )}
