@@ -1,10 +1,10 @@
 import { Bot, User, Info, Loader2, Copy, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useState } from 'react';
 import { TokenUsageDisplay } from './TokenUsageDisplay';
+import { DiffBlock } from './DiffBlock';
+import { CodeBlock } from './CodeBlock';
 
 export interface Message {
   role: 'user' | 'model';
@@ -43,8 +43,8 @@ export function MessageBubble({ message, settings }: MessageBubbleProps) {
           <div
             className={cn(
               "rounded-xl px-5 py-3.5 shadow-sm text-sm leading-relaxed",
-              isUser 
-                ? "bg-primary text-primary-foreground" 
+              isUser
+                ? "bg-primary text-primary-foreground"
                 : "bg-card border border-border/60"
             )}
           >
@@ -52,32 +52,22 @@ export function MessageBubble({ message, settings }: MessageBubbleProps) {
               <div className="prose dark:prose-invert prose-sm max-w-none break-words prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-code:bg-muted/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none">
                 <ReactMarkdown
                   components={{
-                    code({className, children, ...props}) {
+                    code({ className, children, ...props }) {
                       const match = /language-(\w+)/.exec(className || '')
-                      return match ? (
-                        <div className="relative group/code my-4 rounded-lg overflow-hidden border border-border/50">
-                          <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border/50">
-                            <span className="text-xs font-medium text-muted-foreground">{match[1]}</span>
-                            <button
-                              onClick={() => navigator.clipboard.writeText(String(children))}
-                              className="p-1 hover:bg-background rounded-md transition-colors opacity-0 group-hover/code:opacity-100"
-                              title="Copy code"
-                            >
-                              <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-                            </button>
-                          </div>
-                          {/* @ts-expect-error - react-syntax-highlighter types incompatibility */}
-                          <SyntaxHighlighter
-                            {...props}
-                            style={vscDarkPlus}
-                            language={match[1]}
-                            PreTag="div"
-                            customStyle={{ margin: 0, borderRadius: 0, padding: '1rem', background: 'var(--color-code-bg, #1e1e1e)' }}
-                          >
-                            {String(children).replace(/\n$/, '')}
-                          </SyntaxHighlighter>
-                        </div>
-                      ) : (
+                      const lang = match?.[1];
+                      const codeStr = String(children).replace(/\n$/, '');
+
+                      // Special handling for diff blocks
+                      if (lang === 'diff') {
+                        return <DiffBlock code={codeStr} />;
+                      }
+
+                      // Enhanced code block with line numbers & collapsing
+                      if (match && lang) {
+                        return <CodeBlock language={lang} code={codeStr} />;
+                      }
+
+                      return (
                         <code {...props} className={className}>
                           {children}
                         </code>
@@ -96,15 +86,15 @@ export function MessageBubble({ message, settings }: MessageBubbleProps) {
 
         {!isUser && message.stats && !isSnapshot && (
           <div className="mt-1 ml-1">
-            <TokenUsageDisplay 
-              stats={message.stats} 
+            <TokenUsageDisplay
+              stats={message.stats}
               hideModelInfo={settings?.ui?.footer?.hideModelInfo}
               hideContextPercentage={settings?.ui?.footer?.hideContextPercentage}
               showMemoryUsage={settings?.ui?.showMemoryUsage}
             />
           </div>
         )}
-        
+
         {message.error && (
           <div className="text-destructive text-sm mt-2 flex items-center gap-1.5 bg-destructive/10 px-3 py-2 rounded-md">
             <Info className="w-4 h-4" />
