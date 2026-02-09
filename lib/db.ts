@@ -33,13 +33,18 @@ db.exec(`
   );
 `);
 
-// Migration: Add workspace column if it doesn't exist
+// Migration: Add columns if they don't exist
 try {
   const tableInfo = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
   const hasWorkspace = tableInfo.some(col => col.name === 'workspace');
+  const hasUserId = tableInfo.some(col => col.name === 'user_id');
   
   if (!hasWorkspace) {
     db.exec('ALTER TABLE sessions ADD COLUMN workspace TEXT');
+  }
+
+  if (!hasUserId) {
+    db.exec('ALTER TABLE sessions ADD COLUMN user_id TEXT');
   }
 } catch (error) {
   console.error('Failed to migrate sessions table:', error);
@@ -53,6 +58,7 @@ export interface Session {
   created_at: number;
   updated_at: number;
   workspace?: string;
+  user_id?: string;
 }
 
 export interface DbMessage {

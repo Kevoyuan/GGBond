@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { ensureUserId } from '@/lib/auth';
 
 export async function GET() {
   try {
-    const sessions = db.prepare('SELECT * FROM sessions ORDER BY updated_at DESC').all();
+    const userId = await ensureUserId();
+    const sessions = db.prepare('SELECT * FROM sessions WHERE user_id = ? ORDER BY updated_at DESC').all(userId);
     return NextResponse.json(sessions);
   } catch (error) {
     console.error('Failed to fetch sessions:', error);

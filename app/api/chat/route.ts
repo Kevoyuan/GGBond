@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import db from '@/lib/db';
 import { getGeminiPath, getGeminiEnv } from '@/lib/gemini-utils';
+import { ensureUserId } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
+    const userId = await ensureUserId();
     const { prompt, model, systemInstruction, sessionId, workspace, modelSettings } = await req.json();
 
     if (!prompt) {
@@ -101,9 +103,9 @@ export async function POST(req: Request) {
                     if (!existingSession) {
                       const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
                       db.prepare(`
-                        INSERT INTO sessions (id, title, created_at, updated_at, workspace)
-                        VALUES (?, ?, ?, ?, ?)
-                      `).run(detectedSessionId, title, now, now, workspace || null);
+                        INSERT INTO sessions (id, title, created_at, updated_at, workspace, user_id)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                      `).run(detectedSessionId, title, now, now, workspace || null, userId);
                     } else {
                       db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(now, detectedSessionId);
                     }
