@@ -20,11 +20,13 @@ interface Session {
   title: string;
   created_at: string;
   updated_at: string;
+  workspace?: string;
 }
 
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [currentWorkspace, setCurrentWorkspace] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -91,6 +93,13 @@ export default function Home() {
     
     setIsLoading(true);
     setCurrentSessionId(id);
+    
+    // Find session to set workspace
+    const session = sessions.find(s => s.id === id);
+    if (session) {
+      setCurrentWorkspace(session.workspace || null);
+    }
+
     try {
       const res = await fetch(`/api/sessions/${id}`);
       if (res.ok) {
@@ -110,6 +119,16 @@ export default function Home() {
 
   const handleNewChat = () => {
     setCurrentSessionId(null);
+    setCurrentWorkspace(null); // Reset workspace or keep it? Let's reset for now.
+    setMessages([]);
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  };
+
+  const handleNewChatInWorkspace = (workspace: string) => {
+    setCurrentSessionId(null);
+    setCurrentWorkspace(workspace);
     setMessages([]);
     if (window.innerWidth < 768) {
       setSidebarOpen(false);
@@ -160,7 +179,8 @@ export default function Home() {
           prompt: userMessage.content,
           model: actualModel,
           systemInstruction: settings.systemInstruction,
-          sessionId: currentSessionId
+          sessionId: currentSessionId,
+          workspace: currentWorkspace // Pass current workspace
         }),
       });
 
@@ -226,6 +246,7 @@ export default function Home() {
           onSelectSession={handleSelectSession}
           onDeleteSession={handleDeleteSession}
           onNewChat={handleNewChat}
+          onNewChatInWorkspace={handleNewChatInWorkspace}
           onOpenSkills={() => setSkillsOpen(true)}
           isDark={theme === 'dark'}
           toggleTheme={toggleTheme}

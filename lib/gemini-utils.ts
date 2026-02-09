@@ -11,7 +11,7 @@ export function getGeminiPath(): string {
   }
 }
 
-export function getGeminiEnv() {
+export function getGeminiEnv(): NodeJS.ProcessEnv {
   return {
     ...process.env,
     TERM: 'dumb',
