@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 
 import { ChatInput } from '../components/ChatInput';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
+import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 
 interface Session {
   id: string;
@@ -26,7 +27,7 @@ export default function Home() {
   const [currentWorkspace, setCurrentWorkspace] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Settings state
   const [settings, setSettings] = useState<ChatSettings>({
     model: 'auto-gemini-3',
@@ -50,8 +51,9 @@ export default function Home() {
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showUsageStats, setShowUsageStats] = useState(false);
+  const [showAddWorkspace, setShowAddWorkspace] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -69,7 +71,7 @@ export default function Home() {
 
   const currentContextUsage = useMemo(() => {
     if (messages.length === 0) return 0;
-    
+
     let lastStatsUsage = 0;
     let lastStatsIndex = -1;
 
@@ -77,8 +79,8 @@ export default function Home() {
     for (let i = messages.length - 1; i >= 0; i--) {
       const stats = messages[i].stats;
       if (stats) {
-        lastStatsUsage = (stats.totalTokenCount || stats.total_tokens || 
-               ((stats.inputTokenCount || stats.input_tokens || 0) + (stats.outputTokenCount || stats.output_tokens || 0)));
+        lastStatsUsage = (stats.totalTokenCount || stats.total_tokens ||
+          ((stats.inputTokenCount || stats.input_tokens || 0) + (stats.outputTokenCount || stats.output_tokens || 0)));
         lastStatsIndex = i;
         break;
       }
@@ -163,10 +165,10 @@ export default function Home() {
   // Handle Session Selection
   const handleSelectSession = async (id: string) => {
     if (id === currentSessionId) return;
-    
+
     setIsLoading(true);
     setCurrentSessionId(id);
-    
+
     // Find session to set workspace
     const session = sessions.find(s => s.id === id);
     if (session) {
@@ -208,9 +210,15 @@ export default function Home() {
     }
   };
 
+  const handleAddWorkspace = (workspacePath: string) => {
+    setCurrentSessionId(null);
+    setCurrentWorkspace(workspacePath);
+    setMessages([]);
+  };
+
   const handleDeleteSession = async (id: string) => {
     if (!confirm('Are you sure you want to delete this chat?')) return;
-    
+
     try {
       await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
       setSessions(prev => prev.filter(s => s.id !== id));
@@ -248,7 +256,7 @@ export default function Home() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           prompt: userMessage.content,
           model: actualModel,
           systemInstruction: settings.systemInstruction,
@@ -262,9 +270,9 @@ export default function Home() {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to fetch response');
       }
-      
+
       if (!response.body) {
-         throw new Error('No response body');
+        throw new Error('No response body');
       }
 
       // Initialize assistant message
@@ -290,38 +298,38 @@ export default function Home() {
             const data = JSON.parse(line);
 
             if (data.type === 'init' && data.session_id) {
-               if (!streamSessionId) {
-                 streamSessionId = data.session_id;
-                 setCurrentSessionId(data.session_id);
-                 fetchSessions();
-               }
+              if (!streamSessionId) {
+                streamSessionId = data.session_id;
+                setCurrentSessionId(data.session_id);
+                fetchSessions();
+              }
             }
 
             if (data.type === 'message' && data.role === 'assistant' && data.content) {
-               assistantContent += data.content;
-               setMessages(prev => {
-                  const newMessages = [...prev];
-                  const lastMsg = newMessages[newMessages.length - 1];
-                  if (lastMsg.role === 'model') {
-                     lastMsg.content = assistantContent;
-                     if (streamSessionId) lastMsg.sessionId = streamSessionId;
-                  }
-                  return newMessages;
-               });
+              assistantContent += data.content;
+              setMessages(prev => {
+                const newMessages = [...prev];
+                const lastMsg = newMessages[newMessages.length - 1];
+                if (lastMsg.role === 'model') {
+                  lastMsg.content = assistantContent;
+                  if (streamSessionId) lastMsg.sessionId = streamSessionId;
+                }
+                return newMessages;
+              });
             }
 
             if (data.type === 'result' && data.stats) {
-               setMessages(prev => {
-                  const newMessages = [...prev];
-                  const lastMsg = newMessages[newMessages.length - 1];
-                  if (lastMsg.role === 'model') {
-                     lastMsg.stats = data.stats;
-                  }
-                  return newMessages;
-               });
+              setMessages(prev => {
+                const newMessages = [...prev];
+                const lastMsg = newMessages[newMessages.length - 1];
+                if (lastMsg.role === 'model') {
+                  lastMsg.stats = data.stats;
+                }
+                return newMessages;
+              });
             }
           } catch (e) {
-             console.error('JSON parse error', e);
+            console.error('JSON parse error', e);
           }
         }
       }
@@ -344,7 +352,7 @@ export default function Home() {
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans antialiased">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
@@ -356,13 +364,15 @@ export default function Home() {
         sidebarOpen ? "translate-x-0" : "-translate-x-full",
         "flex h-full"
       )}>
-        <Sidebar 
+        <Sidebar
           sessions={sessions}
           currentSessionId={currentSessionId}
           onSelectSession={handleSelectSession}
           onDeleteSession={handleDeleteSession}
           onNewChat={handleNewChat}
           onNewChatInWorkspace={handleNewChatInWorkspace}
+          currentWorkspace={currentWorkspace || undefined}
+          onAddWorkspace={() => setShowAddWorkspace(true)}
           onOpenSkills={() => setSkillsOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           isDark={theme === 'dark'}
@@ -371,9 +381,9 @@ export default function Home() {
         />
       </div>
 
-      <SkillsDialog 
-        open={skillsOpen} 
-        onClose={() => setSkillsOpen(false)} 
+      <SkillsDialog
+        open={skillsOpen}
+        onClose={() => setSkillsOpen(false)}
       />
 
       <SettingsDialog
@@ -383,9 +393,15 @@ export default function Home() {
         onSave={handleSaveSettings}
       />
 
-      <UsageStatsDialog 
-        open={showUsageStats} 
-        onClose={() => setShowUsageStats(false)} 
+      <UsageStatsDialog
+        open={showUsageStats}
+        onClose={() => setShowUsageStats(false)}
+      />
+
+      <AddWorkspaceDialog
+        open={showAddWorkspace}
+        onClose={() => setShowAddWorkspace(false)}
+        onAdd={handleAddWorkspace}
       />
 
       {/* Main Content */}
@@ -412,10 +428,10 @@ export default function Home() {
           ) : (
             <div className="max-w-3xl mx-auto w-full pb-8 pt-6 px-4 flex flex-col gap-6">
               {messages.map((msg, idx) => (
-                <MessageBubble 
-                  key={idx} 
-                  message={msg} 
-                  isLast={idx === messages.length - 1} 
+                <MessageBubble
+                  key={idx}
+                  message={msg}
+                  isLast={idx === messages.length - 1}
                   settings={settings}
                 />
               ))}
@@ -426,9 +442,9 @@ export default function Home() {
         </div>
 
         {/* Input Area */}
-        <ChatInput 
-          onSend={handleSendMessage} 
-          isLoading={isLoading} 
+        <ChatInput
+          onSend={handleSendMessage}
+          isLoading={isLoading}
           currentModel={settings.model}
           onModelChange={(model) => setSettings(s => ({ ...s, model }))}
           sessionStats={sessionStats}
