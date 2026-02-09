@@ -13,9 +13,11 @@ import {
   ChevronDown,
   ChevronRight,
   Folder,
-  BarChart2
+  BarChart2,
+  LayoutGrid
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 import { FileExplorer } from './FileExplorer';
 import { UsageStatsDialog } from './UsageStatsDialog';
@@ -129,6 +131,15 @@ export function Sidebar({
             icon={FolderOpen}
             label="Files"
           />
+
+          <Link href="/modules" className="block">
+            <NavButton 
+              active={false}
+              onClick={() => {}}
+              icon={LayoutGrid}
+              label="Modules"
+            />
+          </Link>
 
           <NavButton 
             active={false} 
@@ -269,12 +280,19 @@ export function Sidebar({
   );
 }
 
-function NavButton({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: React.ElementType; label: string }) {
+interface NavButtonProps {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ElementType;
+  label: string;
+}
+
+function NavButton({ active, onClick, icon: Icon, label }: NavButtonProps) {
   return (
-    <button 
+    <div 
       onClick={onClick}
       className={cn(
-        "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200 relative group",
+        "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200 relative group cursor-pointer",
         active 
           ? "bg-primary text-primary-foreground shadow-md" 
           : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -286,6 +304,6 @@ function NavButton({ active, onClick, icon: Icon, label }: { active: boolean; on
       <div className="absolute left-full ml-3 px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
         {label}
       </div>
-    </button>
+    </div>
   );
 }
