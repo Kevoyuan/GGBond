@@ -16,6 +16,7 @@ export interface Message {
 }
 
 import { ChatSettings } from './SettingsDialog';
+import { StateSnapshotDisplay } from './StateSnapshotDisplay';
 
 interface MessageBubbleProps {
   message: Message;
@@ -25,6 +26,7 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message, settings }: MessageBubbleProps) {
   const isUser = message.role === 'user';
+  const isSnapshot = !isUser && message.content.includes('<state_snapshot>');
 
   return (
     <div className={cn("flex gap-4 w-full animate-fade-in group", isUser ? "justify-end" : "justify-start")}>
@@ -34,54 +36,65 @@ export function MessageBubble({ message, settings }: MessageBubbleProps) {
         </div>
       )}
 
-      <div className={cn("flex flex-col max-w-[85%] md:max-w-[80%]", isUser ? "items-end" : "items-start")}>
-        <div
-          className={cn(
-            "rounded-xl px-5 py-3.5 shadow-sm text-sm leading-relaxed",
-            isUser 
-              ? "bg-primary text-primary-foreground" 
-              : "bg-card border border-border/60"
-          )}
-        >
-          {!isUser ? (
-            <div className="prose dark:prose-invert prose-sm max-w-none break-words prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-code:bg-muted/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none">
-              <ReactMarkdown
-                components={{
-                  code({className, children, ...props}) {
-                    const match = /language-(\w+)/.exec(className || '')
-                    return match ? (
-                      <div className="relative group/code my-4 rounded-lg overflow-hidden border border-border/50">
-                        <div className="absolute right-2 top-2 opacity-0 group-hover/code:opacity-100 transition-opacity z-10">
-                          <CopyButton content={String(children)} />
+      <div className={cn("flex flex-col max-w-[85%] md:max-w-[80%]", isUser ? "items-end" : "items-start", isSnapshot && "w-full max-w-3xl")}>
+        {isSnapshot ? (
+          <StateSnapshotDisplay content={message.content} />
+        ) : (
+          <div
+            className={cn(
+              "rounded-xl px-5 py-3.5 shadow-sm text-sm leading-relaxed",
+              isUser 
+                ? "bg-primary text-primary-foreground" 
+                : "bg-card border border-border/60"
+            )}
+          >
+            {!isUser ? (
+              <div className="prose dark:prose-invert prose-sm max-w-none break-words prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-code:bg-muted/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none">
+                <ReactMarkdown
+                  components={{
+                    code({className, children, ...props}) {
+                      const match = /language-(\w+)/.exec(className || '')
+                      return match ? (
+                        <div className="relative group/code my-4 rounded-lg overflow-hidden border border-border/50">
+                          <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border/50">
+                            <span className="text-xs font-medium text-muted-foreground">{match[1]}</span>
+                            <button
+                              onClick={() => navigator.clipboard.writeText(String(children))}
+                              className="p-1 hover:bg-background rounded-md transition-colors opacity-0 group-hover/code:opacity-100"
+                              title="Copy code"
+                            >
+                              <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                            </button>
+                          </div>
+                          {/* @ts-expect-error - react-syntax-highlighter types incompatibility */}
+                          <SyntaxHighlighter
+                            {...props}
+                            style={vscDarkPlus}
+                            language={match[1]}
+                            PreTag="div"
+                            customStyle={{ margin: 0, borderRadius: 0, padding: '1rem', background: 'var(--color-code-bg, #1e1e1e)' }}
+                          >
+                            {String(children).replace(/\n$/, '')}
+                          </SyntaxHighlighter>
                         </div>
-                        {/* @ts-expect-error - react-syntax-highlighter types incompatibility */}
-                        <SyntaxHighlighter
-                          {...props}
-                          style={vscDarkPlus}
-                          language={match[1]}
-                          PreTag="div"
-                          customStyle={{ margin: 0, borderRadius: 0, padding: '1rem', background: 'var(--color-code-bg, #1e1e1e)' }}
-                        >
-                          {String(children).replace(/\n$/, '')}
-                        </SyntaxHighlighter>
-                      </div>
-                    ) : (
-                      <code {...props} className={className}>
-                        {children}
-                      </code>
-                    )
-                  }
-                }}
-              >
-                {message.content}
-              </ReactMarkdown>
-            </div>
-          ) : (
-            <div className="whitespace-pre-wrap font-medium">{message.content}</div>
-          )}
-        </div>
+                      ) : (
+                        <code {...props} className={className}>
+                          {children}
+                        </code>
+                      )
+                    }
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <div className="whitespace-pre-wrap font-medium">{message.content}</div>
+            )}
+          </div>
+        )}
 
-        {!isUser && message.stats && (
+        {!isUser && message.stats && !isSnapshot && (
           <div className="mt-1 ml-1">
             <TokenUsageDisplay 
               stats={message.stats} 
