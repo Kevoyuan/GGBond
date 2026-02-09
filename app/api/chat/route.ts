@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     }
 
     // Construct arguments
-    const args = [geminiScriptPath, '--output-format', 'json'];
+    const args = [geminiScriptPath, '--output-format', 'stream-json'];
     
     // Add model if provided
     if (model) {
@@ -46,124 +46,120 @@ export async function POST(req: Request) {
     console.log('Running gemini with HOME:', env.HOME || process.env.HOME);
     console.log('Script path:', geminiScriptPath);
 
-    return new Promise<NextResponse>((resolve) => {
-      // Spawn 'node' directly with the script
-      const gemini = spawn(process.execPath, args, {
-        env
-      });
-      
-      let stdout = '';
-      let stderr = '';
+    const encoder = new TextEncoder();
+    let fullResponseContent = '';
+    let finalStats: any = null;
+    let detectedSessionId = sessionId;
+    let userMessageSaved = false;
 
-      gemini.stdout.on('data', (data: Buffer) => {
-        stdout += data.toString();
-      });
-
-      gemini.stderr.on('data', (data: Buffer) => {
-        stderr += data.toString();
-      });
-
-      gemini.on('close', (code) => {
-        console.log('Gemini exited with code:', code);
+    const stream = new ReadableStream({
+      start(controller) {
+        const gemini = spawn(process.execPath, args, { env });
         
-        let responseData: unknown = null;
-        let finalSessionId = sessionId;
+        let lineBuffer = '';
 
-        // Try to parse JSON output
-        try {
-          const jsonStart = stdout.indexOf('{');
-          const jsonEnd = stdout.lastIndexOf('}');
-          
-          if (jsonStart !== -1 && jsonEnd !== -1) {
-            const jsonStr = stdout.substring(jsonStart, jsonEnd + 1);
-            responseData = JSON.parse(jsonStr);
-            if (responseData && typeof responseData === 'object' && 'session_id' in responseData) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              finalSessionId = (responseData as any).session_id;
+        gemini.stdout.on('data', (data: Buffer) => {
+          const chunk = data.toString();
+          lineBuffer += chunk;
+          const lines = lineBuffer.split('\n');
+          lineBuffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+
+            // Forward to client
+            controller.enqueue(encoder.encode(line + '\n'));
+
+            try {
+              const parsed = JSON.parse(line);
+
+              // 1. Handle Init -> Save Session & User Message
+              if (parsed.type === 'init' && parsed.session_id) {
+                detectedSessionId = parsed.session_id;
+                
+                try {
+                  const now = Date.now();
+                  const existingSession = db.prepare('SELECT id FROM sessions WHERE id = ?').get(detectedSessionId);
+                  
+                  if (!existingSession) {
+                    const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
+                    db.prepare(`
+                      INSERT INTO sessions (id, title, created_at, updated_at, workspace)
+                      VALUES (?, ?, ?, ?, ?)
+                    `).run(detectedSessionId, title, now, now, workspace || null);
+                  } else {
+                    db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(now, detectedSessionId);
+                  }
+
+                  if (!userMessageSaved) {
+                    db.prepare('INSERT INTO messages (session_id, role, content, created_at) VALUES (?, ?, ?, ?)').run(
+                      detectedSessionId,
+                      'user',
+                      prompt,
+                      now
+                    );
+                    userMessageSaved = true;
+                  }
+                } catch (dbErr) {
+                  console.error('DB Error on init:', dbErr);
+                }
+              }
+
+              // 2. Accumulate Content
+              if (parsed.type === 'message' && parsed.role === 'assistant' && parsed.content) {
+                fullResponseContent += parsed.content;
+              }
+
+              // 3. Handle Result -> Save Assistant Message
+              if (parsed.type === 'result') {
+                finalStats = parsed.stats;
+                try {
+                  const now = Date.now();
+                  if (detectedSessionId) {
+                     db.prepare('INSERT INTO messages (session_id, role, content, stats, created_at) VALUES (?, ?, ?, ?, ?)').run(
+                      detectedSessionId,
+                      'model',
+                      fullResponseContent,
+                      finalStats ? JSON.stringify(finalStats) : null,
+                      now + 1
+                    );
+                  }
+                } catch (dbErr) {
+                   console.error('DB Error on result:', dbErr);
+                }
+              }
+
+            } catch (e) {
+              // Ignore parse errors (e.g. non-JSON lines)
             }
           }
-        } catch (e) {
-          console.error('Failed to parse JSON:', e);
-        }
+        });
 
-        // If we have a session ID (either from request or response), save to DB
-        if (finalSessionId) {
-          try {
-            const now = Date.now();
-            
-            // Check if session exists
-            const existingSession = db.prepare('SELECT id FROM sessions WHERE id = ?').get(finalSessionId);
-            
-            if (!existingSession) {
-              // Create new session
-              // Use first 50 chars of prompt as title
-              const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
-              db.prepare('INSERT INTO sessions (id, title, created_at, updated_at, workspace) VALUES (?, ?, ?, ?, ?)').run(
-                finalSessionId,
-                title,
-                now,
-                now,
-                workspace || 'Default' // Default workspace if none provided
-              );
-            } else {
-              // Update timestamp
-              db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(now, finalSessionId);
-            }
+        gemini.stderr.on('data', (data) => {
+           console.error('Gemini stderr:', data.toString());
+        });
 
-            // Insert User Message
-            db.prepare('INSERT INTO messages (session_id, role, content, created_at) VALUES (?, ?, ?, ?)').run(
-              finalSessionId,
-              'user',
-              prompt,
-              now
-            );
-
-            // Insert Model Response
-            if (responseData && typeof responseData === 'object') {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const typedResponse = responseData as any;
-              const content = typedResponse.response || typedResponse.content || JSON.stringify(responseData);
-              const stats = typedResponse.stats ? JSON.stringify(typedResponse.stats) : null;
-              
-              db.prepare('INSERT INTO messages (session_id, role, content, stats, created_at) VALUES (?, ?, ?, ?, ?)').run(
-                finalSessionId,
-                'model',
-                content,
-                stats,
-                now + 1 // Ensure slightly later timestamp
-              );
-            } else if (code !== 0) {
-                // If failed and no JSON, maybe save error?
-                // For now, let's not pollute history with errors unless we have a clear session
-            }
-
-          } catch (dbError) {
-            console.error('Database error:', dbError);
-            // Don't fail the request if DB fails, but log it
+        gemini.on('close', (code) => {
+          if (code !== 0) {
+             console.error('Gemini exited with code', code);
           }
-        }
+          controller.close();
+        });
 
-        if (code !== 0) {
-          console.error('Gemini stderr:', stderr);
-          resolve(NextResponse.json({ 
-            error: stderr || 'Gemini CLI failed', 
-            details: stdout,
-            session_id: finalSessionId 
-          }, { status: 500 }));
-        } else {
-           if (responseData) {
-             resolve(NextResponse.json(responseData));
-           } else {
-             resolve(NextResponse.json({ content: stdout, session_id: finalSessionId }));
-           }
-        }
-      });
-      
-      gemini.on('error', (err) => {
-        console.error('Spawn error:', err);
-        resolve(NextResponse.json({ error: 'Failed to spawn gemini process' }, { status: 500 }));
-      });
+        gemini.on('error', (err) => {
+          controller.error(err);
+        });
+      }
     });
+
+    return new NextResponse(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+      },
+    });
+
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

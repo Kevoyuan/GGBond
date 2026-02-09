@@ -6,14 +6,10 @@ import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { MessageBubble, LoadingBubble, Message } from '../components/MessageBubble';
 import { SkillsDialog } from '../components/SkillsDialog';
+import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
 import { cn } from '@/lib/utils';
 
 import { ChatInput } from '../components/ChatInput';
-
-interface ChatSettings {
-  model: string;
-  systemInstruction: string;
-}
 
 interface Session {
   id: string;
@@ -39,6 +35,7 @@ export default function Home() {
   // UI state
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [skillsOpen, setSkillsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -51,6 +48,21 @@ export default function Home() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
+
+  // Load Settings
+  useEffect(() => {
+    const saved = localStorage.getItem('gem-ui-settings');
+    if (saved) {
+      try {
+        setSettings(JSON.parse(saved));
+      } catch (e) { console.error('Failed to parse settings', e); }
+    }
+  }, []);
+
+  const handleSaveSettings = (newSettings: ChatSettings) => {
+    setSettings(newSettings);
+    localStorage.setItem('gem-ui-settings', JSON.stringify(newSettings));
+  };
 
   // Load Theme
   useEffect(() => {
@@ -184,34 +196,65 @@ export default function Home() {
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to fetch response');
       }
-
-      // Handle response
-      const content = data.response || data.content || (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
-      const stats = data.stats;
-      const responseSessionId = data.session_id;
-
-      const modelMessage: Message = { 
-        role: 'model', 
-        content,
-        stats,
-        sessionId: responseSessionId
-      };
-
-      setMessages((prev) => [...prev, modelMessage]);
-
-      // If it was a new session, update state and refresh list
-      if (!currentSessionId && responseSessionId) {
-        setCurrentSessionId(responseSessionId);
-        fetchSessions(); // Refresh list to show new title
-      } else {
-        // Just refresh list to update timestamp
-        fetchSessions();
+      
+      if (!response.body) {
+         throw new Error('No response body');
       }
+
+      // Initialize assistant message
+      setMessages(prev => [...prev, { role: 'model', content: '' }]);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let assistantContent = '';
+      let streamSessionId = currentSessionId;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const data = JSON.parse(line);
+
+            if (data.type === 'init' && data.session_id) {
+               if (!streamSessionId) {
+                 streamSessionId = data.session_id;
+                 setCurrentSessionId(data.session_id);
+                 fetchSessions();
+               }
+            }
+
+            if (data.type === 'message' && data.role === 'assistant' && data.content) {
+               assistantContent += data.content;
+               setMessages(prev => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg.role === 'model') {
+                     lastMsg.content = assistantContent;
+                     if (streamSessionId) lastMsg.sessionId = streamSessionId;
+                  }
+                  return newMessages;
+               });
+            }
+          } catch (e) {
+             console.error('JSON parse error', e);
+          }
+        }
+      }
+
+      // Final refresh
+      fetchSessions();
 
     } catch (error) {
       console.error('Chat error:', error);
@@ -248,6 +291,7 @@ export default function Home() {
           onNewChat={handleNewChat}
           onNewChatInWorkspace={handleNewChatInWorkspace}
           onOpenSkills={() => setSkillsOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
           isDark={theme === 'dark'}
           toggleTheme={toggleTheme}
         />
@@ -258,13 +302,17 @@ export default function Home() {
         onClose={() => setSkillsOpen(false)} 
       />
 
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onSave={handleSaveSettings}
+      />
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-background">
         {/* Header */}
-        <Header 
-          currentModel={settings.model}
-          onModelChange={(model) => setSettings(s => ({ ...s, model }))}
-        />
+        <Header />
 
         {/* Chat Area */}
         <div className="flex-1 overflow-y-auto scroll-smooth relative" ref={scrollContainerRef}>
@@ -291,14 +339,19 @@ export default function Home() {
                   isLast={idx === messages.length - 1} 
                 />
               ))}
-              {isLoading && <LoadingBubble />}
+              {isLoading && messages[messages.length - 1]?.role !== 'model' && <LoadingBubble />}
               <div ref={messagesEndRef} className="h-4" />
             </div>
           )}
         </div>
 
         {/* Input Area */}
-        <ChatInput onSend={handleSendMessage} isLoading={isLoading} />
+        <ChatInput 
+          onSend={handleSendMessage} 
+          isLoading={isLoading} 
+          currentModel={settings.model}
+          onModelChange={(model) => setSettings(s => ({ ...s, model }))}
+        />
       </div>
     </div>
   );
