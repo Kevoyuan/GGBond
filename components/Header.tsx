@@ -20,7 +20,7 @@ export function Header({ stats, onShowStats }: HeaderProps) {
 
       <div className="flex items-center gap-4">
         {stats && stats.totalTokens > 0 && (
-          <button 
+          <button
             onClick={onShowStats}
             className="flex items-center gap-3 text-xs text-muted-foreground bg-muted/30 px-3 py-1.5 rounded-full border border-border/40 hover:bg-muted/60 hover:border-border/60 hover:text-foreground transition-all cursor-pointer active:scale-95"
           >
@@ -28,9 +28,9 @@ export function Header({ stats, onShowStats }: HeaderProps) {
               <Zap className="w-3.5 h-3.5" />
               <span className="font-medium">{stats.totalTokens.toLocaleString()}</span>
             </div>
-            
+
             <span className="w-px h-3 bg-border" />
-            
+
             <div className="flex items-center gap-1.5" title="Total Cost">
               <Coins className="w-3.5 h-3.5" />
               <span className="font-medium">${stats.totalCost.toFixed(4)}</span>
@@ -38,18 +38,7 @@ export function Header({ stats, onShowStats }: HeaderProps) {
           </button>
         )}
 
-        {/* Modes / Right Actions */}
-        <div className="flex items-center bg-muted/50 p-1 rounded-lg">
-          <button className="px-3 py-1 rounded-md bg-background shadow-sm text-xs font-medium text-foreground">
-            Code
-          </button>
-          <button className="px-3 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-            Plan
-          </button>
-          <button className="px-3 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-            Ask
-          </button>
-        </div>
+        {/* Mode control moved to ChatInput toolbar */}
       </div>
     </header>
   );

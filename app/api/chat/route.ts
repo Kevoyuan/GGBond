@@ -5,11 +5,17 @@ import { getGeminiPath, getGeminiEnv } from '@/lib/gemini-utils';
 
 export async function POST(req: Request) {
   try {
-    const { prompt, model, systemInstruction, sessionId, workspace, modelSettings } = await req.json();
+    const { prompt, model, systemInstruction, sessionId, workspace, mode, modelSettings } = await req.json();
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
+
+    // Mode-specific system instructions
+    const MODE_INSTRUCTIONS: Record<string, string> = {
+      plan: 'You are in PLAN mode. Analyze and plan only — do NOT modify files or run commands. Produce a detailed plan with steps.',
+      ask: 'You are in ASK mode. Answer questions only — do NOT modify files, run commands, or make any changes.',
+    };
 
     // Check max session turns if configured
     if (sessionId && modelSettings?.maxSessionTurns > 0) {
@@ -42,10 +48,12 @@ export async function POST(req: Request) {
       args.push('--model', model);
     }
 
-    // Add prompt (prepend system instruction if present)
+    // Add prompt (prepend system instruction + mode instruction if present)
     let fullPrompt = prompt;
-    if (systemInstruction) {
-      fullPrompt = `System Instruction: ${systemInstruction}\n\nUser Request: ${prompt}`;
+    const modeInstruction = mode && MODE_INSTRUCTIONS[mode] ? MODE_INSTRUCTIONS[mode] : '';
+    if (systemInstruction || modeInstruction) {
+      const combinedInstruction = [modeInstruction, systemInstruction].filter(Boolean).join('\n');
+      fullPrompt = `System Instruction: ${combinedInstruction}\n\nUser Request: ${prompt}`;
     }
     args.push('-p', fullPrompt);
 
