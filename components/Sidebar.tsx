@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { FileExplorer } from './FileExplorer';
+
 interface Session {
   id: string;
   title: string;
@@ -31,6 +33,7 @@ interface SidebarProps {
   onNewChat: () => void;
   onNewChatInWorkspace?: (workspace: string) => void;
   onOpenSkills: () => void;
+  onOpenSettings: () => void;
   isDark: boolean;
   toggleTheme: () => void;
 }
@@ -45,6 +48,7 @@ export function Sidebar({
   onNewChat,
   onNewChatInWorkspace,
   onOpenSkills,
+  onOpenSettings,
   isDark,
   toggleTheme
 }: SidebarProps) {
@@ -136,7 +140,10 @@ export function Sidebar({
             {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
           
-          <button className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+          <button 
+            onClick={onOpenSettings}
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+          >
             <Settings className="w-5 h-5" />
           </button>
           
@@ -239,15 +246,7 @@ export function Sidebar({
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-muted-foreground">
-            <div className="w-16 h-16 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
-              <FolderOpen className="w-8 h-8 opacity-40" />
-            </div>
-            <h3 className="font-medium text-foreground mb-1">Project Files</h3>
-            <p className="text-sm opacity-70">
-              File exploration is currently available via the command line.
-            </p>
-          </div>
+          <FileExplorer />
         )}
       </div>
     </div>
