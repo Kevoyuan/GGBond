@@ -13,6 +13,7 @@ interface ChatInputProps {
     totalTokens: number;
     [key: string]: any;
   };
+  currentContextUsage?: number;
 }
 
 interface CommandItem {
@@ -36,7 +37,7 @@ const MODELS = [
   { id: 'gemini-2.5-flash-lite', name: '2.5 Flash Lite', icon: Zap },
 ];
 
-export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats }: ChatInputProps) {
+export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [showModelMenu, setShowModelMenu] = useState(false);
@@ -52,8 +53,9 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
   // Calculate context usage
   const { pricing } = getModelInfo(currentModel);
   const contextLimit = pricing.contextWindow;
-  const totalTokens = sessionStats?.totalTokens || 0;
-  const contextPercent = Math.min((totalTokens / contextLimit) * 100, 100);
+  // Use currentContextUsage if available, otherwise fallback to sessionStats.totalTokens (legacy) or 0
+  const usedTokens = currentContextUsage !== undefined ? currentContextUsage : (sessionStats?.totalTokens || 0);
+  const contextPercent = Math.min((usedTokens / contextLimit) * 100, 100);
   
   // Ring calculations
   const radius = 7;
@@ -409,7 +411,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
                             </span>
                           </div>
                           <div className="text-[10px] text-gray-600 font-mono mt-0.5">
-                            {totalTokens.toLocaleString()} tokens used
+                            {usedTokens.toLocaleString()} tokens used
                           </div>
                         </div>
 
