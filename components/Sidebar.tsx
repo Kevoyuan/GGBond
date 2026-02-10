@@ -18,12 +18,15 @@ import {
   FolderPlus,
   PanelLeftClose,
   PanelLeftOpen,
-  GitBranch
+  GitBranch,
+  ShieldCheck,
+  Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 import { FileTree } from './FileTree';
+import { HooksPanel, HookEvent } from './HooksPanel';
 import { UsageStatsDialog } from './UsageStatsDialog';
 
 interface Session {
@@ -49,9 +52,10 @@ interface SidebarProps {
   currentWorkspace?: string;
   onAddWorkspace?: () => void;
   onFileSelect?: (file: { name: string; path: string }) => void;
+  hookEvents?: HookEvent[];
 }
 
-type SidebarView = 'chat' | 'files';
+type SidebarView = 'chat' | 'files' | 'hooks' | 'mcp';
 
 const MIN_SIDEBAR_WIDTH = 160;
 const MAX_SIDEBAR_WIDTH = 600;
@@ -107,7 +111,8 @@ export function Sidebar({
   onShowStats,
   currentWorkspace,
   onAddWorkspace,
-  onFileSelect
+  onFileSelect,
+  hookEvents = []
 }: SidebarProps) {
   const [activeView, setActiveView] = useState<SidebarView>('chat');
   const [searchTerm, setSearchTerm] = useState('');
@@ -252,20 +257,18 @@ export function Sidebar({
             label="Files"
           />
 
-          <Link href="/modules" className="block">
-            <NavButton
-              active={false}
-              onClick={() => { }}
-              icon={LayoutGrid}
-              label="Modules"
-            />
-          </Link>
+          <NavButton
+            active={activeView === 'hooks'}
+            onClick={() => setActiveView('hooks')}
+            icon={Zap}
+            label="Hooks"
+          />
 
           <NavButton
-            active={false}
-            onClick={onOpenSkills}
+            active={activeView === 'mcp'}
+            onClick={() => setActiveView('mcp')}
             icon={Plug}
-            label="Skills"
+            label="MCP"
           />
         </div>
 
@@ -437,8 +440,15 @@ export function Sidebar({
               </button>
             </div>
           </>
-        ) : (
+        ) : activeView === 'files' ? (
           <FileTree className="h-full" initialPath={currentWorkspace || undefined} onFileSelect={onFileSelect} />
+        ) : activeView === 'hooks' ? (
+          <HooksPanel className="h-full" events={hookEvents} />
+        ) : (
+          <div className="flex flex-col h-full bg-card/30 p-4 items-center justify-center text-muted-foreground opacity-50">
+            <Plug className="w-12 h-12 mb-2" />
+            <p className="text-xs font-bold uppercase tracking-widest">MCP Manager (Coming Soon)</p>
+          </div>
         )}
 
         {/* Resize Handle */}

@@ -14,6 +14,7 @@ import { ChatInput } from '../components/ChatInput';
 import { ChatContainer } from '../components/ChatContainer';
 import { ConfirmationDialog, ConfirmationDetails } from '../components/ConfirmationDialog';
 import { QuestionPanel, Question } from '../components/QuestionPanel';
+import { HookEvent } from '../components/HooksPanel';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 import { FilePreview } from '../components/FilePreview';
@@ -106,6 +107,7 @@ export default function Home() {
 
   const [confirmation, setConfirmation] = useState<{ details: ConfirmationDetails, correlationId: string } | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<{ questions: Question[], title: string, correlationId: string } | null>(null);
+  const [hookEvents, setHookEvents] = useState<HookEvent[]>([]);
 
   const sessionStats = useMemo(() => {
     return messages.reduce((acc, msg) => {
@@ -429,6 +431,25 @@ export default function Home() {
               }
             }
 
+            if (data.type === 'hook' || data.type === 'hook_event') {
+              const hookEvent: HookEvent = {
+                id: data.id || Math.random().toString(36).substr(2, 9),
+                name: data.hookName || data.name,
+                type: data.type === 'hook' ? data.value?.type : data.hook_type || data.type,
+                timestamp: Date.now(),
+                data: data.value?.input || data.input,
+                outcome: data.value?.output || data.output,
+                duration: data.value?.duration || data.duration
+              };
+
+              // Map some values if type is hook
+              if (data.type === 'hook') {
+                hookEvent.type = data.value?.type; // 'start' | 'end'
+              }
+
+              setHookEvents(prev => [hookEvent, ...prev.slice(0, 49)]);
+            }
+
             if (data.type === 'tool_use') {
               const toolCallTag = `\n\n<tool-call name="${data.tool_name}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}" status="running" />\n\n`;
               assistantContent += toolCallTag;
@@ -629,6 +650,7 @@ export default function Home() {
           toggleTheme={toggleTheme}
           onShowStats={() => setShowUsageStats(true)}
           onFileSelect={(file) => setPreviewFile(file)}
+          hookEvents={hookEvents}
         />
       </div>
 
