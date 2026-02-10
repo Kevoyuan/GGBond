@@ -5,7 +5,7 @@ import { getGeminiPath, getGeminiEnv } from '@/lib/gemini-utils';
 
 export async function POST(req: Request) {
   try {
-    const { prompt, model, systemInstruction, sessionId, workspace, mode, modelSettings } = await req.json();
+    const { prompt, model, systemInstruction, sessionId, workspace, mode, approvalMode, modelSettings } = await req.json();
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
@@ -46,6 +46,11 @@ export async function POST(req: Request) {
     // Add model if provided
     if (model) {
       args.push('--model', model);
+    }
+
+    // Handle Auto-Approve (YOLO) mode
+    if (approvalMode === 'auto') {
+      args.push('--yolo');
     }
 
     // Add prompt (prepend system instruction + mode instruction if present)

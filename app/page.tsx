@@ -12,6 +12,9 @@ import { cn } from '@/lib/utils';
 import { ChatInput } from '../components/ChatInput';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
+import { FilePreview } from '../components/FilePreview';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+
 
 interface Session {
   id: string;
@@ -54,6 +57,10 @@ export default function Home() {
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
   const [mode, setMode] = useState<'code' | 'plan' | 'ask'>('code');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
+  const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>('safe');
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
+
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -217,10 +224,16 @@ export default function Home() {
     setMessages([]);
   };
 
-  const handleDeleteSession = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this chat?')) return;
+  const handleDeleteSession = (id: string) => {
+    setSessionToDelete(id);
+  };
+
+  const confirmDeleteSession = async () => {
+    if (!sessionToDelete) return;
+    const id = sessionToDelete;
 
     try {
+      console.log('Deleting session:', id);
       await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
       setSessions(prev => prev.filter(s => s.id !== id));
       if (currentSessionId === id) {
@@ -231,7 +244,7 @@ export default function Home() {
     }
   };
 
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = async (text: string, options?: { forceApproval?: boolean }) => {
     if (!text.trim() || isLoading) return;
 
     // Handle slash commands
@@ -264,6 +277,7 @@ export default function Home() {
           sessionId: currentSessionId,
           workspace: currentWorkspace,
           mode,
+          approvalMode: options?.forceApproval ? 'auto' : approvalMode,
           modelSettings: settings.modelSettings
         }),
       });
@@ -362,7 +376,7 @@ export default function Home() {
               setMessages(prev => {
                 const newMessages = [...prev];
                 const lastMsg = newMessages[newMessages.length - 1];
-                if (lastMsg.role === 'model') {
+                if (lastMsg && lastMsg.role === 'model') {
                   lastMsg.content = assistantContent;
                   if (streamSessionId) lastMsg.sessionId = streamSessionId;
                 }
@@ -370,15 +384,31 @@ export default function Home() {
               });
             }
 
-            if (data.type === 'result' && data.stats) {
-              setMessages(prev => {
-                const newMessages = [...prev];
-                const lastMsg = newMessages[newMessages.length - 1];
-                if (lastMsg.role === 'model') {
-                  lastMsg.stats = data.stats;
-                }
-                return newMessages;
-              });
+            if (data.type === 'result') {
+              if (data.status === 'error' && data.error) {
+                // API returned an error - show it to the user
+                const errorMsg = data.error.message || data.error.type || 'Unknown API error';
+                assistantContent += `\n\n> ⚠️ **Error**: ${errorMsg}`;
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg.role === 'model') {
+                    lastMsg.content = assistantContent;
+                    lastMsg.error = true;
+                  }
+                  return newMessages;
+                });
+              }
+              if (data.stats) {
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg.role === 'model') {
+                    lastMsg.stats = data.stats;
+                  }
+                  return newMessages;
+                });
+              }
             }
           } catch (e) {
             console.error('JSON parse error', e);
@@ -398,6 +428,47 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRetry = (messageIndex: number, mode: 'once' | 'session') => {
+    // 1. Find user message
+    let userMsgIndex = -1;
+    for (let i = messageIndex; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        userMsgIndex = i;
+        break;
+      }
+    }
+    if (userMsgIndex === -1) return;
+    const userMsg = messages[userMsgIndex];
+
+    // 2. Truncate containing failed response
+    setMessages(prev => prev.slice(0, userMsgIndex));
+
+    // 3. Update global state if session
+    if (mode === 'session') {
+      setApprovalMode('auto');
+    }
+
+    // 4. Trigger send with forceApproval
+    handleSendMessage(userMsg.content, {
+      forceApproval: true
+    });
+  };
+
+  const handleCancel = (messageIndex: number) => {
+    // 1. Find user message
+    let userMsgIndex = -1;
+    for (let i = messageIndex; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        userMsgIndex = i;
+        break;
+      }
+    }
+    if (userMsgIndex === -1) return;
+
+    // 2. Remove the failed interaction
+    setMessages(prev => prev.slice(0, userMsgIndex));
   };
 
   return (
@@ -430,6 +501,7 @@ export default function Home() {
           isDark={theme === 'dark'}
           toggleTheme={toggleTheme}
           onShowStats={() => setShowUsageStats(true)}
+          onFileSelect={(file) => setPreviewFile(file)}
         />
       </div>
 
@@ -456,54 +528,87 @@ export default function Home() {
         onAdd={handleAddWorkspace}
       />
 
+      <ConfirmDialog
+        open={!!sessionToDelete}
+        onClose={() => setSessionToDelete(null)}
+        onConfirm={confirmDeleteSession}
+        title="Delete Chat"
+        description="Are you sure you want to delete this chat? This action cannot be undone."
+        confirmText="Delete"
+        variant="destructive"
+      />
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-background">
         {/* Header */}
         <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} />
 
-        {/* Chat Area */}
-        <div className="flex-1 overflow-y-auto scroll-smooth relative" ref={scrollContainerRef}>
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center p-8 text-center opacity-0 animate-fade-in" style={{ animationDelay: '0.1s', opacity: 1 }}>
-              <div className="text-center space-y-4 max-w-lg mx-auto">
-                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto mb-6 shadow-xl ring-1 ring-white/20">
-                  <Bot className="w-10 h-10 text-primary" />
+        {/* Main Content Area: File Preview or Chat */}
+        {previewFile ? (
+          <FilePreview
+            filePath={previewFile.path}
+            fileName={previewFile.name}
+            onClose={() => setPreviewFile(null)}
+            className="flex-1"
+          />
+        ) : (
+          <>
+            {/* Chat Area */}
+            <div className="flex-1 overflow-y-auto scroll-smooth relative" ref={scrollContainerRef}>
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center p-8 text-center opacity-0 animate-fade-in" style={{ animationDelay: '0.1s', opacity: 1 }}>
+                  <div className="text-center space-y-4 max-w-lg mx-auto">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto mb-6 shadow-xl ring-1 ring-white/20">
+                      <Bot className="w-10 h-10 text-primary" />
+                    </div>
+                    <h2 className="text-2xl font-semibold tracking-tight">
+                      How can I help you today?
+                    </h2>
+                    <p className="text-muted-foreground leading-relaxed">
+                      I can help you write code, debug issues, or answer questions about your project.
+                    </p>
+                  </div>
                 </div>
-                <h2 className="text-2xl font-semibold tracking-tight">
-                  How can I help you today?
-                </h2>
-                <p className="text-muted-foreground leading-relaxed">
-                  I can help you write code, debug issues, or answer questions about your project.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-3xl mx-auto w-full pb-8 pt-6 px-4 flex flex-col gap-6">
-              {messages.map((msg, idx) => (
-                <MessageBubble
-                  key={idx}
-                  message={msg}
-                  isLast={idx === messages.length - 1}
-                  settings={settings}
-                />
-              ))}
-              {isLoading && messages[messages.length - 1]?.role !== 'model' && <LoadingBubble />}
-              <div ref={messagesEndRef} className="h-4" />
-            </div>
-          )}
-        </div>
+              ) : (
+                <div className="max-w-3xl mx-auto w-full pb-8 pt-6 px-4 flex flex-col gap-6">
+                  {messages.map((msg, idx) => {
+                    const prev = messages[idx - 1];
+                    const next = messages[idx + 1];
+                    const isFirstInSequence = !prev || prev.role === 'user';
+                    const isLastInSequence = !next || next.role === 'user';
 
-        {/* Input Area */}
-        <ChatInput
-          onSend={handleSendMessage}
-          isLoading={isLoading}
-          currentModel={settings.model}
-          onModelChange={(model) => setSettings(s => ({ ...s, model }))}
-          sessionStats={sessionStats}
-          currentContextUsage={currentContextUsage}
-          mode={mode}
-          onModeChange={(m) => setMode(m as 'code' | 'plan' | 'ask')}
-        />
+                    return (
+                      <MessageBubble
+                        key={idx}
+                        message={msg}
+                        isFirst={isFirstInSequence}
+                        isLast={isLastInSequence}
+                        settings={settings}
+                        onRetry={(mode) => handleRetry(idx, mode)}
+                        onCancel={() => handleCancel(idx)}
+                      />
+                    );
+                  })}
+                  {isLoading && messages[messages.length - 1]?.role !== 'model' && <LoadingBubble />}
+                  <div ref={messagesEndRef} className="h-4" />
+                </div>
+              )}
+            </div>
+
+            {/* Input Area */}
+            <ChatInput
+              onSend={handleSendMessage}
+              isLoading={isLoading}
+              currentModel={settings.model}
+              onModelChange={(model) => setSettings(s => ({ ...s, model }))}
+              sessionStats={sessionStats}
+              currentContextUsage={currentContextUsage}
+              mode={mode}
+              onModeChange={(m) => setMode(m as 'code' | 'plan' | 'ask')}
+              onApprovalModeChange={(m) => setApprovalMode(m)}
+            />
+          </>
+        )}
       </div>
     </div>
   );

@@ -48,6 +48,7 @@ interface SidebarProps {
   onShowStats?: () => void;
   currentWorkspace?: string;
   onAddWorkspace?: () => void;
+  onFileSelect?: (file: { name: string; path: string }) => void;
 }
 
 type SidebarView = 'chat' | 'files';
@@ -105,7 +106,8 @@ export function Sidebar({
   className,
   onShowStats,
   currentWorkspace,
-  onAddWorkspace
+  onAddWorkspace,
+  onFileSelect
 }: SidebarProps) {
   const [activeView, setActiveView] = useState<SidebarView>('chat');
   const [searchTerm, setSearchTerm] = useState('');
@@ -436,7 +438,7 @@ export function Sidebar({
             </div>
           </>
         ) : (
-          <FileExplorer className="h-full" initialPath={currentWorkspace || undefined} />
+          <FileExplorer className="h-full" initialPath={currentWorkspace || undefined} onFileSelect={onFileSelect ? (f) => onFileSelect({ name: f.name, path: f.path }) : undefined} />
         )}
 
         {/* Resize Handle */}
