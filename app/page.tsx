@@ -370,6 +370,7 @@ export default function Home() {
       const decoder = new TextDecoder();
       let buffer = '';
       let assistantContent = '';
+      let assistantThought = '';
       let streamSessionId = currentSessionId;
 
       while (true) {
@@ -392,6 +393,13 @@ export default function Home() {
                 setCurrentSessionId(data.session_id);
                 fetchSessions();
               }
+            }
+
+            if (data.type === 'thought' && data.content) {
+              assistantThought += data.content;
+              const updates: Partial<Message> = { thought: assistantThought };
+              if (streamSessionId) updates.sessionId = streamSessionId;
+              updateMessageInTree(assistantMsgId, updates);
             }
 
             if (data.type === 'tool_use') {

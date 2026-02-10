@@ -14,10 +14,12 @@ export interface Message {
   content: string;
   error?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  stats?: Record<string, any>;
   sessionId?: string;
   parentId?: string | null;
+  thought?: string;
 }
+
+import { ThinkingBlock } from './ThinkingBlock';
 
 import { ChatSettings } from './SettingsDialog';
 import { StateSnapshotDisplay } from './StateSnapshotDisplay';
@@ -153,11 +155,14 @@ export function MessageBubble({ message, isFirst, isLast, settings, onRetry, onC
             )}
           >
             {!isUser ? (
-              <ContentRenderer
-                content={message.content}
-                onRetry={onRetry}
-                onCancel={onCancel}
-              />
+              <div className="flex flex-col gap-2">
+                {message.thought && <ThinkingBlock content={message.thought} />}
+                <ContentRenderer
+                  content={message.content}
+                  onRetry={onRetry}
+                  onCancel={onCancel}
+                />
+              </div>
             ) : (
               <div className="whitespace-pre-wrap">{message.content}</div>
             )}

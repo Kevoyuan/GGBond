@@ -1,39 +1,38 @@
-'use client';
 
-import React, { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState } from 'react';
+import { ChevronDown, ChevronRight, BrainCircuit } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { cn } from '@/lib/utils'; // Assuming cn utility exists
 
 interface ThinkingBlockProps {
     content: string;
-    status?: 'loading' | 'done';
+    defaultExpanded?: boolean;
 }
 
-export function ThinkingBlock({ content, status = 'done' }: ThinkingBlockProps) {
-    const [expanded, setExpanded] = useState(false);
+export function ThinkingBlock({ content, defaultExpanded = false }: ThinkingBlockProps) {
+    const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
     if (!content) return null;
 
     return (
-        <div className="relative">
-            {/* Dot for timeline */}
-            <div className="absolute -left-[32px] top-[7px] w-2 h-2 rounded-full z-10 bg-muted-foreground/40" />
-
+        <div className="my-2 border rounded-lg overflow-hidden bg-muted/30 border-border/50">
             <button
-                onClick={() => setExpanded(!expanded)}
-                className="flex items-center gap-1 text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                title={isExpanded ? "Collapse thought process" : "Expand thought process"}
             >
-                <span className="italic text-sm">Thinking</span>
-                <ChevronDown className={cn(
-                    "w-3 h-3 transition-transform duration-200",
-                    expanded && "rotate-180"
-                )} />
+                <BrainCircuit className="w-3.5 h-3.5" />
+                <span>Thinking Process</span>
+                {isExpanded ? (
+                    <ChevronDown className="w-3.5 h-3.5 ml-auto opacity-50" />
+                ) : (
+                    <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-50" />
+                )}
             </button>
 
-            {expanded && (
-                <div className="mt-2 text-sm text-muted-foreground/80 leading-relaxed">
-                    <div className="prose dark:prose-invert prose-sm max-w-none opacity-80">
+            {isExpanded && (
+                <div className="px-4 py-3 border-t border-border/50 bg-background/50 text-sm text-muted-foreground">
+                    <div className="prose dark:prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-muted/50">
                         <ReactMarkdown>{content}</ReactMarkdown>
                     </div>
                 </div>
