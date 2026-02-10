@@ -298,12 +298,62 @@ export default function Home() {
           if (!line.trim()) continue;
           try {
             const data = JSON.parse(line);
+            console.log('[Stream Event]', data.type, data); // Debug log
 
             if (data.type === 'init' && data.session_id) {
               if (!streamSessionId) {
                 streamSessionId = data.session_id;
                 setCurrentSessionId(data.session_id);
                 fetchSessions();
+              }
+            }
+
+            if (data.type === 'tool_use') {
+              const toolCallTag = `\n\n<tool-call name="${data.tool_name}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}" status="running" />\n\n`;
+              assistantContent += toolCallTag;
+              setMessages(prev => {
+                const newMessages = [...prev];
+                const lastMsg = newMessages[newMessages.length - 1];
+                if (lastMsg.role === 'model') {
+                  lastMsg.content = assistantContent;
+                }
+                return newMessages;
+              });
+            }
+
+            if (data.type === 'tool_result') {
+              // Find the last tool-call tag and update it to completed
+              // Note: This is a simple regex replacement for the demo. 
+              // In production, we might want a rigid ID-based system.
+              const regex = /<tool-call name="([^"]+)" args="([^"]+)" status="running" \/>/g;
+              let match;
+              let lastMatchIndex = -1;
+
+              // Find the last running tool call
+              while ((match = regex.exec(assistantContent)) !== null) {
+                lastMatchIndex = match.index;
+              }
+
+              if (lastMatchIndex !== -1) {
+                const before = assistantContent.substring(0, lastMatchIndex);
+                const after = assistantContent.substring(lastMatchIndex);
+
+                // Replace the status="running" with status="completed" and add result
+                const updatedTag = after.replace(
+                  'status="running" />',
+                  `status="${data.is_error ? 'failed' : 'completed'}" result="${encodeURIComponent(data.output || data.result || '')}" />`
+                );
+
+                assistantContent = before + updatedTag;
+
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg.role === 'model') {
+                    lastMsg.content = assistantContent;
+                  }
+                  return newMessages;
+                });
               }
             }
 
