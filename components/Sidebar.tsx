@@ -23,7 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
-import { FileExplorer } from './FileExplorer';
+import { FileTree } from './FileTree';
 import { UsageStatsDialog } from './UsageStatsDialog';
 
 interface Session {
@@ -438,7 +438,7 @@ export function Sidebar({
             </div>
           </>
         ) : (
-          <FileExplorer className="h-full" initialPath={currentWorkspace || undefined} onFileSelect={onFileSelect ? (f) => onFileSelect({ name: f.name, path: f.path }) : undefined} />
+          <FileTree className="h-full" initialPath={currentWorkspace || undefined} onFileSelect={onFileSelect} />
         )}
 
         {/* Resize Handle */}
