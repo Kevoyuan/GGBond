@@ -13,6 +13,7 @@ import { ConversationGraph, GraphMessage } from '../components/ConversationGraph
 import { ChatInput } from '../components/ChatInput';
 import { ChatContainer } from '../components/ChatContainer';
 import { ConfirmationDialog, ConfirmationDetails } from '../components/ConfirmationDialog';
+import { QuestionPanel, Question } from '../components/QuestionPanel';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 import { FilePreview } from '../components/FilePreview';
@@ -104,6 +105,7 @@ export default function Home() {
   }, [messagesMap, headId, showGraph]);
 
   const [confirmation, setConfirmation] = useState<{ details: ConfirmationDetails, correlationId: string } | null>(null);
+  const [activeQuestion, setActiveQuestion] = useState<{ questions: Question[], title: string, correlationId: string } | null>(null);
 
   const sessionStats = useMemo(() => {
     return messages.reduce((acc, msg) => {
@@ -416,6 +418,17 @@ export default function Home() {
               }
             }
 
+            if (data.type === 'ask_user' || data.type === 'ask_user_request') {
+              // Handle tool questioning
+              const questions = data.value?.questions || data.questions;
+              const title = data.value?.title || data.title || 'User Inquiry';
+              const correlationId = data.value?.correlationId || data.correlationId || data.value?.id || data.id;
+
+              if (questions && correlationId) {
+                setActiveQuestion({ questions, title, correlationId });
+              }
+            }
+
             if (data.type === 'tool_use') {
               const toolCallTag = `\n\n<tool-call name="${data.tool_name}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}" status="running" />\n\n`;
               assistantContent += toolCallTag;
@@ -522,12 +535,37 @@ export default function Home() {
   const handleConfirm = async (approved: boolean) => {
     if (!confirmation) return;
 
-    // We need correlationId passed in the event. 
-    // Assuming data.value.request.correlationId or similar.
-    // Ideally confirmation state should store correlationId.
-    // Let's assume confirmation object has it or we stored it separately.
-    // Wait, ConfirmationDetails doesn't have correlationId.
-    // We need to verify event structure.
+    try {
+      await fetch('/api/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          correlationId: confirmation.correlationId,
+          confirmed: approved
+        })
+      });
+      setConfirmation(null);
+    } catch (e) {
+      console.error('Failed to submit confirmation', e);
+    }
+  };
+
+  const handleQuestionSubmit = async (answers: any[]) => {
+    if (!activeQuestion) return;
+
+    try {
+      await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          correlationId: activeQuestion.correlationId,
+          answers
+        })
+      });
+      setActiveQuestion(null);
+    } catch (e) {
+      console.error('Failed to submit question response', e);
+    }
   };
 
 
@@ -681,6 +719,16 @@ export default function Home() {
           details={confirmation.details}
           onConfirm={() => handleConfirm(true)}
           onCancel={() => handleConfirm(false)}
+        />
+      )}
+
+      {activeQuestion && (
+        <QuestionPanel
+          questions={activeQuestion.questions}
+          title={activeQuestion.title}
+          correlationId={activeQuestion.correlationId}
+          onSubmit={handleQuestionSubmit}
+          onCancel={() => setActiveQuestion(null)}
         />
       )}
     </div>
