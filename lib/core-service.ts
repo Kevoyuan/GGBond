@@ -167,4 +167,20 @@ export class CoreService {
             outcome: confirmed ? 'allow' : 'deny'
         } as any);
     }
+
+    public submitQuestionResponse(correlationId: string, answers: any[]) {
+        if (!this.messageBus) {
+            console.warn('[CoreService] MessageBus not initialized');
+            return;
+        }
+
+        console.log('[CoreService] Submitting question response:', { correlationId, answers });
+
+        // MessageBusType.ASK_USER_RESPONSE = 8
+        this.messageBus.publish({
+            type: 8,
+            correlationId,
+            answers
+        } as any);
+    }
 }
