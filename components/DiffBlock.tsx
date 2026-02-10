@@ -79,7 +79,7 @@ export function DiffBlock({ code, filename }: DiffBlockProps) {
     };
 
     return (
-        <div className="my-4 rounded-lg overflow-hidden border border-border/50 bg-card">
+        <div className="my-4 rounded-lg overflow-hidden border border-border/50 bg-card max-w-full w-full">
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b border-border/50">
                 <div className="flex items-center gap-2 min-w-0">
