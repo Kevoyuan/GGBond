@@ -1,4 +1,7 @@
 
+import path from 'path';
+import os from 'os';
+import fs from 'fs';
 import {
     Config,
     GeminiChat,
@@ -6,10 +9,10 @@ import {
     CoreEvent,
     coreEvents,
     MessageBus,
-    FileDiscoveryService
+    FileDiscoveryService,
+    ChatRecordingService,
+    getProjectHash
 } from '@google/gemini-cli-core';
-import path from 'path';
-import os from 'os';
 
 // Type definition for Global to support HMR in Next.js
 declare global {
@@ -192,5 +195,52 @@ export class CoreService {
     public getMcpServers() {
         if (!this.config) return {};
         return this.config.getMcpServers();
+    }
+
+    public async listSessions() {
+        if (!this.config) return [];
+        const chatsDir = path.join(os.homedir(), '.gemini', 'tmp', getProjectHash(this.config.getWorkingDir()), 'chats');
+        if (!fs.existsSync(chatsDir)) return [];
+
+        const files = await fs.promises.readdir(chatsDir);
+        const sessionFiles = files.filter(f => f.startsWith('session-') && f.endsWith('.json'));
+
+        const sessions = [];
+        for (const file of sessionFiles) {
+            try {
+                const content = await fs.promises.readFile(path.join(chatsDir, file), 'utf-8');
+                const data = JSON.parse(content);
+                sessions.push({
+                    id: data.sessionId,
+                    title: data.summary || `Session ${data.sessionId.slice(0, 8)}`,
+                    updated_at: new Date(data.lastUpdated).getTime(),
+                    created_at: new Date(data.startTime).getTime(),
+                    isCore: true
+                });
+            } catch (e) {
+                console.error('Failed to read session file:', file, e);
+            }
+        }
+
+        return sessions.sort((a, b) => b.updated_at - a.updated_at);
+    }
+
+    public async getSession(sessionId: string) {
+        if (!this.chat) return null;
+        const recording = this.chat.getChatRecordingService();
+        // Since initialize handles loading if passed resumedSessionData, 
+        // we might need a way to just read it.
+        // For now, let's manually read it or assume initialize will be called with it.
+        const chatsDir = path.join(os.homedir(), '.gemini', 'tmp', getProjectHash(this.config!.getWorkingDir()), 'chats');
+        const sessionPath = path.join(chatsDir, `session-${sessionId}.json`);
+
+        if (!fs.existsSync(sessionPath)) return null;
+        const content = await fs.promises.readFile(sessionPath, 'utf-8');
+        return JSON.parse(content);
+    }
+
+    public deleteSession(sessionId: string) {
+        if (!this.chat) return;
+        this.chat.getChatRecordingService().deleteSession(sessionId);
     }
 }
