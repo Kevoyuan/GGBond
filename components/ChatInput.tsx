@@ -16,6 +16,7 @@ interface ChatInputProps {
   currentContextUsage?: number;
   mode?: string;
   onModeChange?: (mode: string) => void;
+  onApprovalModeChange?: (mode: 'safe' | 'auto') => void;
 }
 
 interface CommandItem {
@@ -77,7 +78,7 @@ const MODELS = [
   { id: 'gemini-2.5-flash-lite', name: '2.5 Flash Lite', icon: Zap },
 ];
 
-export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange }: ChatInputProps) {
+export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, onApprovalModeChange }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [showModelMenu, setShowModelMenu] = useState(false);
@@ -119,17 +120,19 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     }
   };
 
-  // Helper to get current word bounds
-  const getCursorWordBounds = (text: string, index: number) => {
-    let start = index;
-    while (start > 0 && /\S/.test(text[start - 1])) {
-      start--;
+  // Helper to get current command bounds
+  const getCommandBounds = (text: string, index: number) => {
+    const textBefore = text.slice(0, index);
+    const lastSlash = textBefore.lastIndexOf('/');
+
+    if (lastSlash === -1) return null;
+
+    // Check if it's a valid command start (beginning of line or preceded by whitespace)
+    if (lastSlash > 0 && /\S/.test(text[lastSlash - 1])) {
+      return null;
     }
-    let end = index;
-    while (end < text.length && /\S/.test(text[end])) {
-      end++;
-    }
-    return { start, end, word: text.slice(start, end) };
+
+    return { start: lastSlash, query: textBefore.slice(lastSlash) };
   };
 
   useEffect(() => {
@@ -177,18 +180,17 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
   }, [input]);
 
   const updateSuggestions = (value: string, cursorIndex: number) => {
-    const { word } = getCursorWordBounds(value, cursorIndex);
+    const bounds = getCommandBounds(value, cursorIndex);
 
-    // Check if word starts with /
-    if (word.startsWith('/')) {
-      const search = word.toLowerCase();
+    if (bounds) {
+      const search = bounds.query.toLowerCase();
 
       // Combine base commands and skills
       const allCommands = [...BASE_COMMANDS, ...installedSkills];
 
       const matches = allCommands.filter(c =>
         c.command.toLowerCase().startsWith(search) ||
-        (word.length > 1 && c.description.toLowerCase().includes(search.replace(/^\//, '')))
+        (search.length > 1 && c.description.toLowerCase().includes(search.replace(/^\//, '')))
       );
 
       // Sort: Built-in first, then Skills
@@ -255,24 +257,32 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
   };
 
   const handleCommandSelect = (cmd: string) => {
-    const { start, end } = getCursorWordBounds(input, cursorPosition);
-    const before = input.slice(0, start);
-    const after = input.slice(end);
+    const bounds = getCommandBounds(input, cursorPosition);
+    if (!bounds) return;
 
-    const newValue = before + cmd + ' ' + after;
+    const { start } = bounds;
+
+    const textBefore = input.slice(0, start);
+    const textAfter = input.slice(cursorPosition);
+
+    // Find end of current word (if any, e.g. replacing a partial command)
+    let end = 0;
+    while (end < textAfter.length && /\S/.test(textAfter[end])) {
+      end++;
+    }
+    const suffix = textAfter.slice(end);
+
+    const newValue = textBefore + cmd + ' ' + suffix;
     setInput(newValue);
 
-    // Move cursor to end of inserted command
     const newCursorPos = start + cmd.length + 1;
 
     setShowCommands(false);
 
-    // Use timeout to ensure state update has processed and DOM is ready
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
         textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
-        // Update suggestions based on new state? Probably not needed immediately
       }
     }, 0);
   };
@@ -291,6 +301,25 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     const m = MODELS.find(m => m.id === id);
     return m ? m.name : id;
   };
+
+  const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>('safe');
+
+  // Propagate approval mode up
+  useEffect(() => {
+    // We need to pass this up to the parent, but the current interface doesn't support it yet.
+    // For now, let's attach it to the onSend payload or use a separate prop if we refactor page.tsx first.
+    // Actually, let's expose it via a new prop `onApprovalModeChange` in the interface, 
+    // but since I can't change the interface and the usage simultaneously in one atomic step easily without breaking types if I'm not careful.
+    // Let's assume the parent will be updated to pass `onApprovalModeChange`.
+    // Wait, I can't assume that. I should update the interface first? 
+    // No, I can update ChatInput first, but I need to be careful about the prop.
+    // Let's do it in `page.tsx` first? No, `ChatInput` is the child.
+    // I will add the prop to the interface and use it if it exists.
+    if (onApprovalModeChange) {
+      onApprovalModeChange(approvalMode);
+    }
+  }, [approvalMode]);
+
 
   return (
     <div className="p-4 bg-background border-t relative">
@@ -440,6 +469,38 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
               </div>
 
               <div className="w-px h-4 bg-border mx-1" />
+
+              {/* Approval Mode Toggle */}
+              <button
+                onClick={() => {
+                  const nextMode = approvalMode === 'safe' ? 'auto' : 'safe';
+                  setApprovalMode(nextMode);
+                  if (onApprovalModeChange) onApprovalModeChange(nextMode);
+                }}
+                className={cn(
+                  "flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-all duration-300",
+                  approvalMode === 'auto'
+                    ? "text-red-500 bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/20"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                )}
+                title={approvalMode === 'auto' ? "Auto-Approve: ON (Dangerous)" : "Safe Mode: Ask for approval"}
+              >
+                {approvalMode === 'auto' ? (
+                  <>
+                    <Zap className="w-3.5 h-3.5 fill-current animate-pulse" />
+                    <span>Auto</span>
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                  </>
+                ) : (
+                  <>
+                    <div className="w-3.5 h-3.5 rounded-full border border-current opacity-70" />
+                    <span>Safe</span>
+                  </>
+                )}
+              </button>
+
+              <div className="w-px h-4 bg-border mx-1" />
+
 
               <button className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors" title="Attach file">
                 <Paperclip className="w-4 h-4" />

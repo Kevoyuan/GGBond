@@ -1,40 +1,53 @@
-# Gemini CLI Assistant
+# Gemini CodePilot
 
-A powerful web-based assistant that leverages Google's Gemini AI to help users interact with their system through a conversational interface. This application provides a chat-based UI where users can ask questions about their system, run commands, and manage various tasks using AI-powered assistance.
+A pixel-perfect AI IDE interface for gemini-cli, providing a modern GUI for Google's Gemini CLI tool with enhanced visualization and management capabilities.
+
+## Overview
+
+Gemini CodePilot is a Next.js-based desktop application that provides a graphical user interface for the Gemini CLI tool. It offers enhanced features like token usage visualization, MCP server management, session history, and a streamlined chat interface for AI-assisted development.
 
 ## Features
 
-- **AI-Powered Assistance**: Utilizes Google's Gemini AI model for intelligent responses
-- **File System Explorer**: Browse and interact with your local file system
-- **Command Execution**: Run system commands safely through the AI interface
-- **Code Analysis**: Get insights and explanations about your codebase
-- **Chat Interface**: Clean, responsive UI for seamless conversations
-- **Token Usage Tracking**: Monitor API usage and costs
-- **Workspace Management**: Organize and switch between different workspaces
-- **Settings Panel**: Configure API keys and preferences
+- **Modern Chat Interface**: Clean, responsive UI for interacting with Gemini models
+- **Token Usage Tracking**: Real-time visualization of input/output/cached tokens
+- **MCP Server Management**: Integrated management of Model Context Protocol servers
+- **Session History**: Persistent chat sessions with workspace support
+- **File Explorer**: Integrated file browsing and preview capabilities
+- **Settings Management**: GUI for configuring Gemini CLI settings
+- **Skills Integration**: Management of AI skills and capabilities
+- **Context Visualization**: Clear display of active context and memory usage
+- **Multi-Model Support**: Easy switching between different Gemini models
+- **Workspace Management**: Organize projects with dedicated workspaces
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14 with App Router
-- **Styling**: Tailwind CSS
-- **UI Components**: shadcn/ui
-- **AI Integration**: Google Gemini API
-- **Database**: SQLite (via Drizzle ORM)
+- **Framework**: Next.js 16.1.6
+- **Runtime**: React 19.2.3, React DOM 19.2.3
+- **Styling**: Tailwind CSS, Tailwind CSS Animate
+- **UI Components**: shadcn/ui, Lucide React icons
+- **Database**: Better SQLite3
+- **Animation**: Framer Motion
+- **Date Utilities**: date-fns
+- **Syntax Highlighting**: react-syntax-highlighter
+- **Markdown Rendering**: react-markdown
+- **UUID Generation**: uuid
 - **Type Safety**: TypeScript
+- **Linting**: ESLint
 - **Testing**: Vitest
 
 ## Prerequisites
 
-- Node.js (version 18 or higher)
-- Google Gemini API key
-- npm, yarn, pnpm, or bun package manager
+- Node.js 18+ (recommended)
+- npm or yarn package manager
+- Google Gemini API key or OAuth credentials
+- Gemini CLI installed and configured
 
 ## Installation
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd gemini-cli-assistant
+git clone https://github.com/your-username/gem-ui.git
+cd gem-ui
 ```
 
 2. Install dependencies:
@@ -42,62 +55,141 @@ cd gemini-cli-assistant
 npm install
 ```
 
-3. Set up environment variables:
+3. Set up your Gemini API credentials:
 ```bash
-cp .env.example .env.local
+# Add your API key to environment variables
+export GEMINI_API_KEY="your-api-key-here"
 ```
 
-4. Add your Google Gemini API key to `.env.local`:
-```
-NEXT_PUBLIC_GEMINI_API_KEY=your_api_key_here
-```
-
-## Usage
-
-1. Start the development server:
+4. Run the development server:
 ```bash
 npm run dev
 ```
 
-2. Open your browser and navigate to [http://localhost:3000](http://localhost:3000)
-
-3. Configure your settings using the settings dialog (accessible via the header)
-
-4. Begin chatting with the AI assistant to perform tasks, analyze code, or explore your file system
-
-## API Documentation
-
-For detailed information about the API endpoints, see:
-- [gemini-cli-api.md](./gemini-cli-api.md) - Backend API documentation
-- [gemini-cli-ui-api.md](./gemini-cli-ui-api.md) - UI component API documentation
+5. Open your browser to [http://localhost:3000](http://localhost:3000)
 
 ## Configuration
 
-The application can be configured through environment variables and the in-app settings panel:
+The application integrates with the standard Gemini CLI configuration located at `~/.gemini/settings.json`. You can customize various aspects of the CLI behavior through this file, including:
 
-- `NEXT_PUBLIC_GEMINI_API_KEY`: Your Google Gemini API key
-- Model selection: Choose between different Gemini models (pro, flash)
-- Temperature settings: Adjust AI response randomness
-- Workspace settings: Define default workspace paths
+- Model selection and parameters
+- MCP server configurations
+- Tool permissions and approval modes
+- Context management settings
+- UI preferences
+
+## Usage
+
+### Starting a New Chat
+1. Open the application
+2. Select your preferred model from the dropdown
+3. Type your prompt in the input field at the bottom
+4. Press Enter or click the send button
+
+### Managing Sessions
+- View all previous sessions in the sidebar
+- Click on any session to resume the conversation
+- Delete sessions you no longer need
+- Create new chats with the "+" button
+
+### Workspace Management
+- Add workspaces to focus on specific projects
+- Each workspace maintains its own context
+- Switch between workspaces seamlessly
+
+### Token Monitoring
+- Monitor real-time token usage in the header
+- View detailed usage statistics in the usage dialog
+- Track cost estimates and context window usage
+
+### MCP Server Management
+- View connected MCP servers in the settings panel
+- Manage server status and configurations
+- Add or remove MCP servers as needed
+
+## Development
+
+### Running in Development Mode
+```bash
+npm run dev
+```
+
+### Building for Production
+```bash
+npm run build
+```
+
+### Running Tests
+```bash
+npm run test
+```
+
+### Linting
+```bash
+npm run lint
+```
+
+## Project Structure
+
+```
+gem-ui/
+├── app/                    # Next.js app router pages
+│   ├── api/               # API routes
+│   ├── modules/           # Feature modules
+│   ├── globals.css        # Global styles
+│   ├── layout.tsx         # Root layout
+│   └── page.tsx           # Main page
+├── components/            # Reusable UI components
+├── lib/                   # Utility functions and services
+│   ├── api/              # API helpers
+│   ├── types/            # TypeScript type definitions
+│   ├── db.ts             # Database utilities
+│   ├── gemini-service.ts # Gemini CLI integration
+│   ├── gemini-utils.ts   # Gemini utilities
+│   ├── pricing.ts        # Pricing calculations
+│   └── utils.ts          # General utilities
+├── public/                # Static assets
+├── __tests__/            # Test files
+└── ...
+```
+
+## API Integration
+
+The application communicates with the Gemini CLI through a service layer that executes CLI commands and parses responses. Key integration points include:
+
+- Chat completions via CLI process spawning
+- Settings management through configuration files
+- Token usage tracking from CLI output
+- MCP server management
+- Session persistence
 
 ## Contributing
 
-We welcome contributions to enhance the functionality and usability of the Gemini CLI Assistant. To contribute:
-
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Make your changes
+4. Commit your changes (`git commit -m 'Add amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Gemini CLI not found**: Ensure the `gemini` command is available in your PATH
+2. **API Key Issues**: Verify your GEMINI_API_KEY environment variable is set correctly
+3. **Permission Errors**: Check that the application has necessary file system permissions
+
+### Debugging
+
+Enable additional logging by setting the `NODE_ENV` environment variable to `development`.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Support
+## Acknowledgments
 
-If you encounter any issues or have questions, please file an issue in the repository or consult the documentation files included in the project.
-
-## Other Languages
-
-- [中文文档](./README.zh-CN.md)
+- Built with Next.js and the Gemini CLI
+- Inspired by modern AI development workflows
+- UI components from shadcn/ui

@@ -1,13 +1,12 @@
-import { Bot, User, Info, Loader2, Copy, Check } from 'lucide-react';
+import { Bot, User, Info, Copy, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import { useState } from 'react';
 import { TokenUsageDisplay } from './TokenUsageDisplay';
 import { DiffBlock } from './DiffBlock';
 import { CodeBlock } from './CodeBlock';
-
 import { ToolCallBlock } from './ToolCallBlock';
-import { ThinkingBlock } from './ThinkingBlock';
+import { PlanBlock } from './PlanBlock';
 
 export interface Message {
   role: 'user' | 'model';
@@ -23,23 +22,32 @@ import { StateSnapshotDisplay } from './StateSnapshotDisplay';
 
 interface MessageBubbleProps {
   message: Message;
+  isFirst: boolean;
   isLast: boolean;
   settings?: ChatSettings;
+  onRetry?: (mode: 'once' | 'session') => void;
+  onCancel?: () => void;
 }
 
-// Custom renderer to handle <tool-call> and <thinking> tags mixed with Markdown
-function ContentRenderer({ content }: { content: string }) {
-  // Regex to split content by special tags
-  // <tool-call ... />
-  // <thinking>...</thinking>
-  const parts = content.split(/(<tool-call[^>]*\/>|<thinking>[\s\S]*?<\/thinking>)/g);
+/**
+ * ContentRenderer: Splits AI content into timeline items.
+ * Each segment (text paragraph or tool-call) becomes a `.timeline-item` sibling
+ * inside a `.timeline-group` container so CSS handles dots & connector lines.
+ */
+function ContentRenderer({ content, onRetry, onCancel }: { content: string, onRetry?: (mode: 'once' | 'session') => void, onCancel?: () => void }) {
+  // Split content by <tool-call .../> tags AND <thinking> blocks AND "Updated Plan" sections
+  // Regex:
+  // 1. <tool-call ... />
+  // 2. <thinking> ... </thinking>
+  // 3. # Updated Plan ... (until next # or end)
+  const parts = content.split(/(<tool-call[^>]*\/>|<thinking>[\s\S]*?<\/thinking>|#\s*Updated\s*Plan[\s\S]*?(?=\n#|\n<|$))/g);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="timeline-group">
       {parts.map((part, index) => {
-        if (!part) return null;
+        if (!part || !part.trim()) return null;
 
-        // Handle Tool Call
+        // ── Tool Call ──
         if (part.startsWith('<tool-call')) {
           const nameMatch = part.match(/name="([^"]+)"/);
           const argsMatch = part.match(/args="([^"]+)"/);
@@ -48,15 +56,11 @@ function ContentRenderer({ content }: { content: string }) {
 
           const name = nameMatch ? nameMatch[1] : 'Unknown Tool';
           const argsStr = argsMatch ? decodeURIComponent(argsMatch[1]) : '{}';
-          const status = statusMatch ? statusMatch[1] as any : 'completed';
+          const status = statusMatch ? statusMatch[1] as 'running' | 'completed' | 'failed' : 'completed';
           const result = resultMatch ? decodeURIComponent(resultMatch[1]) : undefined;
 
           let args = {};
-          try {
-            args = JSON.parse(argsStr);
-          } catch (e) {
-            args = { raw: argsStr };
-          }
+          try { args = JSON.parse(argsStr); } catch { args = { raw: argsStr }; }
 
           return (
             <ToolCallBlock
@@ -65,44 +69,56 @@ function ContentRenderer({ content }: { content: string }) {
               args={args}
               status={status}
               result={result}
+              onRetry={onRetry}
+              onCancel={onCancel}
             />
           );
         }
 
-        // Handle Thinking Block
+        // ── Skip <thinking> blocks entirely ──
         if (part.startsWith('<thinking>')) {
-          const content = part.replace(/<\/?thinking>/g, '').trim();
-          return <ThinkingBlock key={index} content={content} />;
+          return null;
         }
 
-        // Handle Regular Markdown
+        // ── Plan Block ──
+        if (part.trim().startsWith('# Updated Plan')) {
+          // Remove the header line for cleaner rendering? Or keep it?
+          // PlanBlock handles the header visual, so we pass the content.
+          // But PlanBlock expects valid markdown list items.
+          // Let's pass the whole part and let PlanBlock parse it.
+          return <PlanBlock key={index} content={part} />;
+        }
+
+        // ── Markdown text segment ──
         return (
-          <div key={index} className="prose dark:prose-invert prose-sm max-w-none break-words prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-code:bg-muted/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none">
-            <ReactMarkdown
-              components={{
-                code({ className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || '')
-                  const lang = match?.[1];
-                  const codeStr = String(children).replace(/\n$/, '');
+          <div key={index} className="timeline-item">
+            <div className="prose dark:prose-invert prose-sm max-w-none break-words prose-p:leading-relaxed prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-code:bg-muted/30 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none opacity-90">
+              <ReactMarkdown
+                components={{
+                  code({ className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || '')
+                    const lang = match?.[1];
+                    const codeStr = String(children).replace(/\n$/, '');
 
-                  if (lang === 'diff') {
-                    return <DiffBlock code={codeStr} />;
+                    if (lang === 'diff') {
+                      return <DiffBlock code={codeStr} />;
+                    }
+
+                    if (match && lang) {
+                      return <CodeBlock language={lang} code={codeStr} />;
+                    }
+
+                    return (
+                      <code {...props} className={cn(className, "text-xs font-mono")}>
+                        {children}
+                      </code>
+                    )
                   }
-
-                  if (match && lang) {
-                    return <CodeBlock language={lang} code={codeStr} />;
-                  }
-
-                  return (
-                    <code {...props} className={className}>
-                      {children}
-                    </code>
-                  )
-                }
-              }}
-            >
-              {part}
-            </ReactMarkdown>
+                }}
+              >
+                {part}
+              </ReactMarkdown>
+            </div>
           </div>
         );
       })}
@@ -110,7 +126,7 @@ function ContentRenderer({ content }: { content: string }) {
   );
 }
 
-export function MessageBubble({ message, settings }: MessageBubbleProps) {
+export function MessageBubble({ message, isFirst, isLast, settings, onRetry, onCancel }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isSnapshot = !isUser && message.content.includes('<state_snapshot>');
 
@@ -122,28 +138,32 @@ export function MessageBubble({ message, settings }: MessageBubbleProps) {
         </div>
       )}
 
-      <div className={cn("flex flex-col max-w-[85%] md:max-w-[80%] min-w-0", isUser ? "items-end" : "items-start", isSnapshot && "w-full max-w-3xl")}>
+      <div className={cn("flex flex-col min-w-0", isUser ? "items-end max-w-[85%] md:max-w-[80%]" : "items-start w-full", isSnapshot && "w-full max-w-3xl")}>
         {isSnapshot ? (
           <StateSnapshotDisplay content={message.content} />
         ) : (
           <div
             className={cn(
-              "rounded-xl px-5 py-3.5 shadow-sm text-sm leading-relaxed max-w-full overflow-x-hidden",
+              "text-sm leading-relaxed max-w-full overflow-x-hidden",
               isUser
-                ? "bg-primary text-primary-foreground"
-                : "bg-card border border-border/60"
+                ? "bg-primary text-primary-foreground rounded-xl px-5 py-3.5 shadow-sm font-medium"
+                : "w-full"
             )}
           >
             {!isUser ? (
-              <ContentRenderer content={message.content} />
+              <ContentRenderer
+                content={message.content}
+                onRetry={onRetry}
+                onCancel={onCancel}
+              />
             ) : (
-              <div className="whitespace-pre-wrap font-medium">{message.content}</div>
+              <div className="whitespace-pre-wrap">{message.content}</div>
             )}
           </div>
         )}
 
         {!isUser && message.stats && !isSnapshot && (
-          <div className="mt-1 ml-1">
+          <div className="mt-1 pl-[30px]">
             <TokenUsageDisplay
               stats={message.stats}
               hideModelInfo={settings?.ui?.footer?.hideModelInfo}
@@ -196,9 +216,12 @@ export function LoadingBubble() {
       <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5 border border-primary/20">
         <Bot className="w-5 h-5 text-primary" />
       </div>
-      <div className="bg-card border border-border/60 rounded-xl px-5 py-3.5 flex items-center gap-3 shadow-sm">
-        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-        <span className="text-sm text-muted-foreground font-medium">Thinking...</span>
+      <div className="w-full">
+        <div className="timeline-group">
+          <div className="timeline-item timeline-item-loading">
+            <span className="text-sm text-muted-foreground italic font-medium">Processing...</span>
+          </div>
+        </div>
       </div>
     </div>
   );
