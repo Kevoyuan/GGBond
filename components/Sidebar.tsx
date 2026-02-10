@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   MessageSquare,
   Plus,
@@ -17,7 +17,8 @@ import {
   LayoutGrid,
   FolderPlus,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  GitBranch
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -51,6 +52,45 @@ interface SidebarProps {
 
 type SidebarView = 'chat' | 'files';
 
+const MIN_SIDEBAR_WIDTH = 160;
+const MAX_SIDEBAR_WIDTH = 600;
+const DEFAULT_SIDEBAR_WIDTH = 256;
+
+/**
+ * Hook: 获取各 workspace 的 git branch 信息
+ */
+function useGitBranches(workspaces: string[]) {
+  const [branches, setBranches] = useState<Record<string, string | null>>({});
+
+  useEffect(() => {
+    const fetchBranches = async () => {
+      const results: Record<string, string | null> = {};
+      // Only fetch for absolute paths (real filesystem workspaces)
+      const validWorkspaces = workspaces.filter(w => w !== 'Default' && w.startsWith('/'));
+      await Promise.all(
+        validWorkspaces.map(async (workspace) => {
+          try {
+            const res = await fetch(`/api/git/branch?path=${encodeURIComponent(workspace)}`);
+            if (res.ok) {
+              const data = await res.json();
+              results[workspace] = data.branch || null;
+            }
+          } catch {
+            results[workspace] = null;
+          }
+        })
+      );
+      setBranches(results);
+    };
+
+    if (workspaces.length > 0) {
+      fetchBranches();
+    }
+  }, [workspaces.join(',')]);
+
+  return branches;
+}
+
 export function Sidebar({
   sessions,
   currentSessionId,
@@ -71,12 +111,22 @@ export function Sidebar({
   const [searchTerm, setSearchTerm] = useState('');
   const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set());
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [sidePanelWidth, setSidePanelWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
 
-  // Load collapsed state from local storage
-  React.useEffect(() => {
-    const savedState = localStorage.getItem('sidebar-collapsed');
-    if (savedState) {
-      setIsCollapsed(savedState === 'true');
+  // Load state from local storage
+  useEffect(() => {
+    const savedCollapsed = localStorage.getItem('sidebar-collapsed');
+    if (savedCollapsed) {
+      setIsCollapsed(savedCollapsed === 'true');
+    }
+
+    const savedWidth = localStorage.getItem('side-panel-width');
+    if (savedWidth) {
+      const width = parseInt(savedWidth, 10);
+      if (!isNaN(width)) {
+        setSidePanelWidth(Math.min(Math.max(width, MIN_SIDEBAR_WIDTH), MAX_SIDEBAR_WIDTH));
+      }
     }
   }, []);
 
@@ -111,6 +161,10 @@ export function Sidebar({
     return groups;
   }, [sessions]);
 
+  // Git branch awareness
+  const workspaceNames = useMemo(() => Object.keys(groupedSessions), [groupedSessions]);
+  const branchInfo = useGitBranches(workspaceNames);
+
   const filteredGroups = useMemo(() => {
     if (!searchTerm) return groupedSessions;
     const result: Record<string, Session[]> = {};
@@ -121,10 +175,52 @@ export function Sidebar({
     return result;
   }, [groupedSessions, searchTerm]);
 
+  // Handle Resizing
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+    localStorage.setItem('side-panel-width', String(sidePanelWidth));
+  }, [sidePanelWidth]);
+
+  const resize = useCallback((e: MouseEvent) => {
+    if (isResizing) {
+      // Calculation: Mouse position (e.clientX) - width of Rail (14 * 4 = 56px roughly, but let's be more precise)
+      // The Rail is 3.5rem (w-14) = 56px.
+      const newWidth = e.clientX - 56;
+      if (newWidth >= MIN_SIDEBAR_WIDTH && newWidth <= MAX_SIDEBAR_WIDTH) {
+        setSidePanelWidth(newWidth);
+      }
+    }
+  }, [isResizing]);
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', resize);
+      window.addEventListener('mouseup', stopResizing);
+      // Disable text selection and transitions while resizing
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [isResizing, resize, stopResizing]);
+
   return (
-    <div className="flex h-full border-r bg-muted/10">
+    <div className="flex h-full border-r bg-muted/10 relative">
       {/* Navigation Rail */}
-      <div className="w-14 border-r flex flex-col items-center py-4 gap-4 bg-card z-10 shrink-0">
+      <div className="w-14 border-r flex flex-col items-center py-4 gap-4 bg-card z-20 shrink-0">
         <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
           <Box className="w-5 h-5 text-primary" />
         </div>
@@ -200,7 +296,14 @@ export function Sidebar({
       </div>
 
       {/* Side Panel Content */}
-      <div className={cn("w-64 flex flex-col bg-muted/5 transition-all duration-300 ease-in-out", isCollapsed && "w-0 opacity-0 overflow-hidden")}>
+      <div
+        className={cn(
+          "flex flex-col bg-muted/5 z-10 relative shrink-0",
+          !isResizing && "transition-all duration-300 ease-in-out",
+          isCollapsed && "w-0 opacity-0 overflow-hidden"
+        )}
+        style={{ width: isCollapsed ? 0 : sidePanelWidth }}
+      >
         {activeView === 'chat' ? (
           <>
             <div className="p-4 border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
@@ -232,7 +335,7 @@ export function Sidebar({
 
               {Object.entries(filteredGroups).map(([workspace, list]) => (
                 list.length > 0 && (
-                  <div key={workspace} className="mb-1">
+                  <div key={workspace} className="mb-1 text-xs sm:text-sm">
                     <div
                       className={cn(
                         "group flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-muted/60 cursor-pointer transition-colors",
@@ -252,7 +355,7 @@ export function Sidebar({
                         currentWorkspace === workspace ? "text-primary" : "text-muted-foreground/70"
                       )} />
                       <span
-                        className="truncate font-medium flex-1"
+                        className="truncate font-medium flex-1 text-[13px]"
                         title={workspace}
                       >
                         {workspace === 'Default' ? workspace : workspace.split('/').pop()}
@@ -288,6 +391,15 @@ export function Sidebar({
                               currentSessionId === session.id ? "bg-blue-500" : "bg-transparent group-hover:bg-muted-foreground/30"
                             )} />
                             <span className="truncate flex-1 text-[13px]">{session.title}</span>
+                            {branchInfo[workspace] && (
+                              <span
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 shrink-0"
+                                title={`Branch: ${branchInfo[workspace]}`}
+                              >
+                                <GitBranch className="w-2.5 h-2.5 shrink-0" />
+                                <span className="truncate max-w-[50px]">{branchInfo[workspace]}</span>
+                              </span>
+                            )}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -316,15 +428,31 @@ export function Sidebar({
             <div className="p-3 border-t bg-card/50 backdrop-blur-sm">
               <button
                 onClick={onShowStats}
-                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-md text-sm text-muted-foreground transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-md text-sm text-muted-foreground transition-colors overflow-hidden whitespace-nowrap"
               >
-                <BarChart2 className="w-4 h-4" />
-                <span>Usage Dashboard</span>
+                <BarChart2 className="w-4 h-4 shrink-0" />
+                <span className="truncate">Usage Dashboard</span>
               </button>
             </div>
           </>
         ) : (
           <FileExplorer className="h-full" initialPath={currentWorkspace || undefined} />
+        )}
+
+        {/* Resize Handle */}
+        {!isCollapsed && (
+          <div
+            onMouseDown={startResizing}
+            className={cn(
+              "absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-50 transition-colors hover:bg-primary/30 group",
+              isResizing && "bg-primary/50"
+            )}
+          >
+            <div className={cn(
+              "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[2px] h-8 bg-border/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
+              isResizing && "opacity-100 bg-primary/40"
+            )} />
+          </div>
         )}
       </div>
     </div>
@@ -358,3 +486,4 @@ function NavButton({ active, onClick, icon: Icon, label }: NavButtonProps) {
     </div>
   );
 }
+
