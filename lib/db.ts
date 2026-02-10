@@ -28,8 +28,10 @@ db.exec(`
     role TEXT NOT NULL,
     content TEXT NOT NULL,
     stats TEXT,
+    parent_id INTEGER,
     created_at INTEGER NOT NULL,
-    FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
+    FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES messages (id) ON DELETE CASCADE
   );
 `);
 
@@ -37,12 +39,41 @@ db.exec(`
 try {
   const tableInfo = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
   const hasWorkspace = tableInfo.some(col => col.name === 'workspace');
-  
+
   if (!hasWorkspace) {
     db.exec('ALTER TABLE sessions ADD COLUMN workspace TEXT');
   }
 } catch (error) {
   console.error('Failed to migrate sessions table:', error);
+}
+
+// Migration: Add parent_id column to messages if it doesn't exist
+try {
+  const tableInfo = db.prepare("PRAGMA table_info(messages)").all() as { name: string }[];
+  const hasParentId = tableInfo.some(col => col.name === 'parent_id');
+
+  if (!hasParentId) {
+    console.log('Migrating messages table: Adding parent_id...');
+    db.exec('ALTER TABLE messages ADD COLUMN parent_id INTEGER REFERENCES messages(id) ON DELETE CASCADE');
+
+    // Backfill parent_id for existing messages (assuming linear history)
+    const sessions = db.prepare('SELECT id FROM sessions').all() as { id: string }[];
+
+    const updateStmt = db.prepare('UPDATE messages SET parent_id = ? WHERE id = ?');
+
+    for (const session of sessions) {
+      const messages = db.prepare('SELECT id FROM messages WHERE session_id = ? ORDER BY id ASC').all(session.id) as { id: number }[];
+
+      for (let i = 1; i < messages.length; i++) {
+        const currentMsg = messages[i];
+        const parentMsg = messages[i - 1];
+        updateStmt.run(parentMsg.id, currentMsg.id);
+      }
+    }
+    console.log('Migration complete: parent_id added and backfilled.');
+  }
+} catch (error) {
+  console.error('Failed to migrate messages table:', error);
 }
 
 export default db;
@@ -61,5 +92,6 @@ export interface DbMessage {
   role: 'user' | 'model';
   content: string;
   stats?: string; // JSON string
+  parent_id?: number | null;
   created_at: number;
 }
