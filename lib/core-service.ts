@@ -150,4 +150,21 @@ export class CoreService {
             yield { type: 'error', value: { error } };
         }
     }
+
+    public submitConfirmation(correlationId: string, confirmed: boolean) {
+        if (!this.messageBus) {
+            console.warn('[CoreService] MessageBus not initialized');
+            return;
+        }
+
+        console.log('[CoreService] Submitting confirmation:', { correlationId, confirmed });
+
+        // MessageBusType.TOOL_CONFIRMATION_RESPONSE = 1
+        this.messageBus.publish({
+            type: 1,
+            correlationId,
+            confirmed,
+            outcome: confirmed ? 'allow' : 'deny'
+        } as any);
+    }
 }

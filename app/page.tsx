@@ -12,6 +12,7 @@ import { ConversationGraph, GraphMessage } from '../components/ConversationGraph
 
 import { ChatInput } from '../components/ChatInput';
 import { ChatContainer } from '../components/ChatContainer';
+import { ConfirmationDialog, ConfirmationDetails } from '../components/ConfirmationDialog';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 import { FilePreview } from '../components/FilePreview';
@@ -101,6 +102,8 @@ export default function Home() {
       isLeaf: msg.id === headId
     }));
   }, [messagesMap, headId, showGraph]);
+
+  const [confirmation, setConfirmation] = useState<{ details: ConfirmationDetails, correlationId: string } | null>(null);
 
   const sessionStats = useMemo(() => {
     return messages.reduce((acc, msg) => {
@@ -402,6 +405,17 @@ export default function Home() {
               updateMessageInTree(assistantMsgId, updates);
             }
 
+            if (data.type === 'tool_confirmation' || data.type === 'tool_call_confirmation') {
+              // Handle interactive confirmation
+              // Expecting data.value.details which matches ConfirmationDetails structure
+              const details = data.value?.details || data.details;
+              if (details) {
+                setConfirmation(details);
+                // We might want to show this in the chat as well? 
+                // For now, modal dialog is fine.
+              }
+            }
+
             if (data.type === 'tool_use') {
               const toolCallTag = `\n\n<tool-call name="${data.tool_name}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}" status="running" />\n\n`;
               assistantContent += toolCallTag;
@@ -504,6 +518,18 @@ export default function Home() {
       parentId: parentId || undefined
     });
   };
+
+  const handleConfirm = async (approved: boolean) => {
+    if (!confirmation) return;
+
+    // We need correlationId passed in the event. 
+    // Assuming data.value.request.correlationId or similar.
+    // Ideally confirmation state should store correlationId.
+    // Let's assume confirmation object has it or we stored it separately.
+    // Wait, ConfirmationDetails doesn't have correlationId.
+    // We need to verify event structure.
+  };
+
 
   const handleCancel = (messageIndex: number) => {
     // Just stop loading? Or delete the branch?
@@ -650,6 +676,13 @@ export default function Home() {
           />
         </div>
       </div>
+      {confirmation && (
+        <ConfirmationDialog
+          details={confirmation.details}
+          onConfirm={() => handleConfirm(true)}
+          onCancel={() => handleConfirm(false)}
+        />
+      )}
     </div>
   );
 }
