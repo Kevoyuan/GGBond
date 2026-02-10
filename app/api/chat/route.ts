@@ -140,9 +140,27 @@ export async function POST(req: Request) {
               }) + '\n'));
             }
 
+            else if (event.type === GeminiEventType.Thought) {
+              const thought = event.value as any;
+              const text = typeof thought === 'string' ? thought : thought.text || JSON.stringify(thought);
+              controller.enqueue(encoder.encode(JSON.stringify({
+                type: 'thought',
+                content: text
+              }) + '\n'));
+            }
+
+            else if (event.type === GeminiEventType.Citation) {
+              const citation = event.value as string;
+              controller.enqueue(encoder.encode(JSON.stringify({
+                type: 'citation',
+                content: citation
+              }) + '\n'));
+            }
+
             else if (event.type === GeminiEventType.Finished) {
               // model usage metadata
-              const usage = event.value.usageMetadata;
+              const val = event.value as any;
+              const usage = val.usageMetadata;
               controller.enqueue(encoder.encode(JSON.stringify({
                 type: 'result',
                 status: 'complete',
