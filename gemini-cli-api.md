@@ -1,4 +1,5 @@
 # Gemini CLI GUI 开发说明书
+源代码库：https://github.com/google-gemini/gemini-cli
 
 ---
 
