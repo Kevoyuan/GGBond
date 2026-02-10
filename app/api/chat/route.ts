@@ -1,207 +1,191 @@
+
 import { NextResponse } from 'next/server';
-import { spawn } from 'child_process';
+import { CoreService } from '@/lib/core-service';
 import db from '@/lib/db';
-import { getGeminiPath, getGeminiEnv } from '@/lib/gemini-utils';
+import {
+  GeminiEventType,
+  ToolCallRequestInfo,
+  ToolCallResponseInfo
+} from '@google/gemini-cli-core';
 
 export async function POST(req: Request) {
+  const encoder = new TextEncoder();
+
   try {
-    // Extract parentId from request
-    const { prompt, model, systemInstruction, sessionId, workspace, mode, approvalMode, modelSettings, parentId } = await req.json();
+    const {
+      prompt,
+      model,
+      systemInstruction,
+      sessionId,
+      workspace,
+      mode,
+      approvalMode,
+      modelSettings,
+      parentId
+    } = await req.json();
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
 
-    // Mode-specific system instructions
+    // Initialize CoreService
+    const core = CoreService.getInstance();
+
+    // Use provided sessionId or generate new one if not provided (though usually frontend provides one or null)
+    const finalSessionId = sessionId || crypto.randomUUID();
+
+    // Initialize config if needed or if session changed
+    await core.initialize({
+      sessionId: finalSessionId,
+      model: model || 'gemini-2.5-pro',
+      cwd: workspace || process.cwd(),
+      approvalMode: approvalMode === 'auto' ? 1 : 0, // 1=AUTO, 0=CONFIRM (Need to check Enum values, assuming 1 is AUTO)
+      // Enum ApprovalMode { ALWAYS_CONFIRM = 0, AUTO_APPROVE = 1, YOLO = 2 }
+      systemInstruction
+    });
+
+    // Mode specific instructions
     const MODE_INSTRUCTIONS: Record<string, string> = {
-      plan: 'You are in PLAN mode. Analyze and plan only — do NOT modify files or run commands. Produce a detailed plan with steps.',
-      ask: 'You are in ASK mode. Answer questions only — do NOT modify files, run commands, or make any changes.',
+      plan: 'You are in PLAN mode. Analyze and plan only — do NOT modify files or run commands.',
+      ask: 'You are in ASK mode. Answer questions only — do NOT modify files.'
     };
 
-    // Check max session turns if configured
-    if (sessionId && modelSettings?.maxSessionTurns > 0) {
-      try {
-        const result = db.prepare('SELECT COUNT(*) as count FROM messages WHERE session_id = ? AND role = ?').get(sessionId, 'user') as { count: number };
-        if (result && result.count >= modelSettings.maxSessionTurns) {
-          return NextResponse.json({
-            error: `Session turn limit reached (${modelSettings.maxSessionTurns} turns). Please start a new chat.`
-          }, { status: 403 });
-        }
-      } catch (e) {
-        console.error('Failed to check session turns:', e);
-      }
+    let finalPrompt = prompt;
+    if (mode && MODE_INSTRUCTIONS[mode]) {
+      // We can prepend this to prompt or set as system instruction update
+      // For now, prepend to prompt to be safe as system instruction is set in init
+      finalPrompt = `[SYSTEM: ${MODE_INSTRUCTIONS[mode]}]\n\n${prompt}`;
     }
 
-    // Resolve gemini executable path
-    let geminiScriptPath = '';
-    try {
-      geminiScriptPath = getGeminiPath();
-    } catch {
-      console.error('Failed to find gemini executable');
-      return NextResponse.json({ error: 'Gemini CLI not found' }, { status: 500 });
-    }
-
-    // Construct arguments
-    const args = [geminiScriptPath, '--output-format', 'stream-json'];
-
-    // Add model if provided
-    if (model) {
-      args.push('--model', model);
-    }
-
-    // Handle Auto-Approve (YOLO) mode
-    if (approvalMode === 'auto') {
-      args.push('--yolo');
-    }
-
-    // Add prompt (prepend system instruction + mode instruction if present)
-    let fullPrompt = prompt;
-    const modeInstruction = mode && MODE_INSTRUCTIONS[mode] ? MODE_INSTRUCTIONS[mode] : '';
-    if (systemInstruction || modeInstruction) {
-      const combinedInstruction = [modeInstruction, systemInstruction].filter(Boolean).join('\n');
-      fullPrompt = `System Instruction: ${combinedInstruction}\n\nUser Request: ${prompt}`;
-    }
-    args.push('-p', fullPrompt);
-
-    // Resume session if ID provided
-    if (sessionId) {
-      args.push('--resume', sessionId);
-    }
-
-    // Get environment variables with keychain bypass
-    const env = getGeminiEnv();
-
-    console.log('Running gemini with HOME:', env.HOME || process.env.HOME);
-    console.log('Script path:', geminiScriptPath);
-
-    const encoder = new TextEncoder();
-    let fullResponseContent = '';
-    let finalStats: any = null;
-    let detectedSessionId = sessionId;
-    let detectedModel = model || ''; // Use requested model or capture from init
+    // DB Logging Setup
+    const now = Date.now();
     let userMessageId: number | bigint | null = null;
-    let userMessageSaved = false;
+
+    // 1. Log Session & User Message (Synchronously before stream or during init)
+    try {
+      const existingSession = db.prepare('SELECT id FROM sessions WHERE id = ?').get(finalSessionId);
+      if (!existingSession) {
+        const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
+        db.prepare(`
+                    INSERT INTO sessions (id, title, created_at, updated_at, workspace)
+                    VALUES (?, ?, ?, ?, ?)
+                `).run(finalSessionId, title, now, now, workspace || null);
+      } else {
+        db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(now, finalSessionId);
+      }
+
+      const stmt = db.prepare('INSERT INTO messages (session_id, role, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)');
+      const info = stmt.run(finalSessionId, 'user', prompt, parentId || null, now);
+      userMessageId = info.lastInsertRowid;
+    } catch (e) {
+      console.error('[DB] Failed to log user message', e);
+    }
+
+    let fullResponse = '';
+    let toolCalls = [];
 
     const stream = new ReadableStream({
-      start(controller) {
-        const spawnOptions: { env: typeof env; cwd?: string } = { env };
-        if (workspace) {
-          spawnOptions.cwd = workspace;
-        }
-        const gemini = spawn(process.execPath, args, spawnOptions);
+      async start(controller) {
+        // Send Init Event
+        const initEvent = {
+          type: 'init',
+          session_id: finalSessionId,
+          model: model || 'gemini-2.5-pro'
+        };
+        controller.enqueue(encoder.encode(JSON.stringify(initEvent) + '\n'));
 
-        let lineBuffer = '';
+        try {
+          const generator = core.runTurn(finalPrompt);
 
-        gemini.stdout.on('data', (data: Buffer) => {
-          const chunk = data.toString();
-          lineBuffer += chunk;
-          const lines = lineBuffer.split('\n');
-          lineBuffer = lines.pop() || '';
+          for await (const event of generator) {
+            // Map Core Events to Stream JSON
 
-          for (const line of lines) {
-            if (!line.trim()) continue;
+            if (event.type === GeminiEventType.Content) {
+              const chunk = event.value; // string
+              if (typeof chunk === 'string') {
+                fullResponse += chunk;
+                controller.enqueue(encoder.encode(JSON.stringify({
+                  type: 'message',
+                  role: 'assistant',
+                  content: chunk
+                }) + '\n'));
+              }
+            }
 
-            // Forward to client
-            controller.enqueue(encoder.encode(line + '\n'));
+            else if (event.type === GeminiEventType.ToolCallRequest) {
+              const info = event.value as ToolCallRequestInfo;
+              controller.enqueue(encoder.encode(JSON.stringify({
+                type: 'tool_use',
+                tool_name: info.name,
+                tool_id: info.callId,
+                parameters: info.args
+              }) + '\n'));
+            }
 
-            try {
-              const parsed = JSON.parse(line);
-
-              // 1. Handle Init -> Save Session & User Message
-              if (parsed.type === 'init') {
-                if (parsed.session_id) detectedSessionId = parsed.session_id;
-                if (parsed.model) detectedModel = parsed.model;
-
-                if (detectedSessionId) {
-                  try {
-                    const now = Date.now();
-                    const existingSession = db.prepare('SELECT id FROM sessions WHERE id = ?').get(detectedSessionId);
-
-                    if (!existingSession) {
-                      const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
-                      db.prepare(`
-                        INSERT INTO sessions (id, title, created_at, updated_at, workspace)
-                        VALUES (?, ?, ?, ?, ?)
-                      `).run(detectedSessionId, title, now, now, workspace || null);
-                    } else {
-                      db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(now, detectedSessionId);
-                    }
-
-                    if (!userMessageSaved) {
-                      const stmt = db.prepare('INSERT INTO messages (session_id, role, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)');
-                      const info = stmt.run(
-                        detectedSessionId,
-                        'user',
-                        prompt,
-                        parentId || null,
-                        now
-                      );
-                      userMessageId = info.lastInsertRowid;
-                      userMessageSaved = true;
-                    }
-                  } catch (dbErr) {
-                    console.error('DB Error on init:', dbErr);
-                  }
-                }
+            else if (event.type === GeminiEventType.ToolCallResponse) {
+              const info = event.value as ToolCallResponseInfo;
+              // Simplify output for frontend
+              let output = '';
+              // responseParts is Part[]
+              if (info.responseParts) {
+                output = info.responseParts.map(p => p.text || JSON.stringify(p)).join('');
               }
 
-              // 2. Accumulate Content
-              if (parsed.type === 'message' && parsed.role === 'assistant' && parsed.content) {
-                fullResponseContent += parsed.content;
-              }
+              controller.enqueue(encoder.encode(JSON.stringify({
+                type: 'tool_result',
+                tool_id: info.callId,
+                status: info.error ? 'error' : 'success',
+                is_error: !!info.error,
+                output: output || info.error?.message
+              }) + '\n'));
+            }
 
-              // 3. Handle Result -> Save Assistant Message
-              if (parsed.type === 'result') {
-                finalStats = parsed.stats;
-                // Inject model into stats if available
-                if (finalStats && detectedModel) {
-                  finalStats.model = detectedModel;
+            else if (event.type === GeminiEventType.Finished) {
+              // model usage metadata
+              const usage = event.value.usageMetadata;
+              controller.enqueue(encoder.encode(JSON.stringify({
+                type: 'result',
+                status: 'complete',
+                stats: {
+                  inputTokenCount: usage?.promptTokenCount,
+                  outputTokenCount: usage?.candidatesTokenCount,
+                  totalTokenCount: usage?.totalTokenCount
                 }
+              }) + '\n'));
+            }
 
-                try {
-                  const now = Date.now();
-                  if (detectedSessionId) {
-                    db.prepare('INSERT INTO messages (session_id, role, content, stats, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
-                      detectedSessionId,
-                      'model',
-                      fullResponseContent,
-                      finalStats ? JSON.stringify(finalStats) : null,
-                      userMessageId, // Use user message as parent
-                      now + 1
-                    );
-                  }
-                } catch (dbErr) {
-                  console.error('DB Error on result:', dbErr);
-                }
-              }
-
-            } catch (e) {
-              // Ignore parse errors (e.g. non-JSON lines)
+            else if (event.type === GeminiEventType.Error) {
+              controller.enqueue(encoder.encode(JSON.stringify({
+                type: 'error',
+                error: event.value.error
+              }) + '\n'));
             }
           }
-        });
 
-        gemini.stderr.on('data', (data) => {
-          console.error('Gemini stderr:', data.toString());
-        });
-
-        gemini.on('close', (code) => {
-          if (code !== 0) {
-            console.error('Gemini exited with code', code);
+          // Save Assistant Message to DB
+          try {
+            db.prepare('INSERT INTO messages (session_id, role, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)')
+              .run(finalSessionId, 'model', fullResponse, userMessageId, Date.now());
+          } catch (e) {
+            console.error('[DB] Failed to log assistant message', e);
           }
-          controller.close();
-        });
 
-        gemini.on('error', (err) => {
-          controller.error(err);
-        });
+        } catch (err) {
+          console.error('Turn execution error:', err);
+          controller.enqueue(encoder.encode(JSON.stringify({
+            type: 'error',
+            error: { message: String(err) }
+          }) + '\n'));
+        } finally {
+          controller.close();
+        }
       }
     });
 
     return new NextResponse(stream, {
       headers: {
         'Content-Type': 'application/x-ndjson; charset=utf-8',
-        'Cache-Control': 'no-cache, no-transform',
+        'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
       },
     });

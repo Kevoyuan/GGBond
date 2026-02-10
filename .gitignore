@@ -50,3 +50,4 @@ htmlcov/
 # Tooling
 gemini-home/
 .gemini/
+.npm-cache/
