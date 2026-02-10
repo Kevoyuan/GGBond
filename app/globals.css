@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./timeline.css";
 
 @theme {
   /* Semantic color tokens - IDE/Zinc Theme */
@@ -37,13 +38,25 @@
   --animate-slide-in: slide-in 0.3s ease-out;
 
   @keyframes fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
 
   @keyframes slide-in {
-    from { transform: translateY(10px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+    from {
+      transform: translateY(10px);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
   }
 }
 
@@ -51,7 +64,8 @@
 
 .dark {
   /* Dark Zinc Theme - IDE Style */
-  --color-background: oklch(15% 0 0); /* #18181b */
+  --color-background: oklch(15% 0 0);
+  /* #18181b */
   --color-foreground: oklch(98% 0 0);
 
   --color-primary: oklch(98% 0 0);
@@ -72,38 +86,41 @@
   --color-border: oklch(25% 0 0);
   --color-ring: oklch(80% 0 0);
 
-  --color-card: oklch(17% 0 0); /* Slightly lighter than bg */
+  --color-card: oklch(17% 0 0);
+  /* Slightly lighter than bg */
   --color-card-foreground: oklch(98% 0 0);
 
   /* Code Block Background */
-  --color-code-bg: oklch(13% 0 0); /* Slightly darker than bg */
+  --color-code-bg: oklch(13% 0 0);
+  /* Slightly darker than bg */
 }
 
 @layer base {
   * {
     border-color: var(--color-border);
   }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
-  
+
   /* Custom Scrollbar */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
-  
+
   ::-webkit-scrollbar-track {
     background: transparent;
   }
-  
+
   ::-webkit-scrollbar-thumb {
     background: oklch(35% 0 0);
     border-radius: 5px;
     border: 2px solid var(--color-background);
   }
-  
+
   ::-webkit-scrollbar-thumb:hover {
     background: oklch(45% 0 0);
   }
@@ -112,7 +129,7 @@
     background: oklch(30% 0 0);
     border: 2px solid var(--color-background);
   }
-  
+
   .dark ::-webkit-scrollbar-thumb:hover {
     background: oklch(40% 0 0);
   }

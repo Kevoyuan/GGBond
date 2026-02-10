@@ -1,0 +1,142 @@
+/**
+ * Qwen-style Timeline for AI Messages
+ *
+ * Uses CSS ::before for status dots and ::after for connector lines.
+ * Each timeline item should have the class `timeline-item` and be a
+ * direct sibling of other timeline items inside `.timeline-group`.
+ */
+
+/* ─── Base timeline item ─── */
+.timeline-item {
+    position: relative;
+    --tl-dot-left: 8px;
+    --tl-line-left: 12px;
+    --tl-center: 13px;
+    padding-left: 30px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+/* ─── Status dot (::before) ─── */
+.timeline-item::before {
+    content: '\25cf';
+    position: absolute;
+    left: var(--tl-dot-left);
+    top: 8px;
+    font-size: 10px;
+    line-height: 20px;
+    z-index: 1;
+    color: var(--color-muted-foreground);
+    opacity: 0.45;
+    border-radius: 50%;
+    /* Ensure round for shadow */
+    width: 6px;
+    /* Explicit width for shadow centering */
+    height: 6px;
+    /* Explicit height */
+    /* Adjust position for explicit size (center of 20px line-height is 10px, dot is 6px, so top 7px) */
+    top: 15px;
+    /* (20px line-height + 6px padding-top)/2 - 3px = ~10px relative to content? No, absolute. */
+    /* Let's keep original font-based dot for simplicity unless we switch to div */
+    /* Actually, to perform box-shadow glow, it's better to be a block/inline-block, not text character. */
+    /* But Qwen used text character. Text shadow works for character. */
+}
+
+/* Reverting to text-based dot for consistency with Qwen, but using text-shadow for glow */
+.timeline-item::before {
+    content: '\25cf';
+    position: absolute;
+    left: var(--tl-dot-left);
+    top: 8px;
+    font-size: 10px;
+    line-height: 20px;
+    width: auto;
+    height: auto;
+    color: var(--color-muted-foreground);
+    opacity: 0.45;
+}
+
+/* Success */
+.timeline-item-success::before {
+    color: #52c41a;
+    opacity: 1;
+}
+
+/* Error */
+.timeline-item-error::before {
+    color: #c74e39;
+    opacity: 1;
+}
+
+/* Loading / Pulsing / Breathing */
+.timeline-item-loading::before {
+    color: var(--color-primary);
+    /* Use primary color for running state */
+    opacity: 1;
+    animation: tl-breathing 1.5s ease-in-out infinite;
+}
+
+@keyframes tl-breathing {
+
+    0%,
+    100% {
+        opacity: 1;
+        text-shadow: 0 0 4px var(--color-primary);
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.6;
+        text-shadow: 0 0 1px var(--color-primary);
+        transform: scale(0.9);
+    }
+}
+
+/* ─── Connector line (::after) ─── */
+.timeline-item::after {
+    content: '';
+    position: absolute;
+    left: var(--tl-line-left);
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: var(--color-border);
+    opacity: 0.4;
+}
+
+/* First sibling */
+.timeline-group>.timeline-item:first-child::after {
+    top: var(--tl-center);
+}
+
+/* Last sibling */
+.timeline-group>.timeline-item:last-child::after {
+    bottom: calc(100% - var(--tl-center));
+}
+
+/* Only child */
+.timeline-group>.timeline-item:only-child::after {
+    display: none;
+}
+
+/* Loading items: no connector line */
+.timeline-item-loading::after {
+    display: none;
+}
+
+/* ─── Fade in ─── */
+@keyframes tl-fadein {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.timeline-item {
+    animation: tl-fadein 0.15s ease-out;
+}
