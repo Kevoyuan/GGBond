@@ -188,4 +188,9 @@ export class CoreService {
     public getFileDiscoveryService() {
         return new FileDiscoveryService(this.config?.getTargetDir() || process.cwd(), this.config?.getFileFilteringOptions());
     }
+
+    public getMcpServers() {
+        if (!this.config) return {};
+        return this.config.getMcpServers();
+    }
 }

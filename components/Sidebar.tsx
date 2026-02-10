@@ -27,6 +27,7 @@ import Link from 'next/link';
 
 import { FileTree } from './FileTree';
 import { HooksPanel, HookEvent } from './HooksPanel';
+import { MCPPanel } from './MCPPanel';
 import { UsageStatsDialog } from './UsageStatsDialog';
 
 interface Session {
@@ -445,10 +446,7 @@ export function Sidebar({
         ) : activeView === 'hooks' ? (
           <HooksPanel className="h-full" events={hookEvents} />
         ) : (
-          <div className="flex flex-col h-full bg-card/30 p-4 items-center justify-center text-muted-foreground opacity-50">
-            <Plug className="w-12 h-12 mb-2" />
-            <p className="text-xs font-bold uppercase tracking-widest">MCP Manager (Coming Soon)</p>
-          </div>
+          <MCPPanel className="h-full" />
         )}
 
         {/* Resize Handle */}
