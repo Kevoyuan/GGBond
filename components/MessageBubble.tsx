@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { TokenUsageDisplay } from './TokenUsageDisplay';
 import { DiffBlock } from './DiffBlock';
 import { CodeBlock } from './CodeBlock';
-import { ToolCallBlock } from './ToolCallBlock';
+import { ToolCallCard } from './ToolCallCard';
 import { PlanBlock } from './PlanBlock';
 
 export interface Message {
@@ -14,6 +14,7 @@ export interface Message {
   content: string;
   error?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  stats?: Record<string, any>;
   sessionId?: string;
   parentId?: string | null;
   thought?: string;
@@ -67,7 +68,7 @@ function ContentRenderer({ content, onRetry, onCancel }: { content: string, onRe
           try { args = JSON.parse(argsStr); } catch { args = { raw: argsStr }; }
 
           return (
-            <ToolCallBlock
+            <ToolCallCard
               key={index}
               toolName={name}
               args={args}
