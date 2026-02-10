@@ -15,7 +15,9 @@ import {
   Folder,
   BarChart2,
   LayoutGrid,
-  FolderPlus
+  FolderPlus,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -68,6 +70,21 @@ export function Sidebar({
   const [activeView, setActiveView] = useState<SidebarView>('chat');
   const [searchTerm, setSearchTerm] = useState('');
   const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set());
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Load collapsed state from local storage
+  React.useEffect(() => {
+    const savedState = localStorage.getItem('sidebar-collapsed');
+    if (savedState) {
+      setIsCollapsed(savedState === 'true');
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    localStorage.setItem('sidebar-collapsed', String(newState));
+  };
 
   const toggleWorkspace = (workspace: string) => {
     const newCollapsed = new Set(collapsedWorkspaces);
@@ -156,6 +173,13 @@ export function Sidebar({
 
         <div className="mt-auto flex flex-col gap-3 w-full px-2 items-center">
           <button
+            onClick={toggleSidebar}
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+          </button>
+          <button
             onClick={toggleTheme}
             className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -176,7 +200,7 @@ export function Sidebar({
       </div>
 
       {/* Side Panel Content */}
-      <div className="w-64 flex flex-col bg-muted/5">
+      <div className={cn("w-64 flex flex-col bg-muted/5 transition-all duration-300 ease-in-out", isCollapsed && "w-0 opacity-0 overflow-hidden")}>
         {activeView === 'chat' ? (
           <>
             <div className="p-4 border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">

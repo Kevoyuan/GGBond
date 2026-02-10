@@ -44,3 +44,9 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
+# Next.js
+.next/
+
+# Tooling
+gemini-home/
+.gemini/
