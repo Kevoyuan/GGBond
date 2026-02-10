@@ -5,7 +5,8 @@ import {
     Turn,
     CoreEvent,
     coreEvents,
-    MessageBus
+    MessageBus,
+    FileDiscoveryService
 } from '@google/gemini-cli-core';
 import path from 'path';
 import os from 'os';
@@ -182,5 +183,9 @@ export class CoreService {
             correlationId,
             answers
         } as any);
+    }
+
+    public getFileDiscoveryService() {
+        return new FileDiscoveryService(this.config?.getTargetDir() || process.cwd(), this.config?.getFileFilteringOptions());
     }
 }
