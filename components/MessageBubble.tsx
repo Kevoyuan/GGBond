@@ -6,6 +6,9 @@ import { TokenUsageDisplay } from './TokenUsageDisplay';
 import { DiffBlock } from './DiffBlock';
 import { CodeBlock } from './CodeBlock';
 
+import { ToolCallBlock } from './ToolCallBlock';
+import { ThinkingBlock } from './ThinkingBlock';
+
 export interface Message {
   role: 'user' | 'model';
   content: string;
@@ -22,6 +25,89 @@ interface MessageBubbleProps {
   message: Message;
   isLast: boolean;
   settings?: ChatSettings;
+}
+
+// Custom renderer to handle <tool-call> and <thinking> tags mixed with Markdown
+function ContentRenderer({ content }: { content: string }) {
+  // Regex to split content by special tags
+  // <tool-call ... />
+  // <thinking>...</thinking>
+  const parts = content.split(/(<tool-call[^>]*\/>|<thinking>[\s\S]*?<\/thinking>)/g);
+
+  return (
+    <div className="flex flex-col gap-2">
+      {parts.map((part, index) => {
+        if (!part) return null;
+
+        // Handle Tool Call
+        if (part.startsWith('<tool-call')) {
+          const nameMatch = part.match(/name="([^"]+)"/);
+          const argsMatch = part.match(/args="([^"]+)"/);
+          const statusMatch = part.match(/status="([^"]+)"/);
+          const resultMatch = part.match(/result="([^"]+)"/);
+
+          const name = nameMatch ? nameMatch[1] : 'Unknown Tool';
+          const argsStr = argsMatch ? decodeURIComponent(argsMatch[1]) : '{}';
+          const status = statusMatch ? statusMatch[1] as any : 'completed';
+          const result = resultMatch ? decodeURIComponent(resultMatch[1]) : undefined;
+
+          let args = {};
+          try {
+            args = JSON.parse(argsStr);
+          } catch (e) {
+            args = { raw: argsStr };
+          }
+
+          return (
+            <ToolCallBlock
+              key={index}
+              toolName={name}
+              args={args}
+              status={status}
+              result={result}
+            />
+          );
+        }
+
+        // Handle Thinking Block
+        if (part.startsWith('<thinking>')) {
+          const content = part.replace(/<\/?thinking>/g, '').trim();
+          return <ThinkingBlock key={index} content={content} />;
+        }
+
+        // Handle Regular Markdown
+        return (
+          <div key={index} className="prose dark:prose-invert prose-sm max-w-none break-words prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-code:bg-muted/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none">
+            <ReactMarkdown
+              components={{
+                code({ className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || '')
+                  const lang = match?.[1];
+                  const codeStr = String(children).replace(/\n$/, '');
+
+                  if (lang === 'diff') {
+                    return <DiffBlock code={codeStr} />;
+                  }
+
+                  if (match && lang) {
+                    return <CodeBlock language={lang} code={codeStr} />;
+                  }
+
+                  return (
+                    <code {...props} className={className}>
+                      {children}
+                    </code>
+                  )
+                }
+              }}
+            >
+              {part}
+            </ReactMarkdown>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function MessageBubble({ message, settings }: MessageBubbleProps) {
@@ -49,35 +135,7 @@ export function MessageBubble({ message, settings }: MessageBubbleProps) {
             )}
           >
             {!isUser ? (
-              <div className="prose dark:prose-invert prose-sm max-w-none break-words prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-code:bg-muted/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none">
-                <ReactMarkdown
-                  components={{
-                    code({ className, children, ...props }) {
-                      const match = /language-(\w+)/.exec(className || '')
-                      const lang = match?.[1];
-                      const codeStr = String(children).replace(/\n$/, '');
-
-                      // Special handling for diff blocks
-                      if (lang === 'diff') {
-                        return <DiffBlock code={codeStr} />;
-                      }
-
-                      // Enhanced code block with line numbers & collapsing
-                      if (match && lang) {
-                        return <CodeBlock language={lang} code={codeStr} />;
-                      }
-
-                      return (
-                        <code {...props} className={className}>
-                          {children}
-                        </code>
-                      )
-                    }
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
-              </div>
+              <ContentRenderer content={message.content} />
             ) : (
               <div className="whitespace-pre-wrap font-medium">{message.content}</div>
             )}
