@@ -36,13 +36,13 @@ export function MessageBubble({ message, settings }: MessageBubbleProps) {
         </div>
       )}
 
-      <div className={cn("flex flex-col max-w-[85%] md:max-w-[80%]", isUser ? "items-end" : "items-start", isSnapshot && "w-full max-w-3xl")}>
+      <div className={cn("flex flex-col max-w-[85%] md:max-w-[80%] min-w-0", isUser ? "items-end" : "items-start", isSnapshot && "w-full max-w-3xl")}>
         {isSnapshot ? (
           <StateSnapshotDisplay content={message.content} />
         ) : (
           <div
             className={cn(
-              "rounded-xl px-5 py-3.5 shadow-sm text-sm leading-relaxed",
+              "rounded-xl px-5 py-3.5 shadow-sm text-sm leading-relaxed max-w-full overflow-x-hidden",
               isUser
                 ? "bg-primary text-primary-foreground"
                 : "bg-card border border-border/60"

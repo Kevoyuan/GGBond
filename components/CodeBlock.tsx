@@ -31,7 +31,7 @@ export function CodeBlock({ language, code }: CodeBlockProps) {
         : code;
 
     return (
-        <div className="relative group/code my-4 rounded-lg overflow-hidden border border-border/50">
+        <div className="relative group/code my-4 rounded-lg overflow-hidden border border-border/50 max-w-full w-full">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border/50">
                 <div className="flex items-center gap-2">
