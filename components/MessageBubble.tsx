@@ -1,4 +1,4 @@
-import { Bot, User, Info, Copy, Check } from 'lucide-react';
+import { Bot, User, Info, Copy, Check, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import { useState } from 'react';
@@ -9,12 +9,14 @@ import { ToolCallBlock } from './ToolCallBlock';
 import { PlanBlock } from './PlanBlock';
 
 export interface Message {
+  id?: string;
   role: 'user' | 'model';
   content: string;
   error?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   stats?: Record<string, any>;
   sessionId?: string;
+  parentId?: string | null;
 }
 
 import { ChatSettings } from './SettingsDialog';
@@ -164,12 +166,27 @@ export function MessageBubble({ message, isFirst, isLast, settings, onRetry, onC
 
         {!isUser && message.stats && !isSnapshot && (
           <div className="mt-1 pl-[30px]">
+            {/* Stats ... */}
             <TokenUsageDisplay
               stats={message.stats}
               hideModelInfo={settings?.ui?.footer?.hideModelInfo}
               hideContextPercentage={settings?.ui?.footer?.hideContextPercentage}
               showMemoryUsage={settings?.ui?.showMemoryUsage}
             />
+          </div>
+        )}
+
+        {/* Action Bar */}
+        {!isUser && !isSnapshot && !message.error && (
+          <div className="flex items-center gap-2 mt-1 pl-[30px] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button
+              onClick={() => onRetry?.('once')}
+              className="p-1.5 h-7 text-xs flex items-center gap-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              title="Regenerate response (New Branch)"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Regenerate</span>
+            </button>
           </div>
         )}
 

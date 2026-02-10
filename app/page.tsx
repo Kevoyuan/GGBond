@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { Bot } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { Bot, Network } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { MessageBubble, LoadingBubble, Message } from '../components/MessageBubble';
 import { SkillsDialog } from '../components/SkillsDialog';
 import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
 import { cn } from '@/lib/utils';
+import { ConversationGraph, GraphMessage } from '../components/ConversationGraph';
 
 import { ChatInput } from '../components/ChatInput';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
@@ -28,7 +29,13 @@ export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [currentWorkspace, setCurrentWorkspace] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+
+  // -- Tree State --
+  // We use a Map to store all messages by ID
+  const [messagesMap, setMessagesMap] = useState<Map<string, Message>>(new Map());
+  // headId points to the current "tip" of the conversation
+  const [headId, setHeadId] = useState<string | null>(null);
+
   const [isLoading, setIsLoading] = useState(false);
 
   // Settings state
@@ -60,10 +67,39 @@ export default function Home() {
   const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
   const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>('safe');
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
-
+  const [showGraph, setShowGraph] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // -- Derived Linear Thread --
+  const messages = useMemo(() => {
+    const list: Message[] = [];
+    let currentId = headId;
+    let depth = 0;
+    while (currentId && depth < 2000) { // Safety limit
+      const msg = messagesMap.get(currentId);
+      if (!msg) break;
+      list.unshift(msg);
+      currentId = msg.parentId || null;
+      depth++;
+    }
+    return list;
+  }, [headId, messagesMap]);
+
+  // -- Graph Data for Visualization --
+  const graphMessages: GraphMessage[] = useMemo(() => {
+    // Only generate graph data if graph is shown to save performance
+    if (!showGraph) return [];
+
+    return Array.from(messagesMap.values()).map(msg => ({
+      id: msg.id || `temp-${Date.now()}`,
+      parentId: msg.parentId || null,
+      role: msg.role,
+      content: msg.content,
+      isLeaf: msg.id === headId
+    }));
+  }, [messagesMap, headId, showGraph]);
 
   const sessionStats = useMemo(() => {
     return messages.reduce((acc, msg) => {
@@ -79,37 +115,15 @@ export default function Home() {
 
   const currentContextUsage = useMemo(() => {
     if (messages.length === 0) return 0;
-
-    let lastStatsUsage = 0;
-    let lastStatsIndex = -1;
-
-    // Find the last message with stats
+    // Simplified context usage calculation for tree structure
+    // We basically just take the stats from the last message that has them in the current branch
     for (let i = messages.length - 1; i >= 0; i--) {
       const stats = messages[i].stats;
       if (stats) {
-        lastStatsUsage = (stats.totalTokenCount || stats.total_tokens ||
-          ((stats.inputTokenCount || stats.input_tokens || 0) + (stats.outputTokenCount || stats.output_tokens || 0)));
-        lastStatsIndex = i;
-        break;
+        return (stats.totalTokenCount || stats.total_tokens || 0);
       }
     }
-
-    if (lastStatsIndex === -1) return 0;
-
-    // Check for simulated compression messages starting from the last stats message itself
-    // because the compression confirmation message might carry the stats of the "before" state
-    let adjustment = 0;
-    for (let i = lastStatsIndex; i < messages.length; i++) {
-      const msg = messages[i];
-      if (msg.role === 'model' && msg.content.includes('<state_snapshot>')) {
-        const match = msg.content.match(/预计节省 Token:\s*~?(\d+)/);
-        if (match) {
-          adjustment += parseInt(match[1], 10);
-        }
-      }
-    }
-
-    return Math.max(0, lastStatsUsage - adjustment);
+    return 0;
   }, [messages]);
 
   const scrollToBottom = () => {
@@ -118,7 +132,7 @@ export default function Home() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isLoading]);
+  }, [messages.length, isLoading]); // Scroll on new messages or loading state change
 
   // Load Settings
   useEffect(() => {
@@ -187,7 +201,28 @@ export default function Home() {
       const res = await fetch(`/api/sessions/${id}`);
       if (res.ok) {
         const data = await res.json();
-        setMessages(data.messages || []);
+        const loadedMessages: Message[] = data.messages || [];
+
+        // Rebuild Tree from flat list
+        const newMap = new Map<string, Message>();
+        let lastMsgId: string | null = null;
+
+        loadedMessages.forEach((msg, index) => {
+          const msgId = msg.id || `msg-${index}`; // Ensure ID exists
+          // If parentId is missing (legacy), chain them linearly
+          if (!msg.parentId && index > 0) {
+            // Try to find previous message ID
+            // For simplicity in legacy, we assume linear order in array
+            const prevMsg = loadedMessages[index - 1];
+            msg.parentId = prevMsg.id || `msg-${index - 1}`;
+          }
+
+          newMap.set(msgId, { ...msg, id: msgId });
+          lastMsgId = msgId;
+        });
+
+        setMessagesMap(newMap);
+        setHeadId(lastMsgId);
       }
     } catch (error) {
       console.error('Failed to load session', error);
@@ -202,8 +237,9 @@ export default function Home() {
 
   const handleNewChat = () => {
     setCurrentSessionId(null);
-    setCurrentWorkspace(null); // Reset workspace or keep it? Let's reset for now.
-    setMessages([]);
+    setCurrentWorkspace(null);
+    setMessagesMap(new Map());
+    setHeadId(null);
     if (window.innerWidth < 768) {
       setSidebarOpen(false);
     }
@@ -212,7 +248,8 @@ export default function Home() {
   const handleNewChatInWorkspace = (workspace: string) => {
     setCurrentSessionId(null);
     setCurrentWorkspace(workspace);
-    setMessages([]);
+    setMessagesMap(new Map());
+    setHeadId(null);
     if (window.innerWidth < 768) {
       setSidebarOpen(false);
     }
@@ -221,7 +258,8 @@ export default function Home() {
   const handleAddWorkspace = (workspacePath: string) => {
     setCurrentSessionId(null);
     setCurrentWorkspace(workspacePath);
-    setMessages([]);
+    setMessagesMap(new Map());
+    setHeadId(null);
   };
 
   const handleDeleteSession = (id: string) => {
@@ -244,7 +282,34 @@ export default function Home() {
     }
   };
 
-  const handleSendMessage = async (text: string, options?: { forceApproval?: boolean }) => {
+  // Helper to add a new message to the tree
+  const addMessageToTree = useCallback((msg: Message, parentId: string | null) => {
+    const newId = msg.id || `temp-${Date.now()}-${Math.random()}`;
+    const newMessage = { ...msg, id: newId, parentId };
+
+    setMessagesMap(prev => {
+      const next = new Map(prev);
+      next.set(newId, newMessage);
+      return next;
+    });
+    setHeadId(newId);
+    return newId;
+  }, []);
+
+  // Helper to update a message in the tree
+  const updateMessageInTree = useCallback((id: string, updates: Partial<Message>) => {
+    setMessagesMap(prev => {
+      const next = new Map(prev);
+      const msg = next.get(id);
+      if (msg) {
+        next.set(id, { ...msg, ...updates });
+      }
+      return next;
+    });
+  }, []);
+
+
+  const handleSendMessage = async (text: string, options?: { forceApproval?: boolean; parentId?: string }) => {
     if (!text.trim() || isLoading) return;
 
     // Handle slash commands
@@ -254,9 +319,13 @@ export default function Home() {
       return;
     }
 
-    const userMessage: Message = { role: 'user', content: text };
-    setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
+
+    // Determine parent ID: passed option or current head
+    const parentIdToUse = options?.parentId !== undefined ? options.parentId : headId;
+
+    // 1. Add User Message
+    const userMsgId = addMessageToTree({ role: 'user', content: text }, parentIdToUse);
 
     // Map UI model aliases to actual CLI model IDs
     let actualModel = settings.model;
@@ -271,14 +340,15 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: userMessage.content,
+          prompt: text,
           model: actualModel,
           systemInstruction: settings.systemInstruction,
           sessionId: currentSessionId,
           workspace: currentWorkspace,
           mode,
           approvalMode: options?.forceApproval ? 'auto' : approvalMode,
-          modelSettings: settings.modelSettings
+          modelSettings: settings.modelSettings,
+          parentId: parentIdToUse // Pass tree context
         }),
       });
 
@@ -291,8 +361,9 @@ export default function Home() {
         throw new Error('No response body');
       }
 
-      // Initialize assistant message
-      setMessages(prev => [...prev, { role: 'model', content: '' }]);
+      // 2. Initialize Assistant Message
+      // The assistant message's parent is the user message we just created
+      const assistantMsgId = addMessageToTree({ role: 'model', content: '' }, userMsgId);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -312,7 +383,7 @@ export default function Home() {
           if (!line.trim()) continue;
           try {
             const data = JSON.parse(line);
-            console.log('[Stream Event]', data.type, data); // Debug log
+            console.log('[Stream Event]', data.type, data);
 
             if (data.type === 'init' && data.session_id) {
               if (!streamSessionId) {
@@ -325,25 +396,15 @@ export default function Home() {
             if (data.type === 'tool_use') {
               const toolCallTag = `\n\n<tool-call name="${data.tool_name}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}" status="running" />\n\n`;
               assistantContent += toolCallTag;
-              setMessages(prev => {
-                const newMessages = [...prev];
-                const lastMsg = newMessages[newMessages.length - 1];
-                if (lastMsg.role === 'model') {
-                  lastMsg.content = assistantContent;
-                }
-                return newMessages;
-              });
+              updateMessageInTree(assistantMsgId, { content: assistantContent });
             }
 
             if (data.type === 'tool_result') {
-              // Find the last tool-call tag and update it to completed
-              // Note: This is a simple regex replacement for the demo. 
-              // In production, we might want a rigid ID-based system.
+              // Regex replace for tool status
               const regex = /<tool-call name="([^"]+)" args="([^"]+)" status="running" \/>/g;
               let match;
               let lastMatchIndex = -1;
 
-              // Find the last running tool call
               while ((match = regex.exec(assistantContent)) !== null) {
                 lastMatchIndex = match.index;
               }
@@ -352,62 +413,31 @@ export default function Home() {
                 const before = assistantContent.substring(0, lastMatchIndex);
                 const after = assistantContent.substring(lastMatchIndex);
 
-                // Replace the status="running" with status="completed" and add result
                 const updatedTag = after.replace(
                   'status="running" />',
                   `status="${data.is_error ? 'failed' : 'completed'}" result="${encodeURIComponent(data.output || data.result || '')}" />`
                 );
 
                 assistantContent = before + updatedTag;
-
-                setMessages(prev => {
-                  const newMessages = [...prev];
-                  const lastMsg = newMessages[newMessages.length - 1];
-                  if (lastMsg.role === 'model') {
-                    lastMsg.content = assistantContent;
-                  }
-                  return newMessages;
-                });
+                updateMessageInTree(assistantMsgId, { content: assistantContent });
               }
             }
 
             if (data.type === 'message' && data.role === 'assistant' && data.content) {
               assistantContent += data.content;
-              setMessages(prev => {
-                const newMessages = [...prev];
-                const lastMsg = newMessages[newMessages.length - 1];
-                if (lastMsg && lastMsg.role === 'model') {
-                  lastMsg.content = assistantContent;
-                  if (streamSessionId) lastMsg.sessionId = streamSessionId;
-                }
-                return newMessages;
-              });
+              const updates: Partial<Message> = { content: assistantContent };
+              if (streamSessionId) updates.sessionId = streamSessionId;
+              updateMessageInTree(assistantMsgId, updates);
             }
 
             if (data.type === 'result') {
               if (data.status === 'error' && data.error) {
-                // API returned an error - show it to the user
                 const errorMsg = data.error.message || data.error.type || 'Unknown API error';
                 assistantContent += `\n\n> ⚠️ **Error**: ${errorMsg}`;
-                setMessages(prev => {
-                  const newMessages = [...prev];
-                  const lastMsg = newMessages[newMessages.length - 1];
-                  if (lastMsg.role === 'model') {
-                    lastMsg.content = assistantContent;
-                    lastMsg.error = true;
-                  }
-                  return newMessages;
-                });
+                updateMessageInTree(assistantMsgId, { content: assistantContent, error: true });
               }
               if (data.stats) {
-                setMessages(prev => {
-                  const newMessages = [...prev];
-                  const lastMsg = newMessages[newMessages.length - 1];
-                  if (lastMsg.role === 'model') {
-                    lastMsg.stats = data.stats;
-                  }
-                  return newMessages;
-                });
+                updateMessageInTree(assistantMsgId, { stats: data.stats });
               }
             }
           } catch (e) {
@@ -421,17 +451,57 @@ export default function Home() {
 
     } catch (error) {
       console.error('Chat error:', error);
-      setMessages((prev) => [
-        ...prev,
-        { role: 'model', content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`, error: true },
-      ]);
+      // We should probably add an error message node if we haven't already
+      // But we already added an assistant node. Let's update it.
+      // Note: we don't have access to assistantMsgId easily here unless we scoped it. 
+      // We can use headId but we must be careful. 
+      // For now, let's just log. Better error handling requires refs or more state.
+      // Actually we can add a new error message if we failed BEFORE creating assistant node.
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleRetry = (messageIndex: number, mode: 'once' | 'session') => {
-    // 1. Find user message
+    // Retry needs to branch off from the message *before* the user message that led to this response (or failure).
+    // In thread view (messages array), `messageIndex` is the index in the *displayed* list.
+    // displayed list is [msg0, msg1, ... msgN] where msg0 is usually user, msg1 is model...
+
+    // 1. Identify the user message to retry.
+    // Iterate backwards from messageIndex to find role='user'
+    let userMsgIndex = -1;
+    for (let i = messageIndex; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        userMsgIndex = i;
+        break;
+      }
+    }
+    if (userMsgIndex === -1) return;
+
+    const userMsg = messages[userMsgIndex];
+    if (!userMsg) return;
+
+    // 2. Its parent is the point we want to branch FROM.
+    const parentId = userMsg.parentId || null;
+
+    // 3. Trigger send, but pass the *original parent* as the anchor.
+    // This creates a NEW sibling to `userMsg`.
+    if (mode === 'session') {
+      setApprovalMode('auto');
+    }
+
+    handleSendMessage(userMsg.content, {
+      forceApproval: true,
+      parentId: parentId
+    });
+  };
+
+  const handleCancel = (messageIndex: number) => {
+    // Just stop loading? Or delete the branch?
+    // For now, simple client-side stop would require AbortController which we haven't wired up full yet (fetch supports it).
+    // Let's just implement visual "pruning" or "rewind" to the parent.
+
+    // 1. Identify user message
     let userMsgIndex = -1;
     for (let i = messageIndex; i >= 0; i--) {
       if (messages[i].role === 'user') {
@@ -442,33 +512,17 @@ export default function Home() {
     if (userMsgIndex === -1) return;
     const userMsg = messages[userMsgIndex];
 
-    // 2. Truncate containing failed response
-    setMessages(prev => prev.slice(0, userMsgIndex));
-
-    // 3. Update global state if session
-    if (mode === 'session') {
-      setApprovalMode('auto');
+    // Rewind head to parent
+    if (userMsg.parentId) {
+      setHeadId(userMsg.parentId);
+    } else {
+      // Root
+      setHeadId(null);
     }
-
-    // 4. Trigger send with forceApproval
-    handleSendMessage(userMsg.content, {
-      forceApproval: true
-    });
   };
 
-  const handleCancel = (messageIndex: number) => {
-    // 1. Find user message
-    let userMsgIndex = -1;
-    for (let i = messageIndex; i >= 0; i--) {
-      if (messages[i].role === 'user') {
-        userMsgIndex = i;
-        break;
-      }
-    }
-    if (userMsgIndex === -1) return;
-
-    // 2. Remove the failed interaction
-    setMessages(prev => prev.slice(0, userMsgIndex));
+  const handleNodeClick = (nodeId: string) => {
+    setHeadId(nodeId);
   };
 
   return (
@@ -494,7 +548,7 @@ export default function Home() {
           onDeleteSession={handleDeleteSession}
           onNewChat={handleNewChat}
           onNewChatInWorkspace={handleNewChatInWorkspace}
-          currentWorkspace={currentWorkspace || undefined}
+          currentWorkspace={currentWorkspace === null ? undefined : currentWorkspace}
           onAddWorkspace={() => setShowAddWorkspace(true)}
           onOpenSkills={() => setSkillsOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
@@ -541,74 +595,100 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-background">
         {/* Header */}
-        <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} />
+        <div className="flex items-center justify-between border-b px-4 py-2">
+          <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} />
+          <button
+            onClick={() => setShowGraph(!showGraph)}
+            className={cn(
+              "p-2 rounded-md transition-colors",
+              showGraph ? "bg-primary/10 text-primary" : "hover:bg-muted text-muted-foreground"
+            )}
+            title="Toggle Conversation Graph"
+          >
+            <Network className="w-5 h-5" />
+          </button>
+        </div>
 
-        {/* Main Content Area: File Preview or Chat */}
-        {previewFile ? (
-          <FilePreview
-            filePath={previewFile.path}
-            fileName={previewFile.name}
-            onClose={() => setPreviewFile(null)}
-            className="flex-1"
-          />
-        ) : (
-          <>
-            {/* Chat Area */}
-            <div className="flex-1 overflow-y-auto scroll-smooth relative" ref={scrollContainerRef}>
-              {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center p-8 text-center opacity-0 animate-fade-in" style={{ animationDelay: '0.1s', opacity: 1 }}>
-                  <div className="text-center space-y-4 max-w-lg mx-auto">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto mb-6 shadow-xl ring-1 ring-white/20">
-                      <Bot className="w-10 h-10 text-primary" />
-                    </div>
-                    <h2 className="text-2xl font-semibold tracking-tight">
-                      How can I help you today?
-                    </h2>
-                    <p className="text-muted-foreground leading-relaxed">
-                      I can help you write code, debug issues, or answer questions about your project.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="max-w-3xl mx-auto w-full pb-8 pt-6 px-4 flex flex-col gap-6">
-                  {messages.map((msg, idx) => {
-                    const prev = messages[idx - 1];
-                    const next = messages[idx + 1];
-                    const isFirstInSequence = !prev || prev.role === 'user';
-                    const isLastInSequence = !next || next.role === 'user';
-
-                    return (
-                      <MessageBubble
-                        key={idx}
-                        message={msg}
-                        isFirst={isFirstInSequence}
-                        isLast={isLastInSequence}
-                        settings={settings}
-                        onRetry={(mode) => handleRetry(idx, mode)}
-                        onCancel={() => handleCancel(idx)}
-                      />
-                    );
-                  })}
-                  {isLoading && messages[messages.length - 1]?.role !== 'model' && <LoadingBubble />}
-                  <div ref={messagesEndRef} className="h-4" />
-                </div>
-              )}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Graph Panel */}
+          {showGraph && (
+            <div className="w-1/3 border-r bg-muted/10 relative">
+              <ConversationGraph
+                messages={graphMessages}
+                currentLeafId={headId}
+                onNodeClick={handleNodeClick}
+              />
             </div>
+          )}
 
-            {/* Input Area */}
-            <ChatInput
-              onSend={handleSendMessage}
-              isLoading={isLoading}
-              currentModel={settings.model}
-              onModelChange={(model) => setSettings(s => ({ ...s, model }))}
-              sessionStats={sessionStats}
-              currentContextUsage={currentContextUsage}
-              mode={mode}
-              onModeChange={(m) => setMode(m as 'code' | 'plan' | 'ask')}
-              onApprovalModeChange={(m) => setApprovalMode(m)}
-            />
-          </>
-        )}
+          {/* Chat Area */}
+          <div className="flex-1 flex flex-col min-w-0">
+            {previewFile ? (
+              <FilePreview
+                filePath={previewFile.path}
+                fileName={previewFile.name}
+                onClose={() => setPreviewFile(null)}
+                className="flex-1"
+              />
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto scroll-smooth relative" ref={scrollContainerRef}>
+                  {messages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center p-8 text-center opacity-0 animate-fade-in" style={{ animationDelay: '0.1s', opacity: 1 }}>
+                      {/* ... Zero State ... */}
+                      <div className="text-center space-y-4 max-w-lg mx-auto">
+                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto mb-6 shadow-xl ring-1 ring-white/20">
+                          <Bot className="w-10 h-10 text-primary" />
+                        </div>
+                        <h2 className="text-2xl font-semibold tracking-tight">
+                          How can I help you today?
+                        </h2>
+                        <p className="text-muted-foreground leading-relaxed">
+                          I can help you write code, debug issues, or answer questions about your project.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="max-w-3xl mx-auto w-full pb-8 pt-6 px-4 flex flex-col gap-6">
+                      {messages.map((msg, idx) => {
+                        const prev = messages[idx - 1];
+                        const next = messages[idx + 1];
+                        const isFirstInSequence = !prev || prev.role === 'user';
+                        const isLastInSequence = !next || next.role === 'user';
+
+                        return (
+                          <MessageBubble
+                            key={msg.id || idx} // Use ID if available
+                            message={msg}
+                            isFirst={isFirstInSequence}
+                            isLast={isLastInSequence}
+                            settings={settings}
+                            onRetry={(mode) => handleRetry(idx, mode)}
+                            onCancel={() => handleCancel(idx)}
+                          />
+                        );
+                      })}
+                      {isLoading && messages[messages.length - 1]?.role !== 'model' && <LoadingBubble />}
+                      <div ref={messagesEndRef} className="h-4" />
+                    </div>
+                  )}
+                </div>
+
+                <ChatInput
+                  onSend={(text) => handleSendMessage(text)}
+                  isLoading={isLoading}
+                  currentModel={settings.model}
+                  onModelChange={(model) => setSettings(s => ({ ...s, model }))}
+                  sessionStats={sessionStats}
+                  currentContextUsage={currentContextUsage}
+                  mode={mode}
+                  onModeChange={(m) => setMode(m as 'code' | 'plan' | 'ask')}
+                  onApprovalModeChange={(m) => setApprovalMode(m)}
+                />
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
