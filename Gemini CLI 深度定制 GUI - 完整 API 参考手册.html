@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gemini CLI - GUI 定制 API 参考手册</title>
+<link href='https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@300;400;500;600;700&display=swap' rel='stylesheet'>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Bai Jamjuree', sans-serif; background: #0d1117; color: #e6edf3; line-height: 1.6; }
+.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+/* Header */
+.header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 16px; padding: 40px; margin-bottom: 30px; border: 1px solid #30363d; position: relative; overflow: hidden; }
+.header::before { content: ''; position: absolute; top: -50%; right: -20%; width: 400px; height: 400px; background: radial-gradient(circle, rgba(255,105,0,0.15) 0%, transparent 70%); border-radius: 50%; }
+.header h1 { font-size: 2.2em; color: #FF6900; margin-bottom: 10px; position: relative; }
+.header p { color: #8b949e; font-size: 1.1em; position: relative; }
+.badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.75em; font-weight: 600; margin: 4px; }
+.badge-core { background: rgba(255,105,0,0.2); color: #FF6900; border: 1px solid rgba(255,105,0,0.3); }
+.badge-tool { background: rgba(36,162,217,0.2); color: #24A2D9; border: 1px solid rgba(36,162,217,0.3); }
+.badge-event { background: rgba(139,92,246,0.2); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+.badge-hook { background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+.badge-config { background: rgba(251,191,36,0.2); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+
+/* Navigation */
+.nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 30px; padding: 16px; background: #161b22; border-radius: 12px; border: 1px solid #30363d; }
+.nav a { color: #8b949e; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; transition: all 0.2s; font-weight: 500; }
+.nav a:hover { background: rgba(255,105,0,0.15); color: #FF6900; }
+
+/* Sections */
+.section { background: #161b22; border: 1px solid #30363d; border-radius: 12px; margin-bottom: 24px; overflow: hidden; }
+.section-header { padding: 20px 24px; background: linear-gradient(90deg, rgba(255,105,0,0.08) 0%, transparent 100%); border-bottom: 1px solid #30363d; display: flex; align-items: center; gap: 12px; }
+.section-header h2 { color: #e6edf3; font-size: 1.3em; }
+.section-icon { font-size: 1.4em; }
+.section-body { padding: 24px; }
+
+/* API Cards */
+.api-card { background: #0d1117; border: 1px solid #21262d; border-radius: 10px; margin-bottom: 16px; overflow: hidden; transition: border-color 0.2s; }
+.api-card:hover { border-color: #FF6900; }
+.api-card-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #21262d; }
+.api-name { font-family: 'Courier New', monospace; font-size: 1em; color: #FF6900; font-weight: 600; }
+.api-card-body { padding: 16px 20px; }
+.api-desc { color: #8b949e; margin-bottom: 12px; font-size: 0.9em; }
+
+/* Code blocks */
+pre { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 16px; overflow-x: auto; margin: 10px 0; }
+code { font-family: 'Courier New', monospace; font-size: 0.85em; color: #e6edf3; }
+.keyword { color: #ff7b72; }
+.string { color: #a5d6ff; }
+.type { color: #d2a8ff; }
+.comment { color: #8b949e; }
+.func { color: #d2a8ff; }
+.param { color: #ffa657; }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+th { background: #21262d; color: #e6edf3; padding: 10px 14px; text-align: left; font-size: 0.85em; font-weight: 600; }
+td { padding: 10px 14px; border-bottom: 1px solid #21262d; font-size: 0.85em; color: #c9d1d9; }
+tr:hover td { background: rgba(255,105,0,0.03); }
+
+/* Architecture Diagram */
+.arch-box { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 16px 0; }
+.arch-item { background: #0d1117; border: 1px solid #21262d; border-radius: 10px; padding: 20px; text-align: center; }
+.arch-item h4 { color: #FF6900; margin-bottom: 8px; }
+.arch-item p { color: #8b949e; font-size: 0.85em; }
+.arch-arrow { text-align: center; font-size: 1.5em; color: #30363d; padding: 8px; }
+
+/* Subsection */
+.subsection { margin-top: 20px; padding-top: 16px; border-top: 1px solid #21262d; }
+.subsection h3 { color: #c9d1d9; margin-bottom: 12px; font-size: 1.05em; }
+.note { background: rgba(255,105,0,0.08); border-left: 3px solid #FF6900; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 0.9em; color: #c9d1d9; }
+.warning { background: rgba(251,191,36,0.08); border-left: 3px solid #fbbf24; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 0.9em; color: #c9d1d9; }
+.tip { background: rgba(16,185,129,0.08); border-left: 3px solid #34d399; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 0.9em; color: #c9d1d9; }
+
+ul { padding-left: 20px; margin: 8px 0; }
+li { margin: 4px 0; color: #c9d1d9; font-size: 0.9em; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 600; margin-left: 8px; }
+.tag-async { background: rgba(36,162,217,0.2); color: #24A2D9; }
+.tag-generator { background: rgba(139,92,246,0.2); color: #a78bfa; }
+.tag-class { background: rgba(255,105,0,0.2); color: #FF6900; }
+.tag-interface { background: rgba(16,185,129,0.2); color: #34d399; }
+.tag-enum { background: rgba(251,191,36,0.2); color: #fbbf24; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Header -->
+<div class="header">
+  <h1>🔧 Gemini CLI - GUI 深度定制 API 完整参考</h1>
+  <p>基于 <code>@google/gemini-cli-core</code> v0.30.0 源码分析 · 提取全部可编程接口</p>
+  <div style="margin-top:16px">
+    <span class="badge badge-core">Core 核心</span>
+    <span class="badge badge-tool">Tools 工具</span>
+    <span class="badge badge-event">Events 事件</span>
+    <span class="badge badge-hook">Hooks 钩子</span>
+    <span class="badge badge-config">Config 配置</span>
+  </div>
+</div>
+
+<!-- Navigation -->
+<div class="nav">
+  <a href='#arch'>🏗️ 架构总览</a>
+  <a href='#entry'>📦 入口模块</a>
+  <a href='#config'>⚙️ Config 配置</a>
+  <a href='#content-gen'>🧠 ContentGenerator</a>
+  <a href='#gemini-chat'>💬 GeminiChat</a>
+  <a href='#turn'>🔄 Turn/事件流</a>
+  <a href='#stream-output'>📤 输出格式</a>
+  <a href='#tools'>🛠️ 内置工具</a>
+  <a href='#tool-registry'>📋 ToolRegistry</a>
+  <a href='#scheduler'>⏱️ Scheduler</a>
+  <a href='#message-bus'>📨 MessageBus</a>
+  <a href='#events'>📡 CoreEvents</a>
+  <a href='#hooks'>🪝 Hooks</a>
+  <a href='#mcp'>🔌 MCP 协议</a>
+  <a href='#services'>🗂️ Services</a>
+  <a href='#auth'>🔐 认证</a>
+  <a href='#agents'>🤖 Agents</a>
+  <a href='#headless'>🖥️ Headless 模式</a>
+  <a href='#gui-guide'>🎨 GUI 定制指南</a>
+</div>
+
+<!-- 1. Architecture -->
+<div class="section" id="arch">
+  <div class="section-header"><span class="section-icon">🏗️</span><h2>架构总览 - Monorepo 包结构</h2></div>
+  <div class="section-body">
+    <div class="arch-box">
+      <div class="arch-item">
+        <h4>@google/gemini-cli</h4>
+        <p>CLI 入口 + Ink (React) TUI 渲染层<br>依赖 core 包</p>
+      </div>
+      <div class="arch-item">
+        <h4>@google/gemini-cli-core ⭐</h4>
+        <p><b>核心库 - GUI 定制的主要目标</b><br>所有业务逻辑、工具、事件、配置</p>
+      </div>
+      <div class="arch-item">
+        <h4>a2a-server</h4>
+        <p>Agent-to-Agent 协议服务器</p>
+      </div>
+      <div class="arch-item">
+        <h4>vscode-ide-companion</h4>
+        <p>VS Code IDE 集成伴侣</p>
+      </div>
+    </div>
+    <div class="note">💡 <b>GUI 定制核心策略</b>: 替换 <code>packages/cli</code> 的 Ink TUI 层，直接引用 <code>@google/gemini-cli-core</code> 提供的所有 API，构建自己的前端（Electron / Web / Tauri）。</div>
+    <div class="warning">⚠️ <b>关键依赖</b>: Core 基于 <code>@google/genai</code> SDK，认证支持 OAuth、API Key、Vertex AI 三种模式。</div>
+  </div>
+</div>
+
+<!-- 2. Entry / Exports -->
+<div class="section" id="entry">
+  <div class="section-header"><span class="section-icon">📦</span><h2>Core 包完整导出清单 (index.ts)</h2></div>
+  <div class="section-body">
+    <p class="api-desc">以下是 <code>packages/core/src/index.ts</code> 的全部 export 分类，均可通过 <code>import { ... } from '@google/gemini-cli-core'</code> 引用：</p>
+    <table>
+      <tr><th>分类</th><th>模块路径</th><th>包含内容</th></tr>
+      <tr><td><span class="badge badge-config">Config</span></td><td>config/config, config/memory, config/models, config/constants, config/storage</td><td>Config 类, ConfigParameters, HierarchicalMemory, 模型常量, Storage</td></tr>
+      <tr><td><span class="badge badge-core">Core</span></td><td>core/client, core/contentGenerator, core/geminiChat, core/turn, core/prompts, core/tokenLimits, core/geminiRequest, core/coreToolScheduler</td><td>GeminiClient, ContentGenerator, GeminiChat, Turn, GeminiEventType</td></tr>
+      <tr><td><span class="badge badge-tool">Tools</span></td><td>tools/tools, tools/tool-registry, tools/tool-names, tools/read-file, tools/ls, tools/grep, tools/glob, tools/edit, tools/write-file, tools/shell, tools/web-fetch, tools/web-search, tools/memoryTool, tools/read-many-files, tools/mcp-tool, tools/write-todos</td><td>全部内置工具定义 + ToolRegistry + ToolBuilder 接口</td></tr>
+      <tr><td><span class="badge badge-event">Events</span></td><td>utils/events</td><td>CoreEvent 枚举, CoreEventEmitter, 所有 Payload 类型</td></tr>
+      <tr><td><span class="badge badge-hook">Hooks</span></td><td>hooks/index, hooks/types</td><td>HookSystem, HookEventName, HookDefinition, HookOutput</td></tr>
+      <tr><td><span class="badge badge-core">Scheduler</span></td><td>scheduler/scheduler, scheduler/types, scheduler/tool-executor</td><td>ToolCall 状态机, ToolCallRequestInfo, ToolCallResponseInfo</td></tr>
+      <tr><td><span class="badge badge-core">Services</span></td><td>services/fileDiscoveryService, services/gitService, services/chatRecordingService, services/fileSystemService, services/contextManager, services/shellExecutionService</td><td>文件发现、Git、会话录制、上下文管理等</td></tr>
+      <tr><td><span class="badge badge-core">MessageBus</span></td><td>confirmation-bus/message-bus, confirmation-bus/types</td><td>MessageBus, ToolConfirmation 请求/响应</td></tr>
+      <tr><td><span class="badge badge-core">Output</span></td><td>output/types, output/json-formatter, output/stream-json-formatter</td><td>OutputFormat, JsonStreamEvent, JsonOutput</td></tr>
+      <tr><td><span class="badge badge-core">Policy</span></td><td>policy/types, policy/policy-engine, policy/config</td><td>PolicyEngine, ApprovalMode, PolicyDecision</td></tr>
+      <tr><td><span class="badge badge-core">Auth</span></td><td>code_assist/oauth2, code_assist/setup, code_assist/types, code_assist/telemetry</td><td>OAuth2 流程, Code Assist 集成, 用户层级</td></tr>
+      <tr><td><span class="badge badge-core">MCP</span></td><td>tools/mcp-client, mcp/oauth-provider, mcp/oauth-token-storage</td><td>MCP 客户端, OAuth Provider, Token 存储</td></tr>
+      <tr><td><span class="badge badge-core">Agents</span></td><td>agents/types, agents/agentLoader, agents/local-executor</td><td>AgentDefinition, AgentLoader, SubagentTool</td></tr>
+      <tr><td><span class="badge badge-core">Utilities</span></td><td>utils/fetch, utils/paths, utils/headless, utils/errors, utils/gitUtils, utils/checkpointUtils, utils/events, utils/browser 等 30+ 模块</td><td>工具函数集合</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 3. Config -->
+<div class="section" id="config">
+  <div class="section-header"><span class="section-icon">⚙️</span><h2>Config 类 - 全局配置中心</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">new Config(params: ConfigParameters)</span>
+        <span class="tag tag-class">Class</span>
+      </div>
+      <div class="api-card-body">
+        <p class="api-desc">全局配置对象，几乎所有核心功能都依赖于它。GUI 初始化时必须构造此对象。</p>
+        <h4 style="color:#FF6900;margin:12px 0 8px">ConfigParameters 关键参数：</h4>
+        <table>
+          <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+          <tr><td><code>sessionId</code></td><td>string</td><td>会话唯一标识</td></tr>
+          <tr><td><code>model</code></td><td>string</td><td>模型名称 (如 gemini-2.5-pro, gemini-2.5-flash)</td></tr>
+          <tr><td><code>targetDir</code></td><td>string</td><td>目标项目目录</td></tr>
+          <tr><td><code>cwd</code></td><td>string</td><td>当前工作目录</td></tr>
+          <tr><td><code>debugMode</code></td><td>boolean</td><td>调试模式</td></tr>
+          <tr><td><code>approvalMode</code></td><td>ApprovalMode</td><td>工具审批模式 (AUTO/CONFIRM/YOLO)</td></tr>
+          <tr><td><code>mcpServers</code></td><td>Record&lt;string, MCPServerConfig&gt;</td><td>MCP 服务器配置映射</td></tr>
+          <tr><td><code>interactive</code></td><td>boolean</td><td>是否交互模式</td></tr>
+          <tr><td><code>question</code></td><td>string?</td><td>Headless 模式下的初始问题</td></tr>
+          <tr><td><code>checkpointing</code></td><td>boolean</td><td>启用检查点保存</td></tr>
+          <tr><td><code>includeDirectories</code></td><td>string[]</td><td>额外包含的目录</td></tr>
+          <tr><td><code>output</code></td><td>OutputSettings</td><td>输出格式 (TEXT/JSON/STREAM_JSON)</td></tr>
+          <tr><td><code>maxSessionTurns</code></td><td>number</td><td>最大会话轮次</td></tr>
+          <tr><td><code>enableHooks</code></td><td>boolean</td><td>启用 Hook 系统</td></tr>
+          <tr><td><code>hooks</code></td><td>HookDefinition[]</td><td>用户级 Hook 定义</td></tr>
+          <tr><td><code>enableAgents</code></td><td>boolean</td><td>启用 Agent 子系统</td></tr>
+          <tr><td><code>agents</code></td><td>AgentSettings</td><td>Agent 覆盖配置</td></tr>
+          <tr><td><code>policyEngineConfig</code></td><td>PolicyEngineConfig</td><td>策略引擎配置</td></tr>
+          <tr><td><code>plan</code></td><td>boolean</td><td>Plan 模式</td></tr>
+          <tr><td><code>shellExecutionConfig</code></td><td>ShellExecutionConfig</td><td>Shell 执行配置</td></tr>
+          <tr><td><code>proxy</code></td><td>string?</td><td>代理服务器</td></tr>
+          <tr><td><code>accessibility</code></td><td>AccessibilitySettings</td><td>无障碍设置</td></tr>
+          <tr><td><code>telemetry</code></td><td>TelemetrySettings</td><td>遥测设置</td></tr>
+          <tr><td><code>contextFileName</code></td><td>string | string[]</td><td>上下文文件名 (默认 GEMINI.md)</td></tr>
+          <tr><td><code>eventEmitter</code></td><td>EventEmitter</td><td>外部事件发射器</td></tr>
+          <tr><td><code>toolOutputMasking</code></td><td>ToolOutputMaskingConfig</td><td>工具输出掩码配置</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">Config 核心 Getter 方法</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="comment">// 模型相关</span>
+config.<span class="func">getModel</span>(): <span class="type">string</span>
+config.<span class="func">getActiveModel</span>(): <span class="type">string</span>
+config.<span class="func">setModel</span>(model: <span class="type">string</span>): <span class="type">void</span>
+
+<span class="comment">// 工具注册表</span>
+config.<span class="func">getToolRegistry</span>(): <span class="type">ToolRegistry</span>
+config.<span class="func">getContentGenerator</span>(): <span class="type">ContentGenerator</span>
+config.<span class="func">getGeminiClient</span>(): <span class="type">GeminiClient</span>
+
+<span class="comment">// 服务</span>
+config.<span class="func">getFileDiscoveryService</span>(): <span class="type">FileDiscoveryService</span>
+config.<span class="func">getGitService</span>(): <span class="type">GitService</span>
+config.<span class="func">getContextManager</span>(): <span class="type">ContextManager</span>
+
+<span class="comment">// 路径与环境</span>
+config.<span class="func">getProjectRoot</span>(): <span class="type">string</span>
+config.<span class="func">getSessionId</span>(): <span class="type">string</span>
+config.<span class="func">getProxy</span>(): <span class="type">string | undefined</span>
+config.<span class="func">getCwd</span>(): <span class="type">string</span>
+
+<span class="comment">// 策略与审批</span>
+config.<span class="func">getPolicyEngine</span>(): <span class="type">PolicyEngine</span>
+config.<span class="func">getMessageBus</span>(): <span class="type">MessageBus</span>
+config.<span class="func">getHookSystem</span>(): <span class="type">HookSystem</span>
+config.<span class="func">getApprovalMode</span>(): <span class="type">ApprovalMode</span></code></pre>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>ApprovalMode 枚举</h3>
+      <pre><code><span class="keyword">enum</span> <span class="type">ApprovalMode</span> {
+  <span class="param">ALWAYS_CONFIRM</span>,   <span class="comment">// 所有工具调用都需确认</span>
+  <span class="param">AUTO_APPROVE</span>,     <span class="comment">// 自动批准（基于策略）</span>
+  <span class="param">YOLO</span>              <span class="comment">// 全自动，不确认</span>
+}</code></pre>
+    </div>
+
+    <div class="subsection">
+      <h3>CustomTheme - 自定义主题 (GUI 直接可用)</h3>
+      <pre><code><span class="keyword">interface</span> <span class="type">CustomTheme</span> {
+  type: <span class="string">'custom'</span>;
+  name: <span class="type">string</span>;
+  text?: { primary?, secondary?, link?, accent?, response? };
+  background?: { primary?, diff?: { added?, removed? } };
+  border?: { default?, focused? };
+  ui?: { comment?, symbol?, gradient?: <span class="type">string[]</span> };
+  status?: { error?, success?, warning? };
+}</code></pre>
+    </div>
+  </div>
+</div>
+
+<!-- 4. ContentGenerator -->
+<div class="section" id="content-gen">
+  <div class="section-header"><span class="section-icon">🧠</span><h2>ContentGenerator - 内容生成接口</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">interface ContentGenerator</span>
+        <span class="tag tag-interface">Interface</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">interface</span> <span class="type">ContentGenerator</span> {
+  <span class="func">generateContent</span>(
+    request: <span class="type">GenerateContentParameters</span>,
+    userPromptId: <span class="type">string</span>
+  ): <span class="type">Promise&lt;GenerateContentResponse&gt;</span>;
+
+  <span class="func">generateContentStream</span>(
+    request: <span class="type">GenerateContentParameters</span>,
+    userPromptId: <span class="type">string</span>
+  ): <span class="type">Promise&lt;AsyncGenerator&lt;GenerateContentResponse&gt;&gt;</span>;
+
+  <span class="func">countTokens</span>(
+    request: <span class="type">CountTokensParameters</span>
+  ): <span class="type">Promise&lt;CountTokensResponse&gt;</span>;
+
+  <span class="func">embedContent</span>(
+    request: <span class="type">EmbedContentParameters</span>
+  ): <span class="type">Promise&lt;EmbedContentResponse&gt;</span>;
+
+  userTier?: <span class="type">UserTierId</span>;
+  userTierName?: <span class="type">string</span>;
+}</code></pre>
+        <p class="api-desc">通过 <code>createContentGenerator()</code> 工厂函数创建，支持 OAuth / API Key / Vertex AI 三种认证。</p>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">AuthType 枚举</span>
+        <span class="tag tag-enum">Enum</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">enum</span> <span class="type">AuthType</span> {
+  LOGIN_WITH_GOOGLE = <span class="string">'oauth-personal'</span>,
+  USE_GEMINI        = <span class="string">'gemini-api-key'</span>,
+  USE_VERTEX_AI     = <span class="string">'vertex-ai'</span>,
+  LEGACY_CLOUD_SHELL= <span class="string">'cloud-shell'</span>,
+  COMPUTE_ADC       = <span class="string">'compute-default-credentials'</span>,
+}</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. GeminiChat -->
+<div class="section" id="gemini-chat">
+  <div class="section-header"><span class="section-icon">💬</span><h2>GeminiChat - 会话管理核心</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">class GeminiChat</span>
+        <span class="tag tag-class">Class</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">class</span> <span class="type">GeminiChat</span> {
+  <span class="keyword">constructor</span>(
+    config: <span class="type">Config</span>,
+    systemInstruction: <span class="type">string</span>,
+    tools: <span class="type">Tool[]</span>,
+    history: <span class="type">Content[]</span>,
+    resumedSessionData?: <span class="type">ResumedSessionData</span>,
+    onModelChanged?: (modelId: <span class="type">string</span>) => <span class="type">Promise&lt;Tool[]&gt;</span>
+  )
+
+  <span class="comment">// 核心方法</span>
+  <span class="func">setSystemInstruction</span>(sysInstr: <span class="type">string</span>): <span class="type">void</span>
+
+  <span class="keyword">async</span> <span class="func">sendMessageStream</span>(
+    modelConfigKey: <span class="type">ModelConfigKey</span>,
+    message: <span class="type">PartListUnion</span>,
+    prompt_id: <span class="type">string</span>,
+    signal: <span class="type">AbortSignal</span>,
+    displayContent?: <span class="type">PartListUnion</span>
+  ): <span class="type">Promise&lt;AsyncGenerator&lt;StreamEvent&gt;&gt;</span>
+
+  <span class="comment">// 上下文管理</span>
+  <span class="func">getHistory</span>(): <span class="type">Content[]</span>
+  <span class="func">clearHistory</span>(): <span class="type">void</span>
+  <span class="func">compressHistory</span>(): <span class="type">Promise&lt;ChatCompressionInfo&gt;</span>
+  <span class="func">addToolResponse</span>(completed: <span class="type">CompletedToolCall[]</span>): <span class="type">void</span>
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">StreamEvent 联合类型</span>
+        <span class="tag tag-interface">Type</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">type</span> <span class="type">StreamEvent</span> =
+  | { type: <span class="string">'chunk'</span>;  value: <span class="type">GenerateContentResponse</span> }
+  | { type: <span class="string">'retry'</span> }
+  | { type: <span class="string">'agent_execution_stopped'</span>; reason: <span class="type">string</span> }
+  | { type: <span class="string">'agent_execution_blocked'</span>; reason: <span class="type">string</span> }</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 6. Turn / Event Stream -->
+<div class="section" id="turn">
+  <div class="section-header"><span class="section-icon">🔄</span><h2>Turn 类 - Agentic Loop 事件流 (GUI 渲染核心)</h2></div>
+  <div class="section-body">
+    <div class="note">🎯 <b>这是 GUI 最重要的 API</b>：Turn.run() 返回的 AsyncGenerator 是驱动整个 UI 渲染的事件源。</div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">Turn.run()</span>
+        <span class="tag tag-async">async*</span>
+        <span class="tag tag-generator">AsyncGenerator</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">async</span> *<span class="func">run</span>(
+  modelConfigKey: <span class="type">ModelConfigKey</span>,
+  req: <span class="type">PartListUnion</span>,
+  signal: <span class="type">AbortSignal</span>,
+  displayContent?: <span class="type">PartListUnion</span>
+): <span class="type">AsyncGenerator&lt;ServerGeminiStreamEvent&gt;</span></code></pre>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">GeminiEventType 枚举 - 全部 17 种事件</span>
+        <span class="tag tag-enum">Enum</span>
+      </div>
+      <div class="api-card-body">
+        <table>
+          <tr><th>事件类型</th><th>Value</th><th>说明</th><th>GUI 用途</th></tr>
+          <tr><td><code>Content</code></td><td><code>{ value: string, traceId? }</code></td><td>模型文本输出（流式）</td><td>✅ 实时渲染 Markdown</td></tr>
+          <tr><td><code>Thought</code></td><td><code>{ value: ThoughtSummary, traceId? }</code></td><td>模型思考过程</td><td>✅ 折叠显示推理链</td></tr>
+          <tr><td><code>ToolCallRequest</code></td><td><code>{ value: ToolCallRequestInfo }</code></td><td>工具调用请求</td><td>✅ 显示工具调用卡片</td></tr>
+          <tr><td><code>ToolCallResponse</code></td><td><code>{ value: ToolCallResponseInfo }</code></td><td>工具执行结果</td><td>✅ 显示执行结果</td></tr>
+          <tr><td><code>ToolCallConfirmation</code></td><td><code>{ value: { request, details } }</code></td><td>需用户确认</td><td>✅ 弹出确认对话框</td></tr>
+          <tr><td><code>UserCancelled</code></td><td><code>{}</code></td><td>用户取消</td><td>停止渲染</td></tr>
+          <tr><td><code>Error</code></td><td><code>{ value: { error: StructuredError } }</code></td><td>错误</td><td>✅ 显示错误提示</td></tr>
+          <tr><td><code>ChatCompressed</code></td><td><code>{ value: ChatCompressionInfo }</code></td><td>上下文压缩</td><td>通知条</td></tr>
+          <tr><td><code>Finished</code></td><td><code>{ value: { reason, usageMetadata } }</code></td><td>回合完成</td><td>✅ Token 统计面板</td></tr>
+          <tr><td><code>MaxSessionTurns</code></td><td><code>{}</code></td><td>达到最大轮次</td><td>警告弹窗</td></tr>
+          <tr><td><code>LoopDetected</code></td><td><code>{}</code></td><td>检测到循环</td><td>警告提示</td></tr>
+          <tr><td><code>Citation</code></td><td><code>{ value: string }</code></td><td>引用来源</td><td>✅ 引用链接渲染</td></tr>
+          <tr><td><code>Retry</code></td><td><code>{}</code></td><td>正在重试</td><td>Loading 状态</td></tr>
+          <tr><td><code>ContextWindowWillOverflow</code></td><td><code>{ estimatedRequestTokenCount, remainingTokenCount }</code></td><td>上下文即将溢出</td><td>容量警告条</td></tr>
+          <tr><td><code>InvalidStream</code></td><td><code>{}</code></td><td>无效流</td><td>错误处理</td></tr>
+          <tr><td><code>ModelInfo</code></td><td><code>{ value: string }</code></td><td>模型信息</td><td>状态栏更新</td></tr>
+          <tr><td><code>AgentExecutionStopped</code></td><td><code>{ reason, systemMessage? }</code></td><td>Agent 停止</td><td>停止动画</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 7. Output Format -->
+<div class="section" id="stream-output">
+  <div class="section-header"><span class="section-icon">📤</span><h2>输出格式 - Headless / Stream JSON</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">JsonStreamEvent 类型 (stream-json 模式)</span>
+        <span class="tag tag-interface">Type</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">enum</span> <span class="type">JsonStreamEventType</span> {
+  INIT        = <span class="string">'init'</span>,        <span class="comment">// { session_id, model }</span>
+  MESSAGE     = <span class="string">'message'</span>,     <span class="comment">// { role, content, delta? }</span>
+  TOOL_USE    = <span class="string">'tool_use'</span>,    <span class="comment">// { tool_name, tool_id, parameters }</span>
+  TOOL_RESULT = <span class="string">'tool_result'</span>, <span class="comment">// { tool_id, status, output?, error? }</span>
+  ERROR       = <span class="string">'error'</span>,       <span class="comment">// { severity, message }</span>
+  RESULT      = <span class="string">'result'</span>,      <span class="comment">// { status, stats? }</span>
+}
+
+<span class="comment">// 使用: gemini -p "prompt" --output-format stream-json</span>
+<span class="comment">// 输出 NDJSON (每行一个 JSON 事件)</span></code></pre>
+        <div class="tip">💡 <b>GUI 最佳实践</b>: 如果你的 GUI 通过子进程调用 gemini-cli，使用 <code>--output-format stream-json</code> 直接解析 NDJSON 流。如果直接嵌入 core 库，则使用 Turn 的 AsyncGenerator。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 8. Built-in Tools -->
+<div class="section" id="tools">
+  <div class="section-header"><span class="section-icon">🛠️</span><h2>内置工具完整列表</h2></div>
+  <div class="section-body">
+    <table>
+      <tr><th>工具名</th><th>类</th><th>功能</th><th>Kind</th></tr>
+      <tr><td><code>read_file</code></td><td>ReadFileTool</td><td>读取文件内容</td><td>ReadOnly</td></tr>
+      <tr><td><code>read_many_files</code></td><td>ReadManyFilesTool</td><td>批量读取多个文件</td><td>ReadOnly</td></tr>
+      <tr><td><code>ls</code></td><td>LSTool</td><td>列出目录内容</td><td>ReadOnly</td></tr>
+      <tr><td><code>glob</code></td><td>GlobTool</td><td>文件模式匹配搜索</td><td>ReadOnly</td></tr>
+      <tr><td><code>grep</code> / <code>ripgrep</code></td><td>GrepTool / RipGrepTool</td><td>文件内容搜索</td><td>ReadOnly</td></tr>
+      <tr><td><code>replace</code></td><td>EditTool</td><td>编辑/替换文件内容 (基于 diff)</td><td>Write</td></tr>
+      <tr><td><code>write_file</code></td><td>WriteFileTool</td><td>创建/覆写文件</td><td>Write</td></tr>
+      <tr><td><code>shell</code></td><td>ShellTool</td><td>执行 Shell 命令</td><td>Dangerous</td></tr>
+      <tr><td><code>web_fetch</code></td><td>WebFetchTool</td><td>获取网页内容</td><td>Network</td></tr>
+      <tr><td><code>google_web_search</code></td><td>WebSearchTool</td><td>Google 搜索</td><td>Network</td></tr>
+      <tr><td><code>save_memory</code></td><td>MemoryTool</td><td>保存记忆到 GEMINI.md</td><td>Write</td></tr>
+      <tr><td><code>write_todos</code></td><td>WriteTodosTool</td><td>写入 TODO 列表</td><td>Write</td></tr>
+      <tr><td><code>ask_user</code></td><td>AskUserTool</td><td>向用户提问 (GUI 关键)</td><td>Interactive</td></tr>
+      <tr><td><code>enter_plan_mode</code></td><td>EnterPlanModeTool</td><td>进入计划模式</td><td>Other</td></tr>
+      <tr><td><code>exit_plan_mode</code></td><td>ExitPlanModeTool</td><td>退出计划模式</td><td>Other</td></tr>
+      <tr><td><code>activate_skill</code></td><td>ActivateSkillTool</td><td>激活技能</td><td>Other</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 9. ToolRegistry -->
+<div class="section" id="tool-registry">
+  <div class="section-header"><span class="section-icon">📋</span><h2>ToolRegistry - 工具注册表</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">class ToolRegistry</span>
+        <span class="tag tag-class">Class</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">class</span> <span class="type">ToolRegistry</span> {
+  <span class="func">registerTool</span>(tool: <span class="type">AnyDeclarativeTool</span>): <span class="type">void</span>
+  <span class="func">unregisterTool</span>(name: <span class="type">string</span>): <span class="type">void</span>
+  <span class="func">getTool</span>(name: <span class="type">string</span>): <span class="type">AnyDeclarativeTool | undefined</span>
+  <span class="func">getActiveTools</span>(): <span class="type">Map&lt;string, AnyDeclarativeTool&gt;</span>
+  <span class="func">getAllTools</span>(): <span class="type">Map&lt;string, AnyDeclarativeTool&gt;</span>
+  <span class="func">getToolSchemas</span>(modelId?: <span class="type">string</span>): <span class="type">FunctionDeclaration[]</span>
+  <span class="func">sortTools</span>(): <span class="type">void</span>
+  <span class="func">isActive</span>(name: <span class="type">string</span>): <span class="type">boolean</span>
+  <span class="func">getMessageBus</span>(): <span class="type">MessageBus</span>
+}</code></pre>
+        <div class="tip">💡 <b>自定义工具</b>: 继承 <code>DeclarativeTool&lt;TParams, TResult&gt;</code> 或 <code>BaseDeclarativeTool</code> 来创建自定义工具并注册到 ToolRegistry。</div>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">ToolBuilder / ToolInvocation 接口</span>
+        <span class="tag tag-interface">Interface</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">interface</span> <span class="type">ToolBuilder</span>&lt;TParams, TResult&gt; {
+  name: <span class="type">string</span>;               <span class="comment">// 内部名称</span>
+  displayName: <span class="type">string</span>;        <span class="comment">// 显示名称 → GUI 使用</span>
+  description: <span class="type">string</span>;        <span class="comment">// 工具描述</span>
+  kind: <span class="type">Kind</span>;                  <span class="comment">// ReadOnly | Write | Dangerous | Network | Other</span>
+  isOutputMarkdown: <span class="type">boolean</span>;  <span class="comment">// 输出是否为 Markdown</span>
+  canUpdateOutput: <span class="type">boolean</span>;   <span class="comment">// 是否支持流式输出</span>
+  <span class="func">getSchema</span>(modelId?): <span class="type">FunctionDeclaration</span>;
+  <span class="func">build</span>(params): <span class="type">ToolInvocation</span>;
+}
+
+<span class="keyword">interface</span> <span class="type">ToolInvocation</span>&lt;TParams, TResult&gt; {
+  params: <span class="type">TParams</span>;
+  <span class="func">getDescription</span>(): <span class="type">string</span>;              <span class="comment">// → GUI 显示操作描述</span>
+  <span class="func">toolLocations</span>(): <span class="type">ToolLocation[]</span>;       <span class="comment">// → GUI 显示受影响路径</span>
+  <span class="func">shouldConfirmExecute</span>(signal): <span class="type">Promise</span>; <span class="comment">// → GUI 弹出确认框</span>
+  <span class="func">execute</span>(signal, updateOutput?): <span class="type">Promise&lt;TResult&gt;</span>;
+}</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 10. Scheduler -->
+<div class="section" id="scheduler">
+  <div class="section-header"><span class="section-icon">⏱️</span><h2>Scheduler - 工具调用调度器</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">ToolCall 状态机 (GUI 渲染工具调用卡片的数据源)</span>
+        <span class="tag tag-interface">Type</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">type</span> <span class="type">ToolCall</span> =
+  | { status: <span class="string">'validating'</span>;       request, tool, invocation }
+  | { status: <span class="string">'scheduled'</span>;        request, tool, invocation }
+  | { status: <span class="string">'executing'</span>;        request, tool, invocation, liveOutput?, pid? }
+  | { status: <span class="string">'awaiting_approval'</span>; request, tool, invocation, confirmationDetails }
+  | { status: <span class="string">'success'</span>;          request, tool, response, invocation, durationMs? }
+  | { status: <span class="string">'error'</span>;            request, response, durationMs? }
+  | { status: <span class="string">'cancelled'</span>;        request, response, tool, invocation }
+
+<span class="comment">// 关键数据结构</span>
+<span class="keyword">interface</span> <span class="type">ToolCallRequestInfo</span> {
+  callId: <span class="type">string</span>;
+  name: <span class="type">string</span>;
+  args: <span class="type">Record&lt;string, unknown&gt;</span>;
+  isClientInitiated: <span class="type">boolean</span>;
+  prompt_id: <span class="type">string</span>;
+  traceId?: <span class="type">string</span>;
+  parentCallId?: <span class="type">string</span>;
+  schedulerId?: <span class="type">string</span>;
+}
+
+<span class="keyword">interface</span> <span class="type">ToolCallResponseInfo</span> {
+  callId: <span class="type">string</span>;
+  responseParts: <span class="type">Part[]</span>;
+  resultDisplay: <span class="type">ToolResultDisplay | undefined</span>;
+  error: <span class="type">Error | undefined</span>;
+  errorType: <span class="type">ToolErrorType | undefined</span>;
+  contentLength?: <span class="type">number</span>;
+  data?: <span class="type">Record&lt;string, unknown&gt;</span>;
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Scheduler 回调 Handlers</h3>
+      <pre><code><span class="keyword">type</span> <span class="type">ConfirmHandler</span> = (toolCall: <span class="type">WaitingToolCall</span>) => <span class="type">Promise&lt;ToolConfirmationOutcome&gt;</span>
+<span class="keyword">type</span> <span class="type">OutputUpdateHandler</span> = (callId: <span class="type">string</span>, chunk: <span class="type">string | AnsiOutput</span>) => <span class="type">void</span>
+<span class="keyword">type</span> <span class="type">AllToolCallsCompleteHandler</span> = (completed: <span class="type">CompletedToolCall[]</span>) => <span class="type">Promise&lt;void&gt;</span>
+<span class="keyword">type</span> <span class="type">ToolCallsUpdateHandler</span> = (toolCalls: <span class="type">ToolCall[]</span>) => <span class="type">void</span></code></pre>
+    </div>
+  </div>
+</div>
+
+<!-- 11. MessageBus -->
+<div class="section" id="message-bus">
+  <div class="section-header"><span class="section-icon">📨</span><h2>MessageBus - 确认/策略消息总线</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">MessageBusType 枚举 + 消息类型</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">enum</span> <span class="type">MessageBusType</span> {
+  TOOL_CONFIRMATION_REQUEST  <span class="comment">// 工具确认请求 → GUI 弹窗</span>
+  TOOL_CONFIRMATION_RESPONSE <span class="comment">// 用户确认响应 ← GUI 回传</span>
+  TOOL_POLICY_REJECTION      <span class="comment">// 策略拒绝通知</span>
+  TOOL_EXECUTION_SUCCESS     <span class="comment">// 工具执行成功</span>
+  TOOL_EXECUTION_FAILURE     <span class="comment">// 工具执行失败</span>
+  UPDATE_POLICY              <span class="comment">// 更新策略 (Always Allow)</span>
+  TOOL_CALLS_UPDATE          <span class="comment">// 工具调用列表更新</span>
+  ASK_USER_REQUEST           <span class="comment">// ask_user 工具请求 → GUI 输入框</span>
+  ASK_USER_RESPONSE          <span class="comment">// 用户回答 ← GUI 回传</span>
+}
+
+<span class="comment">// GUI 必须实现的消息处理</span>
+messageBus.<span class="func">subscribe</span>(<span class="type">MessageBusType.TOOL_CONFIRMATION_REQUEST</span>, handler)
+messageBus.<span class="func">subscribe</span>(<span class="type">MessageBusType.ASK_USER_REQUEST</span>, handler)
+messageBus.<span class="func">publish</span>({ type: <span class="type">TOOL_CONFIRMATION_RESPONSE</span>, correlationId, confirmed, outcome })
+messageBus.<span class="func">publish</span>({ type: <span class="type">ASK_USER_RESPONSE</span>, correlationId, answers })</code></pre>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">SerializableConfirmationDetails (确认对话框数据)</span>
+      </div>
+      <div class="api-card-body">
+        <table>
+          <tr><th>type</th><th>字段</th><th>GUI 组件</th></tr>
+          <tr><td><code>'info'</code></td><td>title, prompt, urls?</td><td>通用信息确认框</td></tr>
+          <tr><td><code>'edit'</code></td><td>title, fileName, filePath, fileDiff, originalContent, newContent</td><td>Diff 预览确认框</td></tr>
+          <tr><td><code>'exec'</code></td><td>title, command, rootCommand, rootCommands, commands?</td><td>命令执行确认框</td></tr>
+          <tr><td><code>'mcp'</code></td><td>title, serverName, toolName, toolDisplayName</td><td>MCP 工具确认框</td></tr>
+          <tr><td><code>'ask_user'</code></td><td>title, questions[]</td><td>用户问答面板</td></tr>
+          <tr><td><code>'exit_plan_mode'</code></td><td>title, planPath</td><td>退出计划确认</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">Question 类型 (ask_user 工具)</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">interface</span> <span class="type">Question</span> {
+  question: <span class="type">string</span>;
+  header: <span class="type">string</span>;
+  type?: <span class="string">'choice'</span> | <span class="string">'text'</span> | <span class="string">'yesno'</span>;
+  options?: <span class="type">QuestionOption[]</span>;  <span class="comment">// { label, description }</span>
+  multiSelect?: <span class="type">boolean</span>;
+  placeholder?: <span class="type">string</span>;
+}</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 12. CoreEvents -->
+<div class="section" id="events">
+  <div class="section-header"><span class="section-icon">📡</span><h2>CoreEvents - 全局事件系统</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">coreEvents (CoreEventEmitter 单例)</span>
+      </div>
+      <div class="api-card-body">
+        <table>
+          <tr><th>事件名</th><th>Payload</th><th>GUI 用途</th></tr>
+          <tr><td><code>user-feedback</code></td><td><code>{ severity, message, error? }</code></td><td>✅ Toast / 通知</td></tr>
+          <tr><td><code>model-changed</code></td><td><code>{ model }</code></td><td>✅ 状态栏模型名</td></tr>
+          <tr><td><code>console-log</code></td><td><code>{ type, content }</code></td><td>调试面板</td></tr>
+          <tr><td><code>output</code></td><td><code>{ isStderr, chunk, encoding? }</code></td><td>终端输出面板</td></tr>
+          <tr><td><code>memory-changed</code></td><td><code>{ fileCount }</code></td><td>内存文件指示器</td></tr>
+          <tr><td><code>quota-changed</code></td><td><code>{ remaining, limit, resetTime? }</code></td><td>✅ 配额进度条</td></tr>
+          <tr><td><code>hook-start</code></td><td><code>{ hookName, eventName, hookIndex?, totalHooks? }</code></td><td>Hook 执行指示器</td></tr>
+          <tr><td><code>hook-end</code></td><td><code>{ hookName, eventName, success }</code></td><td>Hook 完成状态</td></tr>
+          <tr><td><code>mcp-client-update</code></td><td><code>Map&lt;string, McpClient&gt;</code></td><td>✅ MCP 服务器面板</td></tr>
+          <tr><td><code>settings-changed</code></td><td><code>void</code></td><td>刷新设置 UI</td></tr>
+          <tr><td><code>retry-attempt</code></td><td><code>{ attempt, maxAttempts, delayMs, error?, model }</code></td><td>重试进度</td></tr>
+          <tr><td><code>consent-request</code></td><td><code>{ prompt, onConfirm }</code></td><td>✅ 同意弹窗</td></tr>
+          <tr><td><code>agents-discovered</code></td><td><code>{ agents: AgentDefinition[] }</code></td><td>Agent 面板</td></tr>
+          <tr><td><code>agents-refreshed</code></td><td><code>void</code></td><td>刷新 Agent 列表</td></tr>
+          <tr><td><code>request-editor-selection</code></td><td><code>void</code></td><td>编辑器选择弹窗</td></tr>
+          <tr><td><code>editor-selected</code></td><td><code>{ editor? }</code></td><td>编辑器状态更新</td></tr>
+        </table>
+        <pre><code><span class="comment">// 使用示例</span>
+<span class="keyword">import</span> { coreEvents, CoreEvent } <span class="keyword">from</span> <span class="string">'@google/gemini-cli-core'</span>;
+
+coreEvents.<span class="func">on</span>(CoreEvent.UserFeedback, (payload) => {
+  showToast(payload.severity, payload.message);
+});
+
+coreEvents.<span class="func">on</span>(CoreEvent.QuotaChanged, ({ remaining, limit }) => {
+  updateQuotaBar(remaining, limit);
+});
+
+coreEvents.<span class="func">on</span>(CoreEvent.ModelChanged, ({ model }) => {
+  updateStatusBar(model);
+});</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 13. Hooks -->
+<div class="section" id="hooks">
+  <div class="section-header"><span class="section-icon">🪝</span><h2>Hooks 系统 - 生命周期拦截</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">HookEventName 枚举</span>
+        <span class="tag tag-enum">Enum</span>
+      </div>
+      <div class="api-card-body">
+        <table>
+          <tr><th>Hook</th><th>触发时机</th><th>可拦截?</th></tr>
+          <tr><td><code>SessionStart</code></td><td>会话开始</td><td>✅</td></tr>
+          <tr><td><code>SessionEnd</code></td><td>会话结束</td><td>-</td></tr>
+          <tr><td><code>BeforeModel</code></td><td>发送请求给模型前</td><td>✅ 可修改请求</td></tr>
+          <tr><td><code>AfterModel</code></td><td>收到模型响应后</td><td>✅ 可修改响应</td></tr>
+          <tr><td><code>BeforeTool</code></td><td>执行工具前</td><td>✅ block/deny/approve</td></tr>
+          <tr><td><code>AfterTool</code></td><td>工具执行后</td><td>-</td></tr>
+          <tr><td><code>BeforeAgent</code></td><td>Agent 执行前</td><td>✅</td></tr>
+          <tr><td><code>AfterAgent</code></td><td>Agent 执行后</td><td>✅</td></tr>
+          <tr><td><code>BeforeToolSelection</code></td><td>工具选择前</td><td>✅ 可修改工具列表</td></tr>
+          <tr><td><code>PreCompress</code></td><td>上下文压缩前</td><td>-</td></tr>
+          <tr><td><code>Notification</code></td><td>通知事件</td><td>-</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">HookOutput - Hook 返回值</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">interface</span> <span class="type">HookOutput</span> {
+  continue?: <span class="type">boolean</span>;         <span class="comment">// false = 停止执行</span>
+  stopReason?: <span class="type">string</span>;        <span class="comment">// 停止原因</span>
+  suppressOutput?: <span class="type">boolean</span>;   <span class="comment">// 抑制输出</span>
+  systemMessage?: <span class="type">string</span>;     <span class="comment">// 注入系统消息</span>
+  decision?: <span class="string">'ask'</span> | <span class="string">'block'</span> | <span class="string">'deny'</span> | <span class="string">'approve'</span> | <span class="string">'allow'</span>;
+  reason?: <span class="type">string</span>;
+}</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 14. MCP -->
+<div class="section" id="mcp">
+  <div class="section-header"><span class="section-icon">🔌</span><h2>MCP (Model Context Protocol) 集成</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">MCPServerConfig</span>
+        <span class="tag tag-class">Class</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">class</span> <span class="type">MCPServerConfig</span> {
+  <span class="comment">// stdio 传输</span>
+  command?: <span class="type">string</span>;   args?: <span class="type">string[]</span>;   env?: <span class="type">Record&lt;string, string&gt;</span>;   cwd?: <span class="type">string</span>;
+  <span class="comment">// SSE 传输</span>
+  url?: <span class="type">string</span>;
+  <span class="comment">// HTTP 传输</span>
+  httpUrl?: <span class="type">string</span>;   headers?: <span class="type">Record&lt;string, string&gt;</span>;
+  <span class="comment">// WebSocket</span>
+  tcp?: <span class="type">string</span>;
+  <span class="comment">// 传输类型</span>
+  type?: <span class="string">'sse'</span> | <span class="string">'http'</span>;
+  <span class="comment">// 通用</span>
+  timeout?: <span class="type">number</span>;   trust?: <span class="type">boolean</span>;   description?: <span class="type">string</span>;
+  includeTools?: <span class="type">string[]</span>;   excludeTools?: <span class="type">string[]</span>;
+  <span class="comment">// OAuth</span>
+  oauth?: <span class="type">MCPOAuthConfig</span>;   authProviderType?: <span class="type">AuthProviderType</span>;
+}</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 15. Services -->
+<div class="section" id="services">
+  <div class="section-header"><span class="section-icon">🗂️</span><h2>Services 服务层</h2></div>
+  <div class="section-body">
+    <div class="arch-box">
+      <div class="arch-item">
+        <h4>ChatRecordingService</h4>
+        <p>会话录制服务<br><code>initialize()</code> / <code>recordUserMessage()</code> / <code>recordAssistantMessage()</code> / <code>recordToolCall()</code><br>保存为 JSON: <code>~/.gemini/tmp/&lt;hash&gt;/chats/session-*.json</code></p>
+      </div>
+      <div class="arch-item">
+        <h4>FileDiscoveryService</h4>
+        <p>项目文件发现<br>支持 gitignore、geminiignore、模糊搜索</p>
+      </div>
+      <div class="arch-item">
+        <h4>GitService</h4>
+        <p>Git 操作封装<br>基于 simple-git 库</p>
+      </div>
+      <div class="arch-item">
+        <h4>ContextManager</h4>
+        <p>上下文管理<br>管理 GEMINI.md、工作区上下文、环境上下文</p>
+      </div>
+      <div class="arch-item">
+        <h4>ShellExecutionService</h4>
+        <p>Shell 命令执行<br>支持 PTY、沙箱、超时控制</p>
+      </div>
+      <div class="arch-item">
+        <h4>ModelConfigService</h4>
+        <p>模型配置管理<br>多模型配置键值、路由策略</p>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-name">ConversationRecord (会话记录数据结构)</span>
+        <span class="tag tag-interface">Interface</span>
+      </div>
+      <div class="api-card-body">
+        <pre><code><span class="keyword">interface</span> <span class="type">ConversationRecord</span> {
+  sessionId: <span class="type">string</span>;      projectHash: <span class="type">string</span>;
+  startTime: <span class="type">string</span>;      lastUpdated: <span class="type">string</span>;
+  messages: <span class="type">MessageRecord[]</span>;   summary?: <span class="type">string</span>;
+  directories?: <span class="type">string[]</span>;
+}
+
+<span class="keyword">type</span> <span class="type">MessageRecord</span> = BaseMessageRecord & (
+  | { type: <span class="string">'user'</span> | <span class="string">'info'</span> | <span class="string">'error'</span> | <span class="string">'warning'</span> }
+  | { type: <span class="string">'gemini'</span>; toolCalls?: <span class="type">ToolCallRecord[]</span>; thoughts?: <span class="type">ThoughtSummary[]</span>; tokens?: <span class="type">TokensSummary</span>; model?: <span class="type">string</span> }
+)</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 16. Auth -->
+<div class="section" id="auth">
+  <div class="section-header"><span class="section-icon">🔐</span><h2>认证系统</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-body">
+        <pre><code><span class="comment">// 三种认证流程</span>
+
+<span class="comment">// 1. Google OAuth (免费层)</span>
+<span class="keyword">import</span> { createContentGenerator, AuthType } <span class="keyword">from</span> <span class="string">'@google/gemini-cli-core'</span>;
+<span class="keyword">const</span> genConfig = { authType: AuthType.LOGIN_WITH_GOOGLE };
+
+<span class="comment">// 2. Gemini API Key</span>
+<span class="keyword">const</span> genConfig = { authType: AuthType.USE_GEMINI, apiKey: <span class="string">'your-key'</span> };
+
+<span class="comment">// 3. Vertex AI</span>
+<span class="keyword">const</span> genConfig = { authType: AuthType.USE_VERTEX_AI, apiKey: <span class="string">'key'</span>, vertexai: <span class="keyword">true</span> };
+
+<span class="comment">// 工厂函数</span>
+<span class="keyword">const</span> generator = <span class="keyword">await</span> <span class="func">createContentGenerator</span>(genConfig, config);</code></pre>
+        <div class="note">💡 环境变量: <code>GEMINI_API_KEY</code>, <code>GOOGLE_API_KEY</code>, <code>GOOGLE_CLOUD_PROJECT</code>, <code>GOOGLE_CLOUD_LOCATION</code></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 17. Agents -->
+<div class="section" id="agents">
+  <div class="section-header"><span class="section-icon">🤖</span><h2>Agents 子代理系统</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-body">
+        <pre><code><span class="keyword">interface</span> <span class="type">AgentDefinition</span> {
+  name: <span class="type">string</span>;
+  description: <span class="type">string</span>;
+  systemPrompt?: <span class="type">string</span>;
+  modelConfig?: <span class="type">ModelConfig</span>;
+  runConfig?: <span class="type">AgentRunConfig</span>;   <span class="comment">// { maxTimeMinutes?, maxTurns? }</span>
+  enabled?: <span class="type">boolean</span>;
+}
+
+<span class="comment">// Agent 注册与加载</span>
+<span class="keyword">import</span> { AgentRegistry, AgentLoader } <span class="keyword">from</span> <span class="string">'@google/gemini-cli-core'</span>;</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 18. Headless -->
+<div class="section" id="headless">
+  <div class="section-header"><span class="section-icon">🖥️</span><h2>Headless 模式 - 脚本化调用</h2></div>
+  <div class="section-body">
+    <div class="api-card">
+      <div class="api-card-body">
+        <pre><code><span class="comment">// 命令行方式</span>
+$ gemini -p <span class="string">"你的问题"</span>                         <span class="comment">// 纯文本输出</span>
+$ gemini -p <span class="string">"你的问题"</span> --output-format json        <span class="comment">// JSON 输出</span>
+$ gemini -p <span class="string">"你的问题"</span> --output-format stream-json  <span class="comment">// NDJSON 流</span>
+$ gemini -p <span class="string">"你的问题"</span> -m gemini-2.5-pro           <span class="comment">// 指定模型</span>
+
+<span class="comment">// 编程方式 (子进程)</span>
+<span class="keyword">import</span> { spawn } <span class="keyword">from</span> <span class="string">'child_process'</span>;
+<span class="keyword">const</span> proc = spawn(<span class="string">'gemini'</span>, [<span class="string">'-p'</span>, prompt, <span class="string">'--output-format'</span>, <span class="string">'stream-json'</span>]);
+proc.stdout.on(<span class="string">'data'</span>, (chunk) => {
+  <span class="keyword">const</span> events = chunk.toString().split(<span class="string">'\n'</span>).filter(Boolean).map(JSON.parse);
+  <span class="comment">// 处理 JsonStreamEvent</span>
+});</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 19. GUI 定制指南 -->
+<div class="section" id="gui-guide">
+  <div class="section-header"><span class="section-icon">🎨</span><h2>GUI 深度定制实施指南</h2></div>
+  <div class="section-body">
+
+    <div class="subsection">
+      <h3>方案 A: 直接嵌入 Core 库 (推荐 - 最大控制力)</h3>
+      <pre><code><span class="comment">// 1. 安装依赖</span>
+npm install @google/gemini-cli-core @google/genai
+
+<span class="comment">// 2. 初始化 Config</span>
+<span class="keyword">const</span> config = <span class="keyword">new</span> <span class="type">Config</span>({
+  sessionId: crypto.randomUUID(),
+  model: <span class="string">'gemini-2.5-pro'</span>,
+  targetDir: projectPath,
+  cwd: projectPath,
+  debugMode: <span class="keyword">false</span>,
+  interactive: <span class="keyword">true</span>,
+  approvalMode: ApprovalMode.ALWAYS_CONFIRM,
+});
+<span class="keyword">await</span> config.initialize();
+
+<span class="comment">// 3. 监听全局事件</span>
+coreEvents.on(CoreEvent.UserFeedback, renderFeedback);
+coreEvents.on(CoreEvent.QuotaChanged, updateQuota);
+coreEvents.on(CoreEvent.ModelChanged, updateModel);
+
+<span class="comment">// 4. 订阅 MessageBus (处理确认弹窗)</span>
+<span class="keyword">const</span> bus = config.getMessageBus();
+bus.subscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, showConfirmDialog);
+bus.subscribe(MessageBusType.ASK_USER_REQUEST, showQuestionPanel);
+
+<span class="comment">// 5. 创建 GeminiChat 并运行 Turn</span>
+<span class="keyword">const</span> chat = <span class="keyword">new</span> <span class="type">GeminiChat</span>(config, systemPrompt, tools, []);
+<span class="keyword">const</span> turn = <span class="keyword">new</span> <span class="type">Turn</span>(chat, promptId);
+<span class="keyword">const</span> controller = <span class="keyword">new</span> AbortController();
+
+<span class="keyword">for await</span> (<span class="keyword">const</span> event <span class="keyword">of</span> turn.run(<span class="string">'default'</span>, userMessage, controller.signal)) {
+  <span class="keyword">switch</span>(event.type) {
+    <span class="keyword">case</span> GeminiEventType.Content:
+      appendMarkdown(event.value); <span class="keyword">break</span>;
+    <span class="keyword">case</span> GeminiEventType.Thought:
+      showThinking(event.value); <span class="keyword">break</span>;
+    <span class="keyword">case</span> GeminiEventType.ToolCallRequest:
+      showToolCard(event.value); <span class="keyword">break</span>;
+    <span class="keyword">case</span> GeminiEventType.ToolCallResponse:
+      updateToolResult(event.value); <span class="keyword">break</span>;
+    <span class="keyword">case</span> GeminiEventType.Finished:
+      showTokenStats(event.value.usageMetadata); <span class="keyword">break</span>;
+    <span class="keyword">case</span> GeminiEventType.Error:
+      showError(event.value.error); <span class="keyword">break</span>;
+  }
+}</code></pre>
+    </div>
+
+    <div class="subsection">
+      <h3>方案 B: 子进程 + Stream JSON (轻量集成)</h3>
+      <pre><code><span class="comment">// 适合 Electron 等场景，通过 stream-json 与 CLI 通信</span>
+<span class="keyword">const</span> proc = spawn(<span class="string">'gemini'</span>, [
+  <span class="string">'-p'</span>, userInput,
+  <span class="string">'--output-format'</span>, <span class="string">'stream-json'</span>,
+  <span class="string">'-m'</span>, <span class="string">'gemini-2.5-pro'</span>
+]);
+
+<span class="comment">// 解析 NDJSON 流</span>
+proc.stdout.on(<span class="string">'data'</span>, (chunk) => {
+  chunk.toString().split(<span class="string">'\n'</span>).filter(Boolean).forEach(line => {
+    <span class="keyword">const</span> event: <span class="type">JsonStreamEvent</span> = JSON.parse(line);
+    <span class="keyword">switch</span>(event.type) {
+      <span class="keyword">case</span> <span class="string">'init'</span>:       onSessionStart(event); <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'message'</span>:    onMessage(event); <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'tool_use'</span>:   onToolUse(event); <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'tool_result'</span>: onToolResult(event); <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'error'</span>:      onError(event); <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'result'</span>:     onComplete(event); <span class="keyword">break</span>;
+    }
+  });
+});</code></pre>
+    </div>
+
+    <div class="subsection">
+      <h3>GUI 组件映射表</h3>
+      <table>
+        <tr><th>GUI 组件</th><th>数据源 API</th><th>说明</th></tr>
+        <tr><td>🗨️ 聊天气泡</td><td><code>GeminiEventType.Content</code></td><td>流式 Markdown 渲染</td></tr>
+        <tr><td>🧠 思考过程折叠</td><td><code>GeminiEventType.Thought</code></td><td>ThoughtSummary.text</td></tr>
+        <tr><td>🔧 工具调用卡片</td><td><code>ToolCall 状态机</code></td><td>7 种状态实时更新</td></tr>
+        <tr><td>✅ 确认对话框</td><td><code>MessageBus.TOOL_CONFIRMATION_REQUEST</code></td><td>6 种 confirmation 类型</td></tr>
+        <tr><td>📝 Diff 预览</td><td><code>SerializableConfirmationDetails.edit</code></td><td>fileDiff / originalContent / newContent</td></tr>
+        <tr><td>❓ 用户问答面板</td><td><code>MessageBus.ASK_USER_REQUEST</code></td><td>choice / text / yesno</td></tr>
+        <tr><td>📊 Token 统计</td><td><code>GeminiFinishedEventValue.usageMetadata</code></td><td>input/output/cached tokens</td></tr>
+        <tr><td>📈 配额监控</td><td><code>CoreEvent.QuotaChanged</code></td><td>remaining / limit / resetTime</td></tr>
+        <tr><td>🔌 MCP 服务器面板</td><td><code>CoreEvent.McpClientUpdate</code></td><td>Map&lt;string, McpClient&gt;</td></tr>
+        <tr><td>⚙️ 模型切换器</td><td><code>config.setModel() + CoreEvent.ModelChanged</code></td><td>实时切换</td></tr>
+        <tr><td>📂 文件浏览器</td><td><code>FileDiscoveryService</code></td><td>项目文件树</td></tr>
+        <tr><td>🔍 搜索面板</td><td><code>GrepTool / GlobTool</code></td><td>文件内容搜索</td></tr>
+        <tr><td>🖥️ 内嵌终端</td><td><code>ShellTool + ShellExecutionService</code></td><td>Shell 输出流</td></tr>
+        <tr><td>📜 会话历史</td><td><code>ChatRecordingService / ConversationRecord</code></td><td>JSON 文件 + 恢复</td></tr>
+        <tr><td>🎨 主题设置</td><td><code>CustomTheme 接口</code></td><td>完整颜色定制</td></tr>
+        <tr><td>🤖 Agent 面板</td><td><code>AgentRegistry + CoreEvent.AgentsDiscovered</code></td><td>子代理管理</td></tr>
+        <tr><td>🪝 Hooks 管理</td><td><code>HookSystem + HookEventName</code></td><td>11 个生命周期钩子</td></tr>
+        <tr><td>🛡️ 策略管理</td><td><code>PolicyEngine + ApprovalMode</code></td><td>工具权限控制</td></tr>
+      </table>
+    </div>
+
+    <div class="tip">✅ <b>完整性说明</b>: 本文档覆盖了 Gemini CLI Core 的全部公开 API，包含 17 种事件类型、16+ 内置工具、11 个 Hook 点、8 种 MessageBus 消息、3 种认证方式、3 种输出格式。所有类型均可从 <code>@google/gemini-cli-core</code> 直接 import。</div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

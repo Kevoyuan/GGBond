@@ -5,7 +5,8 @@ import { getGeminiPath, getGeminiEnv } from '@/lib/gemini-utils';
 
 export async function POST(req: Request) {
   try {
-    const { prompt, model, systemInstruction, sessionId, workspace, mode, approvalMode, modelSettings } = await req.json();
+    // Extract parentId from request
+    const { prompt, model, systemInstruction, sessionId, workspace, mode, approvalMode, modelSettings, parentId } = await req.json();
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
@@ -78,6 +79,7 @@ export async function POST(req: Request) {
     let finalStats: any = null;
     let detectedSessionId = sessionId;
     let detectedModel = model || ''; // Use requested model or capture from init
+    let userMessageId: number | bigint | null = null;
     let userMessageSaved = false;
 
     const stream = new ReadableStream({
@@ -126,12 +128,15 @@ export async function POST(req: Request) {
                     }
 
                     if (!userMessageSaved) {
-                      db.prepare('INSERT INTO messages (session_id, role, content, created_at) VALUES (?, ?, ?, ?)').run(
+                      const stmt = db.prepare('INSERT INTO messages (session_id, role, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)');
+                      const info = stmt.run(
                         detectedSessionId,
                         'user',
                         prompt,
+                        parentId || null,
                         now
                       );
+                      userMessageId = info.lastInsertRowid;
                       userMessageSaved = true;
                     }
                   } catch (dbErr) {
@@ -156,11 +161,12 @@ export async function POST(req: Request) {
                 try {
                   const now = Date.now();
                   if (detectedSessionId) {
-                    db.prepare('INSERT INTO messages (session_id, role, content, stats, created_at) VALUES (?, ?, ?, ?, ?)').run(
+                    db.prepare('INSERT INTO messages (session_id, role, content, stats, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
                       detectedSessionId,
                       'model',
                       fullResponseContent,
                       finalStats ? JSON.stringify(finalStats) : null,
+                      userMessageId, // Use user message as parent
                       now + 1
                     );
                   }
