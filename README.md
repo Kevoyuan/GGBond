@@ -97,3 +97,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Support
 
 If you encounter any issues or have questions, please file an issue in the repository or consult the documentation files included in the project.
+
+## Other Languages
+
+- [中文文档](./README.zh-CN.md)
