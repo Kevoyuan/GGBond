@@ -24,9 +24,11 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 interface Session {
   id: string;
   title: string;
-  created_at: string;
-  updated_at: string;
+  created_at: string | number;
+  updated_at: string | number;
   workspace?: string;
+  isCore?: boolean;
+  lastUpdated?: string;
 }
 
 export default function Home() {
@@ -178,11 +180,31 @@ export default function Home() {
   // Fetch Sessions on Mount
   const fetchSessions = async () => {
     try {
-      const res = await fetch('/api/sessions');
-      if (res.ok) {
-        const data = await res.json();
-        setSessions(data);
+      const dbRes = await fetch('/api/sessions');
+      const coreRes = await fetch('/api/sessions/core');
+
+      let allSessions: Session[] = [];
+
+      if (dbRes.ok) {
+        const dbSessions = await dbRes.json();
+        allSessions = [...dbSessions];
       }
+
+      if (coreRes.ok) {
+        const coreSessions = await coreRes.json();
+        // Avoid duplicates if IDs match, though they shouldn't usually
+        const coreFiltered = coreSessions.filter((cs: any) => !allSessions.some(s => s.id === cs.id));
+        allSessions = [...allSessions, ...coreFiltered];
+      }
+
+      // Sort by updated_at desc
+      allSessions.sort((a, b) => {
+        const timeA = new Date(a.updated_at || a.lastUpdated || 0).getTime();
+        const timeB = new Date(b.updated_at || b.lastUpdated || 0).getTime();
+        return timeB - timeA;
+      });
+
+      setSessions(allSessions);
     } catch (error) {
       console.error('Failed to fetch sessions', error);
     }
