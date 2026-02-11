@@ -401,6 +401,7 @@ export default function Home() {
       let buffer = '';
       let assistantContent = '';
       let assistantThought = '';
+      let assistantCitations: string[] = [];
       let streamSessionId = currentSessionId;
 
       while (true) {
@@ -452,6 +453,11 @@ export default function Home() {
               if (questions && correlationId) {
                 setActiveQuestion({ questions, title, correlationId });
               }
+            }
+
+            if (data.type === 'citation') {
+              assistantCitations.push(data.content);
+              updateMessageInTree(assistantMsgId, { citations: [...assistantCitations] });
             }
 
             if (data.type === 'hook' || data.type === 'hook_event') {
