@@ -243,4 +243,29 @@ export class CoreService {
         if (!this.chat) return;
         this.chat.getChatRecordingService().deleteSession(sessionId);
     }
+
+    public getAgents() {
+        if (!this.config) return [];
+        return this.config.getAgentRegistry().getAllDefinitions();
+    }
+
+    public async getQuota() {
+        if (!this.config) return null;
+        return await this.config.refreshUserQuota();
+    }
+
+    public getMemoryFiles() {
+        if (!this.config) return [];
+        const contextManager = this.config.getContextManager();
+        if (!contextManager) return [];
+        return Array.from(contextManager.getLoadedPaths());
+    }
+
+    public async refreshMemory() {
+        if (!this.config) return;
+        const contextManager = this.config.getContextManager();
+        if (contextManager) {
+            await contextManager.refresh();
+        }
+    }
 }

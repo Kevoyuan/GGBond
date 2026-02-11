@@ -110,6 +110,7 @@ export default function Home() {
   const [confirmation, setConfirmation] = useState<{ details: ConfirmationDetails, correlationId: string } | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<{ questions: Question[], title: string, correlationId: string } | null>(null);
   const [hookEvents, setHookEvents] = useState<HookEvent[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<any | null>(null);
 
   const sessionStats = useMemo(() => {
     return messages.reduce((acc, msg) => {
@@ -673,6 +674,8 @@ export default function Home() {
           onShowStats={() => setShowUsageStats(true)}
           onFileSelect={(file) => setPreviewFile(file)}
           hookEvents={hookEvents}
+          onSelectAgent={(agent) => setSelectedAgent(agent)}
+          selectedAgentName={selectedAgent?.name}
         />
       </div>
 

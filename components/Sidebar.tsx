@@ -20,21 +20,30 @@ import {
   PanelLeftOpen,
   GitBranch,
   ShieldCheck,
-  Zap
+  Zap,
+  Layers,
+  Activity,
+  Database
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
+import { AgentPanel } from './AgentPanel';
+import { QuotaPanel } from './QuotaPanel';
+import { MemoryPanel } from './MemoryPanel';
 import { FileTree } from './FileTree';
-import { HooksPanel, HookEvent } from './HooksPanel';
+import { HooksPanel, type HookEvent } from './HooksPanel';
 import { MCPPanel } from './MCPPanel';
 import { UsageStatsDialog } from './UsageStatsDialog';
 
 interface Session {
   id: string;
   title: string;
-  created_at: string;
+  created_at: string | number;
+  updated_at?: string | number;
   workspace?: string;
+  isCore?: boolean;
+  lastUpdated?: string;
 }
 
 interface SidebarProps {
@@ -54,9 +63,11 @@ interface SidebarProps {
   onAddWorkspace?: () => void;
   onFileSelect?: (file: { name: string; path: string }) => void;
   hookEvents?: HookEvent[];
+  onSelectAgent?: (agent: any) => void;
+  selectedAgentName?: string;
 }
 
-type SidebarView = 'chat' | 'files' | 'hooks' | 'mcp';
+type SidebarView = 'chat' | 'files' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory';
 
 const MIN_SIDEBAR_WIDTH = 160;
 const MAX_SIDEBAR_WIDTH = 600;
@@ -113,7 +124,9 @@ export function Sidebar({
   currentWorkspace,
   onAddWorkspace,
   onFileSelect,
-  hookEvents = []
+  hookEvents = [],
+  onSelectAgent,
+  selectedAgentName
 }: SidebarProps) {
   const [activeView, setActiveView] = useState<SidebarView>('chat');
   const [searchTerm, setSearchTerm] = useState('');
@@ -270,6 +283,27 @@ export function Sidebar({
             onClick={() => setActiveView('mcp')}
             icon={Plug}
             label="MCP"
+          />
+
+          <NavButton
+            active={activeView === 'agents'}
+            onClick={() => setActiveView('agents')}
+            icon={Layers}
+            label="Agents"
+          />
+
+          <NavButton
+            active={activeView === 'quota'}
+            onClick={() => setActiveView('quota')}
+            icon={Activity}
+            label="Quota"
+          />
+
+          <NavButton
+            active={activeView === 'memory'}
+            onClick={() => setActiveView('memory')}
+            icon={Database}
+            label="Knowledge Base"
           />
         </div>
 
@@ -445,6 +479,12 @@ export function Sidebar({
           <FileTree className="h-full" initialPath={currentWorkspace || undefined} onFileSelect={onFileSelect} />
         ) : activeView === 'hooks' ? (
           <HooksPanel className="h-full" events={hookEvents} />
+        ) : activeView === 'agents' ? (
+          <AgentPanel className="h-full" onSelectAgent={onSelectAgent!} selectedAgentName={selectedAgentName} />
+        ) : activeView === 'quota' ? (
+          <QuotaPanel className="h-full" />
+        ) : activeView === 'memory' ? (
+          <MemoryPanel className="h-full" onFileSelect={onFileSelect} />
         ) : (
           <MCPPanel className="h-full" />
         )}
