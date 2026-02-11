@@ -23,20 +23,20 @@ export async function GET(req: Request) {
     const entries = await fs.readdir(targetPath, { withFileTypes: true });
 
     const core = CoreService.getInstance();
-    const fileDiscovery = core.getFileDiscoveryService();
+    let files = entries.map(entry => ({
+      name: entry.name,
+      type: entry.isDirectory() ? 'directory' : 'file',
+      path: path.join(targetPath, entry.name),
+      extension: entry.isDirectory() ? null : path.extname(entry.name).toLowerCase(),
+      isIgnored: false
+    }));
 
-    const files = entries
-      .map(entry => {
-        const fullPath = path.join(targetPath, entry.name);
-        return {
-          name: entry.name,
-          type: entry.isDirectory() ? 'directory' : 'file',
-          path: fullPath,
-          extension: entry.isDirectory() ? null : path.extname(entry.name).toLowerCase(),
-          isIgnored: fileDiscovery.shouldIgnoreFile(fullPath)
-        };
-      })
-      .filter(f => !f.isIgnored);
+    try {
+      const fileDiscovery = core.getFileDiscoveryService();
+      files = files.filter(f => !fileDiscovery.shouldIgnoreFile(f.path));
+    } catch (e) {
+      console.warn('[FileAPI] FileDiscoveryService failed, falling back to all files', e);
+    }
 
     // Sort: Directories first, then files
     files.sort((a, b) => {
