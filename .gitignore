@@ -51,3 +51,4 @@ htmlcov/
 gemini-home/
 .gemini/
 .npm-cache/
+.codex/environments/environment.toml
