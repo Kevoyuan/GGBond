@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
         }
 
         const core = CoreService.getInstance();
-        core.submitConfirmation(correlationId, confirmed);
+        await core.submitConfirmation(correlationId, confirmed);
 
         return NextResponse.json({ success: true });
     } catch (error) {

@@ -19,10 +19,17 @@ import {
     getProjectHash,
     AuthType,
     ApprovalMode,
-    TelemetrySettings
+    TelemetrySettings,
+    ToolConfirmationOutcome,
 } from '@google/gemini-cli-core';
 import type { Tool } from '@google/genai';
-import type { CompletedToolCall, ToolCallRequestInfo } from '@google/gemini-cli-core/dist/src/scheduler/types.js';
+import type {
+    CompletedToolCall,
+    ToolCall,
+    ToolCallRequestInfo,
+    WaitingToolCall,
+} from '@google/gemini-cli-core/dist/src/scheduler/types.js';
+import type { SerializableConfirmationDetails } from '@google/gemini-cli-core/dist/src/confirmation-bus/types.js';
 
 // Monkey patch debugLogger to prevent circular JSON errors in Next.js environment
 import { debugLogger } from '@google/gemini-cli-core/dist/src/utils/debugLogger.js';
@@ -61,18 +68,43 @@ export interface InitParams {
     systemInstruction?: string;
 }
 
+type PendingConfirmationRequest = {
+    correlationId: string;
+    details: SerializableConfirmationDetails;
+    toolCall: {
+        name: string;
+        args: Record<string, unknown>;
+    };
+    serverName?: string;
+};
+
+type PendingConfirmation = {
+    callId: string;
+    onConfirm: (confirmed: boolean) => Promise<void>;
+};
+
 export class CoreService {
     private static _instance: CoreService;
     public config: Config | null = null;
     public chat: GeminiChat | null = null;
     public messageBus: MessageBus | null = null;
     private initialized = false;
+    private pendingConfirmations = new Map<string, PendingConfirmation>();
+    private pendingConfirmationByCallId = new Map<string, string>();
+    private confirmationSubscribers = new Set<(request: PendingConfirmationRequest) => void>();
 
     private constructor() { }
 
     public static getInstance(): CoreService {
         if (process.env.NODE_ENV === 'development') {
-            if (!global.__gemini_core_service) {
+            const isStaleInstance =
+                !!global.__gemini_core_service &&
+                typeof (global.__gemini_core_service as unknown as {
+                    subscribeConfirmationRequests?: unknown;
+                    submitConfirmation?: unknown;
+                }).subscribeConfirmationRequests !== 'function';
+
+            if (!global.__gemini_core_service || isStaleInstance) {
                 global.__gemini_core_service = new CoreService();
             }
             return global.__gemini_core_service;
@@ -253,15 +285,15 @@ export class CoreService {
         this.messageBus?.subscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, async (request) => {
             console.log('[MessageBus] Tool Confirmation Request:', request);
             // Temporary unblock for common QA/search flows in GUI:
-            // auto-approve web search so chat won't hang on unanswered confirmation.
+            // auto-approve specific low-risk tools so chat won't hang on unanswered confirmation.
             try {
                 const toolName = (request as { toolCall?: { name?: string } })?.toolCall?.name;
-                if (toolName === 'google_web_search') {
+                if (toolName === 'google_web_search' || toolName === 'activate_skill') {
                     this.messageBus?.publish({
                         type: MessageBusType.TOOL_CONFIRMATION_RESPONSE,
                         correlationId: (request as { correlationId: string }).correlationId,
                         confirmed: true,
-                        outcome: 'allow'
+                        outcome: 'proceed_once'
                     } as never);
                     return;
                 }
@@ -271,8 +303,178 @@ export class CoreService {
         });
     }
 
+    public subscribeConfirmationRequests(
+        listener: (request: PendingConfirmationRequest) => void
+    ): () => void {
+        this.confirmationSubscribers.add(listener);
+        return () => {
+            this.confirmationSubscribers.delete(listener);
+        };
+    }
+
+    private emitConfirmationRequest(request: PendingConfirmationRequest) {
+        for (const listener of this.confirmationSubscribers) {
+            try {
+                listener(request);
+            } catch (error) {
+                console.error('[CoreService] Confirmation subscriber error:', error);
+            }
+        }
+    }
+
+    private toSerializableConfirmationDetails(
+        details: unknown,
+        request: ToolCallRequestInfo
+    ): SerializableConfirmationDetails {
+        const fallbackTitle = `Confirm ${request.name}`;
+        const fallbackPrompt = 'Please confirm this tool call.';
+        const data = (details && typeof details === 'object')
+            ? (details as Record<string, unknown>)
+            : {};
+        const type = typeof data.type === 'string' ? data.type : 'info';
+
+        if (type === 'exec') {
+            const command = typeof data.command === 'string'
+                ? data.command
+                : String((request.args as { command?: unknown })?.command ?? '');
+            const rootCommand = typeof data.rootCommand === 'string'
+                ? data.rootCommand
+                : (command.trim().split(/\s+/)[0] || 'shell command');
+            const rootCommands = Array.isArray(data.rootCommands)
+                ? data.rootCommands.map((value) => String(value))
+                : [rootCommand];
+
+            return {
+                type: 'exec',
+                title: typeof data.title === 'string' ? data.title : fallbackTitle,
+                command,
+                rootCommand,
+                rootCommands,
+                commands: Array.isArray(data.commands)
+                    ? data.commands.map((value) => String(value))
+                    : undefined,
+            };
+        }
+
+        if (type === 'edit') {
+            return {
+                type: 'edit',
+                title: typeof data.title === 'string' ? data.title : fallbackTitle,
+                fileName: typeof data.fileName === 'string' ? data.fileName : 'unknown',
+                filePath: typeof data.filePath === 'string' ? data.filePath : '',
+                fileDiff: typeof data.fileDiff === 'string' ? data.fileDiff : '',
+                originalContent: typeof data.originalContent === 'string' || data.originalContent === null
+                    ? data.originalContent as string | null
+                    : null,
+                newContent: typeof data.newContent === 'string' ? data.newContent : '',
+                isModifying: Boolean(data.isModifying),
+            };
+        }
+
+        if (type === 'mcp') {
+            return {
+                type: 'mcp',
+                title: typeof data.title === 'string' ? data.title : fallbackTitle,
+                serverName: typeof data.serverName === 'string' ? data.serverName : 'unknown',
+                toolName: typeof data.toolName === 'string' ? data.toolName : request.name,
+                toolDisplayName: typeof data.toolDisplayName === 'string'
+                    ? data.toolDisplayName
+                    : (typeof data.toolName === 'string' ? data.toolName : request.name),
+            };
+        }
+
+        if (type === 'ask_user') {
+            return {
+                type: 'ask_user',
+                title: typeof data.title === 'string' ? data.title : 'Ask User',
+                questions: Array.isArray(data.questions) ? data.questions as any[] : [],
+            };
+        }
+
+        if (type === 'exit_plan_mode') {
+            return {
+                type: 'exit_plan_mode',
+                title: typeof data.title === 'string' ? data.title : 'Plan Approval',
+                planPath: typeof data.planPath === 'string' ? data.planPath : '',
+            };
+        }
+
+        return {
+            type: 'info',
+            title: typeof data.title === 'string' ? data.title : fallbackTitle,
+            prompt: typeof data.prompt === 'string' ? data.prompt : fallbackPrompt,
+            urls: Array.isArray(data.urls) ? data.urls.map((value) => String(value)) : undefined,
+        };
+    }
+
+    private registerPendingConfirmation(waitingCall: WaitingToolCall) {
+        const callId = waitingCall.request.callId;
+        if (this.pendingConfirmationByCallId.has(callId)) {
+            return;
+        }
+
+        const rawDetails = waitingCall.confirmationDetails as Record<string, unknown>;
+        if (!rawDetails || typeof rawDetails.onConfirm !== 'function') {
+            return;
+        }
+
+        const correlationId = crypto.randomUUID();
+        const serializableDetails = this.toSerializableConfirmationDetails(rawDetails, waitingCall.request);
+        const onConfirm = rawDetails.onConfirm as (outcome: ToolConfirmationOutcome) => Promise<void>;
+
+        this.pendingConfirmations.set(correlationId, {
+            callId,
+            onConfirm: async (confirmed: boolean) => {
+                const outcome = confirmed
+                    ? ToolConfirmationOutcome.ProceedOnce
+                    : ToolConfirmationOutcome.Cancel;
+                await onConfirm(outcome);
+            },
+        });
+        this.pendingConfirmationByCallId.set(callId, correlationId);
+
+        this.emitConfirmationRequest({
+            correlationId,
+            details: serializableDetails,
+            toolCall: {
+                name: waitingCall.request.name,
+                args: waitingCall.request.args,
+            },
+            serverName:
+                serializableDetails.type === 'mcp'
+                    ? serializableDetails.serverName
+                    : undefined,
+        });
+    }
+
+    private cleanupPendingConfirmationByCallId(callId: string) {
+        const correlationId = this.pendingConfirmationByCallId.get(callId);
+        if (!correlationId) return;
+        this.pendingConfirmationByCallId.delete(callId);
+        this.pendingConfirmations.delete(correlationId);
+    }
+
+    private syncPendingConfirmations(toolCalls: ToolCall[]) {
+        const awaitingCalls = toolCalls.filter(
+            (toolCall): toolCall is WaitingToolCall => toolCall.status === 'awaiting_approval'
+        );
+        const awaitingCallIds = new Set(awaitingCalls.map((toolCall) => toolCall.request.callId));
+
+        for (const [callId] of this.pendingConfirmationByCallId) {
+            if (!awaitingCallIds.has(callId)) {
+                this.cleanupPendingConfirmationByCallId(callId);
+            }
+        }
+
+        for (const waitingCall of awaitingCalls) {
+            this.registerPendingConfirmation(waitingCall);
+        }
+    }
+
     public async *runTurn(message: string, signal?: AbortSignal) {
         if (!this.chat) throw new Error('Chat not initialized');
+        this.pendingConfirmations.clear();
+        this.pendingConfirmationByCallId.clear();
 
         // Runtime guard: some integration paths may accidentally set tools
         // to FunctionDeclaration[] instead of Tool[].
@@ -359,7 +561,11 @@ export class CoreService {
             const scheduler = new CoreToolScheduler({
                 config: this.config!,
                 getPreferredEditor: () => undefined,
+                onToolCallsUpdate: (toolCalls) => {
+                    this.syncPendingConfirmations(toolCalls);
+                },
                 onAllToolCallsComplete: async (completedCalls) => {
+                    this.syncPendingConfirmations([]);
                     resolve(completedCalls);
                 }
             });
@@ -368,20 +574,48 @@ export class CoreService {
         });
     }
 
-    public submitConfirmation(correlationId: string, confirmed: boolean) {
+    public async submitConfirmation(correlationId: string, confirmed: boolean) {
+        console.log('[CoreService] Submitting confirmation:', { correlationId, confirmed });
+
+        let pending = this.pendingConfirmations.get(correlationId);
+        if (!pending && this.pendingConfirmations.size === 1) {
+            const onlyEntry = Array.from(this.pendingConfirmations.entries())[0];
+            if (onlyEntry) {
+                const [fallbackCorrelationId, fallbackPending] = onlyEntry;
+                console.warn('[CoreService] Confirmation correlation mismatch; using single pending fallback', {
+                    receivedCorrelationId: correlationId,
+                    fallbackCorrelationId,
+                });
+                pending = fallbackPending;
+                correlationId = fallbackCorrelationId;
+            }
+        }
+
+        if (pending) {
+            this.cleanupPendingConfirmationByCallId(pending.callId);
+            await pending.onConfirm(confirmed);
+            return;
+        }
+
+        console.warn('[CoreService] No pending scheduler confirmation found; falling back to MessageBus', {
+            correlationId,
+            pendingCount: this.pendingConfirmations.size,
+            pendingCorrelationIds: Array.from(this.pendingConfirmations.keys()),
+        });
+
+        // Backward-compat fallback for older message-bus based confirmation flows.
         if (!this.messageBus) {
             console.warn('[CoreService] MessageBus not initialized');
             return;
         }
 
-        console.log('[CoreService] Submitting confirmation:', { correlationId, confirmed });
-
-        // MessageBusType.TOOL_CONFIRMATION_RESPONSE
         this.messageBus.publish({
             type: MessageBusType.TOOL_CONFIRMATION_RESPONSE,
             correlationId,
             confirmed,
-            outcome: confirmed ? 'allow' : 'deny'
+            outcome: confirmed
+                ? ToolConfirmationOutcome.ProceedOnce
+                : ToolConfirmationOutcome.Cancel
         } as any);
     }
 

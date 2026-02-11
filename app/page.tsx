@@ -46,7 +46,7 @@ export default function Home() {
 
   // Settings state
   const [settings, setSettings] = useState<ChatSettings>({
-    model: 'auto-gemini-3',
+    model: 'gemini-3-pro-preview',
     systemInstruction: '',
     ui: {
       footer: {
@@ -150,7 +150,21 @@ export default function Home() {
     const saved = localStorage.getItem('gem-ui-settings');
     if (saved) {
       try {
-        setSettings(JSON.parse(saved));
+        const parsed = JSON.parse(saved) as ChatSettings;
+        const allowedModels = new Set([
+          'gemini-3-pro-preview',
+          'gemini-3-flash-preview',
+          'gemini-2.5-pro',
+          'gemini-2.5-flash',
+          'gemini-2.5-flash-lite',
+        ]);
+
+        setSettings({
+          ...parsed,
+          model: allowedModels.has(parsed.model)
+            ? parsed.model
+            : 'gemini-3-pro-preview',
+        });
       } catch (e) { console.error('Failed to parse settings', e); }
     }
   }, []);
@@ -358,21 +372,13 @@ export default function Home() {
     // 1. Add User Message
     const userMsgId = addMessageToTree({ role: 'user', content: text }, parentIdToUse);
 
-    // Map UI model aliases to actual CLI model IDs
-    let actualModel = settings.model;
-    if (settings.model === 'auto-gemini-3') {
-      actualModel = 'gemini-3-pro-preview';
-    } else if (settings.model === 'auto-gemini-2.5') {
-      actualModel = 'gemini-2.5-pro';
-    }
-
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: text,
-          model: actualModel,
+          model: settings.model,
           systemInstruction: settings.systemInstruction,
           sessionId: currentSessionId,
           workspace: currentWorkspace,
@@ -433,7 +439,11 @@ export default function Home() {
               updateMessageInTree(assistantMsgId, updates);
             }
 
-            if (data.type === 'tool_confirmation' || data.type === 'tool_call_confirmation') {
+            if (
+              data.type === 'tool_confirmation' ||
+              data.type === 'tool_call_confirmation' ||
+              data.type === 'tool-confirmation-request'
+            ) {
               // Handle interactive confirmation
               // Expecting data.value.details which matches ConfirmationDetails structure
               const details = data.value?.details || data.details;
@@ -453,7 +463,7 @@ export default function Home() {
               }
             }
 
-            if (data.type === 'ask_user' || data.type === 'ask_user_request') {
+            if (data.type === 'ask_user' || data.type === 'ask_user_request' || data.type === 'ask-user-request') {
               // Handle tool questioning
               const questions = data.value?.questions || data.questions;
               const title = data.value?.title || data.title || 'User Inquiry';

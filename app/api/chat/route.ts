@@ -2,10 +2,12 @@
 import { NextResponse } from 'next/server';
 import { CoreService } from '@/lib/core-service';
 import db from '@/lib/db';
+import { getGeminiEnv } from '@/lib/gemini-utils';
 import {
   GeminiEventType,
   ToolCallRequestInfo,
-  ToolCallResponseInfo
+  ToolCallResponseInfo,
+  MessageBusType
 } from '@google/gemini-cli-core';
 
 export async function POST(req: Request) {
@@ -28,9 +30,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
 
-    // Force fallback to gemini-2.0-flash if potentially unstable preview model is requested
-    const requestedModel = model || 'gemini-2.5-pro';
-    const targetModel = requestedModel.includes('preview') ? 'gemini-2.0-flash' : requestedModel;
+    // Respect the model selected by UI/caller; do not silently downgrade preview models.
+    const targetModel = model || 'gemini-2.5-pro';
+
+    // Keep CoreService runtime home aligned with CLI env selection logic (skills/auth consistency).
+    const env = getGeminiEnv();
+    if (env.GEMINI_CLI_HOME) {
+      process.env.GEMINI_CLI_HOME = env.GEMINI_CLI_HOME;
+    }
 
     // Initialize CoreService
     const core = CoreService.getInstance();
@@ -63,6 +70,22 @@ export async function POST(req: Request) {
     // DB Logging Setup
     const now = Date.now();
     let userMessageId: number | bigint | null = null;
+    const parseParentId = (rawParentId: unknown): number | null => {
+      if (rawParentId === null || rawParentId === undefined) return null;
+      const parsed = typeof rawParentId === 'number' ? rawParentId : Number(rawParentId);
+      if (!Number.isInteger(parsed) || parsed <= 0) return null;
+      return parsed;
+    };
+
+    const requestedParentId = parseParentId(parentId);
+    const validatedParentId = requestedParentId
+      ? (() => {
+          const parentExists = db
+            .prepare('SELECT id FROM messages WHERE id = ? AND session_id = ?')
+            .get(requestedParentId, finalSessionId);
+          return parentExists ? requestedParentId : null;
+        })()
+      : null;
 
     // 1. Log Session & User Message
     try {
@@ -80,7 +103,7 @@ export async function POST(req: Request) {
         }
 
         const stmt = db.prepare('INSERT INTO messages (session_id, role, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)');
-        return stmt.run(finalSessionId, 'user', prompt, parentId || null, now);
+        return stmt.run(finalSessionId, 'user', prompt, validatedParentId, now);
       });
 
       const info = insertSessionFn();
@@ -94,6 +117,70 @@ export async function POST(req: Request) {
 
     const stream = new ReadableStream({
       async start(controller) {
+        const messageBus = core.messageBus;
+        const coreWithConfirmation = core as unknown as {
+          subscribeConfirmationRequests?: (
+            listener: (request: {
+              correlationId: string;
+              details: unknown;
+              toolCall: unknown;
+              serverName?: string;
+            }) => void
+          ) => () => void;
+        };
+
+        const onLegacyToolConfirmationRequest = (request: any) => {
+          controller.enqueue(encoder.encode(JSON.stringify({
+            type: 'tool_confirmation',
+            correlationId: request?.correlationId,
+            details: request?.details || {
+              type: 'info',
+              title: request?.toolCall?.name || 'Tool Confirmation',
+              prompt: 'Please confirm this tool call.'
+            },
+            toolCall: request?.toolCall,
+            serverName: request?.serverName
+          }) + '\n'));
+        };
+
+        const unsubscribeConfirmation =
+          typeof coreWithConfirmation.subscribeConfirmationRequests === 'function'
+            ? coreWithConfirmation.subscribeConfirmationRequests((request) => {
+                controller.enqueue(encoder.encode(JSON.stringify({
+                  type: 'tool_confirmation',
+                  correlationId: request.correlationId,
+                  details: request.details,
+                  toolCall: request.toolCall,
+                  serverName: request.serverName
+                }) + '\n'));
+              })
+            : () => { };
+
+        const onAskUserRequest = (request: any) => {
+          controller.enqueue(encoder.encode(JSON.stringify({
+            type: 'ask_user_request',
+            correlationId: request?.correlationId,
+            questions: request?.questions || [],
+            title: 'User Inquiry'
+          }) + '\n'));
+        };
+
+        if (messageBus) {
+          if (typeof coreWithConfirmation.subscribeConfirmationRequests !== 'function') {
+            messageBus.subscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, onLegacyToolConfirmationRequest);
+          }
+          messageBus.subscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
+        }
+
+        const cleanupMessageBusListeners = () => {
+          unsubscribeConfirmation();
+          if (!messageBus) return;
+          if (typeof coreWithConfirmation.subscribeConfirmationRequests !== 'function') {
+            messageBus.unsubscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, onLegacyToolConfirmationRequest);
+          }
+          messageBus.unsubscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
+        };
+
         // Send Init Event
         const initEvent = {
           type: 'init',
@@ -217,6 +304,7 @@ export async function POST(req: Request) {
             error: { message: errorMessage }
           }) + '\n'));
         } finally {
+          cleanupMessageBusListeners();
           controller.close();
         }
       }

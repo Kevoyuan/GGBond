@@ -12,7 +12,7 @@ export const PRICING_RATES: Record<string, ModelPricing> = {
   // Output: $12.00 / 1M
   // Cached: $0.20 / 1M
   // Context: 1M (Preview)
-  'gemini-3-pro': {
+  'gemini-3-pro-preview': {
     input: 2.00 / 1_000_000,
     output: 12.00 / 1_000_000,
     cached: 0.20 / 1_000_000,
@@ -22,7 +22,7 @@ export const PRICING_RATES: Record<string, ModelPricing> = {
   // Input: $0.50 / 1M
   // Output: $3.00 / 1M
   // Context: 1M
-  'gemini-3-flash': {
+  'gemini-3-flash-preview': {
     input: 0.50 / 1_000_000,
     output: 3.00 / 1_000_000,
     cached: 0.05 / 1_000_000,
@@ -54,32 +54,26 @@ export const PRICING_RATES: Record<string, ModelPricing> = {
   },
 };
 
-// Aliases for CLI model names
-export const MODEL_ALIASES: Record<string, string> = {
-  'auto-gemini-3': 'gemini-3-pro', // Default CLI model
-  'auto-gemini-2.5': 'gemini-2.5-pro',
-  'gemini-3-pro-preview': 'gemini-3-pro',
-  'gemini-3-flash-preview': 'gemini-3-flash',
-};
-
-export const DEFAULT_PRICING = PRICING_RATES['gemini-3-pro'];
+export const DEFAULT_PRICING = PRICING_RATES['gemini-3-pro-preview'];
 
 export function getModelInfo(modelName?: string): { pricing: ModelPricing, name: string } {
   let pricing = DEFAULT_PRICING;
-  let name = 'gemini-3-pro';
+  let name = 'gemini-3-pro-preview';
 
   if (modelName) {
     const normalizedModel = modelName.toLowerCase();
-    // Check direct match or alias
-    const resolvedModel = MODEL_ALIASES[normalizedModel] || normalizedModel;
+    const resolvedModel = normalizedModel;
     if (PRICING_RATES[resolvedModel]) {
       pricing = PRICING_RATES[resolvedModel];
       name = resolvedModel;
     }
     // Fallbacks
     else if (normalizedModel.includes('flash') && normalizedModel.includes('3')) {
-      pricing = PRICING_RATES['gemini-3-flash'];
-      name = 'gemini-3-flash';
+      pricing = PRICING_RATES['gemini-3-flash-preview'];
+      name = 'gemini-3-flash-preview';
+    } else if (normalizedModel.includes('pro') && normalizedModel.includes('3')) {
+      pricing = PRICING_RATES['gemini-3-pro-preview'];
+      name = 'gemini-3-pro-preview';
     } else if (normalizedModel.includes('2.5') && normalizedModel.includes('pro')) {
       pricing = PRICING_RATES['gemini-2.5-pro'];
       name = 'gemini-2.5-pro';
