@@ -23,7 +23,8 @@ import {
   Zap,
   Layers,
   Activity,
-  Database
+  Database,
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -309,6 +310,14 @@ export function Sidebar({
 
         <div className="mt-auto flex flex-col gap-3 w-full px-2 items-center">
           <button
+            onClick={onOpenSkills}
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            title="Skills"
+          >
+            <Sparkles className="w-5 h-5" />
+          </button>
+
+          <button
             onClick={toggleSidebar}
             className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
             title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
@@ -536,4 +545,3 @@ function NavButton({ active, onClick, icon: Icon, label }: NavButtonProps) {
     </div>
   );
 }
-

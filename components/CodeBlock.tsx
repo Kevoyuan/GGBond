@@ -51,7 +51,6 @@ export function CodeBlock({ language, code }: CodeBlockProps) {
             </div>
 
             {/* Code */}
-            {/* @ts-expect-error - react-syntax-highlighter types incompatibility */}
             <SyntaxHighlighter
                 style={vscDarkPlus}
                 language={language}
