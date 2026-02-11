@@ -9,8 +9,131 @@ interface ThinkingBlockProps {
     defaultExpanded?: boolean;
 }
 
+interface ParsedThoughtItem {
+    subject: string;
+    description: string;
+}
+
+function splitConcatenatedJsonObjects(input: string): string[] {
+    const chunks: string[] = [];
+    let start = -1;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < input.length; i++) {
+        const ch = input[i];
+
+        if (inString) {
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (ch === '\\') {
+                escaped = true;
+                continue;
+            }
+            if (ch === '"') {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (ch === '"') {
+            inString = true;
+            continue;
+        }
+
+        if (ch === '{') {
+            if (depth === 0) start = i;
+            depth++;
+            continue;
+        }
+
+        if (ch === '}') {
+            if (depth > 0) depth--;
+            if (depth === 0 && start >= 0) {
+                chunks.push(input.slice(start, i + 1));
+                start = -1;
+            }
+        }
+    }
+
+    return chunks;
+}
+
+function toThoughtItem(obj: unknown): ParsedThoughtItem | null {
+    if (!obj || typeof obj !== 'object') return null;
+    const record = obj as Record<string, unknown>;
+    const subject = typeof record.subject === 'string' ? record.subject.trim() : '';
+    const description = typeof record.description === 'string' ? record.description.trim() : '';
+    if (!subject && !description) return null;
+
+    return {
+        subject: subject || 'Untitled',
+        description,
+    };
+}
+
+function parseThinkingItems(content: string): ParsedThoughtItem[] {
+    const normalized = content.trim();
+    if (!normalized) return [];
+
+    const items: ParsedThoughtItem[] = [];
+
+    const direct = (() => {
+        try {
+            return JSON.parse(normalized) as unknown;
+        } catch {
+            return null;
+        }
+    })();
+
+    if (Array.isArray(direct)) {
+        for (const entry of direct) {
+            const item = toThoughtItem(entry);
+            if (item) items.push(item);
+        }
+    } else if (direct) {
+        const item = toThoughtItem(direct);
+        if (item) items.push(item);
+    }
+
+    if (items.length > 0) return items;
+
+    const byLines = normalized
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    for (const line of byLines) {
+        try {
+            const parsed = JSON.parse(line) as unknown;
+            const item = toThoughtItem(parsed);
+            if (item) items.push(item);
+        } catch {
+            // ignore non-JSON lines
+        }
+    }
+    if (items.length > 0) return items;
+
+    for (const chunk of splitConcatenatedJsonObjects(normalized)) {
+        try {
+            const parsed = JSON.parse(chunk) as unknown;
+            const item = toThoughtItem(parsed);
+            if (item) items.push(item);
+        } catch {
+            // ignore malformed chunk
+        }
+    }
+
+    return items;
+}
+
 export function ThinkingBlock({ content, defaultExpanded = false }: ThinkingBlockProps) {
     const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+    const parsedItems = parseThinkingItems(content);
+    const hasStructuredItems = parsedItems.length > 0;
 
     if (!content) return null;
 
@@ -32,9 +155,29 @@ export function ThinkingBlock({ content, defaultExpanded = false }: ThinkingBloc
 
             {isExpanded && (
                 <div className="px-4 py-3 border-t border-border/50 bg-background/50 text-sm text-muted-foreground">
-                    <div className="prose dark:prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-muted/50">
-                        <ReactMarkdown>{content}</ReactMarkdown>
-                    </div>
+                    {hasStructuredItems ? (
+                        <div className="space-y-2.5">
+                            {parsedItems.map((item, idx) => (
+                                <div
+                                    key={`${item.subject}-${idx}`}
+                                    className="rounded-md border border-border/60 bg-muted/20 px-3 py-2.5"
+                                >
+                                    <div className="text-xs font-semibold text-foreground">
+                                        {idx + 1}. {item.subject}
+                                    </div>
+                                    {item.description && (
+                                        <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                            {item.description}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="prose dark:prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-muted/50">
+                            <ReactMarkdown>{content}</ReactMarkdown>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

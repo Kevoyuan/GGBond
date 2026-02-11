@@ -1,790 +1,873 @@
-# Gemini CLI GUI 开发说明书
-源代码库：https://github.com/google-gemini/gemini-cli
+# 🔧 Gemini CLI - GUI 深度定制 API 完整参考手册
+
+> 基于 `@google/gemini-cli-core` v0.30.0 源码分析 · 提取全部可编程接口
+>
+> **npm**: https://www.npmjs.com/package/@google/gemini-cli-core
+>
+> **GitHub 源码**: https://github.com/google-gemini/gemini-cli/tree/main/packages/core
 
 ---
 
-## 第一部分：完整 API 参考
-
----
-
-### 1. CLI 启动参数
+## 📦 安装
 
 ```bash
-gemini                                    # 交互模式
-gemini -p "prompt"                        # 非交互模式
-gemini -p "prompt" --output-format json   # JSON 输出（含完整统计）
-gemini -p "prompt" --output-format stream-json  # 流式 JSON
-gemini -m gemini-2.5-pro                  # 指定模型
-gemini --include-directories ../lib,../docs
-gemini --debug                            # 调试模式
-gemini --yolo                             # 自动批准
-gemini --approval-mode auto_edit          # 审批模式
-gemini --all-files                        # 包含所有文件
-```
+# 稳定版 (v0.28.0)
+npm install @google/gemini-cli-core
 
----
+# 预览版 (v0.29.0-preview.0)
+npm install @google/gemini-cli-core@preview
 
-### 2. Slash 命令 (/)
-
-#### 会话管理
-```bash
-/chat save <tag>           # 保存对话检查点
-/chat list                 # 列出所有检查点
-/chat resume <tag>         # 恢复检查点
-/chat delete <tag>         # 删除检查点
-/chat share [filename]     # 导出为 Markdown/JSON
-/resume                    # 浏览历史会话
-/rewind                    # 回退对话历史
-/restore [tool_call_id]    # 恢复到工具执行前状态
-/compress                  # 压缩上下文生成摘要
-/clear                     # 清屏 (Ctrl+L)
-/copy                      # 复制最后输出
-```
-
-#### 工具与 MCP
-```bash
-/tools                     # 列出可用工具
-/tools desc                # 显示工具详细描述
-/tools nodesc              # 只显示工具名
-/mcp                       # 列出 MCP 服务器
-/mcp list                  # 同上
-/mcp desc                  # 显示详细描述
-/mcp schema                # 显示工具 schema
-/mcp refresh               # 重启所有服务器
-/mcp auth <server>         # OAuth 认证
-```
-
-#### 技能与扩展
-```bash
-/skills list               # 列出技能
-/skills enable <name>      # 启用技能
-/skills disable <name>     # 禁用技能
-/skills reload             # 重新加载
-/extensions                # 列出活动扩展
-```
-
-#### 上下文与内存
-```bash
-/memory show               # 显示完整上下文
-/memory list               # 列出 GEMINI.md 路径
-/memory add <text>         # 添加到内存
-/memory refresh            # 重新加载
-/init                      # 自动生成 GEMINI.md
-/directory show            # 显示工作目录
-/directory add <path>      # 添加目录
-```
-
-#### 配置与设置
-```bash
-/settings                  # 设置编辑器
-/model                     # 模型选择
-/theme                     # 主题选择
-/auth                      # 认证设置
-/editor                    # 编辑器选择
-/privacy                   # 隐私设置
-/vim                       # Vim 模式
-```
-
-#### Hooks
-```bash
-/hooks list                # 列出钩子
-/hooks enable <name>       # 启用
-/hooks disable <name>      # 禁用
-/hooks enable-all          # 全部启用
-/hooks disable-all         # 全部禁用
-```
-
-#### 统计与调试
-```bash
-/stats                     # ⭐ 显示会话统计（Token/性能/工具）
-/stats model               # ⭐ 按模型详细统计
-/about                     # 版本信息
-/introspect                # 调试信息
-/policies list             # 策略列表
-```
-
-#### 其他
-```bash
-/help   /docs   /bug   /shortcuts   /shells   /quit
+# 最新 nightly (v0.30.0-nightly)
+npm install @google/gemini-cli-core@nightly
 ```
 
 ---
 
-### 3. 引用与 Shell 命令
+## 目录
 
-```bash
-# @ 文件引用
-@path/to/file.ts           # 单文件
-@src/                      # 目录
-@**/*.ts                   # Glob
-@image.png                 # 图片/PDF
-
-# ! Shell
-!ls -la                    # 单个命令
-!                          # Shell 模式（再按 ! 退出）
-```
-
----
-
-### 4. 扩展管理命令
-
-```bash
-gemini extensions install <url|path>
-gemini extensions uninstall <name>
-gemini extensions list
-
-gemini mcp add <name> --command "cmd" --args "arg1,arg2"
-gemini mcp remove <name>
-gemini mcp enable/disable <name>
-```
+1. [架构总览](#1-架构总览---monorepo-包结构)
+2. [Core 包完整导出清单](#2-core-包完整导出清单)
+3. [Config 配置类](#3-config-类---全局配置中心)
+4. [ContentGenerator 内容生成接口](#4-contentgenerator---内容生成接口)
+5. [GeminiChat 会话管理核心](#5-geminichat---会话管理核心)
+6. [Turn 类 / 事件流 (GUI 渲染核心)](#6-turn-类---agentic-loop-事件流-gui-渲染核心)
+7. [输出格式 (Headless / Stream JSON)](#7-输出格式---headless--stream-json)
+8. [内置工具完整列表](#8-内置工具完整列表)
+9. [ToolRegistry 工具注册表](#9-toolregistry---工具注册表)
+10. [Scheduler 工具调用调度器](#10-scheduler---工具调用调度器)
+11. [MessageBus 消息总线](#11-messagebus---确认策略消息总线)
+12. [CoreEvents 全局事件系统](#12-coreevents---全局事件系统)
+13. [Hooks 系统](#13-hooks-系统---生命周期拦截)
+14. [MCP 协议集成](#14-mcp-model-context-protocol-集成)
+15. [Services 服务层](#15-services-服务层)
+16. [认证系统](#16-认证系统)
+17. [Agents 子代理系统](#17-agents-子代理系统)
+18. [Headless 模式](#18-headless-模式---脚本化调用)
+19. [GUI 定制实施指南](#19-gui-深度定制实施指南)
 
 ---
 
-### 5. 内置工具 API
+## 1. 架构总览 - Monorepo 包结构
 
-| 工具名 | 显示名 | 确认 | 参数 |
-|--------|--------|------|------|
-| `list_directory` | ReadFolder | 否 | `path`, `ignore?`, `respect_git_ignore?` |
-| `read_file` | ReadFile | 否 | `path`, `offset?`, `limit?` |
-| `write_file` | WriteFile | 是 | `file_path`, `content` |
-| `glob` | FindFiles | 否 | `pattern`, `path?`, `case_sensitive?` |
-| `grep_search` | SearchText | 否 | `pattern`, `path?`, `include?` |
-| `replace` | Edit | 是 | `file_path`, `old_string`, `new_string`, `expected_replacements?` |
-| `run_shell_command` | Shell | 是 | `command`, `description?`, `directory?` |
-| `google_web_search` | GoogleSearch | 否 | `query` |
-| `web_fetch` | WebFetch | 否 | `url` |
-| `save_memory` | SaveMemory | 否 | `content` |
-| `write_todos` | WriteTodos | 否 | `todos` |
-
----
-
-### 6. settings.json 完整配置
-
-```json
-{
-  "general": {
-    "preferredEditor": "code",
-    "vimMode": false,
-    "enableAutoUpdate": true,
-    "enablePromptCompletion": false,
-    "checkpointing": { "enabled": false },
-    "sessionRetention": { "enabled": false, "maxAge": "30d", "maxCount": 100 }
-  },
-  "model": {
-    "name": "gemini-2.5-pro",
-    "maxSessionTurns": -1,
-    "compressionThreshold": 0.5,
-    "disableLoopDetection": false,
-    "summarizeToolOutput": { "run_shell_command": { "tokenBudget": 2000 } }
-  },
-  "modelConfigs": {
-    "customAliases": {
-      "my-alias": {
-        "extends": "chat-base",
-        "modelConfig": {
-          "model": "gemini-2.5-flash",
-          "generateContentConfig": {
-            "temperature": 0.7, "topP": 0.9, "topK": 40,
-            "maxOutputTokens": 8192,
-            "thinkingConfig": { "thinkingBudget": 4096, "thinkingLevel": "HIGH" }
-          }
-        }
-      }
-    }
-  },
-  "tools": {
-    "sandbox": "docker",
-    "approvalMode": "default",
-    "core": ["read_file", "run_shell_command(git)"],
-    "exclude": ["run_shell_command(rm)"],
-    "allowed": ["run_shell_command(git status)"],
-    "shell": { "enableInteractiveShell": true, "showColor": false, "inactivityTimeout": 300 },
-    "truncateToolOutputThreshold": 40000,
-    "disableLLMCorrection": true
-  },
-  "mcpServers": {
-    "server-name": {
-      "command": "uvx", "args": [], "cwd": "", "env": {},
-      "url": "", "httpUrl": "", "headers": {},
-      "timeout": 5000, "trust": false,
-      "includeTools": [], "excludeTools": []
-    }
-  },
-  "mcp": { "allowed": [], "excluded": [] },
-  "context": {
-    "fileName": ["GEMINI.md"],
-    "includeDirectories": [],
-    "discoveryMaxDirs": 200,
-    "fileFiltering": { "respectGitIgnore": true, "respectGeminiIgnore": true, "enableFuzzySearch": true }
-  },
-  "skills": { "enabled": true, "disabled": [] },
-  "hooksConfig": { "enabled": true, "disabled": [], "notifications": true },
-  "hooks": {
-    "BeforeTool": [], "AfterTool": [], "BeforeAgent": [], "AfterAgent": [],
-    "SessionStart": [], "SessionEnd": [], "BeforeModel": [], "AfterModel": [],
-    "PreCompress": [], "BeforeToolSelection": [], "Notification": []
-  },
-  "security": {
-    "disableYoloMode": false,
-    "auth": { "selectedType": "gemini-api-key", "enforcedType": null },
-    "folderTrust": { "enabled": true },
-    "environmentVariableRedaction": { "enabled": true, "allowed": [], "blocked": [] }
-  },
-  "ui": {
-    "theme": "GitHub",
-    "hideBanner": false, "hideTips": false, "hideFooter": false,
-    "footer": { "hideCWD": false, "hideModelInfo": false, "hideContextPercentage": false },
-    "showLineNumbers": true, "showMemoryUsage": false, "showCitations": false,
-    "customThemes": {}, "customWittyPhrases": []
-  },
-  "telemetry": {
-    "enabled": true, "target": "local",
-    "otlpEndpoint": "http://localhost:4317", "otlpProtocol": "grpc",
-    "logPrompts": true, "outfile": ".gemini/telemetry.log", "useCollector": false
-  },
-  "admin": {
-    "secureModeEnabled": false,
-    "extensions": { "enabled": true },
-    "mcp": { "enabled": true },
-    "skills": { "enabled": true }
-  },
-  "experimental": {
-    "enableAgents": false, "extensionManagement": true,
-    "jitContext": false, "plan": false
-  }
-}
-```
-
----
-
-### 7. 环境变量
-
-```bash
-export GEMINI_API_KEY="..."
-export GOOGLE_API_KEY="..."
-export GOOGLE_CLOUD_PROJECT="..."
-export GOOGLE_GENAI_USE_VERTEXAI=true
-export GEMINI_MODEL="gemini-2.5-pro"
-export GEMINI_CLI_HOME="/custom/path"
-```
-
----
-
-### 8. 配置文件优先级
-
-| 位置 | 优先级 |
-|------|--------|
-| `/etc/gemini-cli/system-defaults.json` | 1 (最低) |
-| `~/.gemini/settings.json` | 2 |
-| `.gemini/settings.json` | 3 |
-| `/etc/gemini-cli/settings.json` | 4 |
-| 环境变量 / `.env` | 5 |
-| CLI 参数 | 6 (最高) |
-
----
-
-## 第二部分：数据统计 API（⭐ 核心）
-
----
-
-### API 1：Headless JSON 输出 — 结构化统计数据
-
-**这是 GUI 获取统计数据最重要的接口。**
-
-```bash
-gemini -p "prompt" --output-format json
-```
-
-#### 完整返回结构
-```json
-{
-  "response": "AI 的回答内容",
-  
-  "stats": {
-    "models": {
-      "gemini-2.5-pro": {
-        "api": {
-          "totalRequests": 2,
-          "totalErrors": 0,
-          "totalLatencyMs": 5053
-        },
-        "tokens": {
-          "prompt": 24939,
-          "candidates": 20,
-          "total": 25113,
-          "cached": 21263,
-          "thoughts": 154,
-          "tool": 0
-        }
-      },
-      "gemini-2.5-flash": {
-        "api": {
-          "totalRequests": 1,
-          "totalErrors": 0,
-          "totalLatencyMs": 1879
-        },
-        "tokens": {
-          "prompt": 8965,
-          "candidates": 10,
-          "total": 9033,
-          "cached": 0,
-          "thoughts": 30,
-          "tool": 28
-        }
-      }
-    },
-    
-    "tools": {
-      "totalCalls": 1,
-      "totalSuccess": 1,
-      "totalFail": 0,
-      "totalDurationMs": 1881,
-      "totalDecisions": {
-        "accept": 0,
-        "reject": 0,
-        "modify": 0,
-        "auto_accept": 1
-      },
-      "byName": {
-        "google_web_search": {
-          "count": 1,
-          "success": 1,
-          "fail": 0,
-          "durationMs": 1881,
-          "decisions": {
-            "accept": 0,
-            "reject": 0,
-            "modify": 0,
-            "auto_accept": 1
-          }
-        }
-      }
-    },
-    
-    "files": {
-      "totalLinesAdded": 0,
-      "totalLinesRemoved": 0
-    }
-  },
-  
-  "error": {
-    "type": "ApiError",
-    "message": "Error description",
-    "code": 429
-  }
-}
-```
-
-#### 数据提取示例
-```bash
-# 提取总 token
-result=$(gemini -p "query" --output-format json)
-total_tokens=$(echo "$result" | jq '.stats.models | to_entries | map(.value.tokens.total) | add')
-
-# 提取使用的模型
-models_used=$(echo "$result" | jq -r '.stats.models | keys | join(", ")')
-
-# 提取工具调用统计
-tool_calls=$(echo "$result" | jq '.stats.tools.totalCalls')
-tools_used=$(echo "$result" | jq -r '.stats.tools.byName | keys | join(", ")')
-```
-
----
-
-### API 2：/stats 命令 — 交互式会话统计
-
-```bash
-/stats           # 总览统计
-/stats model     # 按模型详细统计
-```
-
-#### /stats 输出结构
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Session Stats                                                   │
-│                                                                 │
-│ Interaction Summary                                             │
-│   Tool Calls:    40 ( ✔ 40  ✖ 0 )                              │
-│   Success Rate:  100.0%                                         │
-│   User Agreement: 100.0% (3 reviewed)                           │
-│                                                                 │
-│ Performance                                                     │
-│   Wall Time:     15m 53s                                        │
-│   Agent Active:  14m 32s                                        │
-│   » API Time:    8m 1s (55.2%)                                  │
-│   » Tool Time:   6m 31s (44.8%)                                 │
-│                                                                 │
-│ Model Usage      Reqs   Input Tokens  Thoughts  Output Tokens   │
-│ ──────────────────────────────────────────────────────────────── │
-│ gemini-2.5-pro    12     6,082,929     xxx       17,014         │
-│                                                                 │
-│ Savings Highlight: 2,401,483 (39.5%) of input tokens were       │
-│ served from cache, reducing costs.                              │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-#### 关键字段
-| 字段 | 含义 |
+| 包名 | 说明 |
 |------|------|
-| Tool Calls | 工具调用总数（成功/失败） |
-| Success Rate | 工具成功率 |
-| User Agreement | 用户批准率 |
-| Wall Time | 总时长 |
-| Agent Active | 活跃时长 |
-| API Time | API 调用耗时 + 占比 |
-| Tool Time | 工具执行耗时 + 占比 |
-| Reqs | 每个模型的请求次数 |
-| Input Tokens | 输入 token 数 |
-| Thoughts | 思考 token 数（计费但不在摘要中）|
-| Output Tokens | 输出 token 数 |
-| Cached | 缓存命中的 token 数 + 百分比 |
+| **@google/gemini-cli** | CLI 入口 + Ink (React) TUI 渲染层，依赖 core 包 |
+| **@google/gemini-cli-core** ⭐ | **核心库 - GUI 定制的主要目标**，所有业务逻辑、工具、事件、配置 |
+| **a2a-server** | Agent-to-Agent 协议服务器 |
+| **vscode-ide-companion** | VS Code IDE 集成伴侣 |
+
+> 💡 **GUI 定制核心策略**: 替换 `packages/cli` 的 Ink TUI 层，直接引用 `@google/gemini-cli-core` 提供的所有 API，构建自己的前端（Electron / Web / Tauri）。
+
+> ⚠️ **关键依赖**: Core 基于 `@google/genai` SDK，认证支持 OAuth、API Key、Vertex AI 三种模式。
 
 ---
 
-### API 3：OpenTelemetry 遥测 — 完整可观测性系统
+## 2. Core 包完整导出清单
 
-#### 配置
-```json
-{
-  "telemetry": {
-    "enabled": true,
-    "target": "local",
-    "outfile": ".gemini/telemetry.log",
-    "logPrompts": true
-  }
+以下是 `packages/core/src/index.ts` 的全部 export 分类，均可通过 `import { ... } from '@google/gemini-cli-core'` 引用：
+
+| 分类 | 模块路径 | 包含内容 |
+|------|----------|----------|
+| **Config** | config/config, config/memory, config/models, config/constants, config/storage | Config 类, ConfigParameters, HierarchicalMemory, 模型常量, Storage |
+| **Core** | core/client, core/contentGenerator, core/geminiChat, core/turn, core/prompts, core/tokenLimits, core/geminiRequest, core/coreToolScheduler | GeminiClient, ContentGenerator, GeminiChat, Turn, GeminiEventType |
+| **Tools** | tools/tools, tools/tool-registry, tools/tool-names, tools/read-file, tools/ls, tools/grep, tools/glob, tools/edit, tools/write-file, tools/shell, tools/web-fetch, tools/web-search, tools/memoryTool, tools/read-many-files, tools/mcp-tool, tools/write-todos | 全部内置工具定义 + ToolRegistry + ToolBuilder 接口 |
+| **Events** | utils/events | CoreEvent 枚举, CoreEventEmitter, 所有 Payload 类型 |
+| **Hooks** | hooks/index, hooks/types | HookSystem, HookEventName, HookDefinition, HookOutput |
+| **Scheduler** | scheduler/scheduler, scheduler/types, scheduler/tool-executor | ToolCall 状态机, ToolCallRequestInfo, ToolCallResponseInfo |
+| **Services** | services/fileDiscoveryService, services/gitService, services/chatRecordingService, services/fileSystemService, services/contextManager, services/shellExecutionService | 文件发现、Git、会话录制、上下文管理等 |
+| **MessageBus** | confirmation-bus/message-bus, confirmation-bus/types | MessageBus, ToolConfirmation 请求/响应 |
+| **Output** | output/types, output/json-formatter, output/stream-json-formatter | OutputFormat, JsonStreamEvent, JsonOutput |
+| **Policy** | policy/types, policy/policy-engine, policy/config | PolicyEngine, ApprovalMode, PolicyDecision |
+| **Auth** | code_assist/oauth2, code_assist/setup, code_assist/types, code_assist/telemetry | OAuth2 流程, Code Assist 集成, 用户层级 |
+| **MCP** | tools/mcp-client, mcp/oauth-provider, mcp/oauth-token-storage | MCP 客户端, OAuth Provider, Token 存储 |
+| **Agents** | agents/types, agents/agentLoader, agents/local-executor | AgentDefinition, AgentLoader, SubagentTool |
+| **Utilities** | utils/fetch, utils/paths, utils/headless, utils/errors, utils/gitUtils, utils/checkpointUtils, utils/events, utils/browser 等 30+ 模块 | 工具函数集合 |
+
+---
+
+## 3. Config 类 - 全局配置中心
+
+### `new Config(params: ConfigParameters)`
+
+全局配置对象，几乎所有核心功能都依赖于它。GUI 初始化时必须构造此对象。
+
+### ConfigParameters 关键参数
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `sessionId` | `string` | 会话唯一标识 |
+| `model` | `string` | 模型名称 (如 `gemini-2.5-pro`, `gemini-2.5-flash`) |
+| `targetDir` | `string` | 目标项目目录 |
+| `cwd` | `string` | 当前工作目录 |
+| `debugMode` | `boolean` | 调试模式 |
+| `approvalMode` | `ApprovalMode` | 工具审批模式 (AUTO/CONFIRM/YOLO) |
+| `mcpServers` | `Record<string, MCPServerConfig>` | MCP 服务器配置映射 |
+| `interactive` | `boolean` | 是否交互模式 |
+| `question` | `string?` | Headless 模式下的初始问题 |
+| `checkpointing` | `boolean` | 启用检查点保存 |
+| `includeDirectories` | `string[]` | 额外包含的目录 |
+| `output` | `OutputSettings` | 输出格式 (TEXT/JSON/STREAM_JSON) |
+| `maxSessionTurns` | `number` | 最大会话轮次 |
+| `enableHooks` | `boolean` | 启用 Hook 系统 |
+| `hooks` | `HookDefinition[]` | 用户级 Hook 定义 |
+| `enableAgents` | `boolean` | 启用 Agent 子系统 |
+| `agents` | `AgentSettings` | Agent 覆盖配置 |
+| `policyEngineConfig` | `PolicyEngineConfig` | 策略引擎配置 |
+| `plan` | `boolean` | Plan 模式 |
+| `shellExecutionConfig` | `ShellExecutionConfig` | Shell 执行配置 |
+| `proxy` | `string?` | 代理服务器 |
+| `accessibility` | `AccessibilitySettings` | 无障碍设置 |
+| `telemetry` | `TelemetrySettings` | 遥测设置 |
+| `contextFileName` | `string \| string[]` | 上下文文件名 (默认 GEMINI.md) |
+| `eventEmitter` | `EventEmitter` | 外部事件发射器 |
+| `toolOutputMasking` | `ToolOutputMaskingConfig` | 工具输出掩码配置 |
+
+### Config 核心 Getter 方法
+
+```typescript
+// 模型相关
+config.getModel(): string
+config.getActiveModel(): string
+config.setModel(model: string): void
+
+// 工具注册表
+config.getToolRegistry(): ToolRegistry
+config.getContentGenerator(): ContentGenerator
+config.getGeminiClient(): GeminiClient
+
+// 服务
+config.getFileDiscoveryService(): FileDiscoveryService
+config.getGitService(): GitService
+config.getContextManager(): ContextManager
+
+// 路径与环境
+config.getProjectRoot(): string
+config.getSessionId(): string
+config.getProxy(): string | undefined
+config.getCwd(): string
+
+// 策略与审批
+config.getPolicyEngine(): PolicyEngine
+config.getMessageBus(): MessageBus
+config.getHookSystem(): HookSystem
+config.getApprovalMode(): ApprovalMode
+```
+
+### ApprovalMode 枚举
+
+```typescript
+enum ApprovalMode {
+  ALWAYS_CONFIRM,   // 所有工具调用都需确认
+  AUTO_APPROVE,     // 自动批准（基于策略）
+  YOLO              // 全自动，不确认
 }
 ```
 
-环境变量覆盖：
-```bash
-export GEMINI_TELEMETRY_ENABLED=true
-export GEMINI_TELEMETRY_TARGET=local
-export GEMINI_TELEMETRY_OUTFILE=.gemini/telemetry.log
-export GEMINI_TELEMETRY_LOG_PROMPTS=true
-export GEMINI_TELEMETRY_OTLP_ENDPOINT=http://localhost:4317
-export GEMINI_TELEMETRY_OTLP_PROTOCOL=grpc
+### CustomTheme - 自定义主题 (GUI 直接可用)
+
+```typescript
+interface CustomTheme {
+  type: 'custom';
+  name: string;
+  text?: { primary?, secondary?, link?, accent?, response? };
+  background?: { primary?, diff?: { added?, removed? } };
+  border?: { default?, focused? };
+  ui?: { comment?, symbol?, gradient?: string[] };
+  status?: { error?, success?, warning? };
+}
 ```
 
 ---
 
-#### 遥测日志事件（Logs）
+## 4. ContentGenerator - 内容生成接口
 
-##### Session 事件
-| 事件名 | 触发时机 | 关键属性 |
-|--------|----------|----------|
-| `gemini_cli.config` | 启动时 | `model`, `sandbox_enabled`, `approval_mode`, `mcp_servers_count`, `extension_count`, `mcp_tools_count`, `output_format` |
-| `gemini_cli.user_prompt` | 用户提交 | `prompt_length`, `prompt_id`, `prompt`, `auth_type` |
-| `gemini_cli.conversation_finished` | 会话结束 | `approvalMode`, `turnCount` |
+### `interface ContentGenerator`
 
-##### API 事件
-| 事件名 | 触发时机 | 关键属性 |
-|--------|----------|----------|
-| `gemini_cli.api_request` | 发送请求 | `model`, `prompt_id`, `request_text` |
-| `gemini_cli.api_response` | 收到响应 | `model`, `status_code`, `duration_ms`, `input_token_count`, `output_token_count`, `cached_content_token_count`, `thoughts_token_count`, `tool_token_count`, `total_token_count`, `auth_type`, `finish_reasons` |
-| `gemini_cli.api_error` | 请求失败 | `model`, `error`, `error_type`, `status_code`, `duration_ms` |
+```typescript
+interface ContentGenerator {
+  generateContent(
+    request: GenerateContentParameters,
+    userPromptId: string
+  ): Promise<GenerateContentResponse>;
 
-##### Tool 事件
-| 事件名 | 触发时机 | 关键属性 |
-|--------|----------|----------|
-| `gemini_cli.tool_call` | 工具调用 | `function_name`, `function_args`, `duration_ms`, `success`, `decision`, `tool_type`("native"/"mcp"), `mcp_server_name`, `content_length` |
-| `gemini_cli.tool_output_truncated` | 输出截断 | `tool_name`, `original_content_length`, `truncated_content_length`, `threshold` |
-| `gemini_cli.edit_correction` | 编辑修正 | `correction`("success"/"failure") |
+  generateContentStream(
+    request: GenerateContentParameters,
+    userPromptId: string
+  ): Promise<AsyncGenerator<GenerateContentResponse>>;
 
-##### File 事件
-| 事件名 | 触发时机 | 关键属性 |
-|--------|----------|----------|
-| `gemini_cli.file_operation` | 文件操作 | `tool_name`, `operation`("create"/"read"/"update"), `lines`, `mimetype`, `extension`, `programming_language` |
+  countTokens(
+    request: CountTokensParameters
+  ): Promise<CountTokensResponse>;
 
-##### Model Routing 事件
-| 事件名 | 触发时机 | 关键属性 |
-|--------|----------|----------|
-| `gemini_cli.model_routing` | 路由决策 | `decision_model`, `decision_source`, `routing_latency_ms`, `reasoning`, `failed` |
-| `gemini_cli.slash_command.model` | 模型切换 | `model_name` |
+  embedContent(
+    request: EmbedContentParameters
+  ): Promise<EmbedContentResponse>;
 
-##### Chat 事件
-| 事件名 | 触发时机 | 关键属性 |
-|--------|----------|----------|
-| `gemini_cli.chat_compression` | 上下文压缩 | `tokens_before`, `tokens_after` |
-| `gemini_cli.chat.content_retry` | 内容重试 | `attempt_number`, `error_type`, `retry_delay_ms`, `model` |
-| `gemini_cli.chat.content_retry_failure` | 重试失败 | `total_attempts`, `final_error_type`, `total_duration_ms` |
+  userTier?: UserTierId;
+  userTierName?: string;
+}
+```
 
-##### Extension 事件
-| 事件名 | 触发时机 | 关键属性 |
-|--------|----------|----------|
-| `gemini_cli.extension_install` | 安装 | `extension_name`, `extension_version`, `extension_source`, `status` |
-| `gemini_cli.extension_uninstall` | 卸载 | `extension_name`, `status` |
-| `gemini_cli.extension_enable` | 启用 | `extension_name`, `setting_scope` |
-| `gemini_cli.extension_disable` | 禁用 | `extension_name`, `setting_scope` |
+通过 `createContentGenerator()` 工厂函数创建，支持 OAuth / API Key / Vertex AI 三种认证。
 
-##### Agent 事件
-| 事件名 | 触发时机 | 关键属性 |
-|--------|----------|----------|
-| `gemini_cli.agent.start` | Agent 启动 | `agent_id`, `agent_name` |
-| `gemini_cli.agent.finish` | Agent 结束 | `agent_id`, `agent_name`, `duration_ms`, `turn_count`, `terminate_reason` |
+### AuthType 枚举
 
-##### Resilience 事件
-| 事件名 | 触发时机 | 关键属性 |
-|--------|----------|----------|
-| `gemini_cli.flash_fallback` | 模型降级 | `auth_type` |
-| `gemini_cli.ripgrep_fallback` | grep 降级 | `error` |
-| `gemini_cli.web_fetch_fallback_attempt` | WebFetch 降级 | `reason` |
-
-##### Approval Mode 事件
-| 事件名 | 触发时机 | 关键属性 |
-|--------|----------|----------|
-| `approval_mode_switch` | 模式切换 | `from_mode`, `to_mode` |
-| `approval_mode_duration` | 模式持续 | `mode`, `duration_ms` |
-| `plan_execution` | 计划执行 | `approval_mode` |
-
-##### GenAI 标准事件
-| 事件名 | 触发时机 | 关键属性 |
-|--------|----------|----------|
-| `gen_ai.client.inference.operation.details` | 推理详情 | `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.request.temperature`, `gen_ai.request.top_p`, `gen_ai.request.top_k` |
-
----
-
-#### 遥测指标（Metrics）
-
-##### Token 使用指标
-| 指标名 | 类型 | 属性 |
-|--------|------|------|
-| `gemini_cli.token.usage` | Counter, Int | `model`, `type`("input"/"output"/"thought"/"cache"/"tool") |
-| `gen_ai.client.token.usage` | Histogram | `gen_ai.token.type`, `gen_ai.request.model`, `gen_ai.provider.name` |
-
-##### API 指标
-| 指标名 | 类型 | 属性 |
-|--------|------|------|
-| `gemini_cli.api.request.count` | Counter, Int | `model`, `status_code`, `error_type` |
-| `gemini_cli.api.request.latency` | Histogram, ms | `model` |
-| `gemini_cli.api.request.breakdown` | Histogram, ms | `model`, `phase`("request_preparation"/"network_latency"/"response_processing"/"token_processing") |
-| `gen_ai.client.operation.duration` | Histogram, s | `gen_ai.operation.name`, `gen_ai.request.model` |
-
-##### Tool 指标
-| 指标名 | 类型 | 属性 |
-|--------|------|------|
-| `gemini_cli.tool.call.count` | Counter, Int | `function_name`, `success`, `decision`, `tool_type` |
-| `gemini_cli.tool.call.latency` | Histogram, ms | `function_name` |
-| `gemini_cli.tool.queue.depth` | Histogram | 队列深度 |
-| `gemini_cli.tool.execution.breakdown` | Histogram, ms | `function_name`, `phase`("validation"/"preparation"/"execution"/"result_processing") |
-
-##### File 指标
-| 指标名 | 类型 | 属性 |
-|--------|------|------|
-| `gemini_cli.file.operation.count` | Counter, Int | `operation`, `lines`, `mimetype`, `programming_language` |
-| `gemini_cli.lines.changed` | Counter, Int | `function_name`, `type`("added"/"removed") |
-
-##### Session 指标
-| 指标名 | 类型 | 属性 |
-|--------|------|------|
-| `gemini_cli.session.count` | Counter, Int | — |
-
-##### Chat 指标
-| 指标名 | 类型 | 属性 |
-|--------|------|------|
-| `gemini_cli.chat_compression` | Counter, Int | `tokens_before`, `tokens_after` |
-| `gemini_cli.chat.invalid_chunk.count` | Counter, Int | — |
-| `gemini_cli.chat.content_retry.count` | Counter, Int | — |
-| `gemini_cli.chat.content_retry_failure.count` | Counter, Int | — |
-
-##### Agent 指标
-| 指标名 | 类型 | 属性 |
-|--------|------|------|
-| `gemini_cli.agent.run.count` | Counter, Int | `agent_name`, `terminate_reason` |
-| `gemini_cli.agent.duration` | Histogram, ms | `agent_name` |
-| `gemini_cli.agent.turns` | Histogram | `agent_name` |
-
-##### Model Routing 指标
-| 指标名 | 类型 | 属性 |
-|--------|------|------|
-| `gemini_cli.model_routing.latency` | Histogram, ms | `decision_model`, `decision_source` |
-| `gemini_cli.model_routing.failure.count` | Counter, Int | `decision_source`, `error_message` |
-| `gemini_cli.slash_command.model.call_count` | Counter, Int | `model_name` |
-
-##### Performance 指标
-| 指标名 | 类型 | 属性 |
-|--------|------|------|
-| `gemini_cli.startup.duration` | Histogram, ms | `phase`, `details` |
-| `gemini_cli.memory.usage` | Histogram, bytes | `memory_type`("heap_used"/"heap_total"/"external"/"rss"), `component` |
-| `gemini_cli.cpu.usage` | Histogram, % | `component` |
-| `gemini_cli.token.efficiency` | Histogram, ratio | `model`, `metric`, `context` |
-| `gemini_cli.performance.score` | Histogram | `category`, `baseline` |
-| `gemini_cli.performance.regression` | Counter, Int | `metric`, `severity`, `current_value`, `baseline_value` |
-
-##### Approval Mode 指标
-| 指标名 | 类型 | 属性 |
-|--------|------|------|
-| `gemini_cli.plan.execution.count` | Counter, Int | `approval_mode` |
-
-##### UI 指标
-| 指标名 | 类型 | 属性 |
-|--------|------|------|
-| `gemini_cli.ui.flicker.count` | Counter, Int | — |
-
----
-
-#### 遥测日志文件解析示例
-
-```bash
-# 按模型聚合 token 用量（从 telemetry.log）
-jq 'select(.name == "gemini_cli.api_response") |
-  {model: .attributes.model, 
-   input: .attributes.input_token_count,
-   output: .attributes.output_token_count,
-   cached: .attributes.cached_content_token_count,
-   thoughts: .attributes.thoughts_token_count}' .gemini/telemetry.log
+```typescript
+enum AuthType {
+  LOGIN_WITH_GOOGLE  = 'oauth-personal',
+  USE_GEMINI         = 'gemini-api-key',
+  USE_VERTEX_AI      = 'vertex-ai',
+  LEGACY_CLOUD_SHELL = 'cloud-shell',
+  COMPUTE_ADC        = 'compute-default-credentials',
+}
 ```
 
 ---
 
-### 三种统计 API 对比
+## 5. GeminiChat - 会话管理核心
 
-| 特性 | Headless JSON | /stats | Telemetry |
-|------|--------------|--------|----------|
-| **获取方式** | `--output-format json` | 交互式命令 | 日志文件/OTLP |
-| **粒度** | 每次请求汇总 | 整个会话 | 每个事件 |
-| **实时性** | 请求结束后 | 随时查看 | 实时写入 |
-| **Token 详情** | ✅ per-model | ✅ per-model | ✅ per-request |
-| **工具统计** | ✅ per-tool | ✅ 汇总 | ✅ per-call |
-| **文件统计** | ✅ 行数 | ❌ | ✅ per-operation |
-| **性能指标** | ✅ 延迟 | ✅ 时间分布 | ✅ 完整breakdown |
-| **历史数据** | ❌ 单次 | ❌ 单会话 | ✅ 持久化 |
-| **GUI 适用** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+### `class GeminiChat`
 
----
+```typescript
+class GeminiChat {
+  constructor(
+    config: Config,
+    systemInstruction: string,
+    tools: Tool[],
+    history: Content[],
+    resumedSessionData?: ResumedSessionData,
+    onModelChanged?: (modelId: string) => Promise<Tool[]>
+  )
 
-## 第三部分：15 个核心模块
+  // 核心方法
+  setSystemInstruction(sysInstr: string): void
 
----
+  async sendMessageStream(
+    modelConfigKey: ModelConfigKey,
+    message: PartListUnion,
+    prompt_id: string,
+    signal: AbortSignal,
+    displayContent?: PartListUnion
+  ): Promise<AsyncGenerator<StreamEvent>>
 
-### 模块 1：Token 使用监控仪表盘 ⭐⭐⭐⭐⭐
+  // 上下文管理
+  getHistory(): Content[]
+  clearHistory(): void
+  compressHistory(): Promise<ChatCompressionInfo>
+  addToolResponse(completed: CompletedToolCall[]): void
+}
+```
 
-数据源：`stats.models.*.tokens.*` + `gemini_cli.token.usage` + `gemini_cli.api_response`
+### StreamEvent 联合类型
 
----
-
-### 模块 2：MCP Server 管理器 ⭐⭐⭐⭐⭐
-
-数据源：`/mcp list|desc|schema` + `mcpServers.*` + `gemini_cli.tool_call(tool_type=mcp)`
-
----
-
-### 模块 3：对话 Checkpointing ⭐⭐⭐⭐⭐
-
-数据源：`/chat save|resume|list` + `general.checkpointing`
-
----
-
-### 模块 4：模型选择器 ⭐⭐⭐⭐⭐
-
-数据源：`/model` + `model.name` + `modelConfigs.customAliases` + `gemini_cli.model_routing`
-
----
-
-### 模块 5：工具调用追踪器 ⭐⭐⭐⭐⭐
-
-数据源：`stats.tools.byName.*` + `gemini_cli.tool_call` + `gemini_cli.tool.call.latency`
+```typescript
+type StreamEvent =
+  | { type: 'chunk';  value: GenerateContentResponse }
+  | { type: 'retry' }
+  | { type: 'agent_execution_stopped'; reason: string }
+  | { type: 'agent_execution_blocked'; reason: string }
+```
 
 ---
 
-### 模块 6：认证管理器 ⭐⭐⭐⭐⭐
+## 6. Turn 类 - Agentic Loop 事件流 (GUI 渲染核心)
 
-数据源：`/auth` + `security.auth.*` + 环境变量
+> 🎯 **这是 GUI 最重要的 API**：`Turn.run()` 返回的 AsyncGenerator 是驱动整个 UI 渲染的事件源。
 
----
+### `Turn.run()`
 
-### 模块 7：GEMINI.md 上下文编辑器 ⭐⭐⭐⭐⭐
+```typescript
+async *run(
+  modelConfigKey: ModelConfigKey,
+  req: PartListUnion,
+  signal: AbortSignal,
+  displayContent?: PartListUnion
+): AsyncGenerator<ServerGeminiStreamEvent>
+```
 
-数据源：`/memory show|list|refresh` + `context.*`
+### GeminiEventType 枚举 - 全部 17 种事件
 
----
-
-### 模块 8：性能分析面板 ⭐⭐⭐⭐
-
-数据源：`gemini_cli.api.request.breakdown` + `gemini_cli.tool.execution.breakdown` + `gemini_cli.startup.duration` + `gemini_cli.memory.usage` + `gemini_cli.cpu.usage`
-
----
-
-### 模块 9：扩展市场 ⭐⭐⭐⭐
-
-数据源：`gemini extensions install|list` + `gemini_cli.extension_*` 事件
-
----
-
-### 模块 10：自定义命令编辑器 ⭐⭐⭐⭐
-
-数据源：TOML 文件系统 + `gemini_cli.slash_command`
-
----
-
-### 模块 11：技能管理器 ⭐⭐⭐⭐
-
-数据源：`/skills list|enable|disable` + `skills.*`
-
----
-
-### 模块 12：Shell 权限控制面板 ⭐⭐⭐⭐
-
-数据源：`tools.core|exclude|allowed` + `gemini_cli.tool_call(function_name=run_shell_command)`
+| 事件类型 | Value | 说明 | GUI 用途 |
+|----------|-------|------|----------|
+| `Content` | `{ value: string, traceId? }` | 模型文本输出（流式） | ✅ 实时渲染 Markdown |
+| `Thought` | `{ value: ThoughtSummary, traceId? }` | 模型思考过程 | ✅ 折叠显示推理链 |
+| `ToolCallRequest` | `{ value: ToolCallRequestInfo }` | 工具调用请求 | ✅ 显示工具调用卡片 |
+| `ToolCallResponse` | `{ value: ToolCallResponseInfo }` | 工具执行结果 | ✅ 显示执行结果 |
+| `ToolCallConfirmation` | `{ value: { request, details } }` | 需用户确认 | ✅ 弹出确认对话框 |
+| `UserCancelled` | `{}` | 用户取消 | 停止渲染 |
+| `Error` | `{ value: { error: StructuredError } }` | 错误 | ✅ 显示错误提示 |
+| `ChatCompressed` | `{ value: ChatCompressionInfo }` | 上下文压缩 | 通知条 |
+| `Finished` | `{ value: { reason, usageMetadata } }` | 回合完成 | ✅ Token 统计面板 |
+| `MaxSessionTurns` | `{}` | 达到最大轮次 | 警告弹窗 |
+| `LoopDetected` | `{}` | 检测到循环 | 警告提示 |
+| `Citation` | `{ value: string }` | 引用来源 | ✅ 引用链接渲染 |
+| `Retry` | `{}` | 正在重试 | Loading 状态 |
+| `ContextWindowWillOverflow` | `{ estimatedRequestTokenCount, remainingTokenCount }` | 上下文即将溢出 | 容量警告条 |
+| `InvalidStream` | `{}` | 无效流 | 错误处理 |
+| `ModelInfo` | `{ value: string }` | 模型信息 | 状态栏更新 |
+| `AgentExecutionStopped` | `{ reason, systemMessage? }` | Agent 停止 | 停止动画 |
 
 ---
 
-### 模块 13：Hooks 编辑器 ⭐⭐⭐⭐
+## 7. 输出格式 - Headless / Stream JSON
 
-数据源：`/hooks list` + `hooks.*` + `hooksConfig.*`
+### JsonStreamEventType 枚举
+
+```typescript
+enum JsonStreamEventType {
+  INIT        = 'init',        // { session_id, model }
+  MESSAGE     = 'message',     // { role, content, delta? }
+  TOOL_USE    = 'tool_use',    // { tool_name, tool_id, parameters }
+  TOOL_RESULT = 'tool_result', // { tool_id, status, output?, error? }
+  ERROR       = 'error',       // { severity, message }
+  RESULT      = 'result',      // { status, stats? }
+}
+
+// 使用: gemini -p "prompt" --output-format stream-json
+// 输出 NDJSON (每行一个 JSON 事件)
+```
+
+> 💡 **GUI 最佳实践**: 如果你的 GUI 通过子进程调用 gemini-cli，使用 `--output-format stream-json` 直接解析 NDJSON 流。如果直接嵌入 core 库，则使用 Turn 的 AsyncGenerator。
 
 ---
 
-### 模块 14：会话历史浏览器 ⭐⭐⭐
+## 8. 内置工具完整列表
 
-数据源：`/resume` + `general.sessionRetention` + `gemini_cli.conversation_finished`
+| 工具名 | 类 | 功能 | Kind |
+|--------|-----|------|------|
+| `read_file` | ReadFileTool | 读取文件内容 | ReadOnly |
+| `read_many_files` | ReadManyFilesTool | 批量读取多个文件 | ReadOnly |
+| `ls` | LSTool | 列出目录内容 | ReadOnly |
+| `glob` | GlobTool | 文件模式匹配搜索 | ReadOnly |
+| `grep` / `ripgrep` | GrepTool / RipGrepTool | 文件内容搜索 | ReadOnly |
+| `replace` | EditTool | 编辑/替换文件内容 (基于 diff) | Write |
+| `write_file` | WriteFileTool | 创建/覆写文件 | Write |
+| `shell` | ShellTool | 执行 Shell 命令 | Dangerous |
+| `web_fetch` | WebFetchTool | 获取网页内容 | Network |
+| `google_web_search` | WebSearchTool | Google 搜索 | Network |
+| `save_memory` | MemoryTool | 保存记忆到 GEMINI.md | Write |
+| `write_todos` | WriteTodosTool | 写入 TODO 列表 | Write |
+| `ask_user` | AskUserTool | 向用户提问 (GUI 关键) | Interactive |
+| `enter_plan_mode` | EnterPlanModeTool | 进入计划模式 | Other |
+| `exit_plan_mode` | ExitPlanModeTool | 退出计划模式 | Other |
+| `activate_skill` | ActivateSkillTool | 激活技能 | Other |
 
 ---
 
-### 模块 15：工作目录管理器 ⭐⭐⭐
+## 9. ToolRegistry - 工具注册表
 
-数据源：`/directory show|add` + `context.includeDirectories`
+### `class ToolRegistry`
+
+```typescript
+class ToolRegistry {
+  registerTool(tool: AnyDeclarativeTool): void
+  unregisterTool(name: string): void
+  getTool(name: string): AnyDeclarativeTool | undefined
+  getActiveTools(): Map<string, AnyDeclarativeTool>
+  getAllTools(): Map<string, AnyDeclarativeTool>
+  getToolSchemas(modelId?: string): FunctionDeclaration[]
+  sortTools(): void
+  isActive(name: string): boolean
+  getMessageBus(): MessageBus
+}
+```
+
+> 💡 **自定义工具**: 继承 `DeclarativeTool<TParams, TResult>` 或 `BaseDeclarativeTool` 来创建自定义工具并注册到 ToolRegistry。
+
+### ToolBuilder 接口
+
+```typescript
+interface ToolBuilder<TParams, TResult> {
+  name: string;               // 内部名称
+  displayName: string;        // 显示名称 → GUI 使用
+  description: string;        // 工具描述
+  kind: Kind;                 // ReadOnly | Write | Dangerous | Network | Other
+  isOutputMarkdown: boolean;  // 输出是否为 Markdown
+  canUpdateOutput: boolean;   // 是否支持流式输出
+  getSchema(modelId?): FunctionDeclaration;
+  build(params): ToolInvocation;
+}
+```
+
+### ToolInvocation 接口
+
+```typescript
+interface ToolInvocation<TParams, TResult> {
+  params: TParams;
+  getDescription(): string;              // → GUI 显示操作描述
+  toolLocations(): ToolLocation[];       // → GUI 显示受影响路径
+  shouldConfirmExecute(signal): Promise;  // → GUI 弹出确认框
+  execute(signal, updateOutput?): Promise<TResult>;
+}
+```
 
 ---
 
-## 附录：GUI 与 CLI 集成方式
+## 10. Scheduler - 工具调用调度器
 
-### 方式 1：进程调用 + JSON 解析（推荐）
+### ToolCall 状态机 (GUI 渲染工具调用卡片的数据源)
+
+```typescript
+type ToolCall =
+  | { status: 'validating';       request, tool, invocation }
+  | { status: 'scheduled';        request, tool, invocation }
+  | { status: 'executing';        request, tool, invocation, liveOutput?, pid? }
+  | { status: 'awaiting_approval'; request, tool, invocation, confirmationDetails }
+  | { status: 'success';          request, tool, response, invocation, durationMs? }
+  | { status: 'error';            request, response, durationMs? }
+  | { status: 'cancelled';        request, response, tool, invocation }
+```
+
+### 关键数据结构
+
+```typescript
+interface ToolCallRequestInfo {
+  callId: string;
+  name: string;
+  args: Record<string, unknown>;
+  isClientInitiated: boolean;
+  prompt_id: string;
+  traceId?: string;
+  parentCallId?: string;
+  schedulerId?: string;
+}
+
+interface ToolCallResponseInfo {
+  callId: string;
+  responseParts: Part[];
+  resultDisplay: ToolResultDisplay | undefined;
+  error: Error | undefined;
+  errorType: ToolErrorType | undefined;
+  contentLength?: number;
+  data?: Record<string, unknown>;
+}
+```
+
+### Scheduler 回调 Handlers
+
+```typescript
+type ConfirmHandler = (toolCall: WaitingToolCall) => Promise<ToolConfirmationOutcome>
+type OutputUpdateHandler = (callId: string, chunk: string | AnsiOutput) => void
+type AllToolCallsCompleteHandler = (completed: CompletedToolCall[]) => Promise<void>
+type ToolCallsUpdateHandler = (toolCalls: ToolCall[]) => void
+```
+
+---
+
+## 11. MessageBus - 确认/策略消息总线
+
+### MessageBusType 枚举
+
+```typescript
+enum MessageBusType {
+  TOOL_CONFIRMATION_REQUEST  // 工具确认请求 → GUI 弹窗
+  TOOL_CONFIRMATION_RESPONSE // 用户确认响应 ← GUI 回传
+  TOOL_POLICY_REJECTION      // 策略拒绝通知
+  TOOL_EXECUTION_SUCCESS     // 工具执行成功
+  TOOL_EXECUTION_FAILURE     // 工具执行失败
+  UPDATE_POLICY              // 更新策略 (Always Allow)
+  TOOL_CALLS_UPDATE          // 工具调用列表更新
+  ASK_USER_REQUEST           // ask_user 工具请求 → GUI 输入框
+  ASK_USER_RESPONSE          // 用户回答 ← GUI 回传
+}
+```
+
+### GUI 必须实现的消息处理
+
+```typescript
+// 订阅
+messageBus.subscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, handler)
+messageBus.subscribe(MessageBusType.ASK_USER_REQUEST, handler)
+
+// 发布响应
+messageBus.publish({ type: TOOL_CONFIRMATION_RESPONSE, correlationId, confirmed, outcome })
+messageBus.publish({ type: ASK_USER_RESPONSE, correlationId, answers })
+```
+
+### SerializableConfirmationDetails (确认对话框数据)
+
+| type | 字段 | GUI 组件 |
+|------|------|----------|
+| `'info'` | title, prompt, urls? | 通用信息确认框 |
+| `'edit'` | title, fileName, filePath, fileDiff, originalContent, newContent | Diff 预览确认框 |
+| `'exec'` | title, command, rootCommand, rootCommands, commands? | 命令执行确认框 |
+| `'mcp'` | title, serverName, toolName, toolDisplayName | MCP 工具确认框 |
+| `'ask_user'` | title, questions[] | 用户问答面板 |
+| `'exit_plan_mode'` | title, planPath | 退出计划确认 |
+
+### Question 类型 (ask_user 工具)
+
+```typescript
+interface Question {
+  question: string;
+  header: string;
+  type?: 'choice' | 'text' | 'yesno';
+  options?: QuestionOption[];  // { label, description }
+  multiSelect?: boolean;
+  placeholder?: string;
+}
+```
+
+---
+
+## 12. CoreEvents - 全局事件系统
+
+### `coreEvents` (CoreEventEmitter 单例)
+
+| 事件名 | Payload | GUI 用途 |
+|--------|---------|----------|
+| `user-feedback` | `{ severity, message, error? }` | ✅ Toast / 通知 |
+| `model-changed` | `{ model }` | ✅ 状态栏模型名 |
+| `console-log` | `{ type, content }` | 调试面板 |
+| `output` | `{ isStderr, chunk, encoding? }` | 终端输出面板 |
+| `memory-changed` | `{ fileCount }` | 内存文件指示器 |
+| `quota-changed` | `{ remaining, limit, resetTime? }` | ✅ 配额进度条 |
+| `hook-start` | `{ hookName, eventName, hookIndex?, totalHooks? }` | Hook 执行指示器 |
+| `hook-end` | `{ hookName, eventName, success }` | Hook 完成状态 |
+| `mcp-client-update` | `Map<string, McpClient>` | ✅ MCP 服务器面板 |
+| `settings-changed` | `void` | 刷新设置 UI |
+| `retry-attempt` | `{ attempt, maxAttempts, delayMs, error?, model }` | 重试进度 |
+| `consent-request` | `{ prompt, onConfirm }` | ✅ 同意弹窗 |
+| `agents-discovered` | `{ agents: AgentDefinition[] }` | Agent 面板 |
+| `agents-refreshed` | `void` | 刷新 Agent 列表 |
+| `request-editor-selection` | `void` | 编辑器选择弹窗 |
+| `editor-selected` | `{ editor? }` | 编辑器状态更新 |
+
+### 使用示例
+
+```typescript
+import { coreEvents, CoreEvent } from '@google/gemini-cli-core';
+
+coreEvents.on(CoreEvent.UserFeedback, (payload) => {
+  showToast(payload.severity, payload.message);
+});
+
+coreEvents.on(CoreEvent.QuotaChanged, ({ remaining, limit }) => {
+  updateQuotaBar(remaining, limit);
+});
+
+coreEvents.on(CoreEvent.ModelChanged, ({ model }) => {
+  updateStatusBar(model);
+});
+```
+
+---
+
+## 13. Hooks 系统 - 生命周期拦截
+
+### HookEventName 枚举 (11 个 Hook 点)
+
+| Hook | 触发时机 | 可拦截? |
+|------|----------|--------|
+| `SessionStart` | 会话开始 | ✅ |
+| `SessionEnd` | 会话结束 | - |
+| `BeforeModel` | 发送请求给模型前 | ✅ 可修改请求 |
+| `AfterModel` | 收到模型响应后 | ✅ 可修改响应 |
+| `BeforeTool` | 执行工具前 | ✅ block/deny/approve |
+| `AfterTool` | 工具执行后 | - |
+| `BeforeAgent` | Agent 执行前 | ✅ |
+| `AfterAgent` | Agent 执行后 | ✅ |
+| `BeforeToolSelection` | 工具选择前 | ✅ 可修改工具列表 |
+| `PreCompress` | 上下文压缩前 | - |
+| `Notification` | 通知事件 | - |
+
+### HookOutput - Hook 返回值
+
+```typescript
+interface HookOutput {
+  continue?: boolean;         // false = 停止执行
+  stopReason?: string;        // 停止原因
+  suppressOutput?: boolean;   // 抑制输出
+  systemMessage?: string;     // 注入系统消息
+  decision?: 'ask' | 'block' | 'deny' | 'approve' | 'allow';
+  reason?: string;
+}
+```
+
+---
+
+## 14. MCP (Model Context Protocol) 集成
+
+### MCPServerConfig
+
+```typescript
+class MCPServerConfig {
+  // stdio 传输
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+
+  // SSE 传输
+  url?: string;
+
+  // HTTP 传输
+  httpUrl?: string;
+  headers?: Record<string, string>;
+
+  // WebSocket
+  tcp?: string;
+
+  // 传输类型
+  type?: 'sse' | 'http';
+
+  // 通用
+  timeout?: number;
+  trust?: boolean;
+  description?: string;
+  includeTools?: string[];
+  excludeTools?: string[];
+
+  // OAuth
+  oauth?: MCPOAuthConfig;
+  authProviderType?: AuthProviderType;
+}
+```
+
+---
+
+## 15. Services 服务层
+
+| 服务 | 说明 |
+|------|------|
+| **ChatRecordingService** | 会话录制服务。`initialize()` / `recordUserMessage()` / `recordAssistantMessage()` / `recordToolCall()`。保存为 JSON: `~/.gemini/tmp/<hash>/chats/session-*.json` |
+| **FileDiscoveryService** | 项目文件发现。支持 gitignore、geminiignore、模糊搜索 |
+| **GitService** | Git 操作封装。基于 simple-git 库 |
+| **ContextManager** | 上下文管理。管理 GEMINI.md、工作区上下文、环境上下文 |
+| **ShellExecutionService** | Shell 命令执行。支持 PTY、沙箱、超时控制 |
+| **ModelConfigService** | 模型配置管理。多模型配置键值、路由策略 |
+
+### ConversationRecord 数据结构
+
+```typescript
+interface ConversationRecord {
+  sessionId: string;
+  projectHash: string;
+  startTime: string;
+  lastUpdated: string;
+  messages: MessageRecord[];
+  summary?: string;
+  directories?: string[];
+}
+
+type MessageRecord = BaseMessageRecord & (
+  | { type: 'user' | 'info' | 'error' | 'warning' }
+  | { type: 'gemini'; toolCalls?: ToolCallRecord[]; thoughts?: ThoughtSummary[]; tokens?: TokensSummary; model?: string }
+)
+
+interface TokensSummary {
+  input: number;    // promptTokenCount
+  output: number;   // candidatesTokenCount
+  cached: number;   // cachedContentTokenCount
+  thoughts?: number; // thoughtsTokenCount
+  tool?: number;    // toolUsePromptTokenCount
+  total: number;    // totalTokenCount
+}
+```
+
+---
+
+## 16. 认证系统
+
+### 三种认证流程
+
+```typescript
+import { createContentGenerator, AuthType } from '@google/gemini-cli-core';
+
+// 1. Google OAuth (免费层)
+const genConfig = { authType: AuthType.LOGIN_WITH_GOOGLE };
+
+// 2. Gemini API Key
+const genConfig = { authType: AuthType.USE_GEMINI, apiKey: 'your-key' };
+
+// 3. Vertex AI
+const genConfig = { authType: AuthType.USE_VERTEX_AI, apiKey: 'key', vertexai: true };
+
+// 工厂函数
+const generator = await createContentGenerator(genConfig, config);
+```
+
+### 环境变量
+
+| 变量名 | 说明 |
+|--------|------|
+| `GEMINI_API_KEY` | Gemini API 密钥 |
+| `GOOGLE_API_KEY` | Google API 密钥 (Vertex AI) |
+| `GOOGLE_CLOUD_PROJECT` | Google Cloud 项目 ID |
+| `GOOGLE_CLOUD_LOCATION` | Google Cloud 区域 |
+
+---
+
+## 17. Agents 子代理系统
+
+### AgentDefinition 接口
+
+```typescript
+interface AgentDefinition {
+  name: string;
+  description: string;
+  systemPrompt?: string;
+  modelConfig?: ModelConfig;
+  runConfig?: AgentRunConfig;   // { maxTimeMinutes?, maxTurns? }
+  enabled?: boolean;
+}
+```
+
+### Agent 注册与加载
+
+```typescript
+import { AgentRegistry, AgentLoader } from '@google/gemini-cli-core';
+```
+
+---
+
+## 18. Headless 模式 - 脚本化调用
+
+### 命令行方式
+
+```bash
+# 纯文本输出
+gemini -p "你的问题"
+
+# JSON 输出
+gemini -p "你的问题" --output-format json
+
+# NDJSON 流
+gemini -p "你的问题" --output-format stream-json
+
+# 指定模型
+gemini -p "你的问题" -m gemini-2.5-pro
+```
+
+### 编程方式 (子进程)
+
 ```typescript
 import { spawn } from 'child_process';
-
-const gemini = spawn('gemini', ['-p', prompt, '--output-format', 'stream-json']);
-gemini.stdout.on('data', (data) => {
-  const events = data.toString().split('\n').filter(Boolean);
-  events.forEach(e => handleEvent(JSON.parse(e)));
+const proc = spawn('gemini', ['-p', prompt, '--output-format', 'stream-json']);
+proc.stdout.on('data', (chunk) => {
+  const events = chunk.toString().split('\n').filter(Boolean).map(JSON.parse);
+  // 处理 JsonStreamEvent
 });
 ```
 
-### 方式 2：直接读写配置
-```typescript
-import { readFileSync, writeFileSync } from 'fs';
-const settingsPath = join(homedir(), '.gemini', 'settings.json');
-const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
-```
+---
 
-### 方式 3：监听 Telemetry 日志
+## 19. GUI 深度定制实施指南
+
+### 方案 A: 直接嵌入 Core 库 (推荐 - 最大控制力)
+
 ```typescript
-import { watch } from 'fs';
-const logPath = '.gemini/telemetry.log';
-watch(logPath, () => {
-  // 解析新增日志行
-  // 更新仪表盘
+// 1. 安装依赖
+// npm install @google/gemini-cli-core @google/genai
+
+// 2. 初始化 Config
+import { Config, ApprovalMode, coreEvents, CoreEvent, GeminiChat, Turn, GeminiEventType, MessageBusType } from '@google/gemini-cli-core';
+
+const config = new Config({
+  sessionId: crypto.randomUUID(),
+  model: 'gemini-2.5-pro',
+  targetDir: projectPath,
+  cwd: projectPath,
+  debugMode: false,
+  interactive: true,
+  approvalMode: ApprovalMode.ALWAYS_CONFIRM,
 });
-```
+await config.initialize();
 
-### 方式 4：OTLP Collector 接入
-```json
-{
-  "telemetry": {
-    "enabled": true,
-    "target": "local",
-    "useCollector": true,
-    "otlpEndpoint": "http://localhost:4317"
+// 3. 监听全局事件
+coreEvents.on(CoreEvent.UserFeedback, renderFeedback);
+coreEvents.on(CoreEvent.QuotaChanged, updateQuota);
+coreEvents.on(CoreEvent.ModelChanged, updateModel);
+
+// 4. 订阅 MessageBus (处理确认弹窗)
+const bus = config.getMessageBus();
+bus.subscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, showConfirmDialog);
+bus.subscribe(MessageBusType.ASK_USER_REQUEST, showQuestionPanel);
+
+// 5. 创建 GeminiChat 并运行 Turn
+const chat = new GeminiChat(config, systemPrompt, tools, []);
+const turn = new Turn(chat, promptId);
+const controller = new AbortController();
+
+for await (const event of turn.run('default', userMessage, controller.signal)) {
+  switch(event.type) {
+    case GeminiEventType.Content:
+      appendMarkdown(event.value); break;
+    case GeminiEventType.Thought:
+      showThinking(event.value); break;
+    case GeminiEventType.ToolCallRequest:
+      showToolCard(event.value); break;
+    case GeminiEventType.ToolCallResponse:
+      updateToolResult(event.value); break;
+    case GeminiEventType.Finished:
+      showTokenStats(event.value.usageMetadata); break;
+    case GeminiEventType.Error:
+      showError(event.value.error); break;
   }
 }
 ```
-GUI 启动本地 OTLP collector，直接接收结构化指标和日志。
+
+### 方案 B: 子进程 + Stream JSON (轻量集成)
+
+```typescript
+// 适合 Electron 等场景，通过 stream-json 与 CLI 通信
+const proc = spawn('gemini', [
+  '-p', userInput,
+  '--output-format', 'stream-json',
+  '-m', 'gemini-2.5-pro'
+]);
+
+// 解析 NDJSON 流
+proc.stdout.on('data', (chunk) => {
+  chunk.toString().split('\n').filter(Boolean).forEach(line => {
+    const event: JsonStreamEvent = JSON.parse(line);
+    switch(event.type) {
+      case 'init':       onSessionStart(event); break;
+      case 'message':    onMessage(event); break;
+      case 'tool_use':   onToolUse(event); break;
+      case 'tool_result': onToolResult(event); break;
+      case 'error':      onError(event); break;
+      case 'result':     onComplete(event); break;
+    }
+  });
+});
+```
+
+### GUI 组件 ↔ 数据源映射表
+
+| GUI 组件 | 数据源 API | 说明 |
+|----------|-----------|------|
+| 🗨️ 聊天气泡 | `GeminiEventType.Content` | 流式 Markdown 渲染 |
+| 🧠 思考过程折叠 | `GeminiEventType.Thought` | ThoughtSummary.text |
+| 🔧 工具调用卡片 | `ToolCall 状态机` | 7 种状态实时更新 |
+| ✅ 确认对话框 | `MessageBus.TOOL_CONFIRMATION_REQUEST` | 6 种 confirmation 类型 |
+| 📝 Diff 预览 | `SerializableConfirmationDetails.edit` | fileDiff / originalContent / newContent |
+| ❓ 用户问答面板 | `MessageBus.ASK_USER_REQUEST` | choice / text / yesno |
+| 📊 Token 统计 | `GeminiFinishedEventValue.usageMetadata` | input/output/cached tokens |
+| 📈 配额监控 | `CoreEvent.QuotaChanged` | remaining / limit / resetTime |
+| 🔌 MCP 服务器面板 | `CoreEvent.McpClientUpdate` | Map<string, McpClient> |
+| ⚙️ 模型切换器 | `config.setModel()` + `CoreEvent.ModelChanged` | 实时切换 |
+| 📂 文件浏览器 | `FileDiscoveryService` | 项目文件树 |
+| 🔍 搜索面板 | `GrepTool` / `GlobTool` | 文件内容搜索 |
+| 🖥️ 内嵌终端 | `ShellTool` + `ShellExecutionService` | Shell 输出流 |
+| 📜 会话历史 | `ChatRecordingService` / `ConversationRecord` | JSON 文件 + 恢复 |
+| 🎨 主题设置 | `CustomTheme 接口` | 完整颜色定制 |
+| 🤖 Agent 面板 | `AgentRegistry` + `CoreEvent.AgentsDiscovered` | 子代理管理 |
+| 🪝 Hooks 管理 | `HookSystem` + `HookEventName` | 11 个生命周期钩子 |
+| 🛡️ 策略管理 | `PolicyEngine` + `ApprovalMode` | 工具权限控制 |
+
+---
+
+## ✅ 完整性说明
+
+本文档覆盖了 Gemini CLI Core 的**全部公开 API**，包含：
+
+- **17** 种事件类型 (GeminiEventType)
+- **16+** 内置工具
+- **11** 个 Hook 生命周期点
+- **8** 种 MessageBus 消息类型
+- **3** 种认证方式
+- **3** 种输出格式
+- **7** 种 ToolCall 状态
+
+所有类型均可从 `@google/gemini-cli-core` 直接 `import`。

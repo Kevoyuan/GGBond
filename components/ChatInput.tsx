@@ -89,17 +89,25 @@ const MODE_OPTIONS: ModeOption[] = [
 ];
 
 const MODELS = [
-  { id: 'auto-gemini-3', name: 'Gemini 3 Auto', icon: Zap },
-  { id: 'auto-gemini-2.5', name: 'Gemini 2.5 Auto', icon: Zap },
-  { id: 'gemini-3-pro-preview', name: '3 Pro Preview', icon: Code2 },
-  { id: 'gemini-3-flash-preview', name: '3 Flash Preview', icon: Zap },
-  { id: 'gemini-2.5-pro', name: '2.5 Pro', icon: Code2 },
-  { id: 'gemini-2.5-flash', name: '2.5 Flash', icon: Zap },
-  { id: 'gemini-2.5-flash-lite', name: '2.5 Flash Lite', icon: Zap },
+  { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', icon: Code2 },
+  { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', icon: Zap },
+  { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro', icon: Code2 },
+  { id: 'gemini-2.5-flash', name: 'gemini-2.5-flash', icon: Zap },
+  { id: 'gemini-2.5-flash-lite', name: 'gemini-2.5-flash-lite', icon: Zap },
 ];
 
 const INLINE_SKILL_TOKEN_MARKER = '\u200B';
 const INLINE_SKILL_TOKEN_SOURCE = `([A-Za-z0-9._/\\-\u2011]+)${INLINE_SKILL_TOKEN_MARKER}`;
+const INLINE_SKILL_COMMAND = '/skills';
+const LEGACY_INLINE_SKILL_COMMAND = '/skill';
+const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
+  'list',
+  'enable',
+  'disable',
+  'reload',
+  'install',
+  'uninstall',
+]);
 
 export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, onApprovalModeChange, workspacePath }: ChatInputProps) {
   const [input, setInput] = useState('');
@@ -182,9 +190,13 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
 
   const getSkillBounds = (text: string, index: number) => {
     const textBefore = text.slice(0, index);
-    const commandMatch = textBefore.match(/(^|\s)\/skill(?:\s+([^\s\n]*))?$/);
+    const commandMatch = textBefore.match(/(^|\s)\/skills?\s+([^\s\n]*)$/);
     if (commandMatch) {
-      const query = (commandMatch[2] || '').trim().toLowerCase();
+      const rawQuery = (commandMatch[2] || '').trim();
+      if (rawQuery && SKILLS_MANAGEMENT_SUBCOMMANDS.has(rawQuery.toLowerCase())) {
+        return null;
+      }
+      const query = rawQuery.toLowerCase();
       const start = textBefore.length - commandMatch[0].length + commandMatch[1].length;
       return { query, start };
     }
@@ -253,7 +265,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     const normalizedBefore = before.replace(/[ \t]+$/, '');
     const normalizedAfter = after.replace(/^[ \t]+/, '');
     const needLeadingSpace = normalizedBefore.length > 0 && !/\s$/.test(normalizedBefore);
-    // Keep one trailing separator so users can immediately type plain text or another /skill command.
+    // Keep one trailing separator so users can immediately type plain text or another /skills command.
     const needTrailingSpace = normalizedAfter.length === 0 || !/^\s/.test(normalizedAfter);
 
     const left = `${normalizedBefore}${needLeadingSpace ? ' ' : ''}`;
@@ -303,7 +315,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
           const skills: SkillRecord[] = await res.json();
           setSkillRecords(skills);
           const skillCommands = skills.map((skill) => ({
-            command: `/skill ${skill.id}`,
+            command: `${INLINE_SKILL_COMMAND} ${skill.id}`,
             description: skill.description || `Use ${skill.name} skill`,
             icon: Sparkles,
             group: 'Skills'
@@ -636,8 +648,11 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     }
     const suffix = textAfter.slice(end);
 
-    if (cmd.startsWith('/skill ')) {
-      const skillId = cmd.replace('/skill ', '').trim();
+    if (cmd.startsWith(`${INLINE_SKILL_COMMAND} `) || cmd.startsWith(`${LEGACY_INLINE_SKILL_COMMAND} `)) {
+      const skillId = cmd
+        .replace(`${INLINE_SKILL_COMMAND} `, '')
+        .replace(`${LEGACY_INLINE_SKILL_COMMAND} `, '')
+        .trim();
       const { value: newValue, cursor: newCursorPos } = insertSkillCommand(textBefore, suffix, skillId);
       setInput(newValue);
       setCursorPosition(newCursorPos);
@@ -738,18 +753,34 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
   const handleSend = () => {
     if (isLoading) return;
 
-    const typedSkillPattern = /\/skill\s+([A-Za-z0-9._/-]+)(?=\s|$)/g;
+    const typedSkillPattern = /(\/skills?)\s+([A-Za-z0-9._/-]+)(?=\s|$)/g;
+    const inlineTokenRegex = new RegExp(inlineSkillTokenPattern.source, 'g');
+    const typedSkillMatches = Array.from(input.matchAll(typedSkillPattern));
     const tokenSkillIds = Array.from(
-      input.matchAll(new RegExp(inlineSkillTokenPattern.source, 'g'))
+      input.matchAll(inlineTokenRegex)
     ).map((m) => m[1]);
-    const typedSkillIds = Array.from(
-      input.matchAll(typedSkillPattern)
-    ).map((m) => m[1]);
+    const typedSkillIds = typedSkillMatches
+      .map((m) => m[2])
+      .filter((id) => !SKILLS_MANAGEMENT_SUBCOMMANDS.has(id.toLowerCase()));
     const mergedSkillIds = Array.from(new Set([...tokenSkillIds, ...typedSkillIds]));
 
+    // Keep inline skill ids in the sentence when the user wrote surrounding text
+    // (e.g. "你会不会用 <skillA> 和 <skillB>"), but keep old behavior for skill-only sends.
+    const hasNonSkillText = input
+      .replace(inlineTokenRegex, '')
+      .replace(typedSkillPattern, (full, _command, id) => (
+        SKILLS_MANAGEMENT_SUBCOMMANDS.has(String(id).toLowerCase()) ? full : ''
+      ))
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\s+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim().length > 0;
+
     const cleanedInput = input
-      .replace(new RegExp(inlineSkillTokenPattern.source, 'g'), '')
-      .replace(typedSkillPattern, '')
+      .replace(inlineTokenRegex, (_full, id) => (hasNonSkillText ? String(id) : ''))
+      .replace(typedSkillPattern, (full, _command, id) => (
+        SKILLS_MANAGEMENT_SUBCOMMANDS.has(String(id).toLowerCase()) ? full : ''
+      ))
       .replace(/[ \t]{2,}/g, ' ')
       .replace(/\s+\n/g, '\n')
       .replace(/\n{3,}/g, '\n\n')
@@ -757,7 +788,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
 
     if (!cleanedInput && mergedSkillIds.length === 0) return;
 
-    const skillPrefix = mergedSkillIds.map((id) => `/skill ${id}`).join('\n');
+    const skillPrefix = mergedSkillIds.map((id) => `${INLINE_SKILL_COMMAND} ${id}`).join('\n');
     const finalMessage = skillPrefix
       ? `${skillPrefix}${cleanedInput ? `\n${cleanedInput}` : ''}`
       : cleanedInput;
@@ -923,7 +954,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
                     <Sparkles className="w-3 h-3" />
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="font-medium truncate">/skill {skill.id}</span>
+                    <span className="font-medium truncate">{INLINE_SKILL_COMMAND} {skill.id}</span>
                     <span className="text-[10px] opacity-70 truncate">{skill.name}</span>
                   </div>
                 </button>
@@ -939,7 +970,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
           <div className="relative min-h-[40px] max-h-[200px]">
             {input.length === 0 && (
               <div className="pointer-events-none absolute inset-0 px-2 py-1 text-sm text-muted-foreground z-20">
-                Ask anything... (Type / for commands, @ for files, /skill id for inline skill)
+                Ask anything... (Type / for commands, @ for files, /skills id for inline skill)
               </div>
             )}
 

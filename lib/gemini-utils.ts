@@ -19,24 +19,37 @@ const CREDENTIAL_FILES = [
 ];
 
 /**
- * Ensure the GUI's clean Gemini home directory exists with credentials.
- * This bypasses macOS SIP com.apple.provenance locks on ~/.gemini/tmp/.
+ * Ensure a Gemini home has required auth/config files.
+ * Also links (or copies) user skills so runtime and UI see the same skills set.
  */
-function ensureGeminiGuiHome(): void {
+function ensureGeminiHome(targetHome: string): void {
+  const targetConfigDir = path.join(targetHome, '.gemini');
+  const sourceSkillsDir = path.join(GEMINI_ORIGINAL_HOME, 'skills');
+  const targetSkillsDir = path.join(targetConfigDir, 'skills');
+
   try {
-    if (!fs.existsSync(GEMINI_GUI_CONFIG_DIR)) {
-      fs.mkdirSync(GEMINI_GUI_CONFIG_DIR, { recursive: true });
+    if (!fs.existsSync(targetConfigDir)) {
+      fs.mkdirSync(targetConfigDir, { recursive: true });
     }
 
     for (const file of CREDENTIAL_FILES) {
       const src = path.join(GEMINI_ORIGINAL_HOME, file);
-      const dst = path.join(GEMINI_GUI_CONFIG_DIR, file);
+      const dst = path.join(targetConfigDir, file);
       if (fs.existsSync(src) && !fs.existsSync(dst)) {
         fs.copyFileSync(src, dst);
       }
     }
+
+    if (fs.existsSync(sourceSkillsDir) && !fs.existsSync(targetSkillsDir)) {
+      try {
+        fs.symlinkSync(sourceSkillsDir, targetSkillsDir, 'dir');
+      } catch {
+        // Fallback for environments that disallow symlinks.
+        fs.cpSync(sourceSkillsDir, targetSkillsDir, { recursive: true });
+      }
+    }
   } catch (err) {
-    console.error('Failed to setup Gemini GUI home:', err);
+    console.error('Failed to setup Gemini home:', err);
   }
 }
 
@@ -52,11 +65,18 @@ export function getGeminiPath(): string {
 
 export function getGeminiEnv(): NodeJS.ProcessEnv {
   const existingHome = process.env.GEMINI_CLI_HOME;
-  const projectHasSettings = fs.existsSync(path.join(PROJECT_GEMINI_HOME, '.gemini', 'settings.json'));
-  const selectedHome = existingHome || (projectHasSettings ? PROJECT_GEMINI_HOME : GEMINI_GUI_HOME);
+  const projectConfigDir = path.join(PROJECT_GEMINI_HOME, '.gemini');
+  const projectHasSettings = fs.existsSync(path.join(projectConfigDir, 'settings.json'));
+  const projectHasSkills = fs.existsSync(path.join(projectConfigDir, 'skills'));
+  const userHasSkills = fs.existsSync(path.join(GEMINI_ORIGINAL_HOME, 'skills'));
+
+  // Prefer project snapshot only when it already has skills (or no user skills exist).
+  // Otherwise use isolated GUI home and hydrate it from ~/.gemini to keep behavior consistent.
+  const selectedHome = existingHome
+    || ((projectHasSettings && (projectHasSkills || !userHasSkills)) ? PROJECT_GEMINI_HOME : GEMINI_GUI_HOME);
 
   if (selectedHome === GEMINI_GUI_HOME) {
-    ensureGeminiGuiHome();
+    ensureGeminiHome(GEMINI_GUI_HOME);
   }
 
   return {

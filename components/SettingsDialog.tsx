@@ -27,13 +27,11 @@ interface SettingsDialogProps {
 }
 
 const MODELS = [
-  { id: 'auto-gemini-3', name: 'Auto (Gemini 3)' },
-  { id: 'auto-gemini-2.5', name: 'Auto (Gemini 2.5)' },
-  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro Preview' },
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite' },
+  { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview' },
+  { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview' },
+  { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro' },
+  { id: 'gemini-2.5-flash', name: 'gemini-2.5-flash' },
+  { id: 'gemini-2.5-flash-lite', name: 'gemini-2.5-flash-lite' },
 ];
 
 export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDialogProps) {
@@ -65,7 +63,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
 
   const handleReset = () => {
     setLocalSettings({
-        model: 'auto-gemini-3',
+        model: 'gemini-3-pro-preview',
         systemInstruction: '',
         ui: {
           footer: {

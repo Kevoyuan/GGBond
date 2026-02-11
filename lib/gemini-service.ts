@@ -228,11 +228,11 @@ export async function listExtensions(): Promise<string> {
 
 // ─── Models ──────────────────────────────────────────────
 export const KNOWN_MODELS = [
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tier: 'pro', contextWindow: '2M' },
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tier: 'flash', contextWindow: '1M' },
-    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', tier: 'lite', contextWindow: '1M' },
-    { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (Preview)', tier: 'pro', contextWindow: '1M' },
-    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Preview)', tier: 'flash', contextWindow: '1M' },
+    { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro', tier: 'pro', contextWindow: '2M' },
+    { id: 'gemini-2.5-flash', name: 'gemini-2.5-flash', tier: 'flash', contextWindow: '1M' },
+    { id: 'gemini-2.5-flash-lite', name: 'gemini-2.5-flash-lite', tier: 'lite', contextWindow: '1M' },
+    { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', tier: 'pro', contextWindow: '1M' },
+    { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', tier: 'flash', contextWindow: '1M' },
 ];
 
 export async function getModelConfig(): Promise<{
