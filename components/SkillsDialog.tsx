@@ -258,7 +258,7 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
                       ? "bg-card border-border shadow-sm hover:border-primary/40 hover:bg-primary/5" 
                       : "bg-muted/30 border-transparent opacity-80 hover:opacity-100 hover:border-border"
                   )}
-                  title={`Insert /skill ${skill.id} into chat`}
+                  title={`Insert /skills ${skill.id} into chat`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">

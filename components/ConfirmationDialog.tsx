@@ -1,17 +1,7 @@
-
 'use client';
 
 import React from 'react';
-import {
-    AlertTriangle,
-    Check,
-    X,
-    Terminal,
-    FileText,
-    HelpCircle,
-    Server,
-    LogOut
-} from 'lucide-react';
+import { AlertTriangle, Check, FileText, Server, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DiffBlock } from './DiffBlock';
 
@@ -25,6 +15,8 @@ export interface ConfirmationDetails {
     // Exec
     command?: string;
     rootCommand?: string;
+    rootCommands?: string[];
+    commands?: string[];
     // Edit
     fileName?: string;
     filePath?: string;
@@ -34,8 +26,11 @@ export interface ConfirmationDetails {
     // MCP
     serverName?: string;
     toolName?: string;
+    toolDisplayName?: string;
     // Ask User
     questions?: any[];
+    // Exit plan mode
+    planPath?: string;
 }
 
 interface ConfirmationDialogProps {
@@ -45,103 +40,102 @@ interface ConfirmationDialogProps {
 }
 
 export function ConfirmationDialog({ details, onConfirm, onCancel }: ConfirmationDialogProps) {
-    const { type, title, command, fileDiff, fileName, serverName, toolName, prompt } = details;
+    const {
+        type,
+        title,
+        command,
+        fileDiff,
+        fileName,
+        serverName,
+        toolName,
+        toolDisplayName,
+        prompt,
+    } = details;
 
     let Icon = AlertTriangle;
-    let iconColor = "text-amber-500";
-    let bgColor = "bg-amber-500/10";
-    let borderColor = "border-amber-500/20";
+    let accent = 'text-amber-400';
+    let button = 'bg-amber-600 hover:bg-amber-500';
 
     if (type === 'exec') {
         Icon = Terminal;
-        iconColor = "text-blue-500";
-        bgColor = "bg-blue-500/10";
-        borderColor = "border-blue-500/20";
+        accent = 'text-blue-400';
+        button = 'bg-blue-600 hover:bg-blue-500';
     } else if (type === 'edit') {
         Icon = FileText;
-        iconColor = "text-emerald-500";
-        bgColor = "bg-emerald-500/10";
-        borderColor = "border-emerald-500/20";
+        accent = 'text-emerald-400';
+        button = 'bg-emerald-600 hover:bg-emerald-500';
     } else if (type === 'mcp') {
         Icon = Server;
-        iconColor = "text-purple-500";
-        bgColor = "bg-purple-500/10";
-        borderColor = "border-purple-500/20";
+        accent = 'text-fuchsia-400';
+        button = 'bg-fuchsia-600 hover:bg-fuchsia-500';
     }
 
+    const primaryLabel =
+        type === 'exec'
+            ? 'Run Command'
+            : type === 'edit'
+                ? 'Apply Changes'
+                : 'Confirm';
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className={cn(
-                "w-full max-w-2xl bg-background rounded-xl border shadow-2xl overflow-hidden flex flex-col max-h-[90vh]",
-                borderColor
-            )}>
-                {/* Header */}
-                <div className={cn("px-4 py-3 border-b flex items-center gap-3", bgColor, borderColor)}>
-                    <Icon className={cn("w-5 h-5", iconColor)} />
-                    <h3 className="font-semibold text-foreground">{title}</h3>
+        <div className="fixed left-1/2 bottom-20 z-50 w-[min(560px,calc(100vw-2rem))] -translate-x-1/2 pointer-events-none animate-in slide-in-from-bottom-2 fade-in duration-200">
+            <div className="pointer-events-auto rounded-lg border border-border/70 bg-background/95 backdrop-blur-md shadow-[0_16px_42px_-20px_rgba(0,0,0,0.7)] overflow-hidden">
+                <div className="flex items-center gap-2 border-b border-border/70 px-3 py-2.5">
+                    <Icon className={cn('h-4 w-4', accent)} />
+                    <h3 className="text-sm font-semibold text-foreground">{title}</h3>
                 </div>
 
-                {/* Content */}
-                <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
+                <div className="max-h-[42vh] overflow-y-auto px-3 py-2.5 custom-scrollbar">
                     {prompt && (
-                        <p className="text-muted-foreground mb-4">{prompt}</p>
+                        <p className="mb-2 text-sm text-muted-foreground">{prompt}</p>
                     )}
 
-                    {/* Exec Command */}
-                    {type === 'exec' && command && (
-                        <div className="bg-muted/50 rounded-lg border border-border/50 p-3 font-mono text-sm overflow-x-auto">
-                            <span className="text-blue-500 select-none">$ </span>
-                            {command}
-                        </div>
-                    )}
-
-                    {/* File Edit */}
-                    {type === 'edit' && fileDiff && (
-                        <div className="flex flex-col gap-2">
-                            <div className="text-xs text-muted-foreground font-mono bg-muted/30 px-2 py-1 rounded w-fit">
-                                {fileName}
-                            </div>
-                            <div className="border rounded-md overflow-hidden bg-background">
-                                <DiffBlock
-                                    code={details.fileDiff || ''}
-                                    filename={fileName}
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* MCP Tool */}
-                    {type === 'mcp' && (
+                    {type === 'exec' && (
                         <div className="space-y-2">
-                            <div className="grid grid-cols-[auto_1fr] gap-2 text-sm">
-                                <span className="text-muted-foreground">Server:</span>
-                                <span className="font-medium">{serverName}</span>
-                                <span className="text-muted-foreground">Tool:</span>
-                                <span className="font-medium">{toolName}</span>
+                            <div className="rounded-md border border-border/70 bg-black/25 px-2.5 py-2 font-mono text-sm text-zinc-100 overflow-x-auto">
+                                <span className="select-none text-blue-400">$ </span>
+                                {command || '(empty command)'}
                             </div>
+                        </div>
+                    )}
+
+                    {type === 'edit' && (
+                        <div className="space-y-2">
+                            <div className="w-fit rounded-md border border-border bg-muted/30 px-2 py-1 text-xs font-mono text-muted-foreground">
+                                {fileName || details.filePath || 'unknown file'}
+                            </div>
+                            <div className="overflow-hidden rounded-md border border-border/80 bg-background">
+                                <DiffBlock code={fileDiff || ''} filename={fileName} />
+                            </div>
+                        </div>
+                    )}
+
+                    {type === 'mcp' && (
+                        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-sm">
+                            <span className="text-muted-foreground">Server</span>
+                            <span className="font-medium text-foreground">{serverName || 'unknown'}</span>
+                            <span className="text-muted-foreground">Tool</span>
+                            <span className="font-medium text-foreground">{toolDisplayName || toolName || 'unknown'}</span>
                         </div>
                     )}
                 </div>
 
-                {/* Footer Buttons */}
-                <div className="p-4 border-t bg-muted/5 flex justify-end gap-3">
+                <div className="flex items-center justify-end gap-2 border-t border-border/70 bg-muted/10 px-3 py-2.5">
                     <button
                         onClick={onCancel}
-                        className="px-4 py-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground font-medium transition-colors text-sm"
+                        className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={() => onConfirm()}
                         className={cn(
-                            "px-4 py-2 rounded-lg text-white font-medium transition-colors text-sm shadow-sm flex items-center gap-2",
-                            type === 'exec' ? "bg-blue-600 hover:bg-blue-700" :
-                                type === 'edit' ? "bg-emerald-600 hover:bg-emerald-700" :
-                                    "bg-primary hover:bg-primary/90"
+                            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-semibold text-white transition-colors',
+                            button
                         )}
                     >
-                        <Check className="w-4 h-4" />
-                        Confirm {type === 'exec' ? 'Execution' : type === 'edit' ? 'Changes' : 'Action'}
+                        <Check className="h-4 w-4" />
+                        {primaryLabel}
                     </button>
                 </div>
             </div>

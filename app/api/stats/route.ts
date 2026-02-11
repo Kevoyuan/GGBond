@@ -62,7 +62,7 @@ export async function GET() {
         const total = data.total_tokens || data.totalTokenCount || (input + output);
         
         // Use provided cost or calculate it
-        const modelName = data.model || 'auto-gemini-3'; // Default to auto-gemini-3 (Gemini 3 Pro) if not found
+        const modelName = data.model || 'gemini-3-pro-preview';
         const cost = data.totalCost || calculateCost(input, output, cached, modelName);
 
         // Helper to accumulate

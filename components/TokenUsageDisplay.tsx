@@ -36,7 +36,7 @@ export function TokenUsageDisplay({ stats, compact = true, className, hideModelI
   const cachedTokens = stats.cachedContentTokenCount || stats.cached || 0;
   
   // Model info for context window
-  const modelName = stats.model || 'auto-gemini-3';
+  const modelName = stats.model || 'gemini-3-pro-preview';
   const { pricing, name: resolvedModelName } = getModelInfo(modelName);
   const contextLimit = pricing.contextWindow;
   const contextPercent = Math.min((totalTokens / contextLimit) * 100, 100);
