@@ -23,6 +23,7 @@ interface ChatContainerProps {
     mode: 'code' | 'plan' | 'ask'; // or string
     onModeChange: (mode: 'code' | 'plan' | 'ask') => void;
     onApprovalModeChange: (mode: 'safe' | 'auto') => void;
+    workspacePath?: string;
 }
 
 export function ChatContainer({
@@ -40,7 +41,8 @@ export function ChatContainer({
     currentContextUsage,
     mode,
     onModeChange,
-    onApprovalModeChange
+    onApprovalModeChange,
+    workspacePath
 }: ChatContainerProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -113,8 +115,9 @@ export function ChatContainer({
                         sessionStats={sessionStats}
                         currentContextUsage={currentContextUsage}
                         mode={mode}
-                        onModeChange={onModeChange as any}
+                        onModeChange={onModeChange}
                         onApprovalModeChange={onApprovalModeChange}
+                        workspacePath={workspacePath}
                     />
                 </>
             )}

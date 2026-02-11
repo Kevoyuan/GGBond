@@ -28,17 +28,18 @@ interface ToolCallBlockProps {
 }
 
 // Map tool names to Lucide icons
-function getToolIcon(toolName: string) {
+function getToolIconElement(toolName: string) {
     const lower = toolName.toLowerCase();
-    if (lower.includes('read') || lower.includes('view') || lower.includes('cat')) return FileText;
-    if (lower.includes('write') || lower.includes('create') || lower.includes('save')) return Edit;
-    if (lower.includes('edit') || lower.includes('replace') || lower.includes('update')) return Edit;
-    if (lower.includes('search') || lower.includes('grep') || lower.includes('find')) return Search;
-    if (lower.includes('browser') || lower.includes('web') || lower.includes('fetch')) return Globe;
-    if (lower.includes('list') || lower.includes('ls')) return List;
-    if (lower.includes('delete') || lower.includes('remove') || lower.includes('rm')) return Trash2;
-    if (lower.includes('execute') || lower.includes('bash') || lower.includes('shell') || lower.includes('run') || lower.includes('command')) return Terminal;
-    return Play; // Default icon
+    const iconClass = "w-3.5 h-3.5 opacity-70";
+    if (lower.includes('read') || lower.includes('view') || lower.includes('cat')) return <FileText className={iconClass} />;
+    if (lower.includes('write') || lower.includes('create') || lower.includes('save')) return <Edit className={iconClass} />;
+    if (lower.includes('edit') || lower.includes('replace') || lower.includes('update')) return <Edit className={iconClass} />;
+    if (lower.includes('search') || lower.includes('grep') || lower.includes('find')) return <Search className={iconClass} />;
+    if (lower.includes('browser') || lower.includes('web') || lower.includes('fetch')) return <Globe className={iconClass} />;
+    if (lower.includes('list') || lower.includes('ls')) return <List className={iconClass} />;
+    if (lower.includes('delete') || lower.includes('remove') || lower.includes('rm')) return <Trash2 className={iconClass} />;
+    if (lower.includes('execute') || lower.includes('bash') || lower.includes('shell') || lower.includes('run') || lower.includes('command')) return <Terminal className={iconClass} />;
+    return <Play className={iconClass} />; // Default icon
 }
 
 // Map tool names to display verbs
@@ -79,7 +80,7 @@ function getToolTarget(args: Record<string, any>): string {
 export function ToolCallBlock({ toolName, args, status = 'completed', result, duration, onRetry, onCancel }: ToolCallBlockProps) {
     const [expanded, setExpanded] = useState(false);
 
-    const ToolIcon = getToolIcon(toolName);
+    const toolIcon = getToolIconElement(toolName);
     const verb = getToolVerb(toolName);
     const target = getToolTarget(args);
 
@@ -116,7 +117,7 @@ export function ToolCallBlock({ toolName, args, status = 'completed', result, du
 
                 {/* Tool Icon & Name */}
                 <div className="flex items-center gap-1.5 text-muted-foreground/80 group-hover/tool:text-foreground transition-colors">
-                    <ToolIcon className="w-3.5 h-3.5 opacity-70" />
+                    {toolIcon}
                     <span className="font-semibold text-foreground/90">{verb}</span>
                 </div>
 

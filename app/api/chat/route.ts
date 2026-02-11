@@ -28,19 +28,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
 
+    // Force fallback to gemini-2.0-flash if potentially unstable preview model is requested
+    const requestedModel = model || 'gemini-2.5-pro';
+    const targetModel = requestedModel.includes('preview') ? 'gemini-2.0-flash' : requestedModel;
+
     // Initialize CoreService
     const core = CoreService.getInstance();
 
-    // Use provided sessionId or generate new one if not provided (though usually frontend provides one or null)
+    // Use provided sessionId or generate new one
     const finalSessionId = sessionId || crypto.randomUUID();
 
-    // Initialize config if needed or if session changed
     await core.initialize({
       sessionId: finalSessionId,
-      model: model || 'gemini-2.5-pro',
-      cwd: workspace || process.cwd(),
-      approvalMode: approvalMode === 'auto' ? 1 : 0, // 1=AUTO, 0=CONFIRM (Need to check Enum values, assuming 1 is AUTO)
-      // Enum ApprovalMode { ALWAYS_CONFIRM = 0, AUTO_APPROVE = 1, YOLO = 2 }
+      model: targetModel,
+      cwd: (workspace && workspace !== 'Default') ? workspace : process.cwd(),
+      // Map legacy/frontend 'auto' to ApprovalMode.AUTO_EDIT ("autoEdit")
+      approvalMode: (approvalMode === 'auto' || approvalMode === 'autoEdit') ? 'autoEdit' : 'default',
       systemInstruction
     });
 
@@ -61,28 +64,33 @@ export async function POST(req: Request) {
     const now = Date.now();
     let userMessageId: number | bigint | null = null;
 
-    // 1. Log Session & User Message (Synchronously before stream or during init)
+    // 1. Log Session & User Message
     try {
-      const existingSession = db.prepare('SELECT id FROM sessions WHERE id = ?').get(finalSessionId);
-      if (!existingSession) {
-        const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
-        db.prepare(`
-                    INSERT INTO sessions (id, title, created_at, updated_at, workspace)
-                    VALUES (?, ?, ?, ?, ?)
-                `).run(finalSessionId, title, now, now, workspace || null);
-      } else {
-        db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(now, finalSessionId);
-      }
+      // Use transaction to ensure session exists before message
+      const insertSessionFn = db.transaction(() => {
+        const existing = db.prepare('SELECT id FROM sessions WHERE id = ?').get(finalSessionId);
+        if (!existing) {
+          const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
+          db.prepare(`
+            INSERT INTO sessions (id, title, created_at, updated_at, workspace)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(finalSessionId, title, now, now, workspace || null);
+        } else {
+          db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(now, finalSessionId);
+        }
 
-      const stmt = db.prepare('INSERT INTO messages (session_id, role, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)');
-      const info = stmt.run(finalSessionId, 'user', prompt, parentId || null, now);
+        const stmt = db.prepare('INSERT INTO messages (session_id, role, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)');
+        return stmt.run(finalSessionId, 'user', prompt, parentId || null, now);
+      });
+
+      const info = insertSessionFn();
       userMessageId = info.lastInsertRowid;
     } catch (e) {
-      console.error('[DB] Failed to log user message', e);
+      console.error('[DB] Failed to log user/session', e);
+      // Don't block chat on DB error
     }
 
     let fullResponse = '';
-    let toolCalls = [];
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -90,7 +98,7 @@ export async function POST(req: Request) {
         const initEvent = {
           type: 'init',
           session_id: finalSessionId,
-          model: model || 'gemini-2.5-pro'
+          model: targetModel
         };
         controller.enqueue(encoder.encode(JSON.stringify(initEvent) + '\n'));
 
@@ -173,9 +181,22 @@ export async function POST(req: Request) {
             }
 
             else if (event.type === GeminiEventType.Error) {
+              const eventValue = (event as { value?: unknown }).value;
+              const valueRecord = (eventValue && typeof eventValue === 'object')
+                ? (eventValue as Record<string, unknown>)
+                : null;
+              const rawError = (valueRecord?.error ?? eventValue ?? null) as Record<string, unknown> | string | null;
+              const normalizedError = typeof rawError === 'string'
+                ? { message: rawError }
+                : {
+                  message: typeof rawError?.message === 'string' ? rawError.message : 'Unknown Gemini error',
+                  type: typeof rawError?.type === 'string' ? rawError.type : undefined,
+                  ...(rawError || {})
+                };
+
               controller.enqueue(encoder.encode(JSON.stringify({
                 type: 'error',
-                error: event.value.error
+                error: normalizedError
               }) + '\n'));
             }
           }
@@ -190,9 +211,10 @@ export async function POST(req: Request) {
 
         } catch (err) {
           console.error('Turn execution error:', err);
+          const errorMessage = err instanceof Error ? err.message : String(err);
           controller.enqueue(encoder.encode(JSON.stringify({
             type: 'error',
-            error: { message: String(err) }
+            error: { message: errorMessage }
           }) + '\n'));
         } finally {
           controller.close();

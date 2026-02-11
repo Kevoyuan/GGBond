@@ -6,10 +6,12 @@ import { PerformancePanel } from '@/components/modules/analytics/PerformancePane
 import { SessionTimeline } from '@/components/modules/timeline/SessionTimeline';
 import { ProjectContext } from '@/components/modules/project/ProjectContext';
 import { ChatManager } from '@/components/modules/ChatModules';
+import { CheckpointManager } from '@/components/modules/SessionModules';
 import { ToolManager, MCPManager, ExtensionManager } from '@/components/modules/SystemModules';
 import { MemoryManager, DirectoryManager, HooksManager } from '@/components/modules/ContextModules';
 import { SettingsManager, ThemeSelector, ShortcutsPanel, SystemInfo } from '@/components/modules/ConfigModules';
 import { ShellManager, AuthManager, FileManager } from '@/components/modules/ActionModules';
+import { CustomCommandManager } from '@/components/modules/CommandModules';
 import { SkillsManager } from '@/components/modules/SkillsManager';
 
 function SectionTitle({ title, description }: { title: string; description: string }) {
@@ -48,6 +50,7 @@ export default function ModulesPage() {
           <div className="grid lg:grid-cols-2 gap-4">
             <ChatManager />
             <SessionTimeline />
+            <CheckpointManager />
           </div>
         </section>
 
@@ -58,6 +61,7 @@ export default function ModulesPage() {
             <MCPManager />
             <ToolManager />
             <ExtensionManager />
+            <CustomCommandManager />
             <SkillsManager />
             <ShellManager />
             <AuthManager />
@@ -78,9 +82,10 @@ export default function ModulesPage() {
         {/* ─── Section 5: Configuration ───────────────────────── */}
         <section>
           <SectionTitle title="🎨 Configuration" description="Model selection, theme, shortcuts, and system info" />
-          <div className="grid lg:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid lg:grid-cols-2 xl:grid-cols-5 gap-4">
             <SettingsManager />
             <ThemeSelector />
+            <ShortcutsPanel />
             <SystemInfo />
             <FileManager />
           </div>

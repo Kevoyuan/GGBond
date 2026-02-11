@@ -401,7 +401,7 @@ export default function Home() {
       let buffer = '';
       let assistantContent = '';
       let assistantThought = '';
-      let assistantCitations: string[] = [];
+      const assistantCitations: string[] = [];
       let streamSessionId = currentSessionId;
 
       while (true) {
@@ -437,8 +437,17 @@ export default function Home() {
               // Handle interactive confirmation
               // Expecting data.value.details which matches ConfirmationDetails structure
               const details = data.value?.details || data.details;
+              const correlationId =
+                data.value?.correlationId ||
+                data.correlationId ||
+                details?.correlationId ||
+                data.value?.id ||
+                data.id;
               if (details) {
-                setConfirmation(details);
+                setConfirmation({
+                  details,
+                  correlationId: correlationId || ''
+                });
                 // We might want to show this in the chat as well? 
                 // For now, modal dialog is fine.
               }
@@ -516,6 +525,19 @@ export default function Home() {
               updateMessageInTree(assistantMsgId, updates);
             }
 
+            if (data.type === 'error') {
+              const rawError = data.error;
+              const errorMsg =
+                (typeof rawError === 'string' && rawError) ||
+                rawError?.message ||
+                rawError?.error?.message ||
+                rawError?.type ||
+                'Unknown API error';
+
+              assistantContent += `\n\n> ⚠️ **Error**: ${errorMsg}`;
+              updateMessageInTree(assistantMsgId, { content: assistantContent, error: true });
+            }
+
             if (data.type === 'result') {
               if (data.status === 'error' && data.error) {
                 const errorMsg = data.error.message || data.error.type || 'Unknown API error';
@@ -584,6 +606,10 @@ export default function Home() {
 
   const handleConfirm = async (approved: boolean) => {
     if (!confirmation) return;
+    if (!confirmation.correlationId) {
+      console.error('Missing confirmation correlationId');
+      return;
+    }
 
     try {
       await fetch('/api/confirm', {
@@ -764,6 +790,7 @@ export default function Home() {
             mode={mode}
             onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
             onApprovalModeChange={setApprovalMode}
+            workspacePath={currentWorkspace || undefined}
           />
         </div>
       </div>
