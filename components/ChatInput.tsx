@@ -11,12 +11,13 @@ interface ChatInputProps {
   onModelChange: (model: string) => void;
   sessionStats?: {
     totalTokens: number;
-    [key: string]: any;
+    [key: string]: number;
   };
   currentContextUsage?: number;
-  mode?: string;
-  onModeChange?: (mode: string) => void;
+  mode?: 'code' | 'plan' | 'ask';
+  onModeChange?: (mode: 'code' | 'plan' | 'ask') => void;
   onApprovalModeChange?: (mode: 'safe' | 'auto') => void;
+  workspacePath?: string;
 }
 
 interface CommandItem {
@@ -24,6 +25,25 @@ interface CommandItem {
   description: string;
   icon: React.ElementType;
   group?: string;
+}
+
+interface SkillRecord {
+  id: string;
+  name: string;
+  status: 'Enabled' | 'Disabled';
+  description: string;
+}
+
+interface MentionItem {
+  path: string;
+  displayPath: string;
+  type: 'directory' | 'file';
+}
+
+interface SkillSuggestionItem {
+  id: string;
+  name: string;
+  description: string;
 }
 
 const BASE_COMMANDS: CommandItem[] = [
@@ -56,7 +76,7 @@ const BASE_COMMANDS: CommandItem[] = [
 ];
 
 interface ModeOption {
-  value: string;
+  value: 'code' | 'plan' | 'ask';
   label: string;
   icon: React.ElementType;
   description: string;
@@ -78,20 +98,32 @@ const MODELS = [
   { id: 'gemini-2.5-flash-lite', name: '2.5 Flash Lite', icon: Zap },
 ];
 
-export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, onApprovalModeChange }: ChatInputProps) {
+const INLINE_SKILL_TOKEN_MARKER = '\u200B';
+const INLINE_SKILL_TOKEN_SOURCE = `([A-Za-z0-9._/\\-\u2011]+)${INLINE_SKILL_TOKEN_MARKER}`;
+
+export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, onApprovalModeChange, workspacePath }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
+  const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | 'skill' | null>(null);
   const [showModelMenu, setShowModelMenu] = useState(false);
   const [showModeMenu, setShowModeMenu] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filteredCommands, setFilteredCommands] = useState<CommandItem[]>(BASE_COMMANDS);
+  const [filteredMentions, setFilteredMentions] = useState<MentionItem[]>([]);
+  const [skillRecords, setSkillRecords] = useState<SkillRecord[]>([]);
+  const [filteredSkills, setFilteredSkills] = useState<SkillSuggestionItem[]>([]);
   const [installedSkills, setInstalledSkills] = useState<CommandItem[]>([]);
+  const inputRef = useRef('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputOverlayRef = useRef<HTMLDivElement>(null);
   const commandListRef = useRef<HTMLDivElement>(null);
   const modeMenuRef = useRef<HTMLDivElement>(null);
+  const mentionRequestCounter = useRef(0);
+  const cursorRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   const [cursorPosition, setCursorPosition] = useState(0);
   const [showContextTooltip, setShowContextTooltip] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
+  const inlineSkillTokenPattern = new RegExp(INLINE_SKILL_TOKEN_SOURCE, 'g');
 
   const currentMode = MODE_OPTIONS.find(m => m.value === mode) || MODE_OPTIONS[0];
 
@@ -135,6 +167,123 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     return { start: lastSlash, query: textBefore.slice(lastSlash) };
   };
 
+  const getMentionBounds = (text: string, index: number) => {
+    const textBefore = text.slice(0, index);
+    const lastAt = textBefore.lastIndexOf('@');
+
+    if (lastAt === -1) return null;
+    if (lastAt > 0 && /\S/.test(text[lastAt - 1])) return null;
+
+    const token = textBefore.slice(lastAt + 1);
+    if (token.includes('\n')) return null;
+
+    return { start: lastAt, query: token };
+  };
+
+  const getSkillBounds = (text: string, index: number) => {
+    const textBefore = text.slice(0, index);
+    const commandMatch = textBefore.match(/(^|\s)\/skill(?:\s+([^\s\n]*))?$/);
+    if (commandMatch) {
+      const query = (commandMatch[2] || '').trim().toLowerCase();
+      const start = textBefore.length - commandMatch[0].length + commandMatch[1].length;
+      return { query, start };
+    }
+
+    return null;
+  };
+
+  const createSkillToken = (skillId: string) => {
+    // Use non-breaking hyphen to prevent wrapping inside token in textarea
+    const atomicId = skillId.replace(/-/g, '\u2011');
+    return `${atomicId}${INLINE_SKILL_TOKEN_MARKER}`;
+  };
+
+  const getCurrentCursor = () => {
+    return textareaRef.current?.selectionStart ?? cursorRef.current.start;
+  };
+
+  const getSkillTokenRangeAt = (text: string, cursor: number) => {
+    const regex = new RegExp(inlineSkillTokenPattern.source, 'g');
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(text)) !== null) {
+      const start = match.index;
+      const end = match.index + match[0].length;
+      if (cursor > start && cursor < end) {
+        return { start, end };
+      }
+    }
+    return null;
+  };
+
+  const getSkillTokenRangeEndingAt = (text: string, cursor: number) => {
+    const regex = new RegExp(inlineSkillTokenPattern.source, 'g');
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(text)) !== null) {
+      const end = match.index + match[0].length;
+      if (end === cursor) {
+        return { start: match.index, end };
+      }
+    }
+    return null;
+  };
+
+  const getSkillTokenRangeStartingAt = (text: string, cursor: number) => {
+    const regex = new RegExp(inlineSkillTokenPattern.source, 'g');
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(text)) !== null) {
+      const start = match.index;
+      const end = match.index + match[0].length;
+      if (start === cursor) {
+        return { start, end };
+      }
+    }
+    return null;
+  };
+
+  const snapCursorOutsideSkillToken = (text: string, cursor: number) => {
+    const range = getSkillTokenRangeAt(text, cursor);
+    return range ? range.end : cursor;
+  };
+
+  const insertSkillCommand = (before: string, after: string, skillId: string) => {
+    const token = createSkillToken(skillId);
+    const normalizedBefore = before.replace(/[ \t]+$/, '');
+    const normalizedAfter = after.replace(/^[ \t]+/, '');
+    const needLeadingSpace = normalizedBefore.length > 0 && !/\s$/.test(normalizedBefore);
+    // Keep one trailing separator so users can immediately type plain text or another /skill command.
+    const needTrailingSpace = normalizedAfter.length === 0 || !/^\s/.test(normalizedAfter);
+
+    const left = `${normalizedBefore}${needLeadingSpace ? ' ' : ''}`;
+    const right = `${needTrailingSpace ? ' ' : ''}${normalizedAfter}`;
+    const value = `${left}${token}${right}`;
+    const cursor = (left + token + (needTrailingSpace ? ' ' : '')).length;
+    return { value, cursor };
+  };
+
+  const removeSkillTokenRange = (start: number, end: number) => {
+    const before = input.slice(0, start);
+    let after = input.slice(end);
+    if (before.endsWith(' ') && after.startsWith(' ')) {
+      after = after.slice(1);
+    }
+
+    const nextValue = before + after;
+    const nextCursor = before.length;
+    setInput(nextValue);
+    setCursorPosition(nextCursor);
+    cursorRef.current = { start: nextCursor, end: nextCursor };
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(nextCursor, nextCursor);
+      }
+    });
+    void updateSuggestions(nextValue, nextCursor);
+  };
+
   useEffect(() => {
     // Scroll selected item into view
     if (showCommands && commandListRef.current) {
@@ -151,9 +300,10 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
       try {
         const res = await fetch('/api/skills');
         if (res.ok) {
-          const skills = await res.json();
-          const skillCommands = skills.map((skill: any) => ({
-            command: `/skill ${skill.name}`,
+          const skills: SkillRecord[] = await res.json();
+          setSkillRecords(skills);
+          const skillCommands = skills.map((skill) => ({
+            command: `/skill ${skill.id}`,
             description: skill.description || `Use ${skill.name} skill`,
             icon: Sparkles,
             group: 'Skills'
@@ -179,7 +329,79 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     adjustHeight();
   }, [input]);
 
-  const updateSuggestions = (value: string, cursorIndex: number) => {
+  useEffect(() => {
+    inputRef.current = input;
+  }, [input]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const customEvent = event as CustomEvent<{ skillId?: string }>;
+      const skillId = customEvent.detail?.skillId;
+      if (!skillId) return;
+
+      const prev = inputRef.current;
+      const isFocused = document.activeElement === textareaRef.current;
+      const start = isFocused
+        ? (textareaRef.current?.selectionStart ?? prev.length)
+        : prev.length;
+      const end = isFocused
+        ? (textareaRef.current?.selectionEnd ?? prev.length)
+        : prev.length;
+      const safeStart = Math.max(0, Math.min(start, prev.length));
+      const safeEnd = Math.max(safeStart, Math.min(end, prev.length));
+      const before = prev.slice(0, safeStart);
+      const after = prev.slice(safeEnd);
+      const { value: nextValue, cursor: nextCursorPos } = insertSkillCommand(before, after, skillId);
+
+      inputRef.current = nextValue;
+      setInput(nextValue);
+      setCursorPosition(nextCursorPos);
+      cursorRef.current = { start: nextCursorPos, end: nextCursorPos };
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(nextCursorPos, nextCursorPos);
+        }
+      });
+    };
+
+    window.addEventListener('insert-skill-token', handler as EventListener);
+    return () => window.removeEventListener('insert-skill-token', handler as EventListener);
+  }, []);
+
+  const updateSuggestions = async (value: string, cursorIndex: number) => {
+    const skillBounds = getSkillBounds(value, cursorIndex);
+    if (skillBounds) {
+      const candidates = skillRecords
+        .filter((skill) => skill.status === 'Enabled')
+        .filter((skill) => {
+          if (!skillBounds.query) return true;
+          return (
+            skill.id.toLowerCase().includes(skillBounds.query) ||
+            skill.name.toLowerCase().includes(skillBounds.query) ||
+            (skill.description || '').toLowerCase().includes(skillBounds.query)
+          );
+        })
+        .slice(0, 50)
+        .map((skill) => ({
+          id: skill.id,
+          name: skill.name,
+          description: skill.description || `Use ${skill.name} skill`,
+        }));
+
+      if (candidates.length > 0) {
+        setFilteredSkills(candidates);
+        setActiveTrigger('skill');
+        setShowCommands(true);
+        setSelectedIndex(0);
+      } else {
+        setFilteredSkills([]);
+        setActiveTrigger(null);
+        setShowCommands(false);
+      }
+      return;
+    }
+
     const bounds = getCommandBounds(value, cursorIndex);
 
     if (bounds) {
@@ -201,46 +423,187 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
 
       if (matches.length > 0) {
         setFilteredCommands(matches);
+        setActiveTrigger('/');
         setShowCommands(true);
         setSelectedIndex(0);
       } else {
+        setActiveTrigger(null);
+        setShowCommands(false);
+      }
+      return;
+    }
+
+    const mentionBounds = getMentionBounds(value, cursorIndex);
+    if (mentionBounds) {
+      const reqId = ++mentionRequestCounter.current;
+      const query = mentionBounds.query;
+      const params = new URLSearchParams({
+        index: '1',
+        mentions: '1',
+        limit: '120',
+        q: query,
+      });
+      if (workspacePath) {
+        params.set('path', workspacePath);
+      }
+
+      try {
+        const res = await fetch(`/api/files?${params.toString()}`);
+        if (!res.ok) {
+          throw new Error('Failed to fetch file index');
+        }
+        const data = await res.json();
+        if (reqId !== mentionRequestCounter.current) {
+          return;
+        }
+        const basePath = typeof data.path === 'string' ? data.path : (workspacePath || '');
+        const mentions: MentionItem[] = Array.isArray(data.files)
+          ? data.files.map((entry: { path: string; type: 'directory' | 'file' }) => {
+            const absPath = entry.path || '';
+            const relPath = basePath && absPath.startsWith(basePath)
+              ? absPath.slice(basePath.length).replace(/^\/+/, '')
+              : absPath;
+            return {
+              path: relPath || absPath,
+              displayPath: relPath || absPath,
+              type: entry.type || 'file'
+            };
+          })
+          : [];
+
+        if (mentions.length > 0) {
+          setFilteredMentions(mentions);
+          setActiveTrigger('@');
+          setShowCommands(true);
+          setSelectedIndex(0);
+        } else {
+          setFilteredMentions([]);
+          setActiveTrigger(null);
+          setShowCommands(false);
+        }
+      } catch (error) {
+        console.error('Failed to index workspace files for @ autocomplete', error);
+        setFilteredMentions([]);
+        setActiveTrigger(null);
         setShowCommands(false);
       }
     } else {
+      setActiveTrigger(null);
       setShowCommands(false);
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
-    const newCursorPos = e.target.selectionStart;
+    const rawCursorPos = e.target.selectionStart;
+    const newCursorPos = snapCursorOutsideSkillToken(value, rawCursorPos);
     setInput(value);
     setCursorPosition(newCursorPos);
-    updateSuggestions(value, newCursorPos);
+    cursorRef.current = { start: newCursorPos, end: newCursorPos };
+    if (newCursorPos !== rawCursorPos) {
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        }
+      });
+    }
+    void updateSuggestions(value, newCursorPos);
   };
 
   const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
     const target = e.currentTarget;
-    setCursorPosition(target.selectionStart);
-    updateSuggestions(target.value, target.selectionStart);
+    const snapped = snapCursorOutsideSkillToken(target.value, target.selectionStart);
+    setCursorPosition(snapped);
+    cursorRef.current = { start: snapped, end: snapped };
+    if (snapped !== target.selectionStart) {
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.setSelectionRange(snapped, snapped);
+        }
+      });
+    }
+    void updateSuggestions(target.value, snapped);
+  };
+
+  const handleTextareaScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (inputOverlayRef.current) {
+      inputOverlayRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (showCommands && filteredCommands.length > 0) {
+    const cursor = textareaRef.current?.selectionStart ?? cursorPosition;
+    const tokenRange = getSkillTokenRangeAt(input, cursor);
+    const backspaceBoundaryRange = e.key === 'Backspace' ? getSkillTokenRangeEndingAt(input, cursor) : null;
+    const deleteBoundaryRange = e.key === 'Delete' ? getSkillTokenRangeStartingAt(input, cursor) : null;
+    const activeTokenRange = tokenRange || backspaceBoundaryRange || deleteBoundaryRange;
+    if (activeTokenRange) {
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        const nextValue = input.slice(0, activeTokenRange.start) + input.slice(activeTokenRange.end);
+        setInput(nextValue);
+        setCursorPosition(activeTokenRange.start);
+        cursorRef.current = { start: activeTokenRange.start, end: activeTokenRange.start };
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+            textareaRef.current.setSelectionRange(activeTokenRange.start, activeTokenRange.start);
+          }
+        });
+        return;
+      }
+
+      if (e.key.length === 1) {
+        e.preventDefault();
+        const nextValue =
+          input.slice(0, activeTokenRange.end) +
+          e.key +
+          input.slice(activeTokenRange.end);
+        const nextCursor = activeTokenRange.end + 1;
+        setInput(nextValue);
+        setCursorPosition(nextCursor);
+        cursorRef.current = { start: nextCursor, end: nextCursor };
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+            textareaRef.current.setSelectionRange(nextCursor, nextCursor);
+          }
+        });
+        void updateSuggestions(nextValue, nextCursor);
+        return;
+      }
+    }
+
+    const finalSuggestionCount =
+      activeTrigger === '/'
+        ? filteredCommands.length
+        : activeTrigger === '@'
+          ? filteredMentions.length
+          : filteredSkills.length;
+
+    if (showCommands && finalSuggestionCount > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex((prev) => (prev + 1) % filteredCommands.length);
+        setSelectedIndex((prev) => (prev + 1) % finalSuggestionCount);
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex((prev) => (prev - 1 + filteredCommands.length) % filteredCommands.length);
+        setSelectedIndex((prev) => (prev - 1 + finalSuggestionCount) % finalSuggestionCount);
         return;
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
-        const cmd = filteredCommands[selectedIndex];
-        handleCommandSelect(cmd.command);
+        if (activeTrigger === '/') {
+          const cmd = filteredCommands[selectedIndex];
+          if (cmd) handleCommandSelect(cmd.command);
+        } else if (activeTrigger === '@') {
+          const mention = filteredMentions[selectedIndex];
+          if (mention) handleMentionSelect(mention.path);
+        } else if (activeTrigger === 'skill') {
+          const skill = filteredSkills[selectedIndex];
+          if (skill) handleSkillSelect(skill.id);
+        }
         return;
       }
       if (e.key === 'Escape') {
@@ -257,13 +620,14 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
   };
 
   const handleCommandSelect = (cmd: string) => {
-    const bounds = getCommandBounds(input, cursorPosition);
+    const cursor = getCurrentCursor();
+    const bounds = getCommandBounds(input, cursor);
     if (!bounds) return;
 
     const { start } = bounds;
 
     const textBefore = input.slice(0, start);
-    const textAfter = input.slice(cursorPosition);
+    const textAfter = input.slice(cursor);
 
     // Find end of current word (if any, e.g. replacing a partial command)
     let end = 0;
@@ -272,25 +636,133 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     }
     const suffix = textAfter.slice(end);
 
+    if (cmd.startsWith('/skill ')) {
+      const skillId = cmd.replace('/skill ', '').trim();
+      const { value: newValue, cursor: newCursorPos } = insertSkillCommand(textBefore, suffix, skillId);
+      setInput(newValue);
+      setCursorPosition(newCursorPos);
+      cursorRef.current = { start: newCursorPos, end: newCursorPos };
+      setShowCommands(false);
+      setActiveTrigger(null);
+
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+          cursorRef.current = { start: newCursorPos, end: newCursorPos };
+        }
+      }, 0);
+      return;
+    }
+
     const newValue = textBefore + cmd + ' ' + suffix;
     setInput(newValue);
 
     const newCursorPos = start + cmd.length + 1;
+    setCursorPosition(newCursorPos);
+    cursorRef.current = { start: newCursorPos, end: newCursorPos };
 
     setShowCommands(false);
+    setActiveTrigger(null);
 
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
         textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        cursorRef.current = { start: newCursorPos, end: newCursorPos };
+      }
+    }, 0);
+  };
+
+  const handleMentionSelect = (mentionPath: string) => {
+    const cursor = getCurrentCursor();
+    const bounds = getMentionBounds(input, cursor);
+    if (!bounds) return;
+
+    const { start } = bounds;
+    const textBefore = input.slice(0, start);
+    const textAfter = input.slice(cursor);
+
+    let end = 0;
+    while (end < textAfter.length && /\S/.test(textAfter[end])) {
+      end++;
+    }
+    const suffix = textAfter.slice(end);
+
+    const mention = `@${mentionPath}`;
+    const newValue = textBefore + mention + ' ' + suffix;
+    setInput(newValue);
+    setShowCommands(false);
+    setActiveTrigger(null);
+
+    const newCursorPos = start + mention.length + 1;
+    setCursorPosition(newCursorPos);
+    cursorRef.current = { start: newCursorPos, end: newCursorPos };
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        cursorRef.current = { start: newCursorPos, end: newCursorPos };
+      }
+    }, 0);
+  };
+
+  const handleSkillSelect = (skillId: string) => {
+    const cursor = getCurrentCursor();
+    const bounds = getSkillBounds(input, cursor);
+    if (!bounds) return;
+
+    const textBefore = input.slice(0, bounds.start);
+    const textAfter = input.slice(cursor);
+    let end = 0;
+    while (end < textAfter.length && /\S/.test(textAfter[end])) {
+      end++;
+    }
+    const suffix = textAfter.slice(end);
+    const { value: nextValue, cursor: newCursorPos } = insertSkillCommand(textBefore, suffix, skillId);
+
+    setInput(nextValue);
+    setCursorPosition(newCursorPos);
+    cursorRef.current = { start: newCursorPos, end: newCursorPos };
+    setShowCommands(false);
+    setActiveTrigger(null);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        cursorRef.current = { start: newCursorPos, end: newCursorPos };
       }
     }, 0);
   };
 
   const handleSend = () => {
-    if (!input.trim() || isLoading) return;
+    if (isLoading) return;
 
-    onSend(input);
+    const typedSkillPattern = /\/skill\s+([A-Za-z0-9._/-]+)(?=\s|$)/g;
+    const tokenSkillIds = Array.from(
+      input.matchAll(new RegExp(inlineSkillTokenPattern.source, 'g'))
+    ).map((m) => m[1]);
+    const typedSkillIds = Array.from(
+      input.matchAll(typedSkillPattern)
+    ).map((m) => m[1]);
+    const mergedSkillIds = Array.from(new Set([...tokenSkillIds, ...typedSkillIds]));
+
+    const cleanedInput = input
+      .replace(new RegExp(inlineSkillTokenPattern.source, 'g'), '')
+      .replace(typedSkillPattern, '')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\s+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+    if (!cleanedInput && mergedSkillIds.length === 0) return;
+
+    const skillPrefix = mergedSkillIds.map((id) => `/skill ${id}`).join('\n');
+    const finalMessage = skillPrefix
+      ? `${skillPrefix}${cleanedInput ? `\n${cleanedInput}` : ''}`
+      : cleanedInput;
+
+    onSend(finalMessage.replace(/\u2011/g, '-'));
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -302,23 +774,72 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     return m ? m.name : id;
   };
 
+  const getSkillDisplayName = (skillId: string) => {
+    const found = skillRecords.find((s) => s.id === skillId);
+    return found?.name || skillId;
+  };
+
+  const renderInlineSkillText = () => {
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    const regex = new RegExp(inlineSkillTokenPattern.source, 'g');
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(input)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(
+          <span key={`text-${lastIndex}`} className="pointer-events-none">{input.slice(lastIndex, match.index)}</span>
+        );
+      }
+      const skillId = match[1].replace(/\u2011/g, '-');
+      const tokenStart = match.index;
+      const tokenEnd = match.index + match[0].length;
+      parts.push(
+        <span
+          key={`skill-${match.index}-${skillId}`}
+          className="group/skill pointer-events-auto relative inline-flex align-baseline translate-y-[1px]"
+        >
+          {/* Layout Anchor - Matches textarea content exactly (including hidden marker) */}
+          <span className="invisible select-none">{match[0]}</span>
+
+          {/* Visual Badge - Optimized for line-height and minimizing overlap */}
+          <span className="absolute -left-[3px] -right-[3px] top-1/2 -translate-y-[55%] h-[20px] rounded-[6px] border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/15 hover:border-blue-500/40 hover:shadow-sm flex items-center justify-center transition-all duration-200 select-none z-0 hover:z-10">
+            <span className="truncate max-w-full px-1.5 text-[10px] leading-none font-semibold text-blue-600 dark:text-blue-400 font-mono tracking-tight">
+              {getSkillDisplayName(skillId)}
+            </span>
+
+            {/* Close Button - Appearing on hover with enhanced visibility */}
+            <button
+              type="button"
+              data-skill-remove="true"
+              className="absolute -right-1.5 -top-1.5 h-4 w-4 rounded-full bg-background border shadow-sm opacity-0 group-hover/skill:opacity-100 flex items-center justify-center hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-200 z-20 scale-90 hover:scale-100"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                removeSkillTokenRange(tokenStart, tokenEnd);
+              }}
+              aria-label={`Remove skill ${skillId}`}
+            >
+              <span className="text-[10px] font-bold leading-none mb-px">×</span>
+            </button>
+          </span>
+        </span>
+      );
+      lastIndex = regex.lastIndex;
+    }
+
+    if (lastIndex < input.length) {
+      parts.push(<span key={`text-tail`} className="pointer-events-none">{input.slice(lastIndex)}</span>);
+    }
+
+    return parts;
+  };
+
   const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>('safe');
 
-  // Propagate approval mode up
   useEffect(() => {
-    // We need to pass this up to the parent, but the current interface doesn't support it yet.
-    // For now, let's attach it to the onSend payload or use a separate prop if we refactor page.tsx first.
-    // Actually, let's expose it via a new prop `onApprovalModeChange` in the interface, 
-    // but since I can't change the interface and the usage simultaneously in one atomic step easily without breaking types if I'm not careful.
-    // Let's assume the parent will be updated to pass `onApprovalModeChange`.
-    // Wait, I can't assume that. I should update the interface first? 
-    // No, I can update ChatInput first, but I need to be careful about the prop.
-    // Let's do it in `page.tsx` first? No, `ChatInput` is the child.
-    // I will add the prop to the interface and use it if it exists.
-    if (onApprovalModeChange) {
-      onApprovalModeChange(approvalMode);
-    }
-  }, [approvalMode]);
+    onApprovalModeChange?.(approvalMode);
+  }, [approvalMode, onApprovalModeChange]);
 
 
   return (
@@ -328,7 +849,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
         {showCommands && (
           <div className="absolute bottom-full left-0 mb-2 w-64 bg-card border rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50">
             <div className="max-h-64 overflow-y-auto p-1" ref={commandListRef}>
-              {filteredCommands.map((cmd, index) => {
+              {activeTrigger === '/' && filteredCommands.map((cmd, index) => {
                 const showHeader = index === 0 || cmd.group !== filteredCommands[index - 1].group;
                 return (
                   <React.Fragment key={cmd.command}>
@@ -359,24 +880,92 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
                   </React.Fragment>
                 );
               })}
+              {activeTrigger === '@' && filteredMentions.map((mention, index) => (
+                <button
+                  key={mention.path}
+                  data-index={index}
+                  onClick={() => handleMentionSelect(mention.path)}
+                  className={cn(
+                    "w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors",
+                    index === selectedIndex
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                  )}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                >
+                  <div className="flex items-center justify-center w-5 h-5 rounded bg-background border shadow-sm">
+                    {mention.type === 'directory' ? (
+                      <Folder className="w-3 h-3" />
+                    ) : (
+                      <AtSign className="w-3 h-3" />
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-medium truncate">{mention.displayPath}</span>
+                    <span className="text-[10px] opacity-70">{mention.type}</span>
+                  </div>
+                </button>
+              ))}
+              {activeTrigger === 'skill' && filteredSkills.map((skill, index) => (
+                <button
+                  key={skill.id}
+                  data-index={index}
+                  onClick={() => handleSkillSelect(skill.id)}
+                  className={cn(
+                    "w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors",
+                    index === selectedIndex
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                  )}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                >
+                  <div className="flex items-center justify-center w-5 h-5 rounded bg-background border shadow-sm">
+                    <Sparkles className="w-3 h-3" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-medium truncate">/skill {skill.id}</span>
+                    <span className="text-[10px] opacity-70 truncate">{skill.name}</span>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         )}
 
         <div className={cn(
-          "relative flex flex-col gap-2 p-2 rounded-xl border bg-secondary transition-all duration-200",
+          "group/chipwrap relative flex flex-col gap-2 p-2 rounded-xl border bg-secondary transition-all duration-200",
           "focus-within:bg-background focus-within:ring-1 focus-within:ring-primary/20 focus-within:border-primary/30"
         )}>
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleInputChange}
-            onSelect={handleSelect}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask anything... (Type / for commands)"
-            className="w-full bg-transparent border-none focus:outline-none resize-none min-h-[40px] max-h-[200px] text-sm leading-relaxed px-2 py-1"
-            rows={1}
-          />
+          <div className="relative min-h-[40px] max-h-[200px]">
+            {input.length === 0 && (
+              <div className="pointer-events-none absolute inset-0 px-2 py-1 text-sm text-muted-foreground z-20">
+                Ask anything... (Type / for commands, @ for files, /skill id for inline skill)
+              </div>
+            )}
+
+            {/* 1. Underlying Textarea (Input Layer) - z-0 */}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleInputChange}
+              onSelect={handleSelect}
+              onScroll={handleTextareaScroll}
+              onKeyDown={handleKeyDown}
+              placeholder=""
+              className="absolute inset-0 w-full h-full bg-transparent border-none focus:outline-none resize-none text-transparent caret-foreground selection:bg-primary/20 text-sm leading-relaxed px-2 py-1 z-0"
+              rows={1}
+              style={{ minHeight: '40px' }}
+            />
+
+            {/* 2. Overlay (Visual Layer) - z-10, pointer-events-none */}
+            <div
+              ref={inputOverlayRef}
+              aria-hidden
+              className="relative z-10 pointer-events-none whitespace-pre-wrap break-words px-2 py-1 text-sm leading-relaxed min-h-[40px] max-h-[200px] overflow-y-auto"
+            >
+              {renderInlineSkillText()}
+            </div>
+          </div>
 
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-1 relative">
@@ -384,7 +973,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
               <div className="relative">
                 <button
                   onClick={() => setShowModelMenu(!showModelMenu)}
-                  className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors mr-1"
+                  className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors mr-1 cursor-pointer z-20 relative"
                   title="Select Model"
                 >
                   <Zap className="w-3.5 h-3.5" />
@@ -426,7 +1015,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
               <div className="relative" ref={modeMenuRef}>
                 <button
                   onClick={() => setShowModeMenu(!showModeMenu)}
-                  className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                  className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer z-20 relative"
                   title={`Mode: ${currentMode.label}`}
                 >
                   <currentMode.icon className="w-3.5 h-3.5" />

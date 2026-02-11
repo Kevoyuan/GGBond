@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Plug, AlertCircle, Loader2, Play, Pause, Trash, Plus, Download, Search } from 'lucide-react';
+import { X, Plug, AlertCircle, Loader2, Play, Trash, Plus, Download, Search, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skill } from '@/app/api/skills/route';
 
@@ -16,6 +16,8 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
   const [showInstall, setShowInstall] = useState(false);
   const [installSource, setInstallSource] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
+  const [editingContent, setEditingContent] = useState('');
 
   const filteredSkills = skills.filter(skill => 
     skill.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -87,6 +89,51 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
       await fetchSkills();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleQuickInsert = (skillId: string) => {
+    window.dispatchEvent(new CustomEvent('insert-skill-token', { detail: { skillId } }));
+  };
+
+  const openEditor = async (skill: Skill) => {
+    setProcessing(`load:${skill.id}`);
+    try {
+      const res = await fetch(`/api/skills?name=${encodeURIComponent(skill.id)}&content=1`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to load skill content');
+      }
+      const data = await res.json();
+      setEditingSkill(skill);
+      setEditingContent(data.content || '');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to load skill content');
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const saveEditor = async () => {
+    if (!editingSkill) return;
+    setProcessing(`save:${editingSkill.id}`);
+    try {
+      const res = await fetch('/api/skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update', name: editingSkill.id, content: editingContent }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to update skill');
+      }
+      setEditingSkill(null);
+      setEditingContent('');
+      await fetchSkills();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update skill');
     } finally {
       setProcessing(null);
     }
@@ -197,19 +244,21 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
           ) : filteredSkills.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
               <Search className="w-8 h-8 opacity-20" />
-              <p>No skills match "{searchQuery}"</p>
+              <p>No skills match &quot;{searchQuery}&quot;</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
               {filteredSkills.map((skill) => (
                 <div 
                   key={skill.name}
+                  onClick={() => handleQuickInsert(skill.id)}
                   className={cn(
-                    "flex flex-col gap-2 p-4 rounded-lg border transition-all",
+                    "flex flex-col gap-2 p-4 rounded-lg border transition-all cursor-pointer",
                     skill.status === 'Enabled' 
-                      ? "bg-card border-border shadow-sm" 
-                      : "bg-muted/30 border-transparent opacity-80 hover:opacity-100"
+                      ? "bg-card border-border shadow-sm hover:border-primary/40 hover:bg-primary/5" 
+                      : "bg-muted/30 border-transparent opacity-80 hover:opacity-100 hover:border-border"
                   )}
+                  title={`Insert /skill ${skill.id} into chat`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -240,21 +289,27 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
                     </div>
 
                     <div className="flex flex-col gap-2 shrink-0">
-                      {processing === skill.name ? (
+                      {processing === skill.name || processing === `load:${skill.id}` || processing === `save:${skill.id}` ? (
                         <Loader2 className="w-5 h-5 animate-spin text-primary m-2" />
                       ) : (
                         <>
                           {skill.status === 'Enabled' ? (
                             <button
-                              onClick={() => handleAction('disable', skill.name)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditor(skill);
+                              }}
                               className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                              title="Disable Skill"
+                              title="Edit Skill"
                             >
-                              <Pause className="w-4 h-4" />
+                              <Pencil className="w-4 h-4" />
                             </button>
                           ) : (
                             <button
-                              onClick={() => handleAction('enable', skill.name)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAction('enable', skill.name);
+                              }}
                               className="p-2 rounded-md hover:bg-primary/10 text-primary transition-colors"
                               title="Enable Skill"
                             >
@@ -264,7 +319,8 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
                           
                           {!skill.isBuiltIn && (
                             <button
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 if (confirm(`Uninstall skill "${skill.name}"?`)) {
                                   handleAction('uninstall', skill.name);
                                 }
@@ -291,6 +347,48 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
           <p>Install more skills via terminal</p>
         </div>
       </div>
+
+      {editingSkill && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl max-h-[85vh] bg-background border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b">
+              <div>
+                <h3 className="font-semibold text-base">Edit Skill: {editingSkill.name}</h3>
+                <p className="text-xs text-muted-foreground">{editingSkill.location}</p>
+              </div>
+              <button
+                onClick={() => setEditingSkill(null)}
+                className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 p-4 overflow-hidden">
+              <textarea
+                value={editingContent}
+                onChange={(e) => setEditingContent(e.target.value)}
+                className="w-full h-full rounded-md border bg-background p-3 font-mono text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-primary"
+                spellCheck={false}
+              />
+            </div>
+            <div className="p-4 border-t flex items-center justify-end gap-2">
+              <button
+                onClick={() => setEditingSkill(null)}
+                className="px-3 py-1.5 rounded-md border text-sm hover:bg-muted"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEditor}
+                disabled={processing === `save:${editingSkill.id}`}
+                className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
+              >
+                {processing === `save:${editingSkill.id}` ? 'Saving...' : 'Save Skill'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

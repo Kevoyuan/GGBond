@@ -5,6 +5,7 @@ import path from 'path';
 const GEMINI_GUI_HOME = '/tmp/gemini-gui-home';
 const GEMINI_ORIGINAL_HOME = path.join(process.env.HOME || '~', '.gemini');
 const GEMINI_GUI_CONFIG_DIR = path.join(GEMINI_GUI_HOME, '.gemini');
+const PROJECT_GEMINI_HOME = path.join(process.cwd(), 'gemini-home');
 
 // Files to copy from ~/.gemini to the GUI home
 const CREDENTIAL_FILES = [
@@ -50,11 +51,18 @@ export function getGeminiPath(): string {
 }
 
 export function getGeminiEnv(): NodeJS.ProcessEnv {
-  ensureGeminiGuiHome();
+  const existingHome = process.env.GEMINI_CLI_HOME;
+  const projectHasSettings = fs.existsSync(path.join(PROJECT_GEMINI_HOME, '.gemini', 'settings.json'));
+  const selectedHome = existingHome || (projectHasSettings ? PROJECT_GEMINI_HOME : GEMINI_GUI_HOME);
+
+  if (selectedHome === GEMINI_GUI_HOME) {
+    ensureGeminiGuiHome();
+  }
+
   return {
     ...process.env,
     TERM: 'dumb',
     GEMINI_FORCE_FILE_STORAGE: 'true',
-    GEMINI_CLI_HOME: GEMINI_GUI_HOME,
+    GEMINI_CLI_HOME: selectedHome,
   };
 }

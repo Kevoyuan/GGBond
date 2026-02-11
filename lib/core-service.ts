@@ -2,17 +2,51 @@
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
+import { Storage } from '@google/gemini-cli-core/dist/src/config/storage.js';
+import { readFile } from 'fs/promises';
 import {
     Config,
+    CoreToolScheduler,
+    GeminiEventType,
     GeminiChat,
     Turn,
     CoreEvent,
     coreEvents,
     MessageBus,
+    MessageBusType,
     FileDiscoveryService,
     ChatRecordingService,
-    getProjectHash
+    getProjectHash,
+    AuthType,
+    ApprovalMode,
+    TelemetrySettings
 } from '@google/gemini-cli-core';
+import type { Tool } from '@google/genai';
+import type { CompletedToolCall, ToolCallRequestInfo } from '@google/gemini-cli-core/dist/src/scheduler/types.js';
+
+// Monkey patch debugLogger to prevent circular JSON errors in Next.js environment
+import { debugLogger } from '@google/gemini-cli-core/dist/src/utils/debugLogger.js';
+
+const originalError = debugLogger.error.bind(debugLogger);
+debugLogger.error = (...args: any[]) => {
+    const sanitizedArgs = args.map(arg => {
+        if (arg instanceof Error) {
+            return arg.message + (arg.stack ? `\n${arg.stack}` : '');
+        }
+        if (typeof arg === 'object' && arg !== null) {
+            try {
+                // Check for circular references by trying simple stringify
+                JSON.stringify(arg);
+                return arg;
+            } catch (e) {
+                // If it fails, return a safe string representation
+                return '[Circular/Complex Object] ' + (arg.constructor ? arg.constructor.name : typeof arg);
+            }
+        }
+        return arg;
+    });
+    originalError(...sanitizedArgs);
+};
 
 // Type definition for Global to support HMR in Next.js
 declare global {
@@ -23,7 +57,7 @@ export interface InitParams {
     sessionId: string;
     model: string;
     cwd: string;
-    approvalMode?: number; // 0=Always, 1=Auto, 2=Yolo
+    approvalMode?: ApprovalMode | string; // Use the Enum directly if possible, or string
     systemInstruction?: string;
 }
 
@@ -52,12 +86,38 @@ export class CoreService {
     public async initialize(params: InitParams) {
         if (this.initialized && this.config?.getSessionId() === params.sessionId) {
             console.log('[CoreService] Already initialized for session:', params.sessionId);
+            // Update model if changed
+            if (params.model && this.config.getModel() !== params.model) {
+                console.log(`[CoreService] Switching model from ${this.config.getModel()} to ${params.model}`);
+                this.config.setModel(params.model);
+            }
+            // IMPORTANT: Refresh tools even for same session.
+            // Otherwise a chat instance created before a tools-format fix can keep stale invalid schemas.
+            try {
+                const registry = this.config.getToolRegistry();
+                const toolDeclarations = registry.getFunctionDeclarations();
+                const tools: Tool[] = [{ functionDeclarations: toolDeclarations }];
+                this.chat?.setTools(tools);
+                if (params.systemInstruction) {
+                    this.chat?.setSystemInstruction(params.systemInstruction);
+                }
+            } catch (error) {
+                console.warn('[CoreService] Failed to refresh tools for existing session:', error);
+            }
             return;
         }
 
         console.log('[CoreService] Initializing...', params);
 
         const projectRoot = params.cwd || process.cwd();
+        const projectGeminiHome = path.join(process.cwd(), 'gemini-home');
+        const projectGeminiSettings = path.join(projectGeminiHome, '.gemini', 'settings.json');
+
+        // Keep auth/config path consistent with this app's local workspace snapshot when available.
+        if (!process.env.GEMINI_CLI_HOME && fs.existsSync(projectGeminiSettings)) {
+            process.env.GEMINI_CLI_HOME = projectGeminiHome;
+            console.log(`[CoreService] Using GEMINI_CLI_HOME=${projectGeminiHome}`);
+        }
 
         // 1. Initialize Config
         // Cast approvalMode to any to avoid Enum type issues if not exported correctly
@@ -66,20 +126,96 @@ export class CoreService {
             model: params.model,
             targetDir: projectRoot,
             cwd: projectRoot,
-            debugMode: true,
+            debugMode: false,
             interactive: true,
-            approvalMode: (params.approvalMode ?? 0) as any,
+            approvalMode: (params.approvalMode as ApprovalMode) ?? ApprovalMode.DEFAULT,
+            recordResponses: '',
+            telemetry: {
+                enabled: false,
+                logPrompts: false,
+                useCollector: false
+            }
             // auth info is auto-detected from env/files by Config internal logic or we can pass explicit
             // For now let Config handle standard auth
         });
 
         await this.config.initialize();
 
+        // Initialize Authentication (Required to create ContentGenerator)
+        // Explicitly load settings to determine auth type because Config doesn't auto-detect it well
+        let authType: AuthType | undefined;
+        try {
+            const settingsCandidates = [
+                process.env.GEMINI_CLI_HOME ? path.join(process.env.GEMINI_CLI_HOME, '.gemini', 'settings.json') : null,
+                Storage.getGlobalSettingsPath()
+            ].filter(Boolean) as string[];
+
+            const settingsPath = settingsCandidates.find((p) => fs.existsSync(p)) || settingsCandidates[0];
+            console.log(`[CoreService] Loading auth settings from: ${settingsPath}`);
+            const settingsContent = await readFile(settingsPath, 'utf-8');
+            const settings = JSON.parse(settingsContent);
+            const selectedType = settings.security?.auth?.selectedType || settings.selectedAuthType;
+            if (selectedType) {
+                authType = selectedType as AuthType;
+                console.log(`[CoreService] Detected auth type from settings: ${authType}`);
+            }
+        } catch (error) {
+            console.warn('[CoreService] Failed to load settings.json:', error);
+        }
+
+        try {
+            if (authType) {
+                console.log(`[CoreService] Refreshing auth with ${authType}...`);
+                await this.config.refreshAuth(authType);
+            } else {
+                console.log('[CoreService] No auth type in settings, trying USE_GEMINI default...');
+                await this.config.refreshAuth(AuthType.USE_GEMINI);
+            }
+        } catch (error) {
+            console.warn(`[CoreService] Failed to refresh auth with ${authType || 'USE_GEMINI'}, trying fallback:`, error);
+            try {
+                // Fallback: if we tried LOGIN_WITH_GOOGLE and failed, try USE_GEMINI
+                if (authType === AuthType.LOGIN_WITH_GOOGLE) {
+                    await this.config.refreshAuth(AuthType.USE_GEMINI);
+                } else {
+                    // If we tried USE_GEMINI (or something else) and failed, try LOGIN_WITH_GOOGLE?
+                    await this.config.refreshAuth(AuthType.LOGIN_WITH_GOOGLE);
+                }
+            } catch (e) {
+                console.error('[CoreService] Failed to refresh auth (fallback):', e);
+            }
+        }
+
+        // CRITICAL FIX: Unwrap LoggingContentGenerator to avoid "Converting circular structure to JSON" error.
+        // LoggingContentGenerator unconditionally JSON.stringifies request/response objects which contain circular references (Config).
+        // This unwrapping effectively disables the problematic logging while preserving core functionality.
+        try {
+            const generator = this.config.getContentGenerator();
+            // Check if generator is LoggingContentGenerator by checking for 'wrapped' property
+            // We use 'any' casting because 'wrapped' is not exposed in the interface
+            if (generator && (generator as any).wrapped) {
+                console.log('[CoreService] Unwrapping LoggingContentGenerator to avoid circular JSON error...');
+                (this.config as any).contentGenerator = (generator as any).wrapped;
+            }
+        } catch (e) {
+            console.warn('[CoreService] Failed to unwrap content generator:', e);
+        }
+
         // 2. Setup Tools
         const registry = this.config.getToolRegistry();
-        const toolsMap = registry.getAllTools();
-        const tools: any[] = Array.from(toolsMap.values());
-        console.log('[CoreService] Loaded tools:', tools.map(t => t.name).join(', '));
+        // Use getFunctionDeclarations() to get serializable tool schemas
+        // This avoids circular JSON errors when serializing the API request
+        const toolDeclarations = registry.getFunctionDeclarations();
+        console.log(
+            '[CoreService] Loaded tools:',
+            toolDeclarations
+                .map((t: { name?: string }) => t.name || '<unnamed>')
+                .join(', ')
+        );
+
+        // GeminiChat expects Tool[] (e.g. [{ functionDeclarations: [...] }]),
+        // not a raw FunctionDeclaration[].
+        const tools: Tool[] = [{ functionDeclarations: toolDeclarations }];
 
         this.messageBus = this.config.getMessageBus();
 
@@ -113,46 +249,123 @@ export class CoreService {
         });
 
         // Tool Confirmation (We also need to expose this via API/SSE)
-        // Subscription to TOOL_CONFIRMATION_REQUEST (Enum value 0 or 1? Ref says MessageBusType)
-        // We catch all or specific
-        // Let's assume 0 is TOOL_CONFIRMATION_REQUEST based on enum order usually
-        const TOOL_CONFIRMATION_REQUEST = 0;
-        this.messageBus?.subscribe(TOOL_CONFIRMATION_REQUEST as any, async (request) => {
+        // Subscription to TOOL_CONFIRMATION_REQUEST
+        this.messageBus?.subscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, async (request) => {
             console.log('[MessageBus] Tool Confirmation Request:', request);
-            // In a real implementation this would hold the execution until approved via API
+            // Temporary unblock for common QA/search flows in GUI:
+            // auto-approve web search so chat won't hang on unanswered confirmation.
+            try {
+                const toolName = (request as { toolCall?: { name?: string } })?.toolCall?.name;
+                if (toolName === 'google_web_search') {
+                    this.messageBus?.publish({
+                        type: MessageBusType.TOOL_CONFIRMATION_RESPONSE,
+                        correlationId: (request as { correlationId: string }).correlationId,
+                        confirmed: true,
+                        outcome: 'allow'
+                    } as never);
+                    return;
+                }
+            } catch (error) {
+                console.warn('[CoreService] Auto-confirm failed:', error);
+            }
         });
     }
 
     public async *runTurn(message: string, signal?: AbortSignal) {
         if (!this.chat) throw new Error('Chat not initialized');
 
-        // Create a turn
-        const turn = new Turn(
-            this.chat,
-            message, // promptId - usually UUID, but here we can use a random one
-        );
-
-        // Run the turn
-        // The Turn.run signature in v0.30 might vary slightly, 
-        // but based on API doc: run(modelKey, userContent, signal, ...)
-
-        // We need to construct the user content Part
-
-        // Use 'default' or actual model key if managed
+        // Runtime guard: some integration paths may accidentally set tools
+        // to FunctionDeclaration[] instead of Tool[].
+        // Normalize to Tool[] before each turn to avoid INVALID_ARGUMENT on request.tools.
         try {
-            const generator = turn.run(
-                'default' as any,
-                { role: 'user' as const, parts: [{ text: message }] } as any,
-                signal || new AbortController().signal
-            );
+            const runtimeChat = this.chat as unknown as { tools?: unknown; setTools?: (tools: Tool[]) => void };
+            const runtimeTools = Array.isArray(runtimeChat.tools) ? runtimeChat.tools : [];
+            const first = runtimeTools[0] as Record<string, unknown> | undefined;
+            const looksLikeRawFunctionDeclarations =
+                runtimeTools.length > 0 &&
+                !!first &&
+                typeof first === 'object' &&
+                ('name' in first || 'parametersJsonSchema' in first || 'description' in first) &&
+                !('functionDeclarations' in first);
 
-            for await (const event of generator) {
-                yield event;
+            if (looksLikeRawFunctionDeclarations) {
+                console.warn('[CoreService] Detected raw FunctionDeclaration[] in chat.tools, auto-wrapping to Tool[]');
+                runtimeChat.setTools?.([{ functionDeclarations: runtimeTools as unknown as NonNullable<Tool['functionDeclarations']> }]);
             }
         } catch (error) {
-            console.error('[CoreService] Turn error:', error);
-            yield { type: 'error', value: { error } };
+            console.warn('[CoreService] Runtime tools normalization failed:', error);
         }
+
+        const promptId = crypto.randomUUID();
+        const modelKey = { model: this.config!.getModel() };
+        const abortSignal = signal || new AbortController().signal;
+        let currentRequest: unknown = message;
+
+        console.log(`[CoreService] Running turn with model: ${modelKey.model}`);
+
+        try {
+            while (true) {
+                const turn = new Turn(this.chat, promptId);
+                const generator = turn.run(
+                    modelKey,
+                    currentRequest as never,
+                    abortSignal
+                );
+
+                for await (const event of generator) {
+                    yield event;
+                }
+
+                const pendingCalls = turn.pendingToolCalls as ToolCallRequestInfo[];
+                if (!pendingCalls.length) {
+                    break;
+                }
+
+                const completedCalls = await this.executeToolCalls(pendingCalls, abortSignal);
+                if (!completedCalls.length) {
+                    break;
+                }
+
+                // Emit tool responses for frontend rendering and append to chat history.
+                const responseParts = [];
+                for (const call of completedCalls) {
+                    yield { type: GeminiEventType.ToolCallResponse, value: call.response };
+                    if (call.response.responseParts?.length) {
+                        responseParts.push(...call.response.responseParts);
+                    }
+                }
+
+                if (!responseParts.length) {
+                    break;
+                }
+
+                this.chat.addHistory({
+                    role: 'user',
+                    parts: responseParts
+                });
+
+                this.chat.recordCompletedToolCalls(modelKey.model, completedCalls);
+                currentRequest = [{ text: 'Please continue.' }];
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('[CoreService] Turn error:', message);
+            yield { type: 'error', value: { error: { message } } };
+        }
+    }
+
+    private async executeToolCalls(requests: ToolCallRequestInfo[], signal: AbortSignal): Promise<CompletedToolCall[]> {
+        return await new Promise<CompletedToolCall[]>((resolve, reject) => {
+            const scheduler = new CoreToolScheduler({
+                config: this.config!,
+                getPreferredEditor: () => undefined,
+                onAllToolCallsComplete: async (completedCalls) => {
+                    resolve(completedCalls);
+                }
+            });
+
+            scheduler.schedule(requests, signal).catch(reject);
+        });
     }
 
     public submitConfirmation(correlationId: string, confirmed: boolean) {
@@ -163,9 +376,9 @@ export class CoreService {
 
         console.log('[CoreService] Submitting confirmation:', { correlationId, confirmed });
 
-        // MessageBusType.TOOL_CONFIRMATION_RESPONSE = 1
+        // MessageBusType.TOOL_CONFIRMATION_RESPONSE
         this.messageBus.publish({
-            type: 1,
+            type: MessageBusType.TOOL_CONFIRMATION_RESPONSE,
             correlationId,
             confirmed,
             outcome: confirmed ? 'allow' : 'deny'
@@ -180,9 +393,9 @@ export class CoreService {
 
         console.log('[CoreService] Submitting question response:', { correlationId, answers });
 
-        // MessageBusType.ASK_USER_RESPONSE = 8
+        // MessageBusType.ASK_USER_RESPONSE
         this.messageBus.publish({
-            type: 8,
+            type: MessageBusType.ASK_USER_RESPONSE,
             correlationId,
             answers
         } as any);
