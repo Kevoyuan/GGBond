@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Database,
     FileText,
@@ -20,6 +21,31 @@ interface MemoryPanelProps {
     workspacePath?: string;
 }
 
+const DEFAULT_MEMORY_TEMPLATE = `# GEMINI.md
+
+## Project Context
+- Describe this project's purpose.
+- Document architecture assumptions.
+
+## Coding Preferences
+- Preferred language/style.
+- Testing expectations.
+
+## Important Constraints
+- List safety and deployment constraints here.
+`;
+
+const isGeminiMemoryFile = (filePath: string) => /(^|[\\/])gemini\.md$/i.test(filePath);
+
+const buildWorkspaceGeminiPath = (workspacePath?: string) => {
+    const trimmed = workspacePath?.trim();
+    if (!trimmed) return 'GEMINI.md';
+    if (trimmed.endsWith('/') || trimmed.endsWith('\\')) {
+        return `${trimmed}GEMINI.md`;
+    }
+    return `${trimmed}/GEMINI.md`;
+};
+
 export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPanelProps) {
     const [files, setFiles] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
@@ -30,12 +56,26 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
     const [editorContent, setEditorContent] = useState('');
     const [editorLoading, setEditorLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    const editorFileName = editorPath ? (editorPath.split('/').pop() || editorPath) : '';
+    const [editorMode, setEditorMode] = useState<'create' | 'edit'>('edit');
+    const [portalReady, setPortalReady] = useState(false);
+    const editorFileName = editorPath ? (editorPath.split(/[\\/]/).pop() || editorPath) : '';
 
-    const fetchFiles = async () => {
+    const closeEditor = () => {
+        setEditorPath(null);
+        setEditorContent('');
+        setEditorMode('edit');
+        setEditorLoading(false);
+    };
+
+    const fetchFiles = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/memory');
+            const params = new URLSearchParams();
+            if (workspacePath?.trim()) {
+                params.set('workspacePath', workspacePath.trim());
+            }
+            const endpoint = params.size > 0 ? `/api/memory?${params.toString()}` : '/api/memory';
+            const res = await fetch(endpoint);
             if (res.ok) {
                 const data = await res.json();
                 setFiles(data.files || []);
@@ -48,7 +88,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
         } finally {
             setLoading(false);
         }
-    };
+    }, [workspacePath]);
 
     const handleRefresh = async () => {
         setRefreshing(true);
@@ -75,14 +115,22 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
     const openEditor = async (filePath: string) => {
         setEditorLoading(true);
         try {
-            const res = await fetch(`/api/memory?content=1&path=${encodeURIComponent(filePath)}`);
+            const params = new URLSearchParams({
+                content: '1',
+                path: filePath,
+            });
+            if (workspacePath?.trim()) {
+                params.set('workspacePath', workspacePath.trim());
+            }
+            const res = await fetch(`/api/memory?${params.toString()}`);
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
                 throw new Error(data.error || 'Failed to read memory file');
             }
             const data = await res.json();
-            setEditorPath(filePath);
+            setEditorPath(data.path || filePath);
             setEditorContent(data.content || '');
+            setEditorMode('edit');
         } catch (err) {
             setStatus({
                 type: 'error',
@@ -94,34 +142,17 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
     };
 
     const handleCreate = async () => {
-        try {
-            const res = await fetch('/api/memory', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'create',
-                    workspacePath,
-                }),
-            });
-
-            if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                throw new Error(data.error || 'Failed to create GEMINI.md');
-            }
-
-            const data = await res.json();
-            const createdPath = data.path as string;
-            setStatus({ type: 'success', message: 'Created GEMINI.md' });
-            await fetchFiles();
-            if (createdPath) {
-                await openEditor(createdPath);
-            }
-        } catch (err) {
-            setStatus({
-                type: 'error',
-                message: err instanceof Error ? err.message : 'Failed to create memory file',
-            });
+        const existingGeminiPath = files.find((filePath) => isGeminiMemoryFile(filePath));
+        if (existingGeminiPath) {
+            await openEditor(existingGeminiPath);
+            setStatus({ type: 'success', message: 'GEMINI.md already exists. Opened for editing.' });
+            return;
         }
+
+        setEditorPath(buildWorkspaceGeminiPath(workspacePath));
+        setEditorContent(DEFAULT_MEMORY_TEMPLATE);
+        setEditorMode('create');
+        setEditorLoading(false);
     };
 
     const handleSave = async () => {
@@ -132,9 +163,10 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    action: 'update',
+                    action: editorMode === 'create' ? 'create' : 'update',
                     path: editorPath,
                     content: editorContent,
+                    workspacePath,
                 }),
             });
 
@@ -143,7 +175,14 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                 throw new Error(data.error || 'Failed to save memory file');
             }
 
-            setStatus({ type: 'success', message: 'Memory file saved' });
+            const data = await res.json().catch(() => ({}));
+            const savedPath = typeof data.path === 'string' && data.path.trim() ? data.path : editorPath;
+            setEditorPath(savedPath);
+            setEditorMode('edit');
+            setStatus({
+                type: 'success',
+                message: editorMode === 'create' ? 'Created GEMINI.md' : 'Memory file saved',
+            });
             await fetchFiles();
         } catch (err) {
             setStatus({
@@ -166,6 +205,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                 body: JSON.stringify({
                     action: 'delete',
                     path: filePath,
+                    workspacePath,
                 }),
             });
 
@@ -175,8 +215,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
             }
 
             if (editorPath === filePath) {
-                setEditorPath(null);
-                setEditorContent('');
+                closeEditor();
             }
             setStatus({ type: 'success', message: 'Memory file deleted' });
             await fetchFiles();
@@ -189,8 +228,64 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
     };
 
     useEffect(() => {
-        fetchFiles();
+        void fetchFiles();
+    }, [fetchFiles]);
+
+    useEffect(() => {
+        setPortalReady(true);
+        return () => setPortalReady(false);
     }, []);
+
+    const editorModal = editorPath ? (
+        <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm p-2 sm:p-4 md:p-6 flex items-center justify-center">
+            <div className="w-full max-w-4xl h-[calc(100vh-1rem)] sm:h-[min(88vh,920px)] rounded-xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
+                <div className="flex items-start justify-between gap-3 p-3 sm:p-4 border-b bg-muted/20">
+                    <div className="min-w-0 space-y-1">
+                        <p className="text-base font-semibold truncate">{editorFileName}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">{editorPath}</p>
+                    </div>
+                    <button
+                        onClick={closeEditor}
+                        className="p-1.5 rounded hover:bg-muted"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="flex-1 p-2 sm:p-4 overflow-hidden">
+                    {editorLoading ? (
+                        <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Loading file...
+                        </div>
+                    ) : (
+                        <textarea
+                            value={editorContent}
+                            onChange={(event) => setEditorContent(event.target.value)}
+                            className="w-full h-full min-h-0 resize-none rounded-lg border border-border bg-background p-3 sm:p-4 text-[13px] leading-6 font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                    )}
+                </div>
+
+                <div className="p-3 sm:p-4 border-t bg-muted/20 flex items-center justify-end gap-2">
+                    <button
+                        onClick={closeEditor}
+                        className="px-3 py-2 rounded-md text-sm font-medium hover:bg-muted"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => void handleSave()}
+                        disabled={saving || editorLoading}
+                        className="px-3 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-1.5"
+                    >
+                        <Save className="w-3.5 h-3.5" />
+                        {saving ? 'Saving...' : 'Save'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    ) : null;
 
     return (
         <div className={cn("flex flex-col h-full bg-card", className)}>
@@ -254,7 +349,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                         <div className="space-y-1">
                             <p className="text-sm font-medium">No Memory Files</p>
                             <p className="text-xs text-muted-foreground leading-relaxed px-4">
-                                Create <code>GEMINI.md</code> in your workspace to provide long-term memory and project context.
+                                Create <code>GEMINI.md</code> in your workspace or run <code>/init</code> in chat to scaffold memory context.
                             </p>
                         </div>
                         <button
@@ -269,8 +364,9 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                     <div className="space-y-2">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Loaded Memory Documents</p>
                         {files.map((filePath) => {
-                            const name = filePath.split('/').pop() || filePath;
-                            const dir = filePath.replace(name, '').replace(/^\/|\/$/g, '');
+                            const segments = filePath.split(/[\\/]/);
+                            const name = segments[segments.length - 1] || filePath;
+                            const dir = filePath.slice(0, Math.max(0, filePath.length - name.length)).replace(/[\\/]$/, '');
 
                             return (
                                 <div
@@ -338,56 +434,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                 </div>
             </div>
 
-            {editorPath && (
-                <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm p-2 sm:p-4 md:p-6 flex items-center justify-center">
-                    <div className="w-full max-w-4xl h-[calc(100vh-1rem)] sm:h-[min(88vh,920px)] rounded-xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
-                        <div className="flex items-start justify-between gap-3 p-3 sm:p-4 border-b bg-muted/20">
-                            <div className="min-w-0 space-y-1">
-                                <p className="text-base font-semibold truncate">{editorFileName}</p>
-                                <p className="text-[11px] text-muted-foreground truncate">{editorPath}</p>
-                            </div>
-                            <button
-                                onClick={() => setEditorPath(null)}
-                                className="p-1.5 rounded hover:bg-muted"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        <div className="flex-1 p-2 sm:p-4 overflow-hidden">
-                            {editorLoading ? (
-                                <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                                    Loading file...
-                                </div>
-                            ) : (
-                                <textarea
-                                    value={editorContent}
-                                    onChange={(event) => setEditorContent(event.target.value)}
-                                    className="w-full h-full min-h-0 resize-none rounded-lg border border-border bg-background p-3 sm:p-4 text-[13px] leading-6 font-mono focus:outline-none focus:ring-1 focus:ring-primary"
-                                />
-                            )}
-                        </div>
-
-                        <div className="p-3 sm:p-4 border-t bg-muted/20 flex items-center justify-end gap-2">
-                            <button
-                                onClick={() => setEditorPath(null)}
-                                className="px-3 py-2 rounded-md text-sm font-medium hover:bg-muted"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => void handleSave()}
-                                disabled={saving || editorLoading}
-                                className="px-3 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-1.5"
-                            >
-                                <Save className="w-3.5 h-3.5" />
-                                {saving ? 'Saving...' : 'Save'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {portalReady && editorModal ? createPortal(editorModal, document.body) : null}
         </div>
     );
 }
