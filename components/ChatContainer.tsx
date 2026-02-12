@@ -15,6 +15,7 @@ interface ChatContainerProps {
     onClosePreview: () => void;
     settings: ChatSettings;
     onSendMessage: (text: string, options?: { approvalMode?: 'safe' | 'auto' }) => void;
+    onUndoTool?: (restoreId: string) => Promise<void> | void;
     onRetry: (index: number, mode: 'once' | 'session') => void;
     onCancel: (index: number) => void;
     onModelChange: (model: string) => void;
@@ -35,6 +36,7 @@ export function ChatContainer({
     onClosePreview,
     settings,
     onSendMessage,
+    onUndoTool,
     onRetry,
     onCancel,
     onModelChange,
@@ -170,6 +172,7 @@ export function ChatContainer({
                                             isFirst={isFirstInSequence}
                                             isLast={isLastInSequence}
                                             settings={settings}
+                                            onUndoTool={onUndoTool}
                                             onRetry={(mode) => onRetry(idx, mode)}
                                             onCancel={() => onCancel(idx)}
                                         />

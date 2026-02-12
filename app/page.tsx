@@ -175,7 +175,8 @@ export default function Home() {
   // headId points to the current "tip" of the conversation
   const [headId, setHeadId] = useState<string | null>(null);
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSessionLoading, setIsSessionLoading] = useState(false);
+  const [runningSessionCounts, setRunningSessionCounts] = useState<Record<string, number>>({});
 
   // Settings state
   const [settings, setSettings] = useState<ChatSettings>({
@@ -210,6 +211,7 @@ export default function Home() {
   const [inputAreaHeight, setInputAreaHeight] = useState(120);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const currentSessionIdRef = useRef<string | null>(currentSessionId);
 
   // -- Derived Linear Thread --
   const messages = useMemo(() => {
@@ -225,6 +227,40 @@ export default function Home() {
     }
     return list;
   }, [headId, messagesMap]);
+
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
+
+  const updateRunningSessionCount = useCallback((sessionId: string | null | undefined, delta: number) => {
+    if (!sessionId || !Number.isFinite(delta) || delta === 0) return;
+
+    setRunningSessionCounts((prev) => {
+      const current = prev[sessionId] ?? 0;
+      const nextCount = Math.max(0, current + delta);
+      if (nextCount === current) return prev;
+
+      const next = { ...prev };
+      if (nextCount === 0) {
+        delete next[sessionId];
+      } else {
+        next[sessionId] = nextCount;
+      }
+      return next;
+    });
+  }, []);
+
+  const runningSessionIds = useMemo(
+    () => Object.keys(runningSessionCounts).filter((sessionId) => (runningSessionCounts[sessionId] ?? 0) > 0),
+    [runningSessionCounts]
+  );
+
+  const isCurrentSessionRunning = useMemo(() => {
+    if (!currentSessionId) return false;
+    return (runningSessionCounts[currentSessionId] ?? 0) > 0;
+  }, [currentSessionId, runningSessionCounts]);
+
+  const isLoading = isSessionLoading || isCurrentSessionRunning;
 
   // -- Graph Data for Visualization --
   const graphMessages: GraphMessage[] = useMemo(() => {
@@ -477,7 +513,7 @@ export default function Home() {
   const handleSelectSession = async (id: string) => {
     if (id === currentSessionId) return;
 
-    setIsLoading(true);
+    setIsSessionLoading(true);
     setCurrentSessionId(id);
 
     // Find session to set workspace
@@ -494,7 +530,7 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to load session', error);
     } finally {
-      setIsLoading(false);
+      setIsSessionLoading(false);
       // Close sidebar on mobile
       if (window.innerWidth < 768) {
         setSidebarOpen(false);
@@ -574,7 +610,9 @@ export default function Home() {
     text: string,
     options?: { parentId?: string; approvalMode?: 'safe' | 'auto' }
   ) => {
-    if (!text.trim() || isLoading) return;
+    if (!text.trim()) return;
+    if (isSessionLoading) return;
+    if (currentSessionId && (runningSessionCounts[currentSessionId] ?? 0) > 0) return;
 
     // Handle slash commands
     const trimmedInput = text.trim();
@@ -648,18 +686,32 @@ export default function Home() {
       return;
     }
 
-    setIsLoading(true);
-
     // Determine parent ID: passed option or current head
     const parentIdToUse = options?.parentId !== undefined ? options.parentId : headId;
+    const initialSessionIdAtSend = currentSessionId;
+    const selectedSessionIdAtSend = currentSessionIdRef.current;
+    let trackedRunningSessionId: string | null = initialSessionIdAtSend;
+
+    if (trackedRunningSessionId) {
+      updateRunningSessionCount(trackedRunningSessionId, 1);
+    }
 
     // 1. Add User Message
     const userMsgId = addMessageToTree({ role: 'user', content: text }, parentIdToUse);
     const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const decodeAttr = (value?: string) => {
+      if (!value) return undefined;
+      try {
+        return decodeURIComponent(value);
+      } catch {
+        return value;
+      }
+    };
     const buildCompletedToolCallTag = ({
       id,
       name,
       args,
+      checkpoint,
       status,
       output,
       resultData,
@@ -667,11 +719,13 @@ export default function Home() {
       id: string;
       name: string;
       args: string;
+      checkpoint?: string;
       status: 'completed' | 'failed';
       output?: string;
       resultData?: unknown;
     }) => {
       const encodedResult = encodeURIComponent(output || '');
+      const encodedCheckpoint = checkpoint ? encodeURIComponent(checkpoint) : undefined;
       let encodedResultData: string | undefined;
       if (resultData !== undefined) {
         try {
@@ -680,7 +734,9 @@ export default function Home() {
           encodedResultData = undefined;
         }
       }
-      return `<tool-call id="${id}" name="${name}" args="${args}" status="${status}" result="${encodedResult}"${
+      return `<tool-call id="${id}" name="${name}" args="${args}"${
+        encodedCheckpoint ? ` checkpoint="${encodedCheckpoint}"` : ''
+      } status="${status}" result="${encodedResult}"${
         encodedResultData ? ` result_data="${encodedResultData}"` : ''
       } />`;
     };
@@ -726,7 +782,7 @@ export default function Home() {
       let assistantContent = '';
       let assistantThought = '';
       const assistantCitations: string[] = [];
-      let streamSessionId = currentSessionId;
+      let streamSessionId = initialSessionIdAtSend;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -743,11 +799,18 @@ export default function Home() {
             console.log('[Stream Event]', data.type, data);
 
             if (data.type === 'init' && data.session_id) {
+              const nextSessionId = String(data.session_id);
               if (!streamSessionId) {
-                streamSessionId = data.session_id;
-                setCurrentSessionId(data.session_id);
-                fetchSessions();
+                streamSessionId = nextSessionId;
               }
+              if (!trackedRunningSessionId) {
+                trackedRunningSessionId = nextSessionId;
+                updateRunningSessionCount(nextSessionId, 1);
+              }
+              if (!initialSessionIdAtSend && currentSessionIdRef.current === selectedSessionIdAtSend) {
+                setCurrentSessionId(nextSessionId);
+              }
+              fetchSessions();
             }
 
             if (data.type === 'thought' && data.content) {
@@ -819,7 +882,10 @@ export default function Home() {
 
             if (data.type === 'tool_use') {
               const toolName = String(data.tool_name || 'Unknown Tool');
-              const toolCallTag = `\n\n<tool-call id="${data.tool_id || ''}" name="${toolName}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}" status="running" />\n\n`;
+              const checkpointAttr = typeof data.checkpoint === 'string' && data.checkpoint
+                ? ` checkpoint="${encodeURIComponent(data.checkpoint)}"`
+                : '';
+              const toolCallTag = `\n\n<tool-call id="${data.tool_id || ''}" name="${toolName}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}"${checkpointAttr} status="running" />\n\n`;
               assistantContent += toolCallTag;
               updateMessageInTree(assistantMsgId, { content: assistantContent });
             }
@@ -828,11 +894,12 @@ export default function Home() {
               const resolvedStatus = data.is_error ? 'failed' : 'completed';
               const resolvedOutput = data.output || data.result || '';
               const resolvedResultData = data.result_data;
+              const resolvedCheckpoint = typeof data.checkpoint === 'string' ? data.checkpoint : undefined;
               const resolvedToolId = data.tool_id ? String(data.tool_id) : '';
 
               if (resolvedToolId) {
                 const exactRegex = new RegExp(
-                  `<tool-call id="${escapeRegex(resolvedToolId)}" name="([^"]*)" args="([^"]*)" status="running" \\/>`
+                  `<tool-call id="${escapeRegex(resolvedToolId)}" name="([^"]*)" args="([^"]*)"(?: checkpoint="([^"]*)")? status="running" \\/>`
                 );
                 const exactMatch = assistantContent.match(exactRegex);
                 if (exactMatch) {
@@ -842,6 +909,7 @@ export default function Home() {
                       id: resolvedToolId,
                       name: exactMatch[1],
                       args: exactMatch[2],
+                      checkpoint: resolvedCheckpoint || decodeAttr(exactMatch[3]),
                       status: resolvedStatus,
                       output: resolvedOutput,
                       resultData: resolvedResultData,
@@ -852,7 +920,7 @@ export default function Home() {
                 }
               }
 
-              const fallbackRegex = /<tool-call id="([^"]*)" name="([^"]*)" args="([^"]*)" status="running" \/>/g;
+              const fallbackRegex = /<tool-call id="([^"]*)" name="([^"]*)" args="([^"]*)"(?: checkpoint="([^"]*)")? status="running" \/>/g;
               let fallbackMatch: RegExpExecArray | null;
               let lastMatch: RegExpExecArray | null = null;
 
@@ -861,11 +929,12 @@ export default function Home() {
               }
 
               if (lastMatch) {
-                const [fullMatch, fallbackId, fallbackName, fallbackArgs] = lastMatch;
+                const [fullMatch, fallbackId, fallbackName, fallbackArgs, fallbackCheckpoint] = lastMatch;
                 const updatedTag = buildCompletedToolCallTag({
                   id: resolvedToolId || fallbackId,
                   name: fallbackName,
                   args: fallbackArgs,
+                  checkpoint: resolvedCheckpoint || decodeAttr(fallbackCheckpoint),
                   status: resolvedStatus,
                   output: resolvedOutput,
                   resultData: resolvedResultData,
@@ -916,7 +985,7 @@ export default function Home() {
 
       // Final refresh to keep local tree ids in sync with persisted ids.
       await fetchSessions();
-      if (streamSessionId) {
+      if (streamSessionId && currentSessionIdRef.current === streamSessionId) {
         try {
           await loadSessionTree(streamSessionId);
         } catch (reloadError) {
@@ -933,7 +1002,9 @@ export default function Home() {
       // For now, let's just log. Better error handling requires refs or more state.
       // Actually we can add a new error message if we failed BEFORE creating assistant node.
     } finally {
-      setIsLoading(false);
+      if (trackedRunningSessionId) {
+        updateRunningSessionCount(trackedRunningSessionId, -1);
+      }
     }
   };
 
@@ -1077,6 +1148,43 @@ export default function Home() {
     }
   };
 
+  const handleUndoTool = async (restoreId: string) => {
+    if (!currentSessionId) {
+      addMessageToTree({ role: 'model', content: '⚠️ 当前没有可恢复的会话。' }, headId);
+      return;
+    }
+
+    if (!restoreId) {
+      addMessageToTree({ role: 'model', content: '⚠️ 缺少可恢复的 checkpoint id。' }, headId);
+      return;
+    }
+
+    const restoreRes = await fetch('/api/chat/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'restore',
+        sessionId: currentSessionId,
+        toolId: restoreId,
+        workspace: currentWorkspace,
+        model: settings.model
+      })
+    });
+
+    if (!restoreRes.ok) {
+      const data = await restoreRes.json().catch(() => ({}));
+      addMessageToTree({ role: 'model', content: `⚠️ Undo 失败：${data.error || '未知错误'}` }, headId);
+      return;
+    }
+
+    await fetchSessions();
+    try {
+      await loadSessionTree(currentSessionId);
+    } catch (error) {
+      console.error('Failed to reload session tree after undo restore', error);
+    }
+  };
+
   const handleNodeClick = (nodeId: string) => {
     setHeadId(nodeId);
   };
@@ -1100,6 +1208,7 @@ export default function Home() {
         <Sidebar
           sessions={sessions}
           currentSessionId={currentSessionId}
+          runningSessionIds={runningSessionIds}
           onSelectSession={handleSelectSession}
           onDeleteSession={handleDeleteSession}
           onNewChat={handleNewChat}
@@ -1261,6 +1370,7 @@ export default function Home() {
             onClosePreview={() => setPreviewFile(null)}
             settings={settings}
             onSendMessage={handleSendMessage}
+            onUndoTool={handleUndoTool}
             onRetry={handleRetry}
             onCancel={handleCancel}
             onModelChange={(model) => setSettings(s => ({ ...s, model }))}

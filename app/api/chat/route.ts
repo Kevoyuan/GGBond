@@ -100,33 +100,36 @@ export async function POST(req: Request) {
     };
 
     const requestedParentId = parseParentId(parentId);
-    const validatedParentId = requestedParentId
-      ? (() => {
-          const parentExists = db
-            .prepare('SELECT id FROM messages WHERE id = ? AND session_id = ?')
-            .get(requestedParentId, finalSessionId);
-          return parentExists ? requestedParentId : null;
-        })()
-      : null;
+    const sessionTitle = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
+    const ensureSessionRow = (timestamp: number) => {
+      const existing = db.prepare('SELECT id FROM sessions WHERE id = ?').get(finalSessionId);
+      if (!existing) {
+        db.prepare(`
+          INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(finalSessionId, sessionTitle, timestamp, timestamp, workspace || null, sessionBranch);
+      } else {
+        db.prepare('UPDATE sessions SET updated_at = ?, branch = COALESCE(branch, ?) WHERE id = ?')
+          .run(timestamp, sessionBranch, finalSessionId);
+      }
+    };
 
     // 1. Log Session & User Message
     try {
       // Use transaction to ensure session exists before message
       const insertSessionFn = db.transaction(() => {
-        const existing = db.prepare('SELECT id FROM sessions WHERE id = ?').get(finalSessionId);
-        if (!existing) {
-          const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
-          db.prepare(`
-            INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `).run(finalSessionId, title, now, now, workspace || null, sessionBranch);
-        } else {
-          db.prepare('UPDATE sessions SET updated_at = ?, branch = COALESCE(branch, ?) WHERE id = ?')
-            .run(now, sessionBranch, finalSessionId);
-        }
+        ensureSessionRow(now);
+        const effectiveParentId = requestedParentId
+          ? (() => {
+              const parentExists = db
+                .prepare('SELECT id FROM messages WHERE id = ? AND session_id = ?')
+                .get(requestedParentId, finalSessionId);
+              return parentExists ? requestedParentId : null;
+            })()
+          : null;
 
         const stmt = db.prepare('INSERT INTO messages (session_id, role, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)');
-        return stmt.run(finalSessionId, 'user', prompt, validatedParentId, now);
+        return stmt.run(finalSessionId, 'user', prompt, effectiveParentId, now);
       });
 
       const info = insertSessionFn();
@@ -157,52 +160,82 @@ export async function POST(req: Request) {
 
     const upsertToolCallResult = ({
       toolId,
+      checkpoint,
       status,
       output,
       resultData,
     }: {
       toolId?: string;
+      checkpoint?: string;
       status: 'completed' | 'failed';
       output?: string;
       resultData?: unknown;
     }) => {
       const encodedResult = encodeURIComponent(output || '');
-      const encodedResultData = resultData === undefined
-        ? undefined
-        : encodeURIComponent(JSON.stringify(resultData));
-      const replacement = `status="${status}" result="${encodedResult}"${
+      const encodedCheckpoint = checkpoint ? encodeURIComponent(checkpoint) : undefined;
+      let encodedResultData: string | undefined;
+      if (resultData !== undefined) {
+        try {
+          encodedResultData = encodeURIComponent(JSON.stringify(resultData));
+        } catch {
+          encodedResultData = undefined;
+        }
+      }
+      const buildToolTag = ({
+        id,
+        name,
+        args,
+        checkpointValue,
+      }: {
+        id: string;
+        name: string;
+        args: string;
+        checkpointValue?: string;
+      }) => `<tool-call id="${id}" name="${name}" args="${args}"${
+        checkpointValue ? ` checkpoint="${checkpointValue}"` : ''
+      } status="${status}" result="${encodedResult}"${
         encodedResultData ? ` result_data="${encodedResultData}"` : ''
       } />`;
 
       if (toolId) {
         const escapedToolId = toolId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const exactRegex = new RegExp(
-          `<tool-call id="${escapedToolId}" name="([^"]*)" args="([^"]*)" status="running" \\/>`
+          `<tool-call id="${escapedToolId}" name="([^"]*)" args="([^"]*)"(?: checkpoint="([^"]*)")? status="running" \\/>`
         );
-        if (exactRegex.test(persistedAssistantContent)) {
-          persistedAssistantContent = persistedAssistantContent.replace(
-            exactRegex,
-            `<tool-call id="${toolId}" name="$1" args="$2" ${replacement}`
+        const exactMatch = persistedAssistantContent.match(exactRegex);
+        if (exactMatch) {
+          persistedAssistantContent = persistedAssistantContent.replace(exactRegex, (_full, name, args, existingCheckpoint) =>
+            buildToolTag({
+              id: toolId,
+              name,
+              args,
+              checkpointValue: encodedCheckpoint || existingCheckpoint
+            })
           );
           return;
         }
       }
 
-      const fallbackRegex = /<tool-call id="([^"]*)" name="([^"]*)" args="([^"]*)" status="running" \/>/g;
+      const fallbackRegex = /<tool-call id="([^"]*)" name="([^"]*)" args="([^"]*)"(?: checkpoint="([^"]*)")? status="running" \/>/g;
       let match: RegExpExecArray | null;
-      let lastMatchIndex = -1;
+      let lastMatch: RegExpExecArray | null = null;
 
       while ((match = fallbackRegex.exec(persistedAssistantContent)) !== null) {
-        lastMatchIndex = match.index;
+        lastMatch = match;
       }
 
-      if (lastMatchIndex !== -1) {
-        const before = persistedAssistantContent.substring(0, lastMatchIndex);
-        const after = persistedAssistantContent.substring(lastMatchIndex);
-        persistedAssistantContent = before + after.replace(
-          'status="running" />',
-          replacement
-        );
+      if (lastMatch) {
+        const [fullMatch, fallbackId, fallbackName, fallbackArgs, fallbackCheckpoint] = lastMatch;
+        const updatedTag = buildToolTag({
+          id: toolId || fallbackId,
+          name: fallbackName,
+          args: fallbackArgs,
+          checkpointValue: encodedCheckpoint || fallbackCheckpoint
+        });
+        persistedAssistantContent =
+          persistedAssistantContent.slice(0, lastMatch.index) +
+          updatedTag +
+          persistedAssistantContent.slice(lastMatch.index + fullMatch.length);
       }
     };
 
@@ -231,6 +264,7 @@ export async function POST(req: Request) {
         let cleanupMessageBusListeners = () => {};
         const pendingConfirmationIds = new Set<string>();
         const toolNameByCallId = new Map<string, string>();
+        const checkpointByCallId = new Map<string, string>();
         let isPollingConfirmationQueue = false;
         let confirmationQueuePollTimer: ReturnType<typeof setInterval> | null = null;
         const toSerializableResultData = (value: unknown): unknown => {
@@ -382,12 +416,19 @@ export async function POST(req: Request) {
             else if (event.type === GeminiEventType.ToolCallRequest) {
               const info = event.value as ToolCallRequestInfo;
               toolNameByCallId.set(info.callId, info.name);
-              const toolCallTag = `\n\n<tool-call id="${info.callId || ''}" name="${info.name}" args="${encodeURIComponent(JSON.stringify(info.args || {}))}" status="running" />\n\n`;
+              if (typeof info.checkpoint === 'string' && info.checkpoint) {
+                checkpointByCallId.set(info.callId, info.checkpoint);
+              }
+              const encodedCheckpoint = (typeof info.checkpoint === 'string' && info.checkpoint)
+                ? ` checkpoint="${encodeURIComponent(info.checkpoint)}"`
+                : '';
+              const toolCallTag = `\n\n<tool-call id="${info.callId || ''}" name="${info.name}" args="${encodeURIComponent(JSON.stringify(info.args || {}))}"${encodedCheckpoint} status="running" />\n\n`;
               persistedAssistantContent += toolCallTag;
               safeEnqueue({
                 type: 'tool_use',
                 tool_name: info.name,
                 tool_id: info.callId,
+                checkpoint: info.checkpoint,
                 parameters: info.args
               });
             }
@@ -398,7 +439,9 @@ export async function POST(req: Request) {
               const resultData = toSerializableResultData(resultDisplay);
               const output = toResultOutput(resultDisplay);
               const toolName = toolNameByCallId.get(info.callId);
+              const checkpoint = checkpointByCallId.get(info.callId);
               toolNameByCallId.delete(info.callId);
+              checkpointByCallId.delete(info.callId);
               const error =
                 info.error
                   ? {
@@ -408,6 +451,7 @@ export async function POST(req: Request) {
                   : undefined;
               upsertToolCallResult({
                 toolId: info.callId,
+                checkpoint,
                 status: info.error ? 'failed' : 'completed',
                 output: output || info.error?.message,
                 resultData,
@@ -417,6 +461,7 @@ export async function POST(req: Request) {
                 type: 'tool_result',
                 tool_id: info.callId,
                 tool_name: toolName,
+                checkpoint,
                 status: info.error ? 'error' : 'success',
                 is_error: !!info.error,
                 output: output || info.error?.message,
@@ -513,19 +558,35 @@ export async function POST(req: Request) {
             const serializedCitations = persistedAssistantCitations.length > 0
               ? JSON.stringify(Array.from(new Set(persistedAssistantCitations)))
               : null;
-            db.prepare(
-              'INSERT INTO messages (session_id, role, content, stats, thought, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-            )
-              .run(
-                finalSessionId,
-                'model',
-                persistedAssistantContent || fullResponse,
-                finalStats ? JSON.stringify(finalStats) : null,
-                persistedAssistantThought || null,
-                serializedCitations,
-                userMessageId,
-                Date.now()
-              );
+            const assistantInsertTx = db.transaction(() => {
+              const insertTs = Date.now();
+              ensureSessionRow(insertTs);
+
+              const effectiveParentId = userMessageId == null
+                ? null
+                : (() => {
+                    const parentExists = db
+                      .prepare('SELECT id FROM messages WHERE id = ? AND session_id = ?')
+                      .get(userMessageId, finalSessionId);
+                    return parentExists ? userMessageId : null;
+                  })();
+
+              db.prepare(
+                'INSERT INTO messages (session_id, role, content, stats, thought, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+              )
+                .run(
+                  finalSessionId,
+                  'model',
+                  persistedAssistantContent || fullResponse,
+                  finalStats ? JSON.stringify(finalStats) : null,
+                  persistedAssistantThought || null,
+                  serializedCitations,
+                  effectiveParentId,
+                  insertTs
+                );
+            });
+
+            assistantInsertTx();
           } catch (e) {
             console.error('[DB] Failed to log assistant message', e);
           }
