@@ -165,6 +165,57 @@ const summarizeBranchContent = (content: string) => {
   return '[tool call]';
 };
 
+const ALLOWED_MODELS = new Set([
+  'gemini-3-pro-preview',
+  'gemini-3-flash-preview',
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+]);
+
+const DEFAULT_CHAT_SETTINGS: ChatSettings = {
+  model: 'gemini-3-pro-preview',
+  systemInstruction: '',
+  toolPermissionStrategy: 'safe',
+  ui: {
+    footer: {
+      hideModelInfo: false,
+      hideContextPercentage: false,
+    },
+    showMemoryUsage: true,
+  },
+  modelSettings: {
+    compressionThreshold: 0.5,
+    maxSessionTurns: -1,
+    tokenBudget: 2000,
+  }
+};
+
+const normalizeChatSettings = (input: Partial<ChatSettings> | null | undefined): ChatSettings => {
+  const safeInput = input || {};
+  const nextModel = ALLOWED_MODELS.has(safeInput.model || '')
+    ? (safeInput.model as string)
+    : DEFAULT_CHAT_SETTINGS.model;
+
+  return {
+    model: nextModel,
+    systemInstruction: safeInput.systemInstruction ?? DEFAULT_CHAT_SETTINGS.systemInstruction,
+    toolPermissionStrategy: safeInput.toolPermissionStrategy === 'auto' ? 'auto' : 'safe',
+    ui: {
+      footer: {
+        hideModelInfo: safeInput.ui?.footer?.hideModelInfo ?? DEFAULT_CHAT_SETTINGS.ui.footer.hideModelInfo,
+        hideContextPercentage: safeInput.ui?.footer?.hideContextPercentage ?? DEFAULT_CHAT_SETTINGS.ui.footer.hideContextPercentage,
+      },
+      showMemoryUsage: safeInput.ui?.showMemoryUsage ?? DEFAULT_CHAT_SETTINGS.ui.showMemoryUsage,
+    },
+    modelSettings: {
+      compressionThreshold: safeInput.modelSettings?.compressionThreshold ?? DEFAULT_CHAT_SETTINGS.modelSettings.compressionThreshold,
+      maxSessionTurns: safeInput.modelSettings?.maxSessionTurns ?? DEFAULT_CHAT_SETTINGS.modelSettings.maxSessionTurns,
+      tokenBudget: safeInput.modelSettings?.tokenBudget ?? DEFAULT_CHAT_SETTINGS.modelSettings.tokenBudget,
+    },
+  };
+};
+
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -181,22 +232,7 @@ export default function Home() {
   const [terminalRunningSessionCounts, setTerminalRunningSessionCounts] = useState<Record<string, number>>({});
 
   // Settings state
-  const [settings, setSettings] = useState<ChatSettings>({
-    model: 'gemini-3-pro-preview',
-    systemInstruction: '',
-    ui: {
-      footer: {
-        hideModelInfo: false,
-        hideContextPercentage: false,
-      },
-      showMemoryUsage: true,
-    },
-    modelSettings: {
-      compressionThreshold: 0.5,
-      maxSessionTurns: -1,
-      tokenBudget: 2000,
-    }
-  });
+  const [settings, setSettings] = useState<ChatSettings>(DEFAULT_CHAT_SETTINGS);
 
   // UI state
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -206,7 +242,7 @@ export default function Home() {
   const [mode, setMode] = useState<'code' | 'plan' | 'ask'>('code');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
-  const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>('safe');
+  const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>(DEFAULT_CHAT_SETTINGS.toolPermissionStrategy);
   const [showGraph, setShowGraph] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
   const [isBranchInsightsMinimized, setIsBranchInsightsMinimized] = useState(false);
@@ -443,29 +479,32 @@ export default function Home() {
     const saved = localStorage.getItem('gem-ui-settings');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved) as ChatSettings;
-        const allowedModels = new Set([
-          'gemini-3-pro-preview',
-          'gemini-3-flash-preview',
-          'gemini-2.5-pro',
-          'gemini-2.5-flash',
-          'gemini-2.5-flash-lite',
-        ]);
-
-        setSettings({
-          ...parsed,
-          model: allowedModels.has(parsed.model)
-            ? parsed.model
-            : 'gemini-3-pro-preview',
-        });
+        const parsed = JSON.parse(saved) as Partial<ChatSettings>;
+        const normalized = normalizeChatSettings(parsed);
+        setSettings(normalized);
+        setApprovalMode(normalized.toolPermissionStrategy);
       } catch (e) { console.error('Failed to parse settings', e); }
     }
   }, []);
 
   const handleSaveSettings = (newSettings: ChatSettings) => {
-    setSettings(newSettings);
-    localStorage.setItem('gem-ui-settings', JSON.stringify(newSettings));
+    const normalized = normalizeChatSettings(newSettings);
+    setSettings(normalized);
+    setApprovalMode(normalized.toolPermissionStrategy);
+    localStorage.setItem('gem-ui-settings', JSON.stringify(normalized));
   };
+
+  const handleApprovalModeChange = useCallback((mode: 'safe' | 'auto') => {
+    setApprovalMode(mode);
+    setSettings((prev) => {
+      if (prev.toolPermissionStrategy === mode) {
+        return prev;
+      }
+      const next = { ...prev, toolPermissionStrategy: mode };
+      localStorage.setItem('gem-ui-settings', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   // Load Theme
   useEffect(() => {
@@ -647,6 +686,212 @@ export default function Home() {
     const trimmedInput = text.trim();
     if (trimmedInput.startsWith('/clear')) {
       handleNewChat();
+      return;
+    }
+
+    if (trimmedInput.startsWith('/doctor')) {
+      const runHealthCheck = async (name: string, url: string) => {
+        const startedAt = Date.now();
+        try {
+          const res = await fetch(url);
+          return {
+            name,
+            ok: res.ok,
+            status: res.status,
+            latency: Date.now() - startedAt,
+          };
+        } catch (error) {
+          return {
+            name,
+            ok: false,
+            status: null as number | null,
+            latency: Date.now() - startedAt,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      };
+
+      const [modelsHealth, statsHealth, sessionsHealth] = await Promise.all([
+        runHealthCheck('models', '/api/models'),
+        runHealthCheck('stats', '/api/stats'),
+        runHealthCheck('sessions', '/api/sessions'),
+      ]);
+
+      const workspaceLabel = currentWorkspace || 'Default workspace';
+      const healthRows = [modelsHealth, statsHealth, sessionsHealth]
+        .map((item) => {
+          const status = item.ok
+            ? `OK (${item.status})`
+            : `FAIL${item.status ? ` (${item.status})` : ''}`;
+          const detail = item.error ? ` · ${item.error}` : '';
+          return `- ${item.name}: ${status} · ${item.latency}ms${detail}`;
+        })
+        .join('\n');
+
+      const report = [
+        '## Doctor Report',
+        '',
+        `- Time: ${new Date().toLocaleString()}`,
+        `- Session ID: \`${currentSessionId || 'none'}\``,
+        `- Workspace: \`${workspaceLabel}\``,
+        `- Model: \`${settings.model}\``,
+        `- Mode: \`${mode}\``,
+        `- Permission Strategy: \`${approvalMode}\``,
+        '',
+        '### Runtime Snapshot',
+        `- Messages in current branch: **${messages.length}**`,
+        `- Graph nodes: **${branchInsights.nodeCount}**`,
+        `- Branch points: **${branchInsights.branchPointIds.length}**`,
+        `- Active hooks tracked: **${hookEvents.length}**`,
+        `- Running session tasks: **${runningSessionIds.length}**`,
+        '',
+        '### API Health',
+        healthRows,
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: report }, headId);
+      return;
+    }
+
+    if (trimmedInput.startsWith('/cost')) {
+      const formatUsd = (value: number) => `$${value.toFixed(6)}`;
+      const sessionReport = [
+        '### Current Session',
+        `- Input tokens: **${sessionStats.inputTokens.toLocaleString()}**`,
+        `- Output tokens: **${sessionStats.outputTokens.toLocaleString()}**`,
+        `- Total tokens: **${sessionStats.totalTokens.toLocaleString()}**`,
+        `- Estimated cost: **${formatUsd(sessionStats.totalCost)}**`,
+      ];
+
+      try {
+        const res = await fetch('/api/stats');
+        if (!res.ok) {
+          throw new Error(`stats API ${res.status}`);
+        }
+        const data = await res.json();
+        const globalReport = [
+          '### Global Usage',
+          `- Daily: ${data.daily?.totalTokens?.toLocaleString?.() ?? 0} tokens · ${formatUsd(data.daily?.cost || 0)}`,
+          `- Weekly: ${data.weekly?.totalTokens?.toLocaleString?.() ?? 0} tokens · ${formatUsd(data.weekly?.cost || 0)}`,
+          `- Monthly: ${data.monthly?.totalTokens?.toLocaleString?.() ?? 0} tokens · ${formatUsd(data.monthly?.cost || 0)}`,
+          `- Total: ${data.total?.totalTokens?.toLocaleString?.() ?? 0} tokens · ${formatUsd(data.total?.cost || 0)}`,
+        ];
+
+        addMessageToTree({
+          role: 'model',
+          content: ['## Cost Report', '', ...sessionReport, '', ...globalReport].join('\n'),
+        }, headId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        addMessageToTree({
+          role: 'model',
+          content: ['## Cost Report', '', ...sessionReport, '', `> ⚠️ Failed to fetch global stats: ${message}`].join('\n'),
+        }, headId);
+      }
+      return;
+    }
+
+    if (trimmedInput.startsWith('/analyze-project')) {
+      const query = new URLSearchParams({
+        index: '1',
+        limit: '500',
+      });
+      if (currentWorkspace) {
+        query.set('path', currentWorkspace);
+      }
+
+      const rootQuery = new URLSearchParams();
+      if (currentWorkspace) {
+        rootQuery.set('path', currentWorkspace);
+      }
+
+      try {
+        const [deepRes, rootRes] = await Promise.all([
+          fetch(`/api/files?${query.toString()}`),
+          fetch(`/api/files?${rootQuery.toString()}`),
+        ]);
+        if (!deepRes.ok) {
+          throw new Error(`index API ${deepRes.status}`);
+        }
+
+        const deepData = await deepRes.json();
+        const rootData = rootRes.ok ? await rootRes.json() : { files: [] };
+        const indexedFiles = Array.isArray(deepData.files) ? deepData.files : [];
+        const rootFiles = Array.isArray(rootData.files) ? rootData.files : [];
+
+        const fileEntries = indexedFiles.filter((item: { type?: string }) => item.type === 'file');
+        const dirEntries = indexedFiles.filter((item: { type?: string }) => item.type === 'directory');
+
+        const extensionCounts = new Map<string, number>();
+        fileEntries.forEach((item: { extension?: string | null }) => {
+          const ext = item.extension || '(no-ext)';
+          extensionCounts.set(ext, (extensionCounts.get(ext) || 0) + 1);
+        });
+        const topExtensions = Array.from(extensionCounts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 8);
+
+        const topDirectories: string[] = rootFiles
+          .filter((item: { type?: string }) => item.type === 'directory')
+          .map((item: { name?: string }) => item.name || '')
+          .filter(Boolean)
+          .slice(0, 12);
+
+        const rootFileSet = new Set(
+          rootFiles
+            .filter((item: { type?: string }) => item.type === 'file')
+            .map((item: { name?: string }) => (item.name || '').toLowerCase())
+        );
+
+        const stackSignals: string[] = [];
+        if (rootFileSet.has('package.json')) stackSignals.push('Node.js project');
+        if (rootFileSet.has('tsconfig.json')) stackSignals.push('TypeScript enabled');
+        if (rootFileSet.has('next.config.ts') || rootFileSet.has('next.config.js')) stackSignals.push('Next.js detected');
+        if (rootFileSet.has('vitest.config.ts')) stackSignals.push('Vitest tests configured');
+        if (rootFileSet.has('eslint.config.mjs')) stackSignals.push('ESLint configured');
+
+        const extensionLines = topExtensions.length > 0
+          ? topExtensions.map(([ext, count]) => `- \`${ext}\`: ${count}`).join('\n')
+          : '- No files indexed';
+
+        const directoryLines = topDirectories.length > 0
+          ? topDirectories.map((dir) => `- \`${dir}/\``).join('\n')
+          : '- No top-level directories';
+
+        const signalLines = stackSignals.length > 0
+          ? stackSignals.map((item) => `- ${item}`).join('\n')
+          : '- No obvious stack signal found from root files';
+
+        const report = [
+          '## Project Structure Report',
+          '',
+          `- Scope: \`${deepData.path || currentWorkspace || 'workspace'}\``,
+          `- Indexed entries: **${indexedFiles.length}** (limit: 500)`,
+          `- Directories (sampled): **${dirEntries.length}**`,
+          `- Files (sampled): **${fileEntries.length}**`,
+          '',
+          '### Top-level Directories',
+          directoryLines,
+          '',
+          '### File Composition (Top Extensions)',
+          extensionLines,
+          '',
+          '### Stack Signals',
+          signalLines,
+          '',
+          indexedFiles.length >= 500
+            ? '> ℹ️ Index is capped at 500 entries for responsiveness. Use narrower scope if needed.'
+            : '> ✅ Full index fetched under current cap.',
+        ].join('\n');
+
+        addMessageToTree({ role: 'model', content: report }, headId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        addMessageToTree({
+          role: 'model',
+          content: `## Project Structure Report\n\n> ⚠️ Failed to analyze project: ${message}`,
+        }, headId);
+      }
       return;
     }
 
@@ -1467,7 +1712,8 @@ export default function Home() {
               currentContextUsage={currentContextUsage}
               mode={mode}
               onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
-              onApprovalModeChange={setApprovalMode}
+              approvalMode={approvalMode}
+              onApprovalModeChange={handleApprovalModeChange}
               workspacePath={currentWorkspace || undefined}
               showTerminal={showTerminal}
               onToggleTerminal={() => setShowTerminal((value) => !value)}

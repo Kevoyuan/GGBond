@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 export interface ChatSettings {
   model: string;
   systemInstruction: string;
+  toolPermissionStrategy: 'safe' | 'auto';
   ui: {
     footer: {
       hideModelInfo: boolean;
@@ -41,6 +42,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
     // Merge provided settings with defaults to ensure all fields exist
     setLocalSettings({
       ...settings,
+      toolPermissionStrategy: settings.toolPermissionStrategy ?? 'safe',
       ui: {
         footer: {
           hideModelInfo: settings.ui?.footer?.hideModelInfo ?? false,
@@ -65,6 +67,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
     setLocalSettings({
         model: 'gemini-3-pro-preview',
         systemInstruction: '',
+        toolPermissionStrategy: 'safe',
         ui: {
           footer: {
             hideModelInfo: false,
@@ -127,6 +130,25 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
               placeholder="e.g. You are a helpful coding assistant..."
               className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
             />
+          </div>
+
+          {/* Tool Permissions */}
+          <div className="space-y-2 pt-4 border-t">
+            <label className="text-sm font-medium leading-none">Tool Permission Strategy</label>
+            <select
+              value={localSettings.toolPermissionStrategy}
+              onChange={(e) => setLocalSettings(s => ({
+                ...s,
+                toolPermissionStrategy: e.target.value as 'safe' | 'auto'
+              }))}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="safe">Safe (Approve / Deny / Allow Session)</option>
+              <option value="auto">Auto (Always Allow)</option>
+            </select>
+            <p className="text-[13px] text-muted-foreground">
+              Safe mode prompts for each privileged tool call. Auto mode sends tool calls without confirmation.
+            </p>
           </div>
 
           {/* UI Settings */}

@@ -16,6 +16,7 @@ interface ChatInputProps {
   currentContextUsage?: number;
   mode?: 'code' | 'plan' | 'ask';
   onModeChange?: (mode: 'code' | 'plan' | 'ask') => void;
+  approvalMode?: 'safe' | 'auto';
   onApprovalModeChange?: (mode: 'safe' | 'auto') => void;
   workspacePath?: string;
   showTerminal?: boolean;
@@ -53,6 +54,9 @@ const BASE_COMMANDS: CommandItem[] = [
   // Chat Management
   { command: '/chat', description: 'Manage chat sessions (save, list, resume)', icon: MessageSquare, group: 'Built-in' },
   { command: '/clear', description: 'Clear conversation history', icon: Slash, group: 'Built-in' },
+  { command: '/doctor', description: 'Run local diagnostics report', icon: HelpCircle, group: 'Built-in' },
+  { command: '/cost', description: 'Show session and global token/cost usage', icon: Cpu, group: 'Built-in' },
+  { command: '/analyze-project', description: 'Generate project structure report', icon: Folder, group: 'Built-in' },
   { command: '/resume', description: 'Resume previous session', icon: History, group: 'Built-in' },
   { command: '/rewind', description: 'Rewind conversation', icon: RotateCcw, group: 'Built-in' },
   { command: '/restore', description: 'Restore state', icon: ArchiveRestore, group: 'Built-in' },
@@ -112,7 +116,7 @@ const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
   'uninstall',
 ]);
 
-export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange }: ChatInputProps) {
+export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | 'skill' | null>(null);
@@ -155,7 +159,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     setIsCompressing(true);
     try {
       // Use the native /compress command from gemini-cli
-      onSend("/compress", { approvalMode });
+      onSend("/compress", { approvalMode: currentApprovalMode });
       setShowContextTooltip(false);
     } catch (error) {
       console.error('Compression failed:', error);
@@ -797,7 +801,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
       ? `${skillPrefix}${cleanedInput ? `\n${cleanedInput}` : ''}`
       : cleanedInput;
 
-    onSend(finalMessage.replace(/\u2011/g, '-'), { approvalMode });
+    onSend(finalMessage.replace(/\u2011/g, '-'), { approvalMode: currentApprovalMode });
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -870,11 +874,15 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     return parts;
   };
 
-  const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>('safe');
+  const [currentApprovalMode, setCurrentApprovalMode] = useState<'safe' | 'auto'>(approvalMode);
 
   useEffect(() => {
-    onApprovalModeChange?.(approvalMode);
-  }, [approvalMode, onApprovalModeChange]);
+    setCurrentApprovalMode(approvalMode);
+  }, [approvalMode]);
+
+  useEffect(() => {
+    onApprovalModeChange?.(currentApprovalMode);
+  }, [currentApprovalMode, onApprovalModeChange]);
 
   useEffect(() => {
     if (!onHeightChange) return;
@@ -1118,19 +1126,18 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
               {/* Approval Mode Toggle */}
               <button
                 onClick={() => {
-                  const nextMode = approvalMode === 'safe' ? 'auto' : 'safe';
-                  setApprovalMode(nextMode);
-                  if (onApprovalModeChange) onApprovalModeChange(nextMode);
+                  const nextMode = currentApprovalMode === 'safe' ? 'auto' : 'safe';
+                  setCurrentApprovalMode(nextMode);
                 }}
                 className={cn(
                   "flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-all duration-300",
-                  approvalMode === 'auto'
+                  currentApprovalMode === 'auto'
                     ? "text-red-500 bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/20"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 )}
-                title={approvalMode === 'auto' ? "Auto Mode: All tool calls are allowed" : "Safe Mode: Ask for approval"}
+                title={currentApprovalMode === 'auto' ? "Auto Mode: All tool calls are allowed" : "Safe Mode: Ask for approval"}
               >
-                {approvalMode === 'auto' ? (
+                {currentApprovalMode === 'auto' ? (
                   <>
                     <Zap className="w-3.5 h-3.5 fill-current animate-pulse" />
                     <span>Auto</span>

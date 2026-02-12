@@ -98,7 +98,7 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
 
                     <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3 border border-border/40">
                         <p>💡 Workspace is equivalent to <code className="text-primary/80 bg-primary/5 px-1 rounded">cd</code> into the project directory to start working.</p>
-                        <p className="mt-1">Gemini's file operations and conversations will be based on this directory.</p>
+                        <p className="mt-1">Gemini&apos;s file operations and conversations will be based on this directory.</p>
                     </div>
                 </div>
 
