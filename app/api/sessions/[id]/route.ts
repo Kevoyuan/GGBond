@@ -20,7 +20,9 @@ export async function GET(
     const parsedMessages = messages.map((msg: any) => ({
       ...msg,
       stats: msg.stats ? JSON.parse(msg.stats) : undefined,
-      parent_id: msg.parent_id
+      parent_id: msg.parent_id,
+      parentId: msg.parent_id === null || msg.parent_id === undefined ? null : String(msg.parent_id),
+      id: msg.id === null || msg.id === undefined ? undefined : String(msg.id),
     }));
 
     return NextResponse.json({ session, messages: parsedMessages });

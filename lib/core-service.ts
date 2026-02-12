@@ -19,8 +19,8 @@ import {
     ToolConfirmationOutcome,
     createPolicyUpdater,
     createPolicyEngineConfig,
+    resolveTelemetrySettings,
     Storage,
-    debugLogger,
     ToolErrorType,
 } from '@google/gemini-cli-core';
 import type {
@@ -35,27 +35,6 @@ import type {
 import type { GeminiChat } from '@google/gemini-cli-core';
 
 const MAX_TURNS = 100;
-
-const originalError = debugLogger.error.bind(debugLogger);
-debugLogger.error = (...args: any[]) => {
-    const sanitizedArgs = args.map(arg => {
-        if (arg instanceof Error) {
-            return arg.message + (arg.stack ? `\n${arg.stack}` : '');
-        }
-        if (typeof arg === 'object' && arg !== null) {
-            try {
-                // Check for circular references by trying simple stringify
-                JSON.stringify(arg);
-                return arg;
-            } catch (e) {
-                // If it fails, return a safe string representation
-                return '[Circular/Complex Object] ' + (arg.constructor ? arg.constructor.name : typeof arg);
-            }
-        }
-        return arg;
-    });
-    originalError(...sanitizedArgs);
-};
 
 // Type definition for Global to support HMR in Next.js
 declare global {
@@ -83,10 +62,6 @@ type PendingConfirmationRequest = {
 type PendingConfirmation = {
     callId: string;
     correlationId: string;
-    onConfirm?: (
-        outcome: ToolConfirmationOutcome,
-        payload?: ToolConfirmationPayload
-    ) => Promise<void>;
 };
 
 export class CoreService {
@@ -240,6 +215,13 @@ export class CoreService {
             policySettings,
             normalizedApprovalMode
         );
+        const telemetrySettings = await resolveTelemetrySettings({
+            env: process.env,
+            settings:
+                settings && typeof settings.telemetry === 'object'
+                    ? (settings.telemetry as any)
+                    : undefined,
+        });
 
         // 1. Initialize Config
         // Cast approvalMode to any to avoid Enum type issues if not exported correctly
@@ -253,11 +235,7 @@ export class CoreService {
             approvalMode: normalizedApprovalMode,
             policyEngineConfig,
             recordResponses: '',
-            telemetry: {
-                enabled: true,
-                logPrompts: false,
-                useCollector: false
-            }
+            telemetry: telemetrySettings,
             // auth info is auto-detected from env/files by Config internal logic or we can pass explicit
             // For now let Config handle standard auth
         });
@@ -296,21 +274,6 @@ export class CoreService {
             } catch (e) {
                 console.error('[CoreService] Failed to refresh auth (fallback):', e);
             }
-        }
-
-        // CRITICAL FIX: Unwrap LoggingContentGenerator to avoid "Converting circular structure to JSON" error.
-        // LoggingContentGenerator unconditionally JSON.stringifies request/response objects which contain circular references (Config).
-        // This unwrapping effectively disables the problematic logging while preserving core functionality.
-        try {
-            const generator = this.config.getContentGenerator();
-            // Check if generator is LoggingContentGenerator by checking for 'wrapped' property
-            // We use 'any' casting because 'wrapped' is not exposed in the interface
-            if (generator && (generator as any).wrapped) {
-                console.log('[CoreService] Unwrapping LoggingContentGenerator to avoid circular JSON error...');
-                (this.config as any).contentGenerator = (generator as any).wrapped;
-            }
-        } catch (e) {
-            console.warn('[CoreService] Failed to unwrap content generator:', e);
         }
 
         // 2. Setup / refresh tools on the core GeminiClient (CLI-aligned path)
@@ -485,13 +448,6 @@ export class CoreService {
         const correlationIdFromScheduler =
             typeof waitingCall.correlationId === 'string' ? waitingCall.correlationId : undefined;
         const correlationId = correlationIdFromScheduler || existingCorrelationId || crypto.randomUUID();
-        const onConfirm =
-            typeof rawDetails.onConfirm === 'function'
-                ? (rawDetails.onConfirm as (
-                    outcome: ToolConfirmationOutcome,
-                    payload?: ToolConfirmationPayload
-                ) => Promise<void>)
-                : undefined;
 
         if (existingCorrelationId && existingCorrelationId === correlationId) {
             return;
@@ -504,7 +460,6 @@ export class CoreService {
         this.pendingConfirmations.set(correlationId, {
             callId,
             correlationId,
-            onConfirm,
         });
         this.pendingConfirmationByCallId.set(callId, correlationId);
 
@@ -672,7 +627,7 @@ export class CoreService {
         confirmed: boolean,
         outcome?: ToolConfirmationOutcome,
         payload?: ToolConfirmationPayload
-    ) {
+    ): Promise<boolean> {
         console.log('[CoreService] Submitting confirmation:', { correlationId, confirmed });
 
         const resolvedOutcome =
@@ -681,43 +636,22 @@ export class CoreService {
                 ? ToolConfirmationOutcome.ProceedOnce
                 : ToolConfirmationOutcome.Cancel);
 
-        let pending = this.pendingConfirmations.get(correlationId);
-        if (!pending && this.pendingConfirmations.size === 1) {
-            const onlyEntry = Array.from(this.pendingConfirmations.entries())[0];
-            if (onlyEntry) {
-                const [fallbackCorrelationId, fallbackPending] = onlyEntry;
-                console.warn('[CoreService] Confirmation correlation mismatch; using single pending fallback', {
-                    receivedCorrelationId: correlationId,
-                    fallbackCorrelationId,
-                });
-                pending = fallbackPending;
-                correlationId = fallbackCorrelationId;
-            }
-        }
+        const pending = this.pendingConfirmations.get(correlationId);
 
         if (pending) {
             this.cleanupPendingConfirmationByCallId(pending.callId);
-            if (pending.onConfirm) {
-                await pending.onConfirm(resolvedOutcome, payload);
-                return;
-            }
             this.publishConfirmationResponse(correlationId, confirmed, resolvedOutcome, payload);
-            return;
+            return true;
         }
 
-        console.warn('[CoreService] No pending scheduler confirmation found; falling back to MessageBus', {
+        console.warn('[CoreService] No pending scheduler confirmation found; publishing raw confirmation response', {
             correlationId,
             pendingCount: this.pendingConfirmations.size,
             pendingCorrelationIds: Array.from(this.pendingConfirmations.keys()),
         });
 
-        // Backward-compat fallback for older message-bus based confirmation flows.
-        if (!this.messageBus) {
-            console.warn('[CoreService] MessageBus not initialized');
-            return;
-        }
-
         this.publishConfirmationResponse(correlationId, confirmed, resolvedOutcome, payload);
+        return false;
     }
 
     private publishConfirmationResponse(
