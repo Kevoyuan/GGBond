@@ -790,4 +790,76 @@ export class CoreService {
             await contextManager.refresh();
         }
     }
+
+    public rewindLastUserMessage() {
+        if (!this.chat) {
+            return { success: false, error: 'Chat service is not initialized.' };
+        }
+
+        const recording = this.chat.getChatRecordingService();
+        const conversation = recording.getConversation();
+        const messages = conversation?.messages || [];
+        const target = [...messages].reverse().find((msg) => msg.type === 'user');
+
+        if (!target) {
+            return { success: false, error: 'No user message found to rewind.' };
+        }
+
+        const rewound = recording.rewindTo(target.id);
+        if (!rewound) {
+            return { success: false, error: 'Failed to rewind conversation history.' };
+        }
+
+        return {
+            success: true,
+            rewoundMessageId: target.id,
+            remainingMessages: rewound.messages.length,
+        };
+    }
+
+    public async restoreCheckpoint(toolId: string) {
+        if (!this.config) {
+            return { success: false, error: 'Core service is not initialized.' };
+        }
+
+        const gitService = await this.config.getGitService();
+        if (!gitService) {
+            return { success: false, error: 'Git service is unavailable. Please run in a git repository.' };
+        }
+
+        const checkpointsDir = path.join(
+            os.homedir(),
+            '.gemini',
+            'tmp',
+            getProjectHash(this.config.getWorkingDir()),
+            'checkpoints'
+        );
+
+        if (!fs.existsSync(checkpointsDir)) {
+            return { success: false, error: 'No checkpoint directory found for this workspace/session.' };
+        }
+
+        const files = await fs.promises.readdir(checkpointsDir);
+        const checkpointFile = files.find((file) => file === `${toolId}.json`) || files.find((file) => file.startsWith(`${toolId}.`));
+
+        if (!checkpointFile) {
+            return { success: false, error: `Checkpoint not found for tool id: ${toolId}` };
+        }
+
+        const fullPath = path.join(checkpointsDir, checkpointFile);
+        const raw = await fs.promises.readFile(fullPath, 'utf-8');
+        const parsed = JSON.parse(raw) as { commitHash?: string };
+
+        if (!parsed.commitHash) {
+            return { success: false, error: 'Checkpoint exists but is missing commit hash.' };
+        }
+
+        await gitService.restoreProjectFromSnapshot(parsed.commitHash);
+
+        return {
+            success: true,
+            checkpoint: checkpointFile.replace(/\.json$/, ''),
+            commitHash: parsed.commitHash,
+        };
+    }
 }
