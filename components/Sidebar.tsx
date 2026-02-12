@@ -19,12 +19,13 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   GitBranch,
+  TerminalSquare,
   ShieldCheck,
   Zap,
   Layers,
   Activity,
   Database,
-  Sparkles
+  Puzzle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -35,6 +36,7 @@ import { MemoryPanel } from './MemoryPanel';
 import { FileTree } from './FileTree';
 import { HooksPanel, type HookEvent } from './HooksPanel';
 import { MCPPanel } from './MCPPanel';
+import { SkillsManager } from './modules/SkillsManager';
 import { UsageStatsDialog } from './UsageStatsDialog';
 
 interface Session {
@@ -52,11 +54,11 @@ interface SidebarProps {
   sessions: Session[];
   currentSessionId: string | null;
   runningSessionIds?: string[];
+  terminalRunningSessionIds?: string[];
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
   onNewChat: () => void;
   onNewChatInWorkspace?: (workspace: string) => void;
-  onOpenSkills: () => void;
   onOpenSettings: () => void;
   isDark: boolean;
   toggleTheme: () => void;
@@ -70,7 +72,7 @@ interface SidebarProps {
   selectedAgentName?: string;
 }
 
-type SidebarView = 'chat' | 'files' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory';
+type SidebarView = 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory';
 
 const MIN_SIDEBAR_WIDTH = 160;
 const MAX_SIDEBAR_WIDTH = 600;
@@ -115,11 +117,11 @@ export function Sidebar({
   sessions,
   currentSessionId,
   runningSessionIds = [],
+  terminalRunningSessionIds = [],
   onSelectSession,
   onDeleteSession,
   onNewChat,
   onNewChatInWorkspace,
-  onOpenSkills,
   onOpenSettings,
   isDark,
   toggleTheme,
@@ -362,10 +364,14 @@ export function Sidebar({
         <div className="flex flex-col gap-3 w-full px-2 items-center">
           <button
             onClick={onNewChat}
-            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200 hover:scale-105"
+            className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200 hover:scale-105 relative group"
+            aria-label="New Chat"
             title="New Chat"
           >
             <Plus className="w-5 h-5" />
+            <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
+              New Chat
+            </div>
           </button>
 
           <div className="w-8 h-px bg-border/50 my-1" />
@@ -382,6 +388,13 @@ export function Sidebar({
             onClick={() => setActiveView('files')}
             icon={FolderOpen}
             label="Files"
+          />
+
+          <NavButton
+            active={activeView === 'skills'}
+            onClick={() => setActiveView('skills')}
+            icon={Puzzle}
+            label="Skills"
           />
 
           <NavButton
@@ -422,32 +435,38 @@ export function Sidebar({
 
         <div className="mt-auto flex flex-col gap-3 w-full px-2 items-center">
           <button
-            onClick={onOpenSkills}
-            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-            title="Skills"
-          >
-            <Sparkles className="w-5 h-5" />
-          </button>
-
-          <button
             onClick={toggleSidebar}
-            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
+            aria-label={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
             title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
           >
             {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+            <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
+              {isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            </div>
           </button>
           <button
             onClick={toggleTheme}
-            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
+            aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            title={isDark ? "Light Mode" : "Dark Mode"}
           >
             {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
+              {isDark ? "Light Mode" : "Dark Mode"}
+            </div>
           </button>
 
           <button
             onClick={onOpenSettings}
-            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
+            aria-label="Settings"
+            title="Settings"
           >
             <Settings className="w-5 h-5" />
+            <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
+              Settings
+            </div>
           </button>
 
           <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium text-secondary-foreground border border-border">
@@ -547,6 +566,7 @@ export function Sidebar({
                       <div className="ml-4 pl-2 border-l border-border/40 flex flex-col gap-0.5 mt-1">
                         {list.map((session) => {
                           const isSessionRunning = runningSessionIds.includes(session.id);
+                          const isTerminalRunning = terminalRunningSessionIds.includes(session.id);
                           return (
                           <div
                             key={session.id}
@@ -577,6 +597,14 @@ export function Sidebar({
                                 )}
                               </div>
                               <span className="truncate flex-1 text-[13px]">{session.title}</span>
+                              {isTerminalRunning && (
+                                <span
+                                  className="inline-flex items-center justify-center shrink-0 text-amber-500/90"
+                                  title="Terminal is running in this chat session"
+                                >
+                                  <TerminalSquare className="w-3 h-3" />
+                                </span>
+                              )}
                               {workspaceBranchSummary[workspace]?.mixed && session.branch && (
                                 <span
                                   className="inline-flex items-center justify-center shrink-0 text-muted-foreground/70"
@@ -652,6 +680,8 @@ export function Sidebar({
           </>
         ) : activeView === 'files' ? (
           <FileTree className="h-full" initialPath={currentWorkspace || undefined} onFileSelect={onFileSelect} />
+        ) : activeView === 'skills' ? (
+          <SkillsManager compact className="h-full" />
         ) : activeView === 'hooks' ? (
           <HooksPanel className="h-full" events={hookEvents} />
         ) : activeView === 'agents' ? (
@@ -695,17 +725,18 @@ function NavButton({ active, onClick, icon: Icon, label }: NavButtonProps) {
   return (
     <div
       onClick={onClick}
+      title={label}
       className={cn(
-        "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200 relative group cursor-pointer",
+        "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200 relative group cursor-pointer border",
         active
-          ? "bg-primary text-primary-foreground shadow-md"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          ? "bg-primary text-primary-foreground shadow-md border-primary/20"
+          : "bg-muted border-border text-muted-foreground hover:bg-accent hover:text-foreground"
       )}
     >
       <Icon className="w-5 h-5" />
 
       {/* Tooltip */}
-      <div className="absolute left-full ml-3 px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
+      <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
         {label}
       </div>
     </div>
