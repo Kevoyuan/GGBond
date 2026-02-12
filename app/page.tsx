@@ -452,6 +452,11 @@ export default function Home() {
           parentId: parentIdToUse // Pass tree context
         }),
       });
+      console.log('[chat/ui] send approval mode', {
+        fromOption: options?.approvalMode,
+        pageState: approvalMode,
+        sent: options?.approvalMode ?? approvalMode,
+      });
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
