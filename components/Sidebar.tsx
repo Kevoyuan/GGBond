@@ -434,6 +434,17 @@ export function Sidebar({
         </div>
 
         <div className="mt-auto flex flex-col gap-3 w-full px-2 items-center">
+          <Link
+            href="/modules"
+            className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
+            aria-label="Deep Monitoring"
+            title="Deep Monitoring"
+          >
+            <LayoutGrid className="w-5 h-5" />
+            <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
+              Deep Monitoring
+            </div>
+          </Link>
           <button
             onClick={toggleSidebar}
             className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
@@ -506,7 +517,7 @@ export function Sidebar({
                   <button
                     onClick={onAddWorkspace}
                     className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                    title="添加 Workspace"
+                    title="Add Workspace"
                   >
                     <FolderPlus className="w-3.5 h-3.5" />
                   </button>
@@ -568,21 +579,21 @@ export function Sidebar({
                           const isSessionRunning = runningSessionIds.includes(session.id);
                           const isTerminalRunning = terminalRunningSessionIds.includes(session.id);
                           return (
-                          <div
-                            key={session.id}
-                            className={cn(
-                              "group flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer transition-all border border-transparent",
-                              currentSessionId === session.id
-                                ? "text-foreground font-medium bg-muted/40"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                            )}
-                            onClick={() => onSelectSession(session.id)}
-                            onMouseLeave={() => {
-                              if (pendingDeleteSessionId === session.id) {
-                                setPendingDeleteSessionId(null);
-                              }
-                            }}
-                          >
+                            <div
+                              key={session.id}
+                              className={cn(
+                                "group flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer transition-all border border-transparent",
+                                currentSessionId === session.id
+                                  ? "text-foreground font-medium bg-muted/40"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                              )}
+                              onClick={() => onSelectSession(session.id)}
+                              onMouseLeave={() => {
+                                if (pendingDeleteSessionId === session.id) {
+                                  setPendingDeleteSessionId(null);
+                                }
+                              }}
+                            >
                               <div className="relative w-2.5 h-2.5 shrink-0 flex items-center justify-center">
                                 {isSessionRunning ? (
                                   <>
@@ -662,13 +673,7 @@ export function Sidebar({
             </div>
 
             <div className="p-3 border-t bg-card/50 backdrop-blur-sm space-y-1.5">
-              <Link
-                href="/modules"
-                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-md text-sm text-muted-foreground transition-colors overflow-hidden whitespace-nowrap"
-              >
-                <LayoutGrid className="w-4 h-4 shrink-0" />
-                <span className="truncate">Deep Monitoring</span>
-              </Link>
+
               <button
                 onClick={onShowStats}
                 className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-md text-sm text-muted-foreground transition-colors overflow-hidden whitespace-nowrap"

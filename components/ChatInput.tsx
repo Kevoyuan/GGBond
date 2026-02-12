@@ -86,9 +86,9 @@ interface ModeOption {
 }
 
 const MODE_OPTIONS: ModeOption[] = [
-  { value: 'code', label: 'Code', icon: Code2, description: '读写文件 & 执行命令' },
-  { value: 'plan', label: 'Plan', icon: ClipboardList, description: '分析规划，不执行' },
-  { value: 'ask', label: 'Ask', icon: HelpCircle, description: '仅回答问题' },
+  { value: 'code', label: 'Code', icon: Code2, description: 'Read/Write files & Execute commands' },
+  { value: 'plan', label: 'Plan', icon: ClipboardList, description: 'Analyze & Plan, no execution' },
+  { value: 'ask', label: 'Ask', icon: HelpCircle, description: 'Answer questions only' },
 ];
 
 const MODELS = [

@@ -1,6 +1,5 @@
 
 import path from 'path';
-import os from 'os';
 import fs from 'fs';
 import { readFile } from 'fs/promises';
 import {
@@ -13,7 +12,6 @@ import {
     MessageBus,
     MessageBusType,
     FileDiscoveryService,
-    getProjectHash,
     AuthType,
     ApprovalMode,
     ToolConfirmationOutcome,
@@ -878,7 +876,7 @@ export class CoreService {
 
     public async listSessions() {
         if (!this.config) return [];
-        const chatsDir = path.join(os.homedir(), '.gemini', 'tmp', getProjectHash(this.config.getWorkingDir()), 'chats');
+        const chatsDir = path.join(this.config.storage.getProjectTempDir(), 'chats');
         if (!fs.existsSync(chatsDir)) return [];
 
         const cacheKey = chatsDir;
@@ -928,12 +926,8 @@ export class CoreService {
     }
 
     public async getSession(sessionId: string) {
-        if (!this.chat) return null;
-        const recording = this.chat.getChatRecordingService();
-        // Since initialize handles loading if passed resumedSessionData, 
-        // we might need a way to just read it.
-        // For now, let's manually read it or assume initialize will be called with it.
-        const chatsDir = path.join(os.homedir(), '.gemini', 'tmp', getProjectHash(this.config!.getWorkingDir()), 'chats');
+        if (!this.chat || !this.config) return null;
+        const chatsDir = path.join(this.config.storage.getProjectTempDir(), 'chats');
         const sessionPath = path.join(chatsDir, `session-${sessionId}.json`);
 
         if (!fs.existsSync(sessionPath)) return null;
@@ -1016,7 +1010,7 @@ export class CoreService {
         };
     }
 
-    public async restoreCheckpoint(toolId: string) {
+    public async restoreCheckpoint(checkpointId: string) {
         if (!this.config) {
             return { success: false, error: 'Core service is not initialized.' };
         }
@@ -1026,39 +1020,72 @@ export class CoreService {
             return { success: false, error: 'Git service is unavailable. Please run in a git repository.' };
         }
 
-        const checkpointsDir = path.join(
-            os.homedir(),
-            '.gemini',
-            'tmp',
-            getProjectHash(this.config.getWorkingDir()),
-            'checkpoints'
-        );
+        const checkpointsDir = this.config.storage.getProjectTempCheckpointsDir();
 
         if (!fs.existsSync(checkpointsDir)) {
             return { success: false, error: 'No checkpoint directory found for this workspace/session.' };
         }
 
         const files = await fs.promises.readdir(checkpointsDir);
-        const checkpointFile = files.find((file) => file === `${toolId}.json`) || files.find((file) => file.startsWith(`${toolId}.`));
+        const normalizedCheckpointId = checkpointId.trim();
+        const directCandidates = [
+            normalizedCheckpointId.endsWith('.json')
+                ? normalizedCheckpointId
+                : `${normalizedCheckpointId}.json`,
+            normalizedCheckpointId,
+        ];
+        const checkpointFile =
+            files.find((file) => directCandidates.includes(file)) ||
+            files.find((file) => file.startsWith(`${normalizedCheckpointId}.`));
 
         if (!checkpointFile) {
-            return { success: false, error: `Checkpoint not found for tool id: ${toolId}` };
+            return { success: false, error: `Checkpoint not found: ${normalizedCheckpointId}` };
         }
 
         const fullPath = path.join(checkpointsDir, checkpointFile);
         const raw = await fs.promises.readFile(fullPath, 'utf-8');
-        const parsed = JSON.parse(raw) as { commitHash?: string };
+        const parsed = JSON.parse(raw) as {
+            commitHash?: string;
+            clientHistory?: unknown;
+            messageId?: unknown;
+        };
 
         if (!parsed.commitHash) {
             return { success: false, error: 'Checkpoint exists but is missing commit hash.' };
         }
 
         await gitService.restoreProjectFromSnapshot(parsed.commitHash);
+        let historyRestored = false;
+        if (Array.isArray(parsed.clientHistory)) {
+            try {
+                this.config.getGeminiClient().setHistory(parsed.clientHistory as never[]);
+                historyRestored = true;
+            } catch (error) {
+                console.warn('[CoreService] Failed to restore chat history from checkpoint:', error);
+            }
+        }
+
+        const restoredMessageId = typeof parsed.messageId === 'string' ? parsed.messageId : undefined;
+        let conversationRewound = false;
+        if (restoredMessageId && this.chat) {
+            try {
+                const recording = this.chat.getChatRecordingService();
+                const beforeLength = recording.getConversation()?.messages.length ?? 0;
+                const rewound = recording.rewindTo(restoredMessageId);
+                const afterLength = rewound?.messages.length ?? beforeLength;
+                conversationRewound = afterLength < beforeLength;
+            } catch (error) {
+                console.warn('[CoreService] Failed to rewind chat recording from checkpoint message id:', error);
+            }
+        }
 
         return {
             success: true,
             checkpoint: checkpointFile.replace(/\.json$/, ''),
             commitHash: parsed.commitHash,
+            messageId: restoredMessageId,
+            historyRestored,
+            conversationRewound,
         };
     }
 }
