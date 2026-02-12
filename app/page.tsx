@@ -754,6 +754,7 @@ export default function Home() {
           mode,
           approvalMode: options?.approvalMode ?? approvalMode,
           modelSettings: settings.modelSettings,
+          selectedAgent: selectedAgent?.name,
           parentId: parentIdToUse // Pass tree context
         }),
       });
