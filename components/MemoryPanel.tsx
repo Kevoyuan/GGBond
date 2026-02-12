@@ -30,6 +30,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
     const [editorContent, setEditorContent] = useState('');
     const [editorLoading, setEditorLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const editorFileName = editorPath ? (editorPath.split('/').pop() || editorPath) : '';
 
     const fetchFiles = async () => {
         setLoading(true);
@@ -289,7 +290,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                        <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center gap-1">
                                             <button
                                                 onClick={(event) => {
                                                     event.stopPropagation();
@@ -338,12 +339,12 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
             </div>
 
             {editorPath && (
-                <div className="absolute inset-0 z-30 bg-black/50 backdrop-blur-sm p-4 flex items-center justify-center">
-                    <div className="w-full max-w-3xl max-h-[80vh] rounded-xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
-                        <div className="flex items-center justify-between p-3 border-b bg-muted/30">
-                            <div className="min-w-0">
-                                <p className="text-sm font-semibold truncate">{editorPath.split('/').pop()}</p>
-                                <p className="text-[10px] text-muted-foreground truncate">{editorPath}</p>
+                <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm p-2 sm:p-4 md:p-6 flex items-center justify-center">
+                    <div className="w-full max-w-4xl h-[calc(100vh-1rem)] sm:h-[min(88vh,920px)] rounded-xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
+                        <div className="flex items-start justify-between gap-3 p-3 sm:p-4 border-b bg-muted/20">
+                            <div className="min-w-0 space-y-1">
+                                <p className="text-base font-semibold truncate">{editorFileName}</p>
+                                <p className="text-[11px] text-muted-foreground truncate">{editorPath}</p>
                             </div>
                             <button
                                 onClick={() => setEditorPath(null)}
@@ -353,7 +354,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                             </button>
                         </div>
 
-                        <div className="flex-1 p-3 overflow-hidden">
+                        <div className="flex-1 p-2 sm:p-4 overflow-hidden">
                             {editorLoading ? (
                                 <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
                                     <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
@@ -363,22 +364,22 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                                 <textarea
                                     value={editorContent}
                                     onChange={(event) => setEditorContent(event.target.value)}
-                                    className="w-full h-full min-h-[320px] resize-none rounded-md border border-border bg-background p-3 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                                    className="w-full h-full min-h-0 resize-none rounded-lg border border-border bg-background p-3 sm:p-4 text-[13px] leading-6 font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                                 />
                             )}
                         </div>
 
-                        <div className="p-3 border-t bg-muted/20 flex items-center justify-end gap-2">
+                        <div className="p-3 sm:p-4 border-t bg-muted/20 flex items-center justify-end gap-2">
                             <button
                                 onClick={() => setEditorPath(null)}
-                                className="px-3 py-1.5 rounded-md text-xs font-medium hover:bg-muted"
+                                className="px-3 py-2 rounded-md text-sm font-medium hover:bg-muted"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={() => void handleSave()}
                                 disabled={saving || editorLoading}
-                                className="px-3 py-1.5 rounded-md text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-1.5"
+                                className="px-3 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-1.5"
                             >
                                 <Save className="w-3.5 h-3.5" />
                                 {saving ? 'Saving...' : 'Save'}
