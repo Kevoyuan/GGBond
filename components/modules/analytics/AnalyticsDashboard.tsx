@@ -19,6 +19,26 @@ interface UsageStats {
   weekly: StatEntry;
   monthly: StatEntry;
   total: StatEntry;
+  breakdowns?: {
+    todayHourly: Array<{
+      key: string;
+      label: string;
+      totalTokens: number;
+      models: Record<string, number>;
+    }>;
+    weekDaily: Array<{
+      key: string;
+      label: string;
+      totalTokens: number;
+      models: Record<string, number>;
+    }>;
+    monthDaily: Array<{
+      key: string;
+      label: string;
+      totalTokens: number;
+      models: Record<string, number>;
+    }>;
+  };
 }
 
 interface TelemetryResponse {
@@ -45,12 +65,21 @@ function readNumericValue(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+function formatCompactTokens(value: number): string {
+  if (value >= 1_000_000_000_000) return `${(value / 1_000_000_000_000).toFixed(1)}T`;
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return `${value}`;
+}
+
 export function AnalyticsDashboard() {
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryResponse | null>(null);
   const [quota, setQuota] = useState<QuotaResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [timelinePeriod, setTimelinePeriod] = useState<'today' | 'week' | 'month'>('week');
 
   useEffect(() => {
     Promise.all([
@@ -66,6 +95,18 @@ export function AnalyticsDashboard() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (period === 'daily') {
+      setTimelinePeriod('today');
+      return;
+    }
+    if (period === 'weekly') {
+      setTimelinePeriod('week');
+      return;
+    }
+    setTimelinePeriod('month');
+  }, [period]);
 
   if (loading) {
     return (
@@ -111,6 +152,49 @@ export function AnalyticsDashboard() {
   const dailyQuotaPercent = dailyQuota?.remainingFraction !== undefined ? dailyQuota.remainingFraction * 100 : null;
   const rateLimitPercent = rateLimit?.remainingFraction !== undefined ? rateLimit.remainingFraction * 100 : null;
   const shouldWarnCompression = contextUsagePercent > 70;
+  const timelineBuckets = timelinePeriod === 'today'
+    ? (stats?.breakdowns?.todayHourly || [])
+    : timelinePeriod === 'week'
+      ? (stats?.breakdowns?.weekDaily || [])
+      : (stats?.breakdowns?.monthDaily || []);
+
+  const modelTotals = timelineBuckets.reduce<Record<string, number>>((acc, bucket) => {
+    Object.entries(bucket.models || {}).forEach(([model, tokens]) => {
+      acc[model] = (acc[model] || 0) + tokens;
+    });
+    return acc;
+  }, {});
+
+  const orderedModels = Object.entries(modelTotals)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name);
+  const primaryModels = orderedModels.slice(0, 8);
+  const useOthers = orderedModels.length > primaryModels.length;
+  const chartModels = useOthers ? [...primaryModels, 'Others'] : primaryModels;
+  const maxTimelineToken = timelineBuckets.length > 0
+    ? Math.max(...timelineBuckets.map(bucket => bucket.totalTokens), 1)
+    : 1;
+
+  const modelColors = [
+    '#ec4899', // pink
+    '#3b82f6', // blue
+    '#84cc16', // lime
+    '#f97316', // orange
+    '#22c55e', // green
+    '#a855f7', // purple
+    '#06b6d4', // cyan
+    '#eab308', // yellow
+    '#6b7280', // gray
+  ];
+  const modelColorMap = new Map<string, string>();
+  chartModels.forEach((model, idx) => {
+    modelColorMap.set(model, modelColors[idx % modelColors.length]);
+  });
+  const timelineGrandTotal = Object.values(modelTotals).reduce((sum, value) => sum + value, 0);
+  const topModelsTotal = primaryModels.reduce((sum, model) => sum + (modelTotals[model] || 0), 0);
+  const othersTotal = Math.max(timelineGrandTotal - topModelsTotal, 0);
+  const chartHeightPx = 140;
+  const shouldRenderDenseLabels = timelinePeriod === 'month';
 
   return (
     <ModuleCard title="Analytics" description="Usage & Cost Tracking" icon={BarChart}>
@@ -159,6 +243,116 @@ export function AnalyticsDashboard() {
             </div>
           </div>
         </div>
+
+        {timelineBuckets.length > 0 && (
+          <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-muted-foreground">Token Timeline (Stacked by Model)</h4>
+              <div className="flex gap-1 flex-wrap justify-end">
+                <button
+                  onClick={() => setTimelinePeriod('today')}
+                  className={`px-2 py-1 text-[11px] rounded-md font-medium transition-colors ${timelinePeriod === 'today'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
+                >
+                  Today / Hourly
+                </button>
+                <button
+                  onClick={() => setTimelinePeriod('week')}
+                  className={`px-2 py-1 text-[11px] rounded-md font-medium transition-colors ${timelinePeriod === 'week'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
+                >
+                  This Week / Daily
+                </button>
+                <button
+                  onClick={() => setTimelinePeriod('month')}
+                  className={`px-2 py-1 text-[11px] rounded-md font-medium transition-colors ${timelinePeriod === 'month'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
+                >
+                  This Month / Daily
+                </button>
+              </div>
+            </div>
+
+            <div className="flex h-52 items-end gap-1 overflow-x-auto pb-1">
+              {timelineBuckets.map((bucket, index) => {
+                const othersValue = Object.entries(bucket.models || {}).reduce((sum, [model, value]) => {
+                  if (primaryModels.includes(model)) return sum;
+                  return sum + value;
+                }, 0);
+
+                const normalizedModels = chartModels
+                  .map((model) => ({
+                    model,
+                    tokens: model === 'Others' ? othersValue : (bucket.models?.[model] || 0),
+                  }))
+                  .filter((item) => item.tokens > 0);
+
+                const columnHeightPx = bucket.totalTokens > 0
+                  ? Math.max((bucket.totalTokens / maxTimelineToken) * chartHeightPx, 6)
+                  : 2;
+                const tooltipRows = normalizedModels
+                  .sort((a, b) => b.tokens - a.tokens)
+                  .map((item) => `${item.model}: ${formatCompactTokens(item.tokens)}`)
+                  .join(' | ');
+                const showLabel = timelinePeriod === 'today'
+                  ? index % 2 === 0
+                  : shouldRenderDenseLabels
+                    ? (index === 0 || index === timelineBuckets.length - 1 || index % 3 === 0)
+                    : true;
+
+                return (
+                  <div key={bucket.key} className="group relative flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1">
+                    <div
+                      className="relative flex w-full max-w-[32px] flex-col justify-end overflow-hidden rounded-sm border border-border/40 bg-zinc-200/40 dark:bg-zinc-800/50"
+                      style={{ height: `${columnHeightPx}px` }}
+                      title={`${bucket.label} | Total: ${formatCompactTokens(bucket.totalTokens)}${tooltipRows ? ` | ${tooltipRows}` : ''}`}
+                    >
+                      {normalizedModels.map((item) => {
+                        const pct = bucket.totalTokens > 0 ? (item.tokens / bucket.totalTokens) * 100 : 0;
+                        return (
+                          <div
+                            key={`${bucket.key}-${item.model}`}
+                            style={{
+                              height: `${Math.max(pct, 2)}%`,
+                              backgroundColor: modelColorMap.get(item.model),
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                    {showLabel ? (
+                      <span className="text-[10px] text-muted-foreground">{bucket.label}</span>
+                    ) : (
+                      <span className="h-3 text-[10px] text-transparent">.</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {chartModels.map((model) => {
+                const value = model === 'Others'
+                  ? othersTotal
+                  : (modelTotals[model] || 0);
+                const ratio = timelineGrandTotal > 0 ? (value / timelineGrandTotal) * 100 : 0;
+                return (
+                  <div key={model} className="inline-flex items-center gap-1.5 rounded-md border border-border/50 px-2 py-1 text-[10px]">
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: modelColorMap.get(model) }} />
+                    <span className="font-medium text-foreground">{model}</span>
+                    <span className="text-muted-foreground">{formatCompactTokens(value)} ({ratio.toFixed(1)}%)</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Realtime token flow */}
         {tokenSeries.length > 0 && (

@@ -7,8 +7,6 @@ import {
     Config,
     CoreToolScheduler,
     GeminiEventType,
-    GeminiChat,
-    Turn,
     CoreEvent,
     coreEvents,
     MessageBus,
@@ -17,20 +15,24 @@ import {
     getProjectHash,
     AuthType,
     ApprovalMode,
-    PolicyDecision,
     ToolConfirmationOutcome,
     createPolicyUpdater,
+    createPolicyEngineConfig,
     Storage,
     debugLogger,
+    ToolErrorType,
 } from '@google/gemini-cli-core';
-import type { Tool } from '@google/genai';
 import type {
     CompletedToolCall,
     ToolCall,
     ToolCallRequestInfo,
     WaitingToolCall,
     SerializableConfirmationDetails,
+    PolicySettings,
 } from '@google/gemini-cli-core';
+import type { GeminiChat } from '@google/gemini-cli-core';
+
+const MAX_TURNS = 100;
 
 const originalError = debugLogger.error.bind(debugLogger);
 debugLogger.error = (...args: any[]) => {
@@ -96,7 +98,17 @@ export class CoreService {
     private systemEventsRegistered = false;
     private policyUpdaterMessageBus: MessageBus | null = null;
     private systemListenerMessageBus: MessageBus | null = null;
-    private yoloRuleInjected = false;
+    private sessionsCache: {
+        key: string;
+        timestamp: number;
+        data: Array<{
+            id: string;
+            title: string;
+            updated_at: number;
+            created_at: number;
+            isCore: boolean;
+        }>;
+    } | null = null;
 
     private constructor() { }
 
@@ -153,7 +165,6 @@ export class CoreService {
             }
             // Ensure mode is applied even when Config guards reject privileged modes.
             this.config.getPolicyEngine().setApprovalMode(normalizedApprovalMode);
-            this.ensureYoloAllowAllRule();
             console.log('[CoreService] Approval mode (existing session):', this.config.getApprovalMode());
             if (this.messageBus && this.policyUpdaterMessageBus !== this.messageBus) {
                 createPolicyUpdater(this.config.getPolicyEngine(), this.messageBus);
@@ -165,12 +176,11 @@ export class CoreService {
             // IMPORTANT: Refresh tools even for same session.
             // Otherwise a chat instance created before a tools-format fix can keep stale invalid schemas.
             try {
-                const registry = this.config.getToolRegistry();
-                const toolDeclarations = registry.getFunctionDeclarations();
-                const tools: Tool[] = [{ functionDeclarations: toolDeclarations }];
-                this.chat?.setTools(tools);
+                const geminiClient = this.config.getGeminiClient();
+                await geminiClient.setTools();
+                this.chat = geminiClient.getChat();
                 if (params.systemInstruction) {
-                    this.chat?.setSystemInstruction(params.systemInstruction);
+                    geminiClient.getChat().setSystemInstruction(params.systemInstruction);
                 }
             } catch (error) {
                 console.warn('[CoreService] Failed to refresh tools for existing session:', error);
@@ -190,6 +200,41 @@ export class CoreService {
             console.log(`[CoreService] Using GEMINI_CLI_HOME=${projectGeminiHome}`);
         }
 
+        const settingsCandidates = [
+            process.env.GEMINI_CLI_HOME ? path.join(process.env.GEMINI_CLI_HOME, '.gemini', 'settings.json') : null,
+            Storage.getGlobalSettingsPath()
+        ].filter(Boolean) as string[];
+
+        const settingsPath = settingsCandidates.find((p) => fs.existsSync(p)) || settingsCandidates[0];
+        let settings: Record<string, unknown> | undefined;
+        let authType: AuthType | undefined;
+        if (settingsPath && fs.existsSync(settingsPath)) {
+            try {
+                console.log(`[CoreService] Loading settings from: ${settingsPath}`);
+                const settingsContent = await readFile(settingsPath, 'utf-8');
+                settings = JSON.parse(settingsContent) as Record<string, unknown>;
+                const selectedType =
+                    (settings.security as { auth?: { selectedType?: string } } | undefined)?.auth?.selectedType ||
+                    (settings.selectedAuthType as string | undefined);
+                if (selectedType) {
+                    authType = selectedType as AuthType;
+                    console.log(`[CoreService] Detected auth type from settings: ${authType}`);
+                }
+            } catch (error) {
+                console.warn('[CoreService] Failed to load settings.json:', error);
+            }
+        }
+
+        const policySettings: PolicySettings = {
+            mcp: (settings?.mcp as PolicySettings['mcp']) ?? undefined,
+            tools: (settings?.tools as PolicySettings['tools']) ?? undefined,
+            mcpServers: (settings?.mcpServers as PolicySettings['mcpServers']) ?? undefined,
+        };
+        const policyEngineConfig = await createPolicyEngineConfig(
+            policySettings,
+            normalizedApprovalMode
+        );
+
         // 1. Initialize Config
         // Cast approvalMode to any to avoid Enum type issues if not exported correctly
         this.config = new Config({
@@ -200,9 +245,7 @@ export class CoreService {
             debugMode: false,
             interactive: true,
             approvalMode: normalizedApprovalMode,
-            policyEngineConfig: {
-                defaultDecision: PolicyDecision.ASK_USER,
-            },
+            policyEngineConfig,
             recordResponses: '',
             telemetry: {
                 enabled: false,
@@ -222,31 +265,10 @@ export class CoreService {
             console.warn('[CoreService] setApprovalMode failed after initialize, forcing PolicyEngine mode:', error);
         }
         this.config.getPolicyEngine().setApprovalMode(normalizedApprovalMode);
-        this.ensureYoloAllowAllRule();
         console.log('[CoreService] Approval mode (post-init):', this.config.getApprovalMode());
 
         // Initialize Authentication (Required to create ContentGenerator)
         // Explicitly load settings to determine auth type because Config doesn't auto-detect it well
-        let authType: AuthType | undefined;
-        try {
-            const settingsCandidates = [
-                process.env.GEMINI_CLI_HOME ? path.join(process.env.GEMINI_CLI_HOME, '.gemini', 'settings.json') : null,
-                Storage.getGlobalSettingsPath()
-            ].filter(Boolean) as string[];
-
-            const settingsPath = settingsCandidates.find((p) => fs.existsSync(p)) || settingsCandidates[0];
-            console.log(`[CoreService] Loading auth settings from: ${settingsPath}`);
-            const settingsContent = await readFile(settingsPath, 'utf-8');
-            const settings = JSON.parse(settingsContent);
-            const selectedType = settings.security?.auth?.selectedType || settings.selectedAuthType;
-            if (selectedType) {
-                authType = selectedType as AuthType;
-                console.log(`[CoreService] Detected auth type from settings: ${authType}`);
-            }
-        } catch (error) {
-            console.warn('[CoreService] Failed to load settings.json:', error);
-        }
-
         try {
             if (authType) {
                 console.log(`[CoreService] Refreshing auth with ${authType}...`);
@@ -285,10 +307,8 @@ export class CoreService {
             console.warn('[CoreService] Failed to unwrap content generator:', e);
         }
 
-        // 2. Setup Tools
+        // 2. Setup / refresh tools on the core GeminiClient (CLI-aligned path)
         const registry = this.config.getToolRegistry();
-        // Use getFunctionDeclarations() to get serializable tool schemas
-        // This avoids circular JSON errors when serializing the API request
         const toolDeclarations = registry.getFunctionDeclarations();
         console.log(
             '[CoreService] Loaded tools:',
@@ -296,10 +316,11 @@ export class CoreService {
                 .map((t: { name?: string }) => t.name || '<unnamed>')
                 .join(', ')
         );
-
-        // GeminiChat expects Tool[] (e.g. [{ functionDeclarations: [...] }]),
-        // not a raw FunctionDeclaration[].
-        const tools: Tool[] = [{ functionDeclarations: toolDeclarations }];
+        const geminiClient = this.config.getGeminiClient();
+        await geminiClient.setTools();
+        if (params.systemInstruction) {
+            geminiClient.getChat().setSystemInstruction(params.systemInstruction);
+        }
 
         this.messageBus = this.config.getMessageBus();
         if (this.messageBus && this.policyUpdaterMessageBus !== this.messageBus) {
@@ -307,35 +328,14 @@ export class CoreService {
             this.policyUpdaterMessageBus = this.messageBus;
         }
 
-        // 3. Initialize Chat
-        const history: any[] = [];
-        // TODO: Load history from persistence if needed
-
-        this.chat = new GeminiChat(
-            this.config,
-            params.systemInstruction || '',
-            tools,
-            history
-        );
+        // 3. Use chat managed by GeminiClient (matches CLI architecture)
+        this.chat = geminiClient.getChat();
 
         // 4. Register Event Listeners
         this.registerSystemEvents();
 
         this.initialized = true;
         console.log('[CoreService] Initialization complete.');
-    }
-
-    private ensureYoloAllowAllRule() {
-        if (!this.config || this.yoloRuleInjected) return;
-
-        this.config.getPolicyEngine().addRule({
-            decision: PolicyDecision.ALLOW,
-            priority: 999,
-            modes: [ApprovalMode.YOLO],
-            source: 'CoreService (YOLO allow-all)',
-        });
-        this.yoloRuleInjected = true;
-        console.log('[CoreService] Injected YOLO allow-all rule');
     }
 
     private registerSystemEvents() {
@@ -357,28 +357,6 @@ export class CoreService {
         }
         this.systemEventsRegistered = true;
         this.systemListenerMessageBus = this.messageBus;
-
-        // Tool Confirmation (We also need to expose this via API/SSE)
-        // Subscription to TOOL_CONFIRMATION_REQUEST
-        this.messageBus?.subscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, async (request) => {
-            console.log('[MessageBus] Tool Confirmation Request:', request);
-            // Temporary unblock for common QA/search flows in GUI:
-            // auto-approve specific low-risk tools so chat won't hang on unanswered confirmation.
-            try {
-                const toolName = (request as { toolCall?: { name?: string } })?.toolCall?.name;
-                if (toolName === 'google_web_search' || toolName === 'activate_skill') {
-                    this.messageBus?.publish({
-                        type: MessageBusType.TOOL_CONFIRMATION_RESPONSE,
-                        correlationId: (request as { correlationId: string }).correlationId,
-                        confirmed: true,
-                        outcome: 'proceed_once'
-                    } as never);
-                    return;
-                }
-            } catch (error) {
-                console.warn('[CoreService] Auto-confirm failed:', error);
-            }
-        });
     }
 
     public subscribeConfirmationRequests(
@@ -553,82 +531,80 @@ export class CoreService {
     }
 
     public async *runTurn(message: string, signal?: AbortSignal) {
-        if (!this.chat) throw new Error('Chat not initialized');
+        if (!this.config) throw new Error('Config not initialized');
         this.pendingConfirmations.clear();
         this.pendingConfirmationByCallId.clear();
-
-        // Runtime guard: some integration paths may accidentally set tools
-        // to FunctionDeclaration[] instead of Tool[].
-        // Normalize to Tool[] before each turn to avoid INVALID_ARGUMENT on request.tools.
-        try {
-            const runtimeChat = this.chat as unknown as { tools?: unknown; setTools?: (tools: Tool[]) => void };
-            const runtimeTools = Array.isArray(runtimeChat.tools) ? runtimeChat.tools : [];
-            const first = runtimeTools[0] as Record<string, unknown> | undefined;
-            const looksLikeRawFunctionDeclarations =
-                runtimeTools.length > 0 &&
-                !!first &&
-                typeof first === 'object' &&
-                ('name' in first || 'parametersJsonSchema' in first || 'description' in first) &&
-                !('functionDeclarations' in first);
-
-            if (looksLikeRawFunctionDeclarations) {
-                console.warn('[CoreService] Detected raw FunctionDeclaration[] in chat.tools, auto-wrapping to Tool[]');
-                runtimeChat.setTools?.([{ functionDeclarations: runtimeTools as unknown as NonNullable<Tool['functionDeclarations']> }]);
-            }
-        } catch (error) {
-            console.warn('[CoreService] Runtime tools normalization failed:', error);
-        }
-
+        const geminiClient = this.config.getGeminiClient();
         const promptId = crypto.randomUUID();
-        const modelKey = { model: this.config!.getModel() };
+        const displayContent = message;
         const abortSignal = signal || new AbortController().signal;
-        let currentRequest: unknown = message;
+        let currentRequest: unknown = [{ text: message }];
+        let turnCount = 0;
 
-        console.log(`[CoreService] Running turn with model: ${modelKey.model}`);
+        console.log(`[CoreService] Running turn with model: ${this.config.getModel()}`);
 
         try {
             while (true) {
-                const turn = new Turn(this.chat, promptId);
-                const generator = turn.run(
-                    modelKey,
-                    currentRequest as never,
-                    abortSignal
-                );
-
-                for await (const event of generator) {
-                    yield event;
-                }
-
-                const pendingCalls = turn.pendingToolCalls as ToolCallRequestInfo[];
-                if (!pendingCalls.length) {
+                turnCount += 1;
+                if (
+                    (this.config.getMaxSessionTurns() >= 0 && turnCount > this.config.getMaxSessionTurns()) ||
+                    turnCount > MAX_TURNS
+                ) {
+                    yield { type: GeminiEventType.MaxSessionTurns };
                     break;
                 }
 
-                const completedCalls = await this.executeToolCalls(pendingCalls, abortSignal);
+                const toolCallRequests: ToolCallRequestInfo[] = [];
+                const responseStream = geminiClient.sendMessageStream(
+                    currentRequest as never,
+                    abortSignal,
+                    promptId,
+                    undefined,
+                    false,
+                    turnCount === 1 ? displayContent : undefined
+                );
+
+                for await (const event of responseStream) {
+                    if (event.type === GeminiEventType.ToolCallRequest) {
+                        toolCallRequests.push(event.value as ToolCallRequestInfo);
+                    }
+                    yield event;
+                }
+
+                if (!toolCallRequests.length) {
+                    break;
+                }
+
+                const completedCalls = await this.executeToolCalls(toolCallRequests, abortSignal);
                 if (!completedCalls.length) {
                     break;
                 }
 
                 // Emit tool responses for frontend rendering and append to chat history.
                 const responseParts = [];
+                let stopExecutionRequested = false;
                 for (const call of completedCalls) {
                     yield { type: GeminiEventType.ToolCallResponse, value: call.response };
+                    if (call.response.errorType === ToolErrorType.STOP_EXECUTION && call.response.error) {
+                        stopExecutionRequested = true;
+                    }
                     if (call.response.responseParts?.length) {
                         responseParts.push(...call.response.responseParts);
                     }
+                }
+
+                const currentModel = geminiClient.getCurrentSequenceModel() ?? this.config.getModel();
+                geminiClient.getChat().recordCompletedToolCalls(currentModel, completedCalls);
+
+                if (stopExecutionRequested) {
+                    break;
                 }
 
                 if (!responseParts.length) {
                     break;
                 }
 
-                this.chat.addHistory({
-                    role: 'user',
-                    parts: responseParts
-                });
-
-                this.chat.recordCompletedToolCalls(modelKey.model, completedCalls);
-                currentRequest = [{ text: 'Please continue.' }];
+                currentRequest = responseParts;
             }
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -738,27 +714,50 @@ export class CoreService {
         const chatsDir = path.join(os.homedir(), '.gemini', 'tmp', getProjectHash(this.config.getWorkingDir()), 'chats');
         if (!fs.existsSync(chatsDir)) return [];
 
+        const cacheKey = chatsDir;
+        const now = Date.now();
+        if (this.sessionsCache && this.sessionsCache.key === cacheKey && now - this.sessionsCache.timestamp < 3000) {
+            return this.sessionsCache.data;
+        }
+
         const files = await fs.promises.readdir(chatsDir);
         const sessionFiles = files.filter(f => f.startsWith('session-') && f.endsWith('.json'));
 
-        const sessions = [];
-        for (const file of sessionFiles) {
+        const sessions = (await Promise.all(sessionFiles.map(async (file) => {
             try {
                 const content = await fs.promises.readFile(path.join(chatsDir, file), 'utf-8');
-                const data = JSON.parse(content);
-                sessions.push({
+                const data = JSON.parse(content) as {
+                    sessionId?: string;
+                    summary?: string;
+                    lastUpdated?: string;
+                    startTime?: string;
+                };
+                if (!data.sessionId) return null;
+                return {
                     id: data.sessionId,
                     title: data.summary || `Session ${data.sessionId.slice(0, 8)}`,
-                    updated_at: new Date(data.lastUpdated).getTime(),
-                    created_at: new Date(data.startTime).getTime(),
+                    updated_at: new Date(data.lastUpdated || 0).getTime(),
+                    created_at: new Date(data.startTime || 0).getTime(),
                     isCore: true
-                });
+                };
             } catch (e) {
                 console.error('Failed to read session file:', file, e);
+                return null;
             }
-        }
+        }))).filter((session): session is {
+            id: string;
+            title: string;
+            updated_at: number;
+            created_at: number;
+            isCore: true;
+        } => session !== null).sort((a, b) => b.updated_at - a.updated_at);
 
-        return sessions.sort((a, b) => b.updated_at - a.updated_at);
+        this.sessionsCache = {
+            key: cacheKey,
+            timestamp: now,
+            data: sessions,
+        };
+        return sessions;
     }
 
     public async getSession(sessionId: string) {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { calculateCost } from '@/lib/pricing';
-import { startOfDay, startOfWeek, startOfMonth, isAfter } from 'date-fns';
+import { addDays, endOfMonth, format, startOfDay, startOfMonth, startOfWeek } from 'date-fns';
 
 interface StatEntry {
   inputTokens: number;
@@ -19,6 +19,21 @@ interface UsageStats {
   total: StatEntry;
 }
 
+interface TimeBucket {
+  key: string;
+  label: string;
+  totalTokens: number;
+  models: Record<string, number>;
+}
+
+interface UsageStatsResponse extends UsageStats {
+  breakdowns: {
+    todayHourly: TimeBucket[];
+    weekDaily: TimeBucket[];
+    monthDaily: TimeBucket[];
+  };
+}
+
 const initialStat: StatEntry = {
   inputTokens: 0,
   outputTokens: 0,
@@ -27,6 +42,11 @@ const initialStat: StatEntry = {
   cost: 0,
   count: 0,
 };
+
+function toMillis(value: number): number {
+  // Backward compatibility: some data sources might store UNIX seconds.
+  return value < 10_000_000_000 ? value * 1000 : value;
+}
 
 export async function GET() {
   try {
@@ -42,27 +62,56 @@ export async function GET() {
     const dayStart = startOfDay(now);
     const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday start
     const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
+    const monthDays = monthEnd.getDate();
 
-    const stats: UsageStats = {
+    const stats: UsageStatsResponse = {
       daily: { ...initialStat },
       weekly: { ...initialStat },
       monthly: { ...initialStat },
       total: { ...initialStat },
+      breakdowns: {
+        todayHourly: Array.from({ length: 24 }, (_, hour) => ({
+          key: `${String(hour).padStart(2, '0')}:00`,
+          label: `${String(hour).padStart(2, '0')}:00`,
+          totalTokens: 0,
+          models: {},
+        })),
+        weekDaily: Array.from({ length: 7 }, (_, dayOffset) => {
+          const bucketDate = addDays(weekStart, dayOffset);
+          return {
+            key: format(bucketDate, 'yyyy-MM-dd'),
+            label: format(bucketDate, 'MM/dd'),
+            totalTokens: 0,
+            models: {},
+          };
+        }),
+        monthDaily: Array.from({ length: monthDays }, (_, dayOffset) => {
+          const bucketDate = addDays(monthStart, dayOffset);
+          return {
+            key: format(bucketDate, 'yyyy-MM-dd'),
+            label: format(bucketDate, 'MM/dd'),
+            totalTokens: 0,
+            models: {},
+          };
+        }),
+      },
     };
 
     for (const msg of messages) {
       try {
         const data = JSON.parse(msg.stats);
-        const createdAt = new Date(msg.created_at);
+        const createdAtMs = toMillis(msg.created_at);
+        const createdAt = new Date(createdAtMs);
 
         // Normalize field names (CLI uses snake_case, UI might use camelCase)
         const input = data.input_tokens || data.inputTokenCount || 0;
         const output = data.output_tokens || data.outputTokenCount || 0;
         const cached = data.cached || data.cachedContentTokenCount || 0;
         const total = data.total_tokens || data.totalTokenCount || (input + output);
-        
-        // Use provided cost or calculate it
         const modelName = data.model || 'gemini-3-pro-preview';
+
+        // Use provided cost or calculate it
         const cost = data.totalCost || calculateCost(input, output, cached, modelName);
 
         // Helper to accumulate
@@ -79,20 +128,51 @@ export async function GET() {
         accumulate(stats.total);
 
         // Daily
-        if (isAfter(createdAt, dayStart)) {
+        if (createdAt >= dayStart) {
           accumulate(stats.daily);
         }
 
         // Weekly
-        if (isAfter(createdAt, weekStart)) {
+        if (createdAt >= weekStart) {
           accumulate(stats.weekly);
         }
 
         // Monthly
-        if (isAfter(createdAt, monthStart)) {
+        if (createdAt >= monthStart) {
           accumulate(stats.monthly);
         }
 
+        const modelTotal = Math.max(total, 0);
+
+        // Today hourly buckets
+        if (createdAt >= dayStart) {
+          const hourIndex = Math.floor((createdAtMs - dayStart.getTime()) / (60 * 60 * 1000));
+          if (hourIndex >= 0 && hourIndex < 24) {
+            const bucket = stats.breakdowns.todayHourly[hourIndex];
+            bucket.totalTokens += modelTotal;
+            bucket.models[modelName] = (bucket.models[modelName] || 0) + modelTotal;
+          }
+        }
+
+        // This week daily buckets (Mon-Sun)
+        if (createdAt >= weekStart) {
+          const dayIndex = Math.floor((createdAtMs - weekStart.getTime()) / (24 * 60 * 60 * 1000));
+          if (dayIndex >= 0 && dayIndex < 7) {
+            const bucket = stats.breakdowns.weekDaily[dayIndex];
+            bucket.totalTokens += modelTotal;
+            bucket.models[modelName] = (bucket.models[modelName] || 0) + modelTotal;
+          }
+        }
+
+        // This month daily buckets
+        if (createdAt >= monthStart && createdAt <= monthEnd) {
+          const dayIndex = Math.floor((createdAtMs - monthStart.getTime()) / (24 * 60 * 60 * 1000));
+          if (dayIndex >= 0 && dayIndex < monthDays) {
+            const bucket = stats.breakdowns.monthDaily[dayIndex];
+            bucket.totalTokens += modelTotal;
+            bucket.models[modelName] = (bucket.models[modelName] || 0) + modelTotal;
+          }
+        }
       } catch (e) {
         // Ignore bad JSON
       }

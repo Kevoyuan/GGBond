@@ -195,8 +195,9 @@ export async function POST(req: Request) {
         if (messageBus) {
           if (!hasConfirmationSubscription) {
             messageBus.subscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, onLegacyToolConfirmationRequest);
+            // Legacy-only path: newer core versions surface ask_user via tool confirmation details.
+            messageBus.subscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
           }
-          messageBus.subscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
         }
 
         cleanupMessageBusListeners = () => {
@@ -204,8 +205,8 @@ export async function POST(req: Request) {
           if (!messageBus) return;
           if (!hasConfirmationSubscription) {
             messageBus.unsubscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, onLegacyToolConfirmationRequest);
+            messageBus.unsubscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
           }
-          messageBus.unsubscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
         };
 
         cleanupStream = () => {
