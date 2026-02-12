@@ -27,13 +27,24 @@ const DEFAULT_MEMORY_TEMPLATE = `# GEMINI.md
 const isMemoryFilePath = (filePath: string) =>
     path.basename(filePath).toLowerCase() === 'gemini.md';
 
+const resolveWorkspacePath = (workspacePath?: string) =>
+    workspacePath && workspacePath.trim()
+        ? workspacePath.trim()
+        : process.cwd();
+
+const resolveMemoryPath = (filePath: string, workspacePath?: string) => {
+    const candidate = filePath.trim();
+    if (path.isAbsolute(candidate)) {
+        return candidate;
+    }
+    return path.resolve(resolveWorkspacePath(workspacePath), candidate);
+};
+
 const resolveCreateTargetPath = (payload: MemoryAction) => {
     if (payload.path && payload.path.trim()) {
-        return payload.path.trim();
+        return resolveMemoryPath(payload.path, payload.workspacePath);
     }
-    const workspacePath = payload.workspacePath && payload.workspacePath.trim()
-        ? payload.workspacePath.trim()
-        : process.cwd();
+    const workspacePath = resolveWorkspacePath(payload.workspacePath);
     return path.join(workspacePath, 'GEMINI.md');
 };
 
@@ -43,18 +54,33 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const filePath = searchParams.get('path');
         const includeContent = searchParams.get('content') === '1';
+        const workspacePath = searchParams.get('workspacePath') || searchParams.get('workspace') || undefined;
 
         if (includeContent && filePath) {
-            if (!isMemoryFilePath(filePath)) {
+            const resolvedFilePath = resolveMemoryPath(filePath, workspacePath);
+            if (!isMemoryFilePath(resolvedFilePath)) {
                 return NextResponse.json({ error: 'Only GEMINI.md files are editable.' }, { status: 400 });
             }
 
-            const content = await fs.readFile(filePath, 'utf-8');
-            return NextResponse.json({ path: filePath, content });
+            const content = await fs.readFile(resolvedFilePath, 'utf-8');
+            return NextResponse.json({ path: resolvedFilePath, content });
         }
 
-        const files = core.getMemoryFiles();
-        return NextResponse.json({ files });
+        const loadedFiles = core.getMemoryFiles();
+        const projectMemoryPath = path.join(resolveWorkspacePath(workspacePath), 'GEMINI.md');
+        let projectFiles: string[] = [];
+
+        try {
+            const stat = await fs.stat(projectMemoryPath);
+            if (stat.isFile()) {
+                projectFiles = [projectMemoryPath];
+            }
+        } catch {
+            projectFiles = [];
+        }
+
+        const files = Array.from(new Set([...projectFiles, ...loadedFiles]));
+        return NextResponse.json({ files, loadedFiles, projectFiles });
     } catch (error) {
         console.error('Error fetching memory files:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -77,11 +103,12 @@ export async function POST(req: Request) {
             if (!filePath) {
                 return NextResponse.json({ error: 'Missing memory file path' }, { status: 400 });
             }
-            if (!isMemoryFilePath(filePath)) {
+            const resolvedFilePath = resolveMemoryPath(filePath, body.workspacePath);
+            if (!isMemoryFilePath(resolvedFilePath)) {
                 return NextResponse.json({ error: 'Only GEMINI.md files are editable.' }, { status: 400 });
             }
-            const content = await fs.readFile(filePath, 'utf-8');
-            return NextResponse.json({ success: true, path: filePath, content });
+            const content = await fs.readFile(resolvedFilePath, 'utf-8');
+            return NextResponse.json({ success: true, path: resolvedFilePath, content });
         }
 
         if (action === 'create') {
@@ -104,16 +131,18 @@ export async function POST(req: Request) {
             if (!filePath) {
                 return NextResponse.json({ error: 'Missing memory file path' }, { status: 400 });
             }
-            if (!isMemoryFilePath(filePath)) {
+            const resolvedFilePath = resolveMemoryPath(filePath, body.workspacePath);
+            if (!isMemoryFilePath(resolvedFilePath)) {
                 return NextResponse.json({ error: 'Only GEMINI.md files are editable.' }, { status: 400 });
             }
             if (typeof body.content !== 'string') {
                 return NextResponse.json({ error: 'Content must be a string' }, { status: 400 });
             }
 
-            await fs.writeFile(filePath, body.content, 'utf-8');
+            await fs.mkdir(path.dirname(resolvedFilePath), { recursive: true });
+            await fs.writeFile(resolvedFilePath, body.content, 'utf-8');
             await core.refreshMemory();
-            return NextResponse.json({ success: true, path: filePath });
+            return NextResponse.json({ success: true, path: resolvedFilePath });
         }
 
         if (action === 'delete') {
@@ -121,13 +150,14 @@ export async function POST(req: Request) {
             if (!filePath) {
                 return NextResponse.json({ error: 'Missing memory file path' }, { status: 400 });
             }
-            if (!isMemoryFilePath(filePath)) {
+            const resolvedFilePath = resolveMemoryPath(filePath, body.workspacePath);
+            if (!isMemoryFilePath(resolvedFilePath)) {
                 return NextResponse.json({ error: 'Only GEMINI.md files can be deleted here.' }, { status: 400 });
             }
 
-            await fs.unlink(filePath);
+            await fs.unlink(resolvedFilePath);
             await core.refreshMemory();
-            return NextResponse.json({ success: true, path: filePath });
+            return NextResponse.json({ success: true, path: resolvedFilePath });
         }
 
         return NextResponse.json({ error: 'Unsupported memory action' }, { status: 400 });
