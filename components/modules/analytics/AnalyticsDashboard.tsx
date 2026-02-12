@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ModuleCard } from '../ModuleCard';
 import { BarChart, DollarSign, Zap, Loader2, Gauge, Database, AlertTriangle } from 'lucide-react';
 import { getModelInfo } from '@/lib/pricing';
@@ -73,12 +73,22 @@ function formatCompactTokens(value: number): string {
   return `${value}`;
 }
 
+interface TimelineHoverState {
+  x: number;
+  y: number;
+  label: string;
+  total: number;
+  rows: Array<{ model: string; tokens: number; color: string }>;
+}
+
 export function AnalyticsDashboard() {
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryResponse | null>(null);
   const [quota, setQuota] = useState<QuotaResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [timelineHover, setTimelineHover] = useState<TimelineHoverState | null>(null);
+  const timelineChartRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -262,7 +272,11 @@ export function AnalyticsDashboard() {
                 <div className="pointer-events-none absolute right-0 top-0 text-[10px] text-muted-foreground bg-background/70 px-1 rounded">
                   {formatCompactTokens(maxTimelineToken)}
                 </div>
-                <div className="flex h-52 items-end gap-1 overflow-x-auto pb-1">
+                <div
+                  ref={timelineChartRef}
+                  className="relative flex h-52 items-end gap-1 overflow-x-auto pb-1"
+                  onMouseLeave={() => setTimelineHover(null)}
+                >
                 {timelineBuckets.map((bucket, index) => {
                   const othersValue = Object.entries(bucket.models || {}).reduce((sum, [model, value]) => {
                     if (primaryModels.includes(model)) return sum;
@@ -281,8 +295,11 @@ export function AnalyticsDashboard() {
                     : 2;
                   const tooltipRows = normalizedModels
                     .sort((a, b) => b.tokens - a.tokens)
-                    .map((item) => `${item.model}: ${formatCompactTokens(item.tokens)}`)
-                    .join(' | ');
+                    .map((item) => ({
+                      model: item.model,
+                      tokens: item.tokens,
+                      color: modelColorMap.get(item.model) || '#6b7280',
+                    }));
                   const showLabel = timelinePeriod === 'today'
                     ? index % 2 === 0
                     : shouldRenderDenseLabels
@@ -294,7 +311,17 @@ export function AnalyticsDashboard() {
                       <div
                         className="relative flex w-full max-w-[32px] flex-col justify-end overflow-hidden rounded-sm border border-border/40 bg-zinc-200/40 dark:bg-zinc-800/50"
                         style={{ height: `${columnHeightPx}px` }}
-                        title={`${bucket.label} | Total: ${formatCompactTokens(bucket.totalTokens)}${tooltipRows ? ` | ${tooltipRows}` : ''}`}
+                        onMouseMove={(event) => {
+                          if (!timelineChartRef.current) return;
+                          const rect = timelineChartRef.current.getBoundingClientRect();
+                          setTimelineHover({
+                            x: event.clientX - rect.left,
+                            y: Math.max(event.clientY - rect.top, 0),
+                            label: bucket.label,
+                            total: bucket.totalTokens,
+                            rows: tooltipRows,
+                          });
+                        }}
                       >
                         {normalizedModels.map((item) => {
                           const pct = bucket.totalTokens > 0 ? (item.tokens / bucket.totalTokens) * 100 : 0;
@@ -317,6 +344,35 @@ export function AnalyticsDashboard() {
                     </div>
                   );
                 })}
+                {timelineHover && (
+                  <div
+                    className="pointer-events-none absolute z-20 w-52 rounded-lg border border-border/60 bg-background/95 p-2 shadow-lg backdrop-blur"
+                    style={{
+                      left: `${timelineHover.x}px`,
+                      top: `${Math.max(timelineHover.y - 10, 8)}px`,
+                      transform: 'translate(-50%, -100%)',
+                    }}
+                  >
+                    <div className="mb-1 flex items-center justify-between text-[10px]">
+                      <span className="font-semibold text-foreground">{timelineHover.label}</span>
+                      <span className="text-muted-foreground">{formatCompactTokens(timelineHover.total)}</span>
+                    </div>
+                    <div className="space-y-1">
+                      {timelineHover.rows.slice(0, 6).map((row) => (
+                        <div key={row.model} className="flex items-center justify-between text-[10px]">
+                          <span className="inline-flex min-w-0 items-center gap-1 text-muted-foreground">
+                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+                            <span className="truncate">{row.model}</span>
+                          </span>
+                          <span className="tabular-nums text-foreground">{formatCompactTokens(row.tokens)}</span>
+                        </div>
+                      ))}
+                      {timelineHover.rows.length > 6 && (
+                        <div className="text-[10px] text-muted-foreground">+{timelineHover.rows.length - 6} more models</div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 </div>
               </div>
             )}

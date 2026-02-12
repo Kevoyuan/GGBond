@@ -19,7 +19,8 @@ db.exec(`
     title TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
-    workspace TEXT
+    workspace TEXT,
+    branch TEXT
   );
 
   CREATE TABLE IF NOT EXISTS messages (
@@ -33,15 +34,28 @@ db.exec(`
     FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE,
     FOREIGN KEY (parent_id) REFERENCES messages (id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS confirmation_queue (
+    correlation_id TEXT PRIMARY KEY,
+    confirmed INTEGER NOT NULL,
+    outcome TEXT,
+    payload TEXT,
+    created_at INTEGER NOT NULL
+  );
 `);
 
 // Migration: Add workspace column if it doesn't exist
 try {
   const tableInfo = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
   const hasWorkspace = tableInfo.some(col => col.name === 'workspace');
+  const hasBranch = tableInfo.some(col => col.name === 'branch');
 
   if (!hasWorkspace) {
     db.exec('ALTER TABLE sessions ADD COLUMN workspace TEXT');
+  }
+
+  if (!hasBranch) {
+    db.exec('ALTER TABLE sessions ADD COLUMN branch TEXT');
   }
 } catch (error) {
   console.error('Failed to migrate sessions table:', error);
@@ -84,6 +98,7 @@ export interface Session {
   created_at: number;
   updated_at: number;
   workspace?: string;
+  branch?: string | null;
 }
 
 export interface DbMessage {

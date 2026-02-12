@@ -43,6 +43,7 @@ interface Session {
   created_at: string | number;
   updated_at?: string | number;
   workspace?: string;
+  branch?: string | null;
   isCore?: boolean;
   lastUpdated?: string;
 }
@@ -233,6 +234,51 @@ export function Sidebar({
   // Git branch awareness
   const workspaceNames = useMemo(() => Object.keys(groupedSessions), [groupedSessions]);
   const branchInfo = useGitBranches(workspaceNames);
+  const workspaceBranchSummary = useMemo(() => {
+    const summaries: Record<string, { label: string; title: string; mixed: boolean } | null> = {};
+
+    Object.entries(groupedSessions).forEach(([workspace, list]) => {
+      const uniqueSessionBranches = Array.from(
+        new Set(
+          list
+            .map((session) => (typeof session.branch === 'string' ? session.branch.trim() : ''))
+            .filter(Boolean)
+        )
+      );
+
+      if (uniqueSessionBranches.length > 1) {
+        summaries[workspace] = {
+          label: 'mixed',
+          title: `Branches: ${uniqueSessionBranches.join(', ')}`,
+          mixed: true,
+        };
+        return;
+      }
+
+      if (uniqueSessionBranches.length === 1) {
+        summaries[workspace] = {
+          label: uniqueSessionBranches[0],
+          title: `Branch: ${uniqueSessionBranches[0]}`,
+          mixed: false,
+        };
+        return;
+      }
+
+      const currentBranch = branchInfo[workspace];
+      if (currentBranch) {
+        summaries[workspace] = {
+          label: currentBranch,
+          title: `Current branch: ${currentBranch}`,
+          mixed: false,
+        };
+        return;
+      }
+
+      summaries[workspace] = null;
+    });
+
+    return summaries;
+  }, [groupedSessions, branchInfo]);
 
   const filteredGroups = useMemo(() => {
     if (!searchTerm) return groupedSessions;
@@ -456,6 +502,15 @@ export function Sidebar({
                       >
                         {workspace === 'Default' ? workspace : workspace.split('/').pop()}
                       </span>
+                      {workspaceBranchSummary[workspace] && (
+                        <span
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 shrink-0 max-w-[120px]"
+                          title={workspaceBranchSummary[workspace]?.title}
+                        >
+                          <GitBranch className="w-2.5 h-2.5 shrink-0" />
+                          <span className="truncate">{workspaceBranchSummary[workspace]?.label}</span>
+                        </span>
+                      )}
                       <button
                         className="opacity-0 group-hover:opacity-100 hover:bg-background p-0.5 rounded transition-all"
                         onClick={(e) => {
@@ -487,13 +542,12 @@ export function Sidebar({
                               currentSessionId === session.id ? "bg-blue-500" : "bg-transparent group-hover:bg-muted-foreground/30"
                             )} />
                             <span className="truncate flex-1 text-[13px]">{session.title}</span>
-                            {branchInfo[workspace] && (
+                            {workspaceBranchSummary[workspace]?.mixed && session.branch && (
                               <span
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 shrink-0"
-                                title={`Branch: ${branchInfo[workspace]}`}
+                                className="inline-flex items-center justify-center shrink-0 text-muted-foreground/70"
+                                title={`Session branch: ${session.branch}`}
                               >
-                                <GitBranch className="w-2.5 h-2.5 shrink-0" />
-                                <span className="truncate max-w-[50px]">{branchInfo[workspace]}</span>
+                                <GitBranch className="w-3 h-3" />
                               </span>
                             )}
                             <div className="relative shrink-0 w-12 h-5 flex items-center justify-end">

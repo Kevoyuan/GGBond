@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { CoreService } from '@/lib/core-service';
+import db from '@/lib/db';
 import { ToolConfirmationOutcome, ToolConfirmationPayload } from '@google/gemini-cli-core';
 
 export async function POST(req: NextRequest) {
@@ -19,7 +20,37 @@ export async function POST(req: NextRequest) {
             : undefined;
 
         const core = CoreService.getInstance();
-        await core.submitConfirmation(correlationId, confirmed, normalizedOutcome, normalizedPayload);
+        const deliveredToActiveCore = await core.submitConfirmation(
+            correlationId,
+            confirmed,
+            normalizedOutcome,
+            normalizedPayload
+        );
+
+        // In Next.js dev/runtime, /api/chat and /api/confirm can be served by different workers.
+        // Queue fallback lets the active chat stream worker consume confirmations by correlation ID.
+        if (!deliveredToActiveCore) {
+            db.prepare(`
+                INSERT INTO confirmation_queue (
+                    correlation_id,
+                    confirmed,
+                    outcome,
+                    payload,
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(correlation_id) DO UPDATE SET
+                    confirmed = excluded.confirmed,
+                    outcome = excluded.outcome,
+                    payload = excluded.payload,
+                    created_at = excluded.created_at
+            `).run(
+                correlationId,
+                confirmed ? 1 : 0,
+                normalizedOutcome ?? null,
+                normalizedPayload ? JSON.stringify(normalizedPayload) : null,
+                Date.now()
+            );
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

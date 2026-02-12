@@ -4,11 +4,14 @@ import { CoreService } from '@/lib/core-service';
 import db from '@/lib/db';
 import { getGeminiEnv } from '@/lib/gemini-utils';
 import { calculateCost } from '@/lib/pricing';
+import { execSync } from 'child_process';
+import { existsSync } from 'fs';
 import {
   GeminiEventType,
-  MessageBusType,
   ToolCallRequestInfo,
-  ToolCallResponseInfo
+  ToolCallResponseInfo,
+  ToolConfirmationOutcome,
+  ToolConfirmationPayload
 } from '@google/gemini-cli-core';
 
 export async function POST(req: Request) {
@@ -73,6 +76,21 @@ export async function POST(req: Request) {
 
     // DB Logging Setup
     const now = Date.now();
+    const sessionBranch = (() => {
+      const cwd = workspace && workspace !== 'Default' ? workspace : process.cwd();
+      if (!cwd || !existsSync(cwd)) return null;
+      try {
+        return execSync('git rev-parse --abbrev-ref HEAD', {
+          cwd,
+          encoding: 'utf-8',
+          timeout: 1500,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim() || null;
+      } catch {
+        return null;
+      }
+    })();
+
     let userMessageId: number | bigint | null = null;
     const parseParentId = (rawParentId: unknown): number | null => {
       if (rawParentId === null || rawParentId === undefined) return null;
@@ -99,11 +117,12 @@ export async function POST(req: Request) {
         if (!existing) {
           const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
           db.prepare(`
-            INSERT INTO sessions (id, title, created_at, updated_at, workspace)
-            VALUES (?, ?, ?, ?, ?)
-          `).run(finalSessionId, title, now, now, workspace || null);
+            INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `).run(finalSessionId, title, now, now, workspace || null, sessionBranch);
         } else {
-          db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(now, finalSessionId);
+          db.prepare('UPDATE sessions SET updated_at = ?, branch = COALESCE(branch, ?) WHERE id = ?')
+            .run(now, sessionBranch, finalSessionId);
         }
 
         const stmt = db.prepare('INSERT INTO messages (session_id, role, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)');
@@ -139,7 +158,6 @@ export async function POST(req: Request) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        const messageBus = core.messageBus;
         const coreWithConfirmation = core as unknown as {
           clearConfirmationSubscribers?: () => void;
           subscribeConfirmationRequests?: (
@@ -157,6 +175,9 @@ export async function POST(req: Request) {
         coreWithConfirmation.clearConfirmationSubscribers?.();
 
         let cleanupMessageBusListeners = () => {};
+        const pendingConfirmationIds = new Set<string>();
+        let isPollingConfirmationQueue = false;
+        let confirmationQueuePollTimer: ReturnType<typeof setInterval> | null = null;
         const safeEnqueue = (payload: unknown) => {
           if (streamClosed) return;
           try {
@@ -167,15 +188,60 @@ export async function POST(req: Request) {
             console.warn('[chat/stream] enqueue skipped after close');
           }
         };
-        const hasConfirmationSubscription =
-          typeof coreWithConfirmation.subscribeConfirmationRequests === 'function';
+        const processQueuedConfirmations = async () => {
+          if (isPollingConfirmationQueue || pendingConfirmationIds.size === 0) {
+            return;
+          }
+          isPollingConfirmationQueue = true;
+          try {
+            const ids = Array.from(pendingConfirmationIds);
+            const placeholders = ids.map(() => '?').join(', ');
+            const queuedRows = db.prepare(
+              `SELECT correlation_id, confirmed, outcome, payload
+               FROM confirmation_queue
+               WHERE correlation_id IN (${placeholders})`
+            ).all(...ids) as Array<{
+              correlation_id: string;
+              confirmed: number;
+              outcome: string | null;
+              payload: string | null;
+            }>;
 
-        if (!hasConfirmationSubscription) {
-          console.warn('[chat/stream] subscribeConfirmationRequests unavailable; falling back to MessageBus bridge');
-        }
+            for (const row of queuedRows) {
+              let parsedPayload: Record<string, unknown> | undefined;
+              if (row.payload) {
+                try {
+                  parsedPayload = JSON.parse(row.payload) as Record<string, unknown>;
+                } catch (error) {
+                  console.warn('[chat/stream] Failed to parse queued confirmation payload', {
+                    correlationId: row.correlation_id,
+                    error: error instanceof Error ? error.message : String(error),
+                  });
+                }
+              }
 
-        const unsubscribeConfirmation = hasConfirmationSubscription
-          ? coreWithConfirmation.subscribeConfirmationRequests!((request) => {
+              await core.submitConfirmation(
+                row.correlation_id,
+                row.confirmed === 1,
+                (row.outcome ?? undefined) as ToolConfirmationOutcome | undefined,
+                parsedPayload as ToolConfirmationPayload | undefined
+              );
+              pendingConfirmationIds.delete(row.correlation_id);
+              db.prepare('DELETE FROM confirmation_queue WHERE correlation_id = ?').run(row.correlation_id);
+            }
+          } catch (error) {
+            console.error('[chat/stream] Failed to process queued confirmations', error);
+          } finally {
+            isPollingConfirmationQueue = false;
+          }
+        };
+        try {
+          if (typeof coreWithConfirmation.subscribeConfirmationRequests !== 'function') {
+            throw new Error('CoreService confirmation subscription is unavailable');
+          }
+
+          const unsubscribeConfirmation = coreWithConfirmation.subscribeConfirmationRequests((request) => {
+            pendingConfirmationIds.add(request.correlationId);
             safeEnqueue({
               type: 'tool_confirmation',
               correlationId: request.correlationId,
@@ -183,63 +249,38 @@ export async function POST(req: Request) {
               toolCall: request.toolCall,
               serverName: request.serverName
             });
-          })
-          : () => { };
-
-        const onLegacyToolConfirmationRequest = (request: any) => {
-          safeEnqueue({
-            type: 'tool_confirmation',
-            correlationId: request?.correlationId,
-            details: request?.details || {
-              type: 'info',
-              title: request?.toolCall?.name || 'Tool Confirmation',
-              prompt: 'Please confirm this tool call.'
-            },
-            toolCall: request?.toolCall,
-            serverName: request?.serverName
           });
-        };
 
-        const onAskUserRequest = (request: any) => {
-          safeEnqueue({
-            type: 'ask_user_request',
-            correlationId: request?.correlationId,
-            questions: request?.questions || [],
-            title: request?.title || 'User Inquiry'
-          });
-        };
+          confirmationQueuePollTimer = setInterval(() => {
+            void processQueuedConfirmations();
+          }, 250);
 
-        if (messageBus && !hasConfirmationSubscription) {
-          messageBus.subscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, onLegacyToolConfirmationRequest);
-          messageBus.subscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
-        }
+          cleanupMessageBusListeners = () => {
+            unsubscribeConfirmation();
+            if (confirmationQueuePollTimer) {
+              clearInterval(confirmationQueuePollTimer);
+              confirmationQueuePollTimer = null;
+            }
+          };
 
-        cleanupMessageBusListeners = () => {
-          unsubscribeConfirmation();
-          if (messageBus && !hasConfirmationSubscription) {
-            messageBus.unsubscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, onLegacyToolConfirmationRequest);
-            messageBus.unsubscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
-          }
-        };
+          cleanupStream = () => {
+            cleanupMessageBusListeners();
+            if (!turnAbortController.signal.aborted) {
+              turnAbortController.abort();
+            }
+          };
 
-        cleanupStream = () => {
-          cleanupMessageBusListeners();
-          if (!turnAbortController.signal.aborted) {
-            turnAbortController.abort();
-          }
-        };
+          // Send Init Event
+          const initEvent = {
+            type: 'init',
+            session_id: finalSessionId,
+            model: targetModel
+          };
+          safeEnqueue(initEvent);
 
-        // Send Init Event
-        const initEvent = {
-          type: 'init',
-          session_id: finalSessionId,
-          model: targetModel
-        };
-        safeEnqueue(initEvent);
-
-        try {
           const turnStartedAt = Date.now();
           const generator = core.runTurn(finalPrompt, turnAbortController.signal);
+          let hasStreamError = false;
 
           for await (const event of generator) {
             // Map Core Events to Stream JSON
@@ -268,19 +309,28 @@ export async function POST(req: Request) {
 
             else if (event.type === GeminiEventType.ToolCallResponse) {
               const info = event.value as ToolCallResponseInfo;
-              // Simplify output for frontend
-              let output = '';
-              // responseParts is Part[]
-              if (info.responseParts) {
-                output = info.responseParts.map(p => p.text || JSON.stringify(p)).join('');
-              }
+              const resultDisplay = info.resultDisplay;
+              const output =
+                typeof resultDisplay === 'string'
+                  ? resultDisplay
+                  : resultDisplay
+                    ? JSON.stringify(resultDisplay)
+                    : undefined;
+              const error =
+                info.error
+                  ? {
+                      type: info.errorType || 'tool_error',
+                      message: info.error.message || String(info.error)
+                    }
+                  : undefined;
 
               safeEnqueue({
                 type: 'tool_result',
                 tool_id: info.callId,
                 status: info.error ? 'error' : 'success',
                 is_error: !!info.error,
-                output: output || info.error?.message
+                output: output || info.error?.message,
+                error
               });
             }
 
@@ -331,15 +381,10 @@ export async function POST(req: Request) {
                 totalTokenCount,
                 durationMs
               };
-
-              safeEnqueue({
-                type: 'result',
-                status: 'complete',
-                stats: finalStats
-              });
             }
 
             else if (event.type === GeminiEventType.Error) {
+              hasStreamError = true;
               const eventValue = (event as { value?: unknown }).value;
               const valueRecord = (eventValue && typeof eventValue === 'object')
                 ? (eventValue as Record<string, unknown>)
@@ -358,6 +403,14 @@ export async function POST(req: Request) {
                 error: normalizedError
               });
             }
+          }
+
+          if (!hasStreamError) {
+            safeEnqueue({
+              type: 'result',
+              status: 'complete',
+              stats: finalStats ?? undefined
+            });
           }
 
           // Save Assistant Message to DB

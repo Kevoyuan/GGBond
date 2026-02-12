@@ -111,7 +111,7 @@ export default function Home() {
     questions: Question[];
     title: string;
     correlationId: string;
-    source: 'confirmation' | 'legacy_ask';
+    source: 'confirmation';
   } | null>(null);
   const [hookEvents, setHookEvents] = useState<HookEvent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<any | null>(null);
@@ -549,17 +549,6 @@ export default function Home() {
               }
             }
 
-            if (data.type === 'ask_user' || data.type === 'ask_user_request' || data.type === 'ask-user-request') {
-              // Handle tool questioning
-              const questions = data.value?.questions || data.questions;
-              const title = data.value?.title || data.title || 'User Inquiry';
-              const correlationId = data.value?.correlationId || data.correlationId || data.value?.id || data.id;
-
-              if (questions && correlationId) {
-                setActiveQuestion({ questions, title, correlationId, source: 'legacy_ask' });
-              }
-            }
-
             if (data.type === 'citation') {
               assistantCitations.push(data.content);
               updateMessageInTree(assistantMsgId, { citations: [...assistantCitations] });
@@ -742,27 +731,16 @@ export default function Home() {
     );
 
     try {
-      if (pendingQuestion.source === 'confirmation') {
-        await fetch('/api/confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            correlationId: pendingQuestion.correlationId,
-            confirmed: true,
-            outcome: 'proceed_once',
-            payload: { answers: normalizedAnswers }
-          })
-        });
-      } else {
-        await fetch('/api/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            correlationId: pendingQuestion.correlationId,
-            answers: normalizedAnswers
-          })
-        });
-      }
+      await fetch('/api/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          correlationId: pendingQuestion.correlationId,
+          confirmed: true,
+          outcome: 'proceed_once',
+          payload: { answers: normalizedAnswers }
+        })
+      });
       setActiveQuestion(null);
     } catch (e) {
       console.error('Failed to submit question response', e);
