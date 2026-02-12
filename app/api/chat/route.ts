@@ -45,12 +45,15 @@ export async function POST(req: Request) {
     // Use provided sessionId or generate new one
     const finalSessionId = sessionId || crypto.randomUUID();
 
+    const coreApprovalMode = approvalMode === 'auto' ? 'yolo' : 'default';
+    console.log('[chat] approval mode', { requested: approvalMode, resolved: coreApprovalMode });
+
     await core.initialize({
       sessionId: finalSessionId,
       model: targetModel,
       cwd: (workspace && workspace !== 'Default') ? workspace : process.cwd(),
-      // Map legacy/frontend 'auto' to ApprovalMode.AUTO_EDIT ("autoEdit")
-      approvalMode: (approvalMode === 'auto' || approvalMode === 'autoEdit') ? 'autoEdit' : 'default',
+      // Safe mode asks for confirmation; Auto mode fully allows tool execution.
+      approvalMode: coreApprovalMode,
       systemInstruction
     });
 
@@ -115,10 +118,15 @@ export async function POST(req: Request) {
 
     let fullResponse = '';
 
+    let streamClosed = false;
+    let cleanupStream = () => {};
+    const turnAbortController = new AbortController();
+
     const stream = new ReadableStream({
       async start(controller) {
         const messageBus = core.messageBus;
         const coreWithConfirmation = core as unknown as {
+          clearConfirmationSubscribers?: () => void;
           subscribeConfirmationRequests?: (
             listener: (request: {
               correlationId: string;
@@ -129,8 +137,24 @@ export async function POST(req: Request) {
           ) => () => void;
         };
 
+        // This app handles one active turn stream per browser session.
+        // Clearing stale subscribers prevents closed-controller callbacks from prior turns.
+        coreWithConfirmation.clearConfirmationSubscribers?.();
+
+        let cleanupMessageBusListeners = () => {};
+        const safeEnqueue = (payload: unknown) => {
+          if (streamClosed) return;
+          try {
+            controller.enqueue(encoder.encode(JSON.stringify(payload) + '\n'));
+          } catch (error) {
+            streamClosed = true;
+            cleanupMessageBusListeners();
+            console.warn('[chat/stream] enqueue skipped after close');
+          }
+        };
+
         const onLegacyToolConfirmationRequest = (request: any) => {
-          controller.enqueue(encoder.encode(JSON.stringify({
+          safeEnqueue({
             type: 'tool_confirmation',
             correlationId: request?.correlationId,
             details: request?.details || {
@@ -140,45 +164,55 @@ export async function POST(req: Request) {
             },
             toolCall: request?.toolCall,
             serverName: request?.serverName
-          }) + '\n'));
+          });
         };
 
+        const hasConfirmationSubscription =
+          typeof coreWithConfirmation.subscribeConfirmationRequests === 'function';
+
         const unsubscribeConfirmation =
-          typeof coreWithConfirmation.subscribeConfirmationRequests === 'function'
-            ? coreWithConfirmation.subscribeConfirmationRequests((request) => {
-                controller.enqueue(encoder.encode(JSON.stringify({
+          hasConfirmationSubscription
+            ? coreWithConfirmation.subscribeConfirmationRequests!((request) => {
+                safeEnqueue({
                   type: 'tool_confirmation',
                   correlationId: request.correlationId,
                   details: request.details,
                   toolCall: request.toolCall,
                   serverName: request.serverName
-                }) + '\n'));
+                });
               })
             : () => { };
 
         const onAskUserRequest = (request: any) => {
-          controller.enqueue(encoder.encode(JSON.stringify({
+          safeEnqueue({
             type: 'ask_user_request',
             correlationId: request?.correlationId,
             questions: request?.questions || [],
             title: 'User Inquiry'
-          }) + '\n'));
+          });
         };
 
         if (messageBus) {
-          if (typeof coreWithConfirmation.subscribeConfirmationRequests !== 'function') {
+          if (!hasConfirmationSubscription) {
             messageBus.subscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, onLegacyToolConfirmationRequest);
           }
           messageBus.subscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
         }
 
-        const cleanupMessageBusListeners = () => {
+        cleanupMessageBusListeners = () => {
           unsubscribeConfirmation();
           if (!messageBus) return;
-          if (typeof coreWithConfirmation.subscribeConfirmationRequests !== 'function') {
+          if (!hasConfirmationSubscription) {
             messageBus.unsubscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, onLegacyToolConfirmationRequest);
           }
           messageBus.unsubscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
+        };
+
+        cleanupStream = () => {
+          cleanupMessageBusListeners();
+          if (!turnAbortController.signal.aborted) {
+            turnAbortController.abort();
+          }
         };
 
         // Send Init Event
@@ -187,10 +221,10 @@ export async function POST(req: Request) {
           session_id: finalSessionId,
           model: targetModel
         };
-        controller.enqueue(encoder.encode(JSON.stringify(initEvent) + '\n'));
+        safeEnqueue(initEvent);
 
         try {
-          const generator = core.runTurn(finalPrompt);
+          const generator = core.runTurn(finalPrompt, turnAbortController.signal);
 
           for await (const event of generator) {
             // Map Core Events to Stream JSON
@@ -199,22 +233,22 @@ export async function POST(req: Request) {
               const chunk = event.value; // string
               if (typeof chunk === 'string') {
                 fullResponse += chunk;
-                controller.enqueue(encoder.encode(JSON.stringify({
+                safeEnqueue({
                   type: 'message',
                   role: 'assistant',
                   content: chunk
-                }) + '\n'));
+                });
               }
             }
 
             else if (event.type === GeminiEventType.ToolCallRequest) {
               const info = event.value as ToolCallRequestInfo;
-              controller.enqueue(encoder.encode(JSON.stringify({
+              safeEnqueue({
                 type: 'tool_use',
                 tool_name: info.name,
                 tool_id: info.callId,
                 parameters: info.args
-              }) + '\n'));
+              });
             }
 
             else if (event.type === GeminiEventType.ToolCallResponse) {
@@ -226,37 +260,37 @@ export async function POST(req: Request) {
                 output = info.responseParts.map(p => p.text || JSON.stringify(p)).join('');
               }
 
-              controller.enqueue(encoder.encode(JSON.stringify({
+              safeEnqueue({
                 type: 'tool_result',
                 tool_id: info.callId,
                 status: info.error ? 'error' : 'success',
                 is_error: !!info.error,
                 output: output || info.error?.message
-              }) + '\n'));
+              });
             }
 
             else if (event.type === GeminiEventType.Thought) {
               const thought = event.value as any;
               const text = typeof thought === 'string' ? thought : thought.text || JSON.stringify(thought);
-              controller.enqueue(encoder.encode(JSON.stringify({
+              safeEnqueue({
                 type: 'thought',
                 content: text
-              }) + '\n'));
+              });
             }
 
             else if (event.type === GeminiEventType.Citation) {
               const citation = event.value as string;
-              controller.enqueue(encoder.encode(JSON.stringify({
+              safeEnqueue({
                 type: 'citation',
                 content: citation
-              }) + '\n'));
+              });
             }
 
             else if (event.type === GeminiEventType.Finished) {
               // model usage metadata
               const val = event.value as any;
               const usage = val.usageMetadata;
-              controller.enqueue(encoder.encode(JSON.stringify({
+              safeEnqueue({
                 type: 'result',
                 status: 'complete',
                 stats: {
@@ -264,7 +298,7 @@ export async function POST(req: Request) {
                   outputTokenCount: usage?.candidatesTokenCount,
                   totalTokenCount: usage?.totalTokenCount
                 }
-              }) + '\n'));
+              });
             }
 
             else if (event.type === GeminiEventType.Error) {
@@ -281,10 +315,10 @@ export async function POST(req: Request) {
                   ...(rawError || {})
                 };
 
-              controller.enqueue(encoder.encode(JSON.stringify({
+              safeEnqueue({
                 type: 'error',
                 error: normalizedError
-              }) + '\n'));
+              });
             }
           }
 
@@ -299,15 +333,23 @@ export async function POST(req: Request) {
         } catch (err) {
           console.error('Turn execution error:', err);
           const errorMessage = err instanceof Error ? err.message : String(err);
-          controller.enqueue(encoder.encode(JSON.stringify({
+          safeEnqueue({
             type: 'error',
             error: { message: errorMessage }
-          }) + '\n'));
+          });
         } finally {
-          cleanupMessageBusListeners();
-          controller.close();
+          cleanupStream();
+          if (!streamClosed) {
+            streamClosed = true;
+            controller.close();
+          }
         }
-      }
+      },
+      cancel() {
+        if (streamClosed) return;
+        streamClosed = true;
+        cleanupStream();
+      },
     });
 
     return new NextResponse(stream, {

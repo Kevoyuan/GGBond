@@ -18,7 +18,6 @@ import { HookEvent } from '../components/HooksPanel';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 import { FilePreview } from '../components/FilePreview';
-import { ConfirmDialog } from '../components/ConfirmDialog';
 
 
 interface Session {
@@ -72,8 +71,8 @@ export default function Home() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
   const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>('safe');
-  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
   const [showGraph, setShowGraph] = useState(false);
+  const [inputAreaHeight, setInputAreaHeight] = useState(120);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -307,14 +306,7 @@ export default function Home() {
     setHeadId(null);
   };
 
-  const handleDeleteSession = (id: string) => {
-    setSessionToDelete(id);
-  };
-
-  const confirmDeleteSession = async () => {
-    if (!sessionToDelete) return;
-    const id = sessionToDelete;
-
+  const handleDeleteSession = async (id: string) => {
     try {
       console.log('Deleting session:', id);
       await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
@@ -354,7 +346,10 @@ export default function Home() {
   }, []);
 
 
-  const handleSendMessage = async (text: string, options?: { forceApproval?: boolean; parentId?: string }) => {
+  const handleSendMessage = async (
+    text: string,
+    options?: { parentId?: string; approvalMode?: 'safe' | 'auto' }
+  ) => {
     if (!text.trim() || isLoading) return;
 
     // Handle slash commands
@@ -383,7 +378,7 @@ export default function Home() {
           sessionId: currentSessionId,
           workspace: currentWorkspace,
           mode,
-          approvalMode: options?.forceApproval ? 'auto' : approvalMode,
+          approvalMode: options?.approvalMode ?? approvalMode,
           modelSettings: settings.modelSettings,
           parentId: parentIdToUse // Pass tree context
         }),
@@ -604,33 +599,36 @@ export default function Home() {
 
     // 3. Trigger send, but pass the *original parent* as the anchor.
     // This creates a NEW sibling to `userMsg`.
-    if (mode === 'session') {
-      setApprovalMode('auto');
-    }
-
     handleSendMessage(userMsg.content, {
-      forceApproval: true,
       parentId: parentId || undefined
     });
   };
 
-  const handleConfirm = async (approved: boolean) => {
+  const handleConfirm = async (approved: boolean, mode: 'once' | 'session' = 'once') => {
     if (!confirmation) return;
     if (!confirmation.correlationId) {
       console.error('Missing confirmation correlationId');
       return;
     }
+    const pendingCorrelationId = confirmation.correlationId;
+
+    const outcome = approved
+      ? (mode === 'session' ? 'proceed_always' : 'proceed_once')
+      : 'cancel';
 
     try {
       await fetch('/api/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          correlationId: confirmation.correlationId,
-          confirmed: approved
+          correlationId: pendingCorrelationId,
+          confirmed: approved,
+          outcome
         })
       });
-      setConfirmation(null);
+      setConfirmation((prev) => (
+        prev?.correlationId === pendingCorrelationId ? null : prev
+      ));
     } catch (e) {
       console.error('Failed to submit confirmation', e);
     }
@@ -744,18 +742,8 @@ export default function Home() {
         onAdd={handleAddWorkspace}
       />
 
-      <ConfirmDialog
-        open={!!sessionToDelete}
-        onClose={() => setSessionToDelete(null)}
-        onConfirm={confirmDeleteSession}
-        title="Delete Chat"
-        description="Are you sure you want to delete this chat? This action cannot be undone."
-        confirmText="Delete"
-        variant="destructive"
-      />
-
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 bg-background">
+      <div className="flex-1 flex flex-col min-w-0 bg-background relative">
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-2">
           <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} />
@@ -801,16 +789,20 @@ export default function Home() {
             onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
             onApprovalModeChange={setApprovalMode}
             workspacePath={currentWorkspace || undefined}
+            onInputHeightChange={(height) => {
+              setInputAreaHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
+            }}
           />
         </div>
+        {confirmation && (
+          <ConfirmationDialog
+            details={confirmation.details}
+            onConfirm={(mode) => handleConfirm(true, mode ?? 'once')}
+            onCancel={() => handleConfirm(false, 'once')}
+            bottomOffset={inputAreaHeight}
+          />
+        )}
       </div>
-      {confirmation && (
-        <ConfirmationDialog
-          details={confirmation.details}
-          onConfirm={() => handleConfirm(true)}
-          onCancel={() => handleConfirm(false)}
-        />
-      )}
 
       {activeQuestion && (
         <QuestionPanel
