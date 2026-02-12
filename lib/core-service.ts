@@ -19,6 +19,7 @@ import {
     getProjectHash,
     AuthType,
     ApprovalMode,
+    PolicyDecision,
     TelemetrySettings,
     ToolConfirmationOutcome,
     createPolicyUpdater,
@@ -99,6 +100,7 @@ export class CoreService {
     private systemEventsRegistered = false;
     private policyUpdaterMessageBus: MessageBus | null = null;
     private systemListenerMessageBus: MessageBus | null = null;
+    private yoloRuleInjected = false;
 
     private constructor() { }
 
@@ -148,6 +150,7 @@ export class CoreService {
             if (this.config.getApprovalMode() !== normalizedApprovalMode) {
                 this.config.setApprovalMode(normalizedApprovalMode);
             }
+            this.ensureYoloAllowAllRule();
             if (this.messageBus && this.policyUpdaterMessageBus !== this.messageBus) {
                 createPolicyUpdater(this.config.getPolicyEngine(), this.messageBus);
                 this.policyUpdaterMessageBus = this.messageBus;
@@ -193,6 +196,9 @@ export class CoreService {
             debugMode: false,
             interactive: true,
             approvalMode: normalizedApprovalMode,
+            policyEngineConfig: {
+                defaultDecision: PolicyDecision.ASK_USER,
+            },
             recordResponses: '',
             telemetry: {
                 enabled: false,
@@ -204,6 +210,7 @@ export class CoreService {
         });
 
         await this.config.initialize();
+        this.ensureYoloAllowAllRule();
 
         // Initialize Authentication (Required to create ContentGenerator)
         // Explicitly load settings to determine auth type because Config doesn't auto-detect it well
@@ -303,6 +310,18 @@ export class CoreService {
 
         this.initialized = true;
         console.log('[CoreService] Initialization complete.');
+    }
+
+    private ensureYoloAllowAllRule() {
+        if (!this.config || this.yoloRuleInjected) return;
+
+        this.config.getPolicyEngine().addRule({
+            decision: PolicyDecision.ALLOW,
+            priority: 999,
+            modes: [ApprovalMode.YOLO],
+            source: 'CoreService (YOLO allow-all)',
+        });
+        this.yoloRuleInjected = true;
     }
 
     private registerSystemEvents() {
