@@ -79,7 +79,6 @@ export function AnalyticsDashboard() {
   const [quota, setQuota] = useState<QuotaResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
-  const [timelinePeriod, setTimelinePeriod] = useState<'today' | 'week' | 'month'>('week');
 
   useEffect(() => {
     Promise.all([
@@ -95,18 +94,6 @@ export function AnalyticsDashboard() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
-
-  useEffect(() => {
-    if (period === 'daily') {
-      setTimelinePeriod('today');
-      return;
-    }
-    if (period === 'weekly') {
-      setTimelinePeriod('week');
-      return;
-    }
-    setTimelinePeriod('month');
-  }, [period]);
 
   if (loading) {
     return (
@@ -152,6 +139,14 @@ export function AnalyticsDashboard() {
   const dailyQuotaPercent = dailyQuota?.remainingFraction !== undefined ? dailyQuota.remainingFraction * 100 : null;
   const rateLimitPercent = rateLimit?.remainingFraction !== undefined ? rateLimit.remainingFraction * 100 : null;
   const shouldWarnCompression = contextUsagePercent > 70;
+  const timelinePeriod: 'today' | 'week' | 'month' = period === 'daily'
+    ? 'today'
+    : period === 'weekly'
+      ? 'week'
+      : 'month';
+  const timelineModeLabel = timelinePeriod === 'today'
+    ? 'Hourly View'
+    : 'Daily View';
   const timelineBuckets = timelinePeriod === 'today'
     ? (stats?.breakdowns?.todayHourly || [])
     : timelinePeriod === 'week'
@@ -248,93 +243,83 @@ export function AnalyticsDashboard() {
           <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-semibold text-muted-foreground">Token Timeline (Stacked by Model)</h4>
-              <div className="flex gap-1 flex-wrap justify-end">
-                <button
-                  onClick={() => setTimelinePeriod('today')}
-                  className={`px-2 py-1 text-[11px] rounded-md font-medium transition-colors ${timelinePeriod === 'today'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                    }`}
-                >
-                  Today / Hourly
-                </button>
-                <button
-                  onClick={() => setTimelinePeriod('week')}
-                  className={`px-2 py-1 text-[11px] rounded-md font-medium transition-colors ${timelinePeriod === 'week'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                    }`}
-                >
-                  This Week / Daily
-                </button>
-                <button
-                  onClick={() => setTimelinePeriod('month')}
-                  className={`px-2 py-1 text-[11px] rounded-md font-medium transition-colors ${timelinePeriod === 'month'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                    }`}
-                >
-                  This Month / Daily
-                </button>
+              <span className="text-[10px] px-2 py-1 rounded-full border border-border/50 bg-muted/40 text-muted-foreground">
+                Follows period · {timelineModeLabel}
+              </span>
+            </div>
+
+            {timelineGrandTotal === 0 ? (
+              <div className="h-40 rounded-lg border border-dashed border-border/60 bg-background/30 flex items-center justify-center text-xs text-muted-foreground">
+                No token usage in selected period
               </div>
-            </div>
+            ) : (
+              <div className="relative">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-44 flex flex-col justify-between">
+                  {[0, 1, 2, 3].map((line) => (
+                    <div key={line} className="border-t border-dashed border-border/40" />
+                  ))}
+                </div>
+                <div className="pointer-events-none absolute right-0 top-0 text-[10px] text-muted-foreground bg-background/70 px-1 rounded">
+                  {formatCompactTokens(maxTimelineToken)}
+                </div>
+                <div className="flex h-52 items-end gap-1 overflow-x-auto pb-1">
+                {timelineBuckets.map((bucket, index) => {
+                  const othersValue = Object.entries(bucket.models || {}).reduce((sum, [model, value]) => {
+                    if (primaryModels.includes(model)) return sum;
+                    return sum + value;
+                  }, 0);
 
-            <div className="flex h-52 items-end gap-1 overflow-x-auto pb-1">
-              {timelineBuckets.map((bucket, index) => {
-                const othersValue = Object.entries(bucket.models || {}).reduce((sum, [model, value]) => {
-                  if (primaryModels.includes(model)) return sum;
-                  return sum + value;
-                }, 0);
+                  const normalizedModels = chartModels
+                    .map((model) => ({
+                      model,
+                      tokens: model === 'Others' ? othersValue : (bucket.models?.[model] || 0),
+                    }))
+                    .filter((item) => item.tokens > 0);
 
-                const normalizedModels = chartModels
-                  .map((model) => ({
-                    model,
-                    tokens: model === 'Others' ? othersValue : (bucket.models?.[model] || 0),
-                  }))
-                  .filter((item) => item.tokens > 0);
+                  const columnHeightPx = bucket.totalTokens > 0
+                    ? Math.max((bucket.totalTokens / maxTimelineToken) * chartHeightPx, 6)
+                    : 2;
+                  const tooltipRows = normalizedModels
+                    .sort((a, b) => b.tokens - a.tokens)
+                    .map((item) => `${item.model}: ${formatCompactTokens(item.tokens)}`)
+                    .join(' | ');
+                  const showLabel = timelinePeriod === 'today'
+                    ? index % 2 === 0
+                    : shouldRenderDenseLabels
+                      ? (index === 0 || index === timelineBuckets.length - 1 || index % 3 === 0)
+                      : true;
 
-                const columnHeightPx = bucket.totalTokens > 0
-                  ? Math.max((bucket.totalTokens / maxTimelineToken) * chartHeightPx, 6)
-                  : 2;
-                const tooltipRows = normalizedModels
-                  .sort((a, b) => b.tokens - a.tokens)
-                  .map((item) => `${item.model}: ${formatCompactTokens(item.tokens)}`)
-                  .join(' | ');
-                const showLabel = timelinePeriod === 'today'
-                  ? index % 2 === 0
-                  : shouldRenderDenseLabels
-                    ? (index === 0 || index === timelineBuckets.length - 1 || index % 3 === 0)
-                    : true;
-
-                return (
-                  <div key={bucket.key} className="group relative flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1">
-                    <div
-                      className="relative flex w-full max-w-[32px] flex-col justify-end overflow-hidden rounded-sm border border-border/40 bg-zinc-200/40 dark:bg-zinc-800/50"
-                      style={{ height: `${columnHeightPx}px` }}
-                      title={`${bucket.label} | Total: ${formatCompactTokens(bucket.totalTokens)}${tooltipRows ? ` | ${tooltipRows}` : ''}`}
-                    >
-                      {normalizedModels.map((item) => {
-                        const pct = bucket.totalTokens > 0 ? (item.tokens / bucket.totalTokens) * 100 : 0;
-                        return (
-                          <div
-                            key={`${bucket.key}-${item.model}`}
-                            style={{
-                              height: `${Math.max(pct, 2)}%`,
-                              backgroundColor: modelColorMap.get(item.model),
-                            }}
-                          />
-                        );
-                      })}
+                  return (
+                    <div key={bucket.key} className="group relative flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1">
+                      <div
+                        className="relative flex w-full max-w-[32px] flex-col justify-end overflow-hidden rounded-sm border border-border/40 bg-zinc-200/40 dark:bg-zinc-800/50"
+                        style={{ height: `${columnHeightPx}px` }}
+                        title={`${bucket.label} | Total: ${formatCompactTokens(bucket.totalTokens)}${tooltipRows ? ` | ${tooltipRows}` : ''}`}
+                      >
+                        {normalizedModels.map((item) => {
+                          const pct = bucket.totalTokens > 0 ? (item.tokens / bucket.totalTokens) * 100 : 0;
+                          return (
+                            <div
+                              key={`${bucket.key}-${item.model}`}
+                              style={{
+                                height: `${Math.max(pct, 2)}%`,
+                                backgroundColor: modelColorMap.get(item.model),
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                      {showLabel ? (
+                        <span className="text-[10px] text-muted-foreground">{bucket.label}</span>
+                      ) : (
+                        <span className="h-3 text-[10px] text-transparent">.</span>
+                      )}
                     </div>
-                    {showLabel ? (
-                      <span className="text-[10px] text-muted-foreground">{bucket.label}</span>
-                    ) : (
-                      <span className="h-3 text-[10px] text-transparent">.</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2">
               {chartModels.map((model) => {

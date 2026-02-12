@@ -3,11 +3,12 @@ import { NextResponse } from 'next/server';
 import { CoreService } from '@/lib/core-service';
 import db from '@/lib/db';
 import { getGeminiEnv } from '@/lib/gemini-utils';
+import { calculateCost } from '@/lib/pricing';
 import {
   GeminiEventType,
+  MessageBusType,
   ToolCallRequestInfo,
-  ToolCallResponseInfo,
-  MessageBusType
+  ToolCallResponseInfo
 } from '@google/gemini-cli-core';
 
 export async function POST(req: Request) {
@@ -117,6 +118,20 @@ export async function POST(req: Request) {
     }
 
     let fullResponse = '';
+    let finalStats: {
+      input_tokens: number;
+      output_tokens: number;
+      cached_content_token_count: number;
+      total_tokens: number;
+      duration_ms: number;
+      model: string;
+      totalCost: number;
+      inputTokenCount: number;
+      outputTokenCount: number;
+      cachedContentTokenCount: number;
+      totalTokenCount: number;
+      durationMs: number;
+    } | null = null;
 
     let streamClosed = false;
     let cleanupStream = () => {};
@@ -152,6 +167,24 @@ export async function POST(req: Request) {
             console.warn('[chat/stream] enqueue skipped after close');
           }
         };
+        const hasConfirmationSubscription =
+          typeof coreWithConfirmation.subscribeConfirmationRequests === 'function';
+
+        if (!hasConfirmationSubscription) {
+          console.warn('[chat/stream] subscribeConfirmationRequests unavailable; falling back to MessageBus bridge');
+        }
+
+        const unsubscribeConfirmation = hasConfirmationSubscription
+          ? coreWithConfirmation.subscribeConfirmationRequests!((request) => {
+            safeEnqueue({
+              type: 'tool_confirmation',
+              correlationId: request.correlationId,
+              details: request.details,
+              toolCall: request.toolCall,
+              serverName: request.serverName
+            });
+          })
+          : () => { };
 
         const onLegacyToolConfirmationRequest = (request: any) => {
           safeEnqueue({
@@ -167,43 +200,23 @@ export async function POST(req: Request) {
           });
         };
 
-        const hasConfirmationSubscription =
-          typeof coreWithConfirmation.subscribeConfirmationRequests === 'function';
-
-        const unsubscribeConfirmation =
-          hasConfirmationSubscription
-            ? coreWithConfirmation.subscribeConfirmationRequests!((request) => {
-                safeEnqueue({
-                  type: 'tool_confirmation',
-                  correlationId: request.correlationId,
-                  details: request.details,
-                  toolCall: request.toolCall,
-                  serverName: request.serverName
-                });
-              })
-            : () => { };
-
         const onAskUserRequest = (request: any) => {
           safeEnqueue({
             type: 'ask_user_request',
             correlationId: request?.correlationId,
             questions: request?.questions || [],
-            title: 'User Inquiry'
+            title: request?.title || 'User Inquiry'
           });
         };
 
-        if (messageBus) {
-          if (!hasConfirmationSubscription) {
-            messageBus.subscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, onLegacyToolConfirmationRequest);
-            // Legacy-only path: newer core versions surface ask_user via tool confirmation details.
-            messageBus.subscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
-          }
+        if (messageBus && !hasConfirmationSubscription) {
+          messageBus.subscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, onLegacyToolConfirmationRequest);
+          messageBus.subscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
         }
 
         cleanupMessageBusListeners = () => {
           unsubscribeConfirmation();
-          if (!messageBus) return;
-          if (!hasConfirmationSubscription) {
+          if (messageBus && !hasConfirmationSubscription) {
             messageBus.unsubscribe(MessageBusType.TOOL_CONFIRMATION_REQUEST, onLegacyToolConfirmationRequest);
             messageBus.unsubscribe(MessageBusType.ASK_USER_REQUEST, onAskUserRequest);
           }
@@ -225,6 +238,7 @@ export async function POST(req: Request) {
         safeEnqueue(initEvent);
 
         try {
+          const turnStartedAt = Date.now();
           const generator = core.runTurn(finalPrompt, turnAbortController.signal);
 
           for await (const event of generator) {
@@ -291,14 +305,37 @@ export async function POST(req: Request) {
               // model usage metadata
               const val = event.value as any;
               const usage = val.usageMetadata;
+              const inputTokenCount = usage?.promptTokenCount || 0;
+              const outputTokenCount = usage?.candidatesTokenCount || 0;
+              const cachedContentTokenCount = usage?.cachedContentTokenCount || 0;
+              const totalTokenCount = usage?.totalTokenCount || (inputTokenCount + outputTokenCount);
+              const durationMs = Math.max(Date.now() - turnStartedAt, 0);
+              const totalCost = calculateCost(
+                inputTokenCount,
+                outputTokenCount,
+                cachedContentTokenCount,
+                targetModel
+              );
+
+              finalStats = {
+                input_tokens: inputTokenCount,
+                output_tokens: outputTokenCount,
+                cached_content_token_count: cachedContentTokenCount,
+                total_tokens: totalTokenCount,
+                duration_ms: durationMs,
+                model: targetModel,
+                totalCost,
+                inputTokenCount,
+                outputTokenCount,
+                cachedContentTokenCount,
+                totalTokenCount,
+                durationMs
+              };
+
               safeEnqueue({
                 type: 'result',
                 status: 'complete',
-                stats: {
-                  inputTokenCount: usage?.promptTokenCount,
-                  outputTokenCount: usage?.candidatesTokenCount,
-                  totalTokenCount: usage?.totalTokenCount
-                }
+                stats: finalStats
               });
             }
 
@@ -325,8 +362,15 @@ export async function POST(req: Request) {
 
           // Save Assistant Message to DB
           try {
-            db.prepare('INSERT INTO messages (session_id, role, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)')
-              .run(finalSessionId, 'model', fullResponse, userMessageId, Date.now());
+            db.prepare('INSERT INTO messages (session_id, role, content, stats, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+              .run(
+                finalSessionId,
+                'model',
+                fullResponse,
+                finalStats ? JSON.stringify(finalStats) : null,
+                userMessageId,
+                Date.now()
+              );
           } catch (e) {
             console.error('[DB] Failed to log assistant message', e);
           }

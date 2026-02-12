@@ -107,7 +107,12 @@ export default function Home() {
   }, [messagesMap, headId, showGraph]);
 
   const [confirmation, setConfirmation] = useState<{ details: ConfirmationDetails, correlationId: string } | null>(null);
-  const [activeQuestion, setActiveQuestion] = useState<{ questions: Question[], title: string, correlationId: string } | null>(null);
+  const [activeQuestion, setActiveQuestion] = useState<{
+    questions: Question[];
+    title: string;
+    correlationId: string;
+    source: 'confirmation' | 'legacy_ask';
+  } | null>(null);
   const [hookEvents, setHookEvents] = useState<HookEvent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<any | null>(null);
 
@@ -523,6 +528,18 @@ export default function Home() {
                 data.value?.id ||
                 data.id;
               if (details) {
+                if (details.type === 'ask_user') {
+                  const questions = details.questions || [];
+                  if (Array.isArray(questions) && correlationId) {
+                    setActiveQuestion({
+                      questions,
+                      title: details.title || 'User Inquiry',
+                      correlationId,
+                      source: 'confirmation'
+                    });
+                  }
+                  continue;
+                }
                 setConfirmation({
                   details,
                   correlationId: correlationId || ''
@@ -539,7 +556,7 @@ export default function Home() {
               const correlationId = data.value?.correlationId || data.correlationId || data.value?.id || data.id;
 
               if (questions && correlationId) {
-                setActiveQuestion({ questions, title, correlationId });
+                setActiveQuestion({ questions, title, correlationId, source: 'legacy_ask' });
               }
             }
 
@@ -710,19 +727,67 @@ export default function Home() {
 
   const handleQuestionSubmit = async (answers: any[]) => {
     if (!activeQuestion) return;
+    const pendingQuestion = activeQuestion;
+
+    const normalizedAnswers = Object.fromEntries(
+      answers.map((answer, index) => {
+        if (Array.isArray(answer)) {
+          return [String(index), answer.join(', ')];
+        }
+        if (answer === null || answer === undefined) {
+          return [String(index), ''];
+        }
+        return [String(index), String(answer)];
+      })
+    );
 
     try {
-      await fetch('/api/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          correlationId: activeQuestion.correlationId,
-          answers
-        })
-      });
+      if (pendingQuestion.source === 'confirmation') {
+        await fetch('/api/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            correlationId: pendingQuestion.correlationId,
+            confirmed: true,
+            outcome: 'proceed_once',
+            payload: { answers: normalizedAnswers }
+          })
+        });
+      } else {
+        await fetch('/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            correlationId: pendingQuestion.correlationId,
+            answers: normalizedAnswers
+          })
+        });
+      }
       setActiveQuestion(null);
     } catch (e) {
       console.error('Failed to submit question response', e);
+    }
+  };
+
+  const handleQuestionCancel = async () => {
+    if (!activeQuestion) return;
+    const pendingQuestion = activeQuestion;
+    try {
+      if (pendingQuestion.source === 'confirmation') {
+        await fetch('/api/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            correlationId: pendingQuestion.correlationId,
+            confirmed: false,
+            outcome: 'cancel'
+          })
+        });
+      }
+    } catch (e) {
+      console.error('Failed to cancel question response', e);
+    } finally {
+      setActiveQuestion(null);
     }
   };
 
@@ -884,7 +949,7 @@ export default function Home() {
           title={activeQuestion.title}
           correlationId={activeQuestion.correlationId}
           onSubmit={handleQuestionSubmit}
-          onCancel={() => setActiveQuestion(null)}
+          onCancel={handleQuestionCancel}
         />
       )}
     </div>

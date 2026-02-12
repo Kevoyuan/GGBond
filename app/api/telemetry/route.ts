@@ -1,5 +1,72 @@
 import { NextResponse } from 'next/server';
 import { parseTelemetryLog } from '@/lib/gemini-service';
+import db from '@/lib/db';
+
+type StatsRow = { stats: string | null };
+
+function readNumeric(value: unknown): number {
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function buildFallbackFromDb() {
+    const rows = db.prepare(`
+        SELECT stats
+        FROM messages
+        WHERE role = 'model' AND stats IS NOT NULL
+        ORDER BY created_at DESC
+        LIMIT 2000
+    `).all() as StatsRow[];
+
+    const tokensByModel: Record<string, { input: number; output: number; cached: number; thoughts: number }> = {};
+    const apiLatencies: number[] = [];
+    let requestCount = 0;
+
+    for (const row of rows) {
+        if (!row.stats) continue;
+        try {
+            const stats = JSON.parse(row.stats) as Record<string, unknown>;
+            const model = (stats.model as string) || 'unknown';
+            const input = readNumeric(stats.input_tokens) || readNumeric(stats.inputTokenCount);
+            const output = readNumeric(stats.output_tokens) || readNumeric(stats.outputTokenCount);
+            const cached = readNumeric(stats.cached_content_token_count) || readNumeric(stats.cachedContentTokenCount);
+            const duration = readNumeric(stats.duration_ms) || readNumeric(stats.durationMs);
+
+            if (!tokensByModel[model]) {
+                tokensByModel[model] = { input: 0, output: 0, cached: 0, thoughts: 0 };
+            }
+            tokensByModel[model].input += input;
+            tokensByModel[model].output += output;
+            tokensByModel[model].cached += cached;
+            requestCount += 1;
+
+            if (duration > 0) apiLatencies.push(duration);
+        } catch {
+            // ignore malformed rows
+        }
+    }
+
+    const sortedLatencies = [...apiLatencies].sort((a, b) => a - b);
+
+    return {
+        summary: {
+            totalApiRequests: requestCount,
+            totalApiErrors: 0,
+            totalToolCalls: 0,
+            avgApiLatencyMs: apiLatencies.length
+                ? Math.round(apiLatencies.reduce((a, b) => a + b, 0) / apiLatencies.length)
+                : 0,
+            avgToolLatencyMs: 0,
+            p95ApiLatencyMs: sortedLatencies.length
+                ? sortedLatencies[Math.floor(sortedLatencies.length * 0.95)] || 0
+                : 0,
+        },
+        tokensByModel,
+        toolsByName: {},
+        recentEvents: [],
+        totalEvents: rows.length,
+        dataSource: 'db_fallback' as const,
+    };
+}
 
 export async function GET() {
     try {
@@ -48,7 +115,7 @@ export async function GET() {
             }
         }
 
-        return NextResponse.json({
+        const response = {
             summary: {
                 totalApiRequests: apiResponses.length,
                 totalApiErrors: apiErrors.length,
@@ -67,15 +134,16 @@ export async function GET() {
             toolsByName,
             recentEvents: events.slice(-50),
             totalEvents: events.length,
-        });
+            dataSource: 'telemetry' as const,
+        };
+
+        if (response.totalEvents === 0) {
+            return NextResponse.json(buildFallbackFromDb());
+        }
+
+        return NextResponse.json(response);
     } catch (error) {
         console.error('Failed to parse telemetry:', error);
-        return NextResponse.json({
-            summary: { totalApiRequests: 0, totalApiErrors: 0, totalToolCalls: 0, avgApiLatencyMs: 0, avgToolLatencyMs: 0, p95ApiLatencyMs: 0 },
-            tokensByModel: {},
-            toolsByName: {},
-            recentEvents: [],
-            totalEvents: 0,
-        });
+        return NextResponse.json(buildFallbackFromDb());
     }
 }

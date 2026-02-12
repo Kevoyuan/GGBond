@@ -5,7 +5,8 @@ import fs from 'fs';
 import { readFile } from 'fs/promises';
 import {
     Config,
-    CoreToolScheduler,
+    Scheduler,
+    ROOT_SCHEDULER_ID,
     GeminiEventType,
     CoreEvent,
     coreEvents,
@@ -26,6 +27,7 @@ import type {
     CompletedToolCall,
     ToolCall,
     ToolCallRequestInfo,
+    ToolConfirmationPayload,
     WaitingToolCall,
     SerializableConfirmationDetails,
     PolicySettings,
@@ -80,7 +82,11 @@ type PendingConfirmationRequest = {
 
 type PendingConfirmation = {
     callId: string;
-    onConfirm: (outcome: ToolConfirmationOutcome) => Promise<void>;
+    correlationId: string;
+    onConfirm?: (
+        outcome: ToolConfirmationOutcome,
+        payload?: ToolConfirmationPayload
+    ) => Promise<void>;
 };
 
 export class CoreService {
@@ -248,7 +254,7 @@ export class CoreService {
             policyEngineConfig,
             recordResponses: '',
             telemetry: {
-                enabled: false,
+                enabled: true,
                 logPrompts: false,
                 useCollector: false
             }
@@ -471,24 +477,34 @@ export class CoreService {
 
     private registerPendingConfirmation(waitingCall: WaitingToolCall) {
         const callId = waitingCall.request.callId;
-        if (this.pendingConfirmationByCallId.has(callId)) {
-            return;
-        }
-
-        const rawDetails = waitingCall.confirmationDetails as Record<string, unknown>;
-        if (!rawDetails || typeof rawDetails.onConfirm !== 'function') {
-            return;
-        }
-
-        const correlationId = crypto.randomUUID();
+        const rawDetails = (waitingCall.confirmationDetails && typeof waitingCall.confirmationDetails === 'object')
+            ? (waitingCall.confirmationDetails as Record<string, unknown>)
+            : {};
         const serializableDetails = this.toSerializableConfirmationDetails(rawDetails, waitingCall.request);
-        const onConfirm = rawDetails.onConfirm as (outcome: ToolConfirmationOutcome) => Promise<void>;
+        const existingCorrelationId = this.pendingConfirmationByCallId.get(callId);
+        const correlationIdFromScheduler =
+            typeof waitingCall.correlationId === 'string' ? waitingCall.correlationId : undefined;
+        const correlationId = correlationIdFromScheduler || existingCorrelationId || crypto.randomUUID();
+        const onConfirm =
+            typeof rawDetails.onConfirm === 'function'
+                ? (rawDetails.onConfirm as (
+                    outcome: ToolConfirmationOutcome,
+                    payload?: ToolConfirmationPayload
+                ) => Promise<void>)
+                : undefined;
+
+        if (existingCorrelationId && existingCorrelationId === correlationId) {
+            return;
+        }
+
+        if (existingCorrelationId && existingCorrelationId !== correlationId) {
+            this.pendingConfirmations.delete(existingCorrelationId);
+        }
 
         this.pendingConfirmations.set(correlationId, {
             callId,
-            onConfirm: async (outcome: ToolConfirmationOutcome) => {
-                await onConfirm(outcome);
-            },
+            correlationId,
+            onConfirm,
         });
         this.pendingConfirmationByCallId.set(callId, correlationId);
 
@@ -614,27 +630,48 @@ export class CoreService {
     }
 
     private async executeToolCalls(requests: ToolCallRequestInfo[], signal: AbortSignal): Promise<CompletedToolCall[]> {
-        return await new Promise<CompletedToolCall[]>((resolve, reject) => {
-            const scheduler = new CoreToolScheduler({
-                config: this.config!,
-                getPreferredEditor: () => undefined,
-                onToolCallsUpdate: (toolCalls) => {
-                    this.syncPendingConfirmations(toolCalls);
-                },
-                onAllToolCallsComplete: async (completedCalls) => {
-                    this.syncPendingConfirmations([]);
-                    resolve(completedCalls);
-                }
-            });
+        if (!this.config || !this.messageBus) {
+            return [];
+        }
 
-            scheduler.schedule(requests, signal).catch(reject);
+        const scheduler = new Scheduler({
+            config: this.config,
+            messageBus: this.messageBus,
+            getPreferredEditor: () => undefined,
+            schedulerId: ROOT_SCHEDULER_ID,
         });
+
+        const onToolCallsUpdate = (message: {
+            toolCalls: ToolCall[];
+            schedulerId: string;
+        }) => {
+            if (message.schedulerId !== ROOT_SCHEDULER_ID) {
+                return;
+            }
+            this.syncPendingConfirmations(message.toolCalls);
+        };
+
+        this.messageBus.subscribe(
+            MessageBusType.TOOL_CALLS_UPDATE,
+            onToolCallsUpdate as never
+        );
+
+        try {
+            return await scheduler.schedule(requests, signal);
+        } finally {
+            this.messageBus.unsubscribe(
+                MessageBusType.TOOL_CALLS_UPDATE,
+                onToolCallsUpdate as never
+            );
+            this.syncPendingConfirmations([]);
+        }
     }
 
     public async submitConfirmation(
         correlationId: string,
         confirmed: boolean,
-        outcome?: ToolConfirmationOutcome
+        outcome?: ToolConfirmationOutcome,
+        payload?: ToolConfirmationPayload
     ) {
         console.log('[CoreService] Submitting confirmation:', { correlationId, confirmed });
 
@@ -660,7 +697,11 @@ export class CoreService {
 
         if (pending) {
             this.cleanupPendingConfirmationByCallId(pending.callId);
-            await pending.onConfirm(resolvedOutcome);
+            if (pending.onConfirm) {
+                await pending.onConfirm(resolvedOutcome, payload);
+                return;
+            }
+            this.publishConfirmationResponse(correlationId, confirmed, resolvedOutcome, payload);
             return;
         }
 
@@ -676,11 +717,25 @@ export class CoreService {
             return;
         }
 
+        this.publishConfirmationResponse(correlationId, confirmed, resolvedOutcome, payload);
+    }
+
+    private publishConfirmationResponse(
+        correlationId: string,
+        confirmed: boolean,
+        outcome: ToolConfirmationOutcome,
+        payload?: ToolConfirmationPayload
+    ) {
+        if (!this.messageBus) {
+            console.warn('[CoreService] MessageBus not initialized');
+            return;
+        }
         this.messageBus.publish({
             type: MessageBusType.TOOL_CONFIRMATION_RESPONSE,
             correlationId,
             confirmed,
-            outcome: resolvedOutcome
+            outcome,
+            payload,
         } as any);
     }
 
