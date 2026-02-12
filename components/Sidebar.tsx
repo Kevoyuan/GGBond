@@ -51,6 +51,7 @@ interface Session {
 interface SidebarProps {
   sessions: Session[];
   currentSessionId: string | null;
+  runningSessionIds?: string[];
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
   onNewChat: () => void;
@@ -113,6 +114,7 @@ function useGitBranches(workspaces: string[]) {
 export function Sidebar({
   sessions,
   currentSessionId,
+  runningSessionIds = [],
   onSelectSession,
   onDeleteSession,
   onNewChat,
@@ -167,14 +169,6 @@ export function Sidebar({
     const years = Math.floor(days / 365);
     return `${years}y`;
   }, []);
-
-  useEffect(() => {
-    if (!pendingDeleteSessionId) return;
-    const timer = setTimeout(() => {
-      setPendingDeleteSessionId(null);
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [pendingDeleteSessionId]);
 
   useEffect(() => {
     if (!pendingDeleteSessionId) return;
@@ -526,7 +520,9 @@ export function Sidebar({
 
                     {!collapsedWorkspaces.has(workspace) && (
                       <div className="ml-4 pl-2 border-l border-border/40 flex flex-col gap-0.5 mt-1">
-                        {list.map((session) => (
+                        {list.map((session) => {
+                          const isSessionRunning = runningSessionIds.includes(session.id);
+                          return (
                           <div
                             key={session.id}
                             className={cn(
@@ -536,53 +532,68 @@ export function Sidebar({
                                 : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                             )}
                             onClick={() => onSelectSession(session.id)}
+                            onMouseLeave={() => {
+                              if (pendingDeleteSessionId === session.id) {
+                                setPendingDeleteSessionId(null);
+                              }
+                            }}
                           >
-                            <div className={cn(
-                              "w-1.5 h-1.5 rounded-full shrink-0",
-                              currentSessionId === session.id ? "bg-blue-500" : "bg-transparent group-hover:bg-muted-foreground/30"
-                            )} />
-                            <span className="truncate flex-1 text-[13px]">{session.title}</span>
-                            {workspaceBranchSummary[workspace]?.mixed && session.branch && (
-                              <span
-                                className="inline-flex items-center justify-center shrink-0 text-muted-foreground/70"
-                                title={`Session branch: ${session.branch}`}
-                              >
-                                <GitBranch className="w-3 h-3" />
-                              </span>
-                            )}
-                            <div className="relative shrink-0 w-12 h-5 flex items-center justify-end">
-                              {pendingDeleteSessionId === session.id ? (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPendingDeleteSessionId(null);
-                                    onDeleteSession(session.id);
-                                  }}
-                                  className="w-full h-5 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-[10px] font-semibold leading-none hover:bg-destructive/15 transition-colors"
-                                  title="Confirm delete"
+                              <div className="relative w-2.5 h-2.5 shrink-0 flex items-center justify-center">
+                                {isSessionRunning ? (
+                                  <>
+                                    <span className="absolute inset-0 rounded-full border border-blue-400/80 border-t-transparent animate-spin [animation-duration:1s]" />
+                                    <span className="w-1 h-1 rounded-full bg-blue-400/90" />
+                                  </>
+                                ) : (
+                                  <span className={cn(
+                                    "w-1.5 h-1.5 rounded-full",
+                                    currentSessionId === session.id ? "bg-blue-500" : "bg-transparent group-hover:bg-muted-foreground/30"
+                                  )} />
+                                )}
+                              </div>
+                              <span className="truncate flex-1 text-[13px]">{session.title}</span>
+                              {workspaceBranchSummary[workspace]?.mixed && session.branch && (
+                                <span
+                                  className="inline-flex items-center justify-center shrink-0 text-muted-foreground/70"
+                                  title={`Session branch: ${session.branch}`}
                                 >
-                                  Confirm
-                                </button>
-                              ) : (
-                                <>
-                                  <span className="absolute right-0 text-[10px] text-muted-foreground/80 tabular-nums transition-opacity group-hover:opacity-0">
-                                    {formatSessionAge(session)}
-                                  </span>
+                                  <GitBranch className="w-3 h-3" />
+                                </span>
+                              )}
+                              <div className="relative shrink-0 w-12 h-5 flex items-center justify-end">
+                                {pendingDeleteSessionId === session.id ? (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setPendingDeleteSessionId(session.id);
+                                      setPendingDeleteSessionId(null);
+                                      onDeleteSession(session.id);
                                     }}
-                                    className="absolute right-0 opacity-0 group-hover:opacity-100 h-5 w-5 inline-flex items-center justify-center hover:bg-destructive/10 hover:text-destructive rounded transition-all"
-                                    title="Delete"
+                                    className="w-full h-5 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-[10px] font-semibold leading-none hover:bg-destructive/15 transition-colors"
+                                    title="Confirm delete"
                                   >
-                                    <Trash2 className="w-3 h-3" />
+                                    Confirm
                                   </button>
-                                </>
-                              )}
+                                ) : (
+                                  <>
+                                    <span className="absolute right-0 text-[10px] text-muted-foreground/80 tabular-nums transition-opacity group-hover:opacity-0">
+                                      {formatSessionAge(session)}
+                                    </span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPendingDeleteSessionId(session.id);
+                                      }}
+                                      className="absolute right-0 opacity-0 group-hover:opacity-100 h-5 w-5 inline-flex items-center justify-center hover:bg-destructive/10 hover:text-destructive rounded transition-all"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

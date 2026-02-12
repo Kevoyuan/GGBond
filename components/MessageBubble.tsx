@@ -31,8 +31,10 @@ interface MessageBubbleProps {
   isFirst: boolean;
   isLast: boolean;
   settings?: ChatSettings;
+  onUndoTool?: (restoreId: string) => Promise<void> | void;
   onRetry?: (mode: 'once' | 'session') => void;
   onCancel?: () => void;
+  hideTodoToolCalls?: boolean;
 }
 
 type SkillMeta = {
@@ -298,7 +300,19 @@ function injectSkillRefs(children: ReactNode, skillMetaMap: SkillMetaMap): React
  * Each segment (text paragraph or tool-call) becomes a `.timeline-item` sibling
  * inside a `.timeline-group` container so CSS handles dots & connector lines.
  */
-function ContentRenderer({ content, onRetry, onCancel }: { content: string, onRetry?: (mode: 'once' | 'session') => void, onCancel?: () => void }) {
+function ContentRenderer({
+  content,
+  onUndoTool,
+  onRetry,
+  onCancel,
+  hideTodoToolCalls = false
+}: {
+  content: string;
+  onUndoTool?: (restoreId: string) => Promise<void> | void;
+  onRetry?: (mode: 'once' | 'session') => void;
+  onCancel?: () => void;
+  hideTodoToolCalls?: boolean;
+}) {
   const skillSpans = useMemo(() => collectSkillSpans(content), [content]);
   const [skillMetaMap, setSkillMetaMap] = useState<SkillMetaMap>(skillMetaCache || {});
   const attemptedSkillPathRef = useRef<Set<string>>(new Set());
@@ -385,6 +399,12 @@ function ContentRenderer({ content, onRetry, onCancel }: { content: string, onRe
   // 2. <thinking> ... </thinking>
   // 3. # Updated Plan ... (until next # or end)
   const parts = content.split(/(<tool-call[^>]*\/>|<thinking>[\s\S]*?<\/thinking>|#\s*Updated\s*Plan[\s\S]*?(?=\n#|\n<|$))/g);
+  const lastTodoToolPartIndex = parts.reduce((lastIndex, part, partIndex) => {
+    if (!part || !part.startsWith('<tool-call')) return lastIndex;
+    const nameMatch = part.match(/name="([^"]+)"/);
+    if (!nameMatch?.[1]?.toLowerCase().includes('todo')) return lastIndex;
+    return partIndex;
+  }, -1);
 
   return (
     <div className="timeline-group">
@@ -393,17 +413,36 @@ function ContentRenderer({ content, onRetry, onCancel }: { content: string, onRe
 
         // ── Tool Call ──
         if (part.startsWith('<tool-call')) {
+          const idMatch = part.match(/id="([^"]*)"/);
           const nameMatch = part.match(/name="([^"]+)"/);
           const argsMatch = part.match(/args="([^"]+)"/);
+          const checkpointMatch = part.match(/checkpoint="([^"]+)"/);
           const statusMatch = part.match(/status="([^"]+)"/);
           const resultMatch = part.match(/result="([^"]+)"/);
           const resultDataMatch = part.match(/result_data="([^"]+)"/);
+          const safeDecode = (value?: string) => {
+            if (!value) return undefined;
+            try {
+              return decodeURIComponent(value);
+            } catch {
+              return value;
+            }
+          };
 
+          const toolId = idMatch ? idMatch[1] : undefined;
           const name = nameMatch ? nameMatch[1] : 'Unknown Tool';
-          const argsStr = argsMatch ? decodeURIComponent(argsMatch[1]) : '{}';
+          const isTodoTool = name.toLowerCase().includes('todo');
+          if (isTodoTool && index !== lastTodoToolPartIndex) {
+            return null;
+          }
+          if (hideTodoToolCalls && isTodoTool) {
+            return null;
+          }
+          const argsStr = safeDecode(argsMatch?.[1]) ?? '{}';
+          const checkpoint = safeDecode(checkpointMatch?.[1]);
           const status = statusMatch ? statusMatch[1] as 'running' | 'completed' | 'failed' : 'completed';
-          const result = resultMatch ? decodeURIComponent(resultMatch[1]) : undefined;
-          const resultDataStr = resultDataMatch ? decodeURIComponent(resultDataMatch[1]) : undefined;
+          const result = safeDecode(resultMatch?.[1]);
+          const resultDataStr = safeDecode(resultDataMatch?.[1]);
           let resultData: unknown = undefined;
           if (resultDataStr) {
             try {
@@ -419,11 +458,14 @@ function ContentRenderer({ content, onRetry, onCancel }: { content: string, onRe
           return (
             <ToolCallCard
               key={index}
+              toolId={toolId}
+              checkpointId={checkpoint}
               toolName={name}
               args={args}
               status={status}
               result={result}
               resultData={resultData}
+              onUndo={onUndoTool}
               onRetry={onRetry}
               onCancel={onCancel}
             />
@@ -546,7 +588,16 @@ function CitationsDisplay({ citations }: { citations: string[] }) {
   );
 }
 
-export function MessageBubble({ message, isFirst, isLast, settings, onRetry, onCancel }: MessageBubbleProps) {
+export function MessageBubble({
+  message,
+  isFirst,
+  isLast,
+  settings,
+  onUndoTool,
+  onRetry,
+  onCancel,
+  hideTodoToolCalls = false
+}: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isSnapshot = !isUser && message.content.includes('<state_snapshot>');
 
@@ -575,8 +626,10 @@ export function MessageBubble({ message, isFirst, isLast, settings, onRetry, onC
                 {message.thought && <ThinkingBlock content={message.thought} />}
                 <ContentRenderer
                   content={message.content}
+                  onUndoTool={onUndoTool}
                   onRetry={onRetry}
                   onCancel={onCancel}
+                  hideTodoToolCalls={hideTodoToolCalls}
                 />
                 {message.citations && message.citations.length > 0 && (
                   <CitationsDisplay citations={message.citations} />

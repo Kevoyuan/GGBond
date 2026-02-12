@@ -83,7 +83,7 @@ export function TaskProgressDock({ todos }: TaskProgressDockProps) {
                 />
               </div>
             </div>
-            <div className="px-4 py-3 space-y-1.5 max-h-[10rem] overflow-y-auto custom-scrollbar pr-1">
+            <div className="px-4 py-3 space-y-1.5 max-h-[9.6rem] overflow-y-auto custom-scrollbar pr-1">
               {todos.map((todo, idx) => (
                 <div key={`${todo.description}-${idx}`} className="flex items-start gap-2.5 min-h-[1.9rem]">
                   <div className="mt-0.5 shrink-0">
