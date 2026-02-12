@@ -359,6 +359,75 @@ export default function Home() {
       return;
     }
 
+    if (trimmedInput.startsWith('/rewind')) {
+      if (!currentSessionId) {
+        addMessageToTree({ role: 'model', content: '⚠️ 当前没有可回退的会话。' }, headId);
+        return;
+      }
+
+      const rewindRes = await fetch('/api/chat/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'rewind',
+          sessionId: currentSessionId,
+          workspace: currentWorkspace,
+          model: settings.model
+        })
+      });
+
+      if (!rewindRes.ok) {
+        const data = await rewindRes.json().catch(() => ({}));
+        addMessageToTree({ role: 'model', content: `⚠️ 回退失败：${data.error || '未知错误'}` }, headId);
+        return;
+      }
+
+      if (messages.length >= 2) {
+        const newHead = messages[messages.length - 2]?.parentId || null;
+        setHeadId(newHead);
+      } else {
+        setHeadId(null);
+      }
+
+      fetchSessions();
+      addMessageToTree({ role: 'model', content: '✅ 已回退到上一轮对话。' }, headId);
+      return;
+    }
+
+    if (trimmedInput.startsWith('/restore')) {
+      if (!currentSessionId) {
+        addMessageToTree({ role: 'model', content: '⚠️ 当前没有可恢复的会话。' }, headId);
+        return;
+      }
+
+      const toolId = trimmedInput.split(/\s+/)[1];
+      if (!toolId) {
+        addMessageToTree({ role: 'model', content: '⚠️ 用法：`/restore [tool_id]`' }, headId);
+        return;
+      }
+
+      const restoreRes = await fetch('/api/chat/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'restore',
+          sessionId: currentSessionId,
+          toolId,
+          workspace: currentWorkspace,
+          model: settings.model
+        })
+      });
+
+      if (!restoreRes.ok) {
+        const data = await restoreRes.json().catch(() => ({}));
+        addMessageToTree({ role: 'model', content: `⚠️ 恢复失败：${data.error || '未知错误'}` }, headId);
+        return;
+      }
+
+      addMessageToTree({ role: 'model', content: `✅ 已恢复到工具执行前状态（tool_id: ${toolId}）。` }, headId);
+      return;
+    }
+
     setIsLoading(true);
 
     // Determine parent ID: passed option or current head
@@ -494,14 +563,14 @@ export default function Home() {
             }
 
             if (data.type === 'tool_use') {
-              const toolCallTag = `\n\n<tool-call name="${data.tool_name}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}" status="running" />\n\n`;
+              const toolCallTag = `\n\n<tool-call id="${data.tool_id || ''}" name="${data.tool_name}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}" status="running" />\n\n`;
               assistantContent += toolCallTag;
               updateMessageInTree(assistantMsgId, { content: assistantContent });
             }
 
             if (data.type === 'tool_result') {
               // Regex replace for tool status
-              const regex = /<tool-call name="([^"]+)" args="([^"]+)" status="running" \/>/g;
+              const regex = /<tool-call id="([^"]*)" name="([^"]+)" args="([^"]+)" status="running" \/>/g;
               let match;
               let lastMatchIndex = -1;
 
