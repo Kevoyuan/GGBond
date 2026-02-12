@@ -24,6 +24,7 @@ interface ChatContainerProps {
     currentContextUsage: number;
     mode: 'code' | 'plan' | 'ask'; // or string
     onModeChange: (mode: 'code' | 'plan' | 'ask') => void;
+    approvalMode: 'safe' | 'auto';
     onApprovalModeChange: (mode: 'safe' | 'auto') => void;
     workspacePath?: string;
     showTerminal?: boolean;
@@ -47,6 +48,7 @@ export function ChatContainer({
     currentContextUsage,
     mode,
     onModeChange,
+    approvalMode,
     onApprovalModeChange,
     workspacePath,
     showTerminal,
@@ -198,6 +200,7 @@ export function ChatContainer({
                         currentContextUsage={currentContextUsage}
                         mode={mode}
                         onModeChange={onModeChange}
+                        approvalMode={approvalMode}
                         onApprovalModeChange={onApprovalModeChange}
                         workspacePath={workspacePath}
                         showTerminal={showTerminal}
