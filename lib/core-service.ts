@@ -48,6 +48,13 @@ export interface InitParams {
     cwd: string;
     approvalMode?: ApprovalMode | string; // Use the Enum directly if possible, or string
     systemInstruction?: string;
+    modelSettings?: RuntimeModelSettings;
+}
+
+export interface RuntimeModelSettings {
+    compressionThreshold?: number;
+    maxSessionTurns?: number;
+    tokenBudget?: number;
 }
 
 type PendingConfirmationRequest = {
@@ -129,6 +136,7 @@ export class CoreService {
             }
             return (params.approvalMode as ApprovalMode) ?? ApprovalMode.DEFAULT;
         })();
+        const normalizedModelSettings = this.normalizeRuntimeModelSettings(params.modelSettings);
 
         if (this.initialized && this.config?.getSessionId() === params.sessionId) {
             console.log('[CoreService] Already initialized for session:', params.sessionId);
@@ -147,6 +155,7 @@ export class CoreService {
             }
             // Ensure mode is applied even when Config guards reject privileged modes.
             this.config.getPolicyEngine().setApprovalMode(normalizedApprovalMode);
+            this.applyRuntimeModelSettings(normalizedModelSettings);
             console.log('[CoreService] Approval mode (existing session):', this.config.getApprovalMode());
             if (this.messageBus && this.policyUpdaterMessageBus !== this.messageBus) {
                 createPolicyUpdater(this.config.getPolicyEngine(), this.messageBus);
@@ -251,6 +260,7 @@ export class CoreService {
             console.warn('[CoreService] setApprovalMode failed after initialize, forcing PolicyEngine mode:', error);
         }
         this.config.getPolicyEngine().setApprovalMode(normalizedApprovalMode);
+        this.applyRuntimeModelSettings(normalizedModelSettings);
         console.log('[CoreService] Approval mode (post-init):', this.config.getApprovalMode());
 
         // Initialize Authentication (Required to create ContentGenerator)
@@ -308,6 +318,63 @@ export class CoreService {
 
         this.initialized = true;
         console.log('[CoreService] Initialization complete.');
+    }
+
+    private normalizeRuntimeModelSettings(settings?: RuntimeModelSettings): RuntimeModelSettings | undefined {
+        if (!settings || typeof settings !== 'object') {
+            return undefined;
+        }
+
+        const normalized: RuntimeModelSettings = {};
+
+        if (typeof settings.maxSessionTurns === 'number' && Number.isFinite(settings.maxSessionTurns)) {
+            normalized.maxSessionTurns = Math.max(-1, Math.floor(settings.maxSessionTurns));
+        }
+
+        if (typeof settings.compressionThreshold === 'number' && Number.isFinite(settings.compressionThreshold)) {
+            normalized.compressionThreshold = Math.max(0, Math.min(1, settings.compressionThreshold));
+        }
+
+        if (typeof settings.tokenBudget === 'number' && Number.isFinite(settings.tokenBudget)) {
+            normalized.tokenBudget = Math.max(1, Math.floor(settings.tokenBudget));
+        }
+
+        return Object.keys(normalized).length > 0 ? normalized : undefined;
+    }
+
+    private applyRuntimeModelSettings(settings?: RuntimeModelSettings) {
+        if (!this.config || !settings) {
+            return;
+        }
+
+        const runtimeConfig = this.config as unknown as {
+            maxSessionTurns?: number;
+            compressionThreshold?: number;
+            summarizeToolOutput?: Record<string, { tokenBudget?: number }>;
+        };
+
+        if (settings.maxSessionTurns !== undefined) {
+            runtimeConfig.maxSessionTurns = settings.maxSessionTurns;
+        }
+
+        if (settings.compressionThreshold !== undefined) {
+            runtimeConfig.compressionThreshold = settings.compressionThreshold;
+        }
+
+        if (settings.tokenBudget !== undefined) {
+            const summarizeToolOutput = runtimeConfig.summarizeToolOutput ?? {};
+            runtimeConfig.summarizeToolOutput = {
+                ...summarizeToolOutput,
+                shell: {
+                    ...(summarizeToolOutput.shell ?? {}),
+                    tokenBudget: settings.tokenBudget,
+                },
+                run_shell_command: {
+                    ...(summarizeToolOutput.run_shell_command ?? {}),
+                    tokenBudget: settings.tokenBudget,
+                },
+            };
+        }
     }
 
     private ensureWriteTodosToolEnabled() {
@@ -728,6 +795,87 @@ export class CoreService {
         return this.config.getMcpServers();
     }
 
+    public getMcpServersWithStatus() {
+        if (!this.config) {
+            return {
+                discoveryState: 'not_started',
+                servers: {} as Record<string, Record<string, unknown>>,
+            };
+        }
+
+        const manager = this.config.getMcpClientManager();
+        const discoveryState = manager?.getDiscoveryState?.() ?? 'not_started';
+        const configs = this.config.getMcpServers() ?? {};
+        const servers: Record<string, Record<string, unknown>> = {};
+
+        for (const [name, config] of Object.entries(configs)) {
+            const status = manager?.getClient(name)?.getStatus?.() ?? 'disconnected';
+            const includeTools = Array.isArray(config.includeTools) ? config.includeTools.length : null;
+            const excludeTools = Array.isArray(config.excludeTools) ? config.excludeTools.length : null;
+
+            servers[name] = {
+                ...config,
+                status,
+                includeToolsCount: includeTools,
+                excludeToolsCount: excludeTools,
+                kind: config.command
+                    ? 'stdio'
+                    : ((config.type === 'http' || config.httpUrl) ? 'http' : 'sse'),
+            };
+        }
+
+        return { discoveryState, servers };
+    }
+
+    public async restartMcpServer(name: string) {
+        if (!this.config) {
+            throw new Error('Core service is not initialized.');
+        }
+
+        const manager = this.config.getMcpClientManager();
+        if (!manager) {
+            throw new Error('MCP client manager is unavailable.');
+        }
+
+        await manager.restartServer(name);
+    }
+
+    public async restartAllMcpServers() {
+        if (!this.config) {
+            throw new Error('Core service is not initialized.');
+        }
+
+        const manager = this.config.getMcpClientManager();
+        if (!manager) {
+            throw new Error('MCP client manager is unavailable.');
+        }
+
+        await manager.restart();
+    }
+
+    public async addMcpServer(name: string, serverConfig: Record<string, unknown>) {
+        if (!this.config) {
+            throw new Error('Core service is not initialized.');
+        }
+
+        const trimmedName = String(name || '').trim();
+        if (!trimmedName) {
+            throw new Error('Server name is required.');
+        }
+
+        const currentServers = this.config.getMcpServers() ?? {};
+        this.config.setMcpServers({
+            ...currentServers,
+            [trimmedName]: serverConfig as any,
+        });
+
+        const manager = this.config.getMcpClientManager();
+        if (manager) {
+            await manager.restartServer(trimmedName);
+        }
+        await this.config.refreshMcpContext();
+    }
+
     public async listSessions() {
         if (!this.config) return [];
         const chatsDir = path.join(os.homedir(), '.gemini', 'tmp', getProjectHash(this.config.getWorkingDir()), 'chats');
@@ -801,6 +949,25 @@ export class CoreService {
     public getAgents() {
         if (!this.config) return [];
         return this.config.getAgentRegistry().getAllDefinitions();
+    }
+
+    public getAgentDefinition(name: string) {
+        if (!this.config) return null;
+        return this.config.getAgentRegistry().getDefinition(name) ?? null;
+    }
+
+    public setSystemInstruction(systemInstruction?: string) {
+        if (!this.config) {
+            return;
+        }
+
+        const geminiClient = this.config.getGeminiClient();
+        if (!geminiClient) {
+            return;
+        }
+
+        geminiClient.getChat().setSystemInstruction(systemInstruction || '');
+        this.chat = geminiClient.getChat();
     }
 
     public async getQuota() {

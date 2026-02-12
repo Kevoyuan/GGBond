@@ -634,7 +634,7 @@ export function Sidebar({
         ) : activeView === 'quota' ? (
           <QuotaPanel className="h-full" />
         ) : activeView === 'memory' ? (
-          <MemoryPanel className="h-full" onFileSelect={onFileSelect} />
+          <MemoryPanel className="h-full" onFileSelect={onFileSelect} workspacePath={currentWorkspace} />
         ) : (
           <MCPPanel className="h-full" />
         )}

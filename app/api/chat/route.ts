@@ -11,8 +11,39 @@ import {
   ToolCallRequestInfo,
   ToolCallResponseInfo,
   ToolConfirmationOutcome,
-  ToolConfirmationPayload
+  ToolConfirmationPayload,
+  CoreEvent,
+  coreEvents
 } from '@google/gemini-cli-core';
+
+type AgentDefinitionLike = {
+  name: string;
+  displayName?: string;
+  description?: string;
+  kind?: 'local' | 'remote' | string;
+  promptConfig?: {
+    systemPrompt?: string;
+  };
+  modelConfig?: {
+    model?: string;
+  };
+};
+
+const buildAgentSystemInstruction = (agent: AgentDefinitionLike) => {
+  const parts: string[] = [
+    `Active agent: ${agent.displayName || agent.name}`,
+  ];
+
+  if (agent.description) {
+    parts.push(`Agent description: ${agent.description}`);
+  }
+
+  if (agent.kind === 'local' && agent.promptConfig?.systemPrompt) {
+    parts.push(`Agent system guidance:\n${agent.promptConfig.systemPrompt}`);
+  }
+
+  return parts.join('\n\n');
+};
 
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
@@ -27,7 +58,8 @@ export async function POST(req: Request) {
       mode,
       approvalMode,
       modelSettings,
-      parentId
+      parentId,
+      selectedAgent
     } = await req.json();
 
     if (!prompt) {
@@ -35,7 +67,7 @@ export async function POST(req: Request) {
     }
 
     // Respect the model selected by UI/caller; do not silently downgrade preview models.
-    const targetModel = model || 'gemini-2.5-pro';
+    let targetModel = model || 'gemini-2.5-pro';
 
     // Keep CoreService runtime home aligned with CLI env selection logic (skills/auth consistency).
     const env = getGeminiEnv();
@@ -58,8 +90,43 @@ export async function POST(req: Request) {
       cwd: (workspace && workspace !== 'Default') ? workspace : process.cwd(),
       // Safe mode asks for confirmation; Auto mode fully allows tool execution.
       approvalMode: coreApprovalMode,
-      systemInstruction
+      systemInstruction,
+      modelSettings
     });
+
+    let selectedAgentName: string | undefined;
+    if (typeof selectedAgent === 'string' && selectedAgent.trim()) {
+      selectedAgentName = selectedAgent.trim();
+    } else if (
+      selectedAgent &&
+      typeof selectedAgent === 'object' &&
+      typeof (selectedAgent as { name?: unknown }).name === 'string'
+    ) {
+      selectedAgentName = ((selectedAgent as { name: string }).name || '').trim() || undefined;
+    }
+
+    if (selectedAgentName) {
+      const agent = core.getAgentDefinition(selectedAgentName) as AgentDefinitionLike | null;
+      if (agent) {
+        const agentModel = agent.modelConfig?.model;
+        if (agentModel && agentModel !== targetModel) {
+          targetModel = agentModel;
+          await core.initialize({
+            sessionId: finalSessionId,
+            model: targetModel,
+            cwd: (workspace && workspace !== 'Default') ? workspace : process.cwd(),
+            approvalMode: coreApprovalMode,
+            systemInstruction,
+            modelSettings
+          });
+        }
+
+        const mergedInstruction = [systemInstruction, buildAgentSystemInstruction(agent)]
+          .filter((value): value is string => Boolean(value && value.trim()))
+          .join('\n\n');
+        core.setSystemInstruction(mergedInstruction);
+      }
+    }
 
     // Mode specific instructions
     const MODE_INSTRUCTIONS: Record<string, string> = {
@@ -265,6 +332,8 @@ export async function POST(req: Request) {
         const pendingConfirmationIds = new Set<string>();
         const toolNameByCallId = new Map<string, string>();
         const checkpointByCallId = new Map<string, string>();
+        const pendingHookByKey = new Map<string, Array<{ id: string; startedAt: number }>>();
+        let hookCounter = 0;
         let isPollingConfirmationQueue = false;
         let confirmationQueuePollTimer: ReturnType<typeof setInterval> | null = null;
         const toSerializableResultData = (value: unknown): unknown => {
@@ -350,6 +419,70 @@ export async function POST(req: Request) {
             isPollingConfirmationQueue = false;
           }
         };
+        const onHookStart = (payload: {
+          hookName: string;
+          eventName: string;
+          hookIndex?: number;
+          totalHooks?: number;
+        }) => {
+          const key = `${payload.eventName}:${payload.hookName}`;
+          const id = `hook-${Date.now()}-${hookCounter++}`;
+          const startedAt = Date.now();
+          const queue = pendingHookByKey.get(key) ?? [];
+          queue.push({ id, startedAt });
+          pendingHookByKey.set(key, queue);
+
+          safeEnqueue({
+            type: 'hook_event',
+            id,
+            name: key,
+            hookName: payload.hookName,
+            hook_type: 'start',
+            input: {
+              eventName: payload.eventName,
+              hookIndex: payload.hookIndex,
+              totalHooks: payload.totalHooks,
+            },
+          });
+        };
+        const onHookEnd = (payload: {
+          hookName: string;
+          eventName: string;
+          success: boolean;
+        }) => {
+          const key = `${payload.eventName}:${payload.hookName}`;
+          const queue = pendingHookByKey.get(key) ?? [];
+          const started = queue.shift();
+          if (queue.length > 0) {
+            pendingHookByKey.set(key, queue);
+          } else {
+            pendingHookByKey.delete(key);
+          }
+
+          safeEnqueue({
+            type: 'hook_event',
+            id: started?.id || `hook-${Date.now()}-${hookCounter++}`,
+            name: key,
+            hookName: payload.hookName,
+            hook_type: 'end',
+            output: {
+              eventName: payload.eventName,
+              success: payload.success,
+            },
+            duration: started ? Math.max(Date.now() - started.startedAt, 0) : undefined,
+          });
+        };
+
+        coreEvents.on(CoreEvent.HookStart, onHookStart);
+        coreEvents.on(CoreEvent.HookEnd, onHookEnd);
+        cleanupMessageBusListeners = () => {
+          coreEvents.off(CoreEvent.HookStart, onHookStart);
+          coreEvents.off(CoreEvent.HookEnd, onHookEnd);
+          if (confirmationQueuePollTimer) {
+            clearInterval(confirmationQueuePollTimer);
+            confirmationQueuePollTimer = null;
+          }
+        };
         try {
           if (typeof coreWithConfirmation.subscribeConfirmationRequests !== 'function') {
             throw new Error('CoreService confirmation subscription is unavailable');
@@ -372,6 +505,8 @@ export async function POST(req: Request) {
 
           cleanupMessageBusListeners = () => {
             unsubscribeConfirmation();
+            coreEvents.off(CoreEvent.HookStart, onHookStart);
+            coreEvents.off(CoreEvent.HookEnd, onHookEnd);
             if (confirmationQueuePollTimer) {
               clearInterval(confirmationQueuePollTimer);
               confirmationQueuePollTimer = null;
@@ -389,7 +524,8 @@ export async function POST(req: Request) {
           const initEvent = {
             type: 'init',
             session_id: finalSessionId,
-            model: targetModel
+            model: targetModel,
+            selected_agent: selectedAgentName || null
           };
           safeEnqueue(initEvent);
 
