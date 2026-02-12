@@ -185,7 +185,9 @@ export function ToolCallCard({
 
     const isTodoTool = toolName.toLowerCase().includes('todo');
     const todos = isTodoTool ? extractTodos(resultData, result) : null;
-    const restoreId = checkpointId || toolId;
+    // Native checkpointing only guarantees restore by checkpoint id.
+    // Tool call id alone is not reliably restorable.
+    const restoreId = checkpointId?.trim();
     const canUndo = status === 'completed' && !!restoreId && typeof onUndo === 'function';
 
     const handleCopy = (e: React.MouseEvent) => {

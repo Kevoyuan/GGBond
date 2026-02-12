@@ -15,7 +15,7 @@ interface ChatContainerProps {
     onClosePreview: () => void;
     settings: ChatSettings;
     onSendMessage: (text: string, options?: { approvalMode?: 'safe' | 'auto' }) => void;
-    onUndoTool?: (restoreId: string) => Promise<void> | void;
+    onUndoTool?: (restoreId: string, sourceMessageId?: string) => Promise<void> | void;
     onRetry: (index: number, mode: 'once' | 'session') => void;
     onCancel: (index: number) => void;
     onModelChange: (model: string) => void;

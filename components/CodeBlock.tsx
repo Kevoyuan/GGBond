@@ -92,12 +92,12 @@ export function CodeBlock({ language, code }: CodeBlockProps) {
                         {collapsed ? (
                             <>
                                 <ChevronDown className="w-3 h-3" />
-                                <span>展开剩余 {lineCount - VISIBLE_LINES} 行</span>
+                                <span>Show remaining {lineCount - VISIBLE_LINES} lines</span>
                             </>
                         ) : (
                             <>
                                 <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
-                                <span>收起</span>
+                                <span>Collapse</span>
                             </>
                         )}
                     </button>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import { getGeminiPath, getGeminiEnv } from '@/lib/gemini-utils';
 import fs from 'fs/promises';
+import type { Dirent } from 'fs';
 import path from 'path';
 import os from 'os';
 
@@ -130,9 +131,9 @@ async function listSkillDirectories(sourceDir: string): Promise<string[]> {
     // ignore
   }
 
-  let entries: Awaited<ReturnType<typeof fs.readdir>>;
+  let entries: Dirent[];
   try {
-    entries = await fs.readdir(sourceDir, { withFileTypes: true });
+    entries = await fs.readdir(sourceDir, { withFileTypes: true, encoding: 'utf8' });
   } catch {
     return result;
   }

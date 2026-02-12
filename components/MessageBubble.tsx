@@ -31,7 +31,7 @@ interface MessageBubbleProps {
   isFirst: boolean;
   isLast: boolean;
   settings?: ChatSettings;
-  onUndoTool?: (restoreId: string) => Promise<void> | void;
+  onUndoTool?: (restoreId: string, sourceMessageId?: string) => Promise<void> | void;
   onRetry?: (mode: 'once' | 'session') => void;
   onCancel?: () => void;
   hideTodoToolCalls?: boolean;
@@ -302,13 +302,15 @@ function injectSkillRefs(children: ReactNode, skillMetaMap: SkillMetaMap): React
  */
 function ContentRenderer({
   content,
+  sourceMessageId,
   onUndoTool,
   onRetry,
   onCancel,
   hideTodoToolCalls = false
 }: {
   content: string;
-  onUndoTool?: (restoreId: string) => Promise<void> | void;
+  sourceMessageId?: string;
+  onUndoTool?: (restoreId: string, sourceMessageId?: string) => Promise<void> | void;
   onRetry?: (mode: 'once' | 'session') => void;
   onCancel?: () => void;
   hideTodoToolCalls?: boolean;
@@ -405,6 +407,9 @@ function ContentRenderer({
     if (!nameMatch?.[1]?.toLowerCase().includes('todo')) return lastIndex;
     return partIndex;
   }, -1);
+  const handleUndoFromTool = onUndoTool
+    ? (restoreId: string) => onUndoTool(restoreId, sourceMessageId)
+    : undefined;
 
   return (
     <div className="timeline-group">
@@ -465,7 +470,7 @@ function ContentRenderer({
               status={status}
               result={result}
               resultData={resultData}
-              onUndo={onUndoTool}
+              onUndo={handleUndoFromTool}
               onRetry={onRetry}
               onCancel={onCancel}
             />
@@ -626,6 +631,7 @@ export function MessageBubble({
                 {message.thought && <ThinkingBlock content={message.thought} />}
                 <ContentRenderer
                   content={message.content}
+                  sourceMessageId={message.id}
                   onUndoTool={onUndoTool}
                   onRetry={onRetry}
                   onCancel={onCancel}

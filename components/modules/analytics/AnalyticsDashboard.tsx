@@ -211,8 +211,8 @@ export function AnalyticsDashboard() {
               key={p}
               onClick={() => setPeriod(p)}
               className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${p === period
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
             >
               {p === 'daily' ? 'Today' : p === 'weekly' ? 'This Week' : 'This Month'}
@@ -277,102 +277,102 @@ export function AnalyticsDashboard() {
                   className="relative flex h-52 items-end gap-1 overflow-x-auto pb-1"
                   onMouseLeave={() => setTimelineHover(null)}
                 >
-                {timelineBuckets.map((bucket, index) => {
-                  const othersValue = Object.entries(bucket.models || {}).reduce((sum, [model, value]) => {
-                    if (primaryModels.includes(model)) return sum;
-                    return sum + value;
-                  }, 0);
+                  {timelineBuckets.map((bucket, index) => {
+                    const othersValue = Object.entries(bucket.models || {}).reduce((sum, [model, value]) => {
+                      if (primaryModels.includes(model)) return sum;
+                      return sum + value;
+                    }, 0);
 
-                  const normalizedModels = chartModels
-                    .map((model) => ({
-                      model,
-                      tokens: model === 'Others' ? othersValue : (bucket.models?.[model] || 0),
-                    }))
-                    .filter((item) => item.tokens > 0);
+                    const normalizedModels = chartModels
+                      .map((model) => ({
+                        model,
+                        tokens: model === 'Others' ? othersValue : (bucket.models?.[model] || 0),
+                      }))
+                      .filter((item) => item.tokens > 0);
 
-                  const columnHeightPx = bucket.totalTokens > 0
-                    ? Math.max((bucket.totalTokens / maxTimelineToken) * chartHeightPx, 6)
-                    : 2;
-                  const tooltipRows = normalizedModels
-                    .sort((a, b) => b.tokens - a.tokens)
-                    .map((item) => ({
-                      model: item.model,
-                      tokens: item.tokens,
-                      color: modelColorMap.get(item.model) || '#6b7280',
-                    }));
-                  const showLabel = timelinePeriod === 'today'
-                    ? index % 2 === 0
-                    : shouldRenderDenseLabels
-                      ? (index === 0 || index === timelineBuckets.length - 1 || index % 3 === 0)
-                      : true;
+                    const columnHeightPx = bucket.totalTokens > 0
+                      ? Math.max((bucket.totalTokens / maxTimelineToken) * chartHeightPx, 6)
+                      : 2;
+                    const tooltipRows = normalizedModels
+                      .sort((a, b) => b.tokens - a.tokens)
+                      .map((item) => ({
+                        model: item.model,
+                        tokens: item.tokens,
+                        color: modelColorMap.get(item.model) || '#6b7280',
+                      }));
+                    const showLabel = timelinePeriod === 'today'
+                      ? index % 2 === 0
+                      : shouldRenderDenseLabels
+                        ? (index === 0 || index === timelineBuckets.length - 1 || index % 3 === 0)
+                        : true;
 
-                  return (
-                    <div key={bucket.key} className="group relative flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1">
-                      <div
-                        className="relative flex w-full max-w-[32px] flex-col justify-end overflow-hidden rounded-sm border border-border/40 bg-zinc-200/40 dark:bg-zinc-800/50"
-                        style={{ height: `${columnHeightPx}px` }}
-                        onMouseMove={(event) => {
-                          if (!timelineChartRef.current) return;
-                          const rect = timelineChartRef.current.getBoundingClientRect();
-                          setTimelineHover({
-                            x: event.clientX - rect.left,
-                            y: Math.max(event.clientY - rect.top, 0),
-                            label: bucket.label,
-                            total: bucket.totalTokens,
-                            rows: tooltipRows,
-                          });
-                        }}
-                      >
-                        {normalizedModels.map((item) => {
-                          const pct = bucket.totalTokens > 0 ? (item.tokens / bucket.totalTokens) * 100 : 0;
-                          return (
-                            <div
-                              key={`${bucket.key}-${item.model}`}
-                              style={{
-                                height: `${Math.max(pct, 2)}%`,
-                                backgroundColor: modelColorMap.get(item.model),
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
-                      {showLabel ? (
-                        <span className="text-[10px] text-muted-foreground">{bucket.label}</span>
-                      ) : (
-                        <span className="h-3 text-[10px] text-transparent">.</span>
-                      )}
-                    </div>
-                  );
-                })}
-                {timelineHover && (
-                  <div
-                    className="pointer-events-none absolute z-20 w-52 rounded-lg border border-border/60 bg-background/95 p-2 shadow-lg backdrop-blur"
-                    style={{
-                      left: `${timelineHover.x}px`,
-                      top: `${Math.max(timelineHover.y - 10, 8)}px`,
-                      transform: 'translate(-50%, -100%)',
-                    }}
-                  >
-                    <div className="mb-1 flex items-center justify-between text-[10px]">
-                      <span className="font-semibold text-foreground">{timelineHover.label}</span>
-                      <span className="text-muted-foreground">{formatCompactTokens(timelineHover.total)}</span>
-                    </div>
-                    <div className="space-y-1">
-                      {timelineHover.rows.slice(0, 6).map((row) => (
-                        <div key={row.model} className="flex items-center justify-between text-[10px]">
-                          <span className="inline-flex min-w-0 items-center gap-1 text-muted-foreground">
-                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
-                            <span className="truncate">{row.model}</span>
-                          </span>
-                          <span className="tabular-nums text-foreground">{formatCompactTokens(row.tokens)}</span>
+                    return (
+                      <div key={bucket.key} className="group relative flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1">
+                        <div
+                          className="relative flex w-full max-w-[32px] flex-col justify-end overflow-hidden rounded-sm border border-border/40 bg-zinc-200/40 dark:bg-zinc-800/50"
+                          style={{ height: `${columnHeightPx}px` }}
+                          onMouseMove={(event) => {
+                            if (!timelineChartRef.current) return;
+                            const rect = timelineChartRef.current.getBoundingClientRect();
+                            setTimelineHover({
+                              x: event.clientX - rect.left,
+                              y: Math.max(event.clientY - rect.top, 0),
+                              label: bucket.label,
+                              total: bucket.totalTokens,
+                              rows: tooltipRows,
+                            });
+                          }}
+                        >
+                          {normalizedModels.map((item) => {
+                            const pct = bucket.totalTokens > 0 ? (item.tokens / bucket.totalTokens) * 100 : 0;
+                            return (
+                              <div
+                                key={`${bucket.key}-${item.model}`}
+                                style={{
+                                  height: `${Math.max(pct, 2)}%`,
+                                  backgroundColor: modelColorMap.get(item.model),
+                                }}
+                              />
+                            );
+                          })}
                         </div>
-                      ))}
-                      {timelineHover.rows.length > 6 && (
-                        <div className="text-[10px] text-muted-foreground">+{timelineHover.rows.length - 6} more models</div>
-                      )}
+                        {showLabel ? (
+                          <span className="text-[10px] text-muted-foreground">{bucket.label}</span>
+                        ) : (
+                          <span className="h-3 text-[10px] text-transparent">.</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {timelineHover && (
+                    <div
+                      className="pointer-events-none absolute z-20 w-52 rounded-lg border border-border/60 bg-background/95 p-2 shadow-lg backdrop-blur"
+                      style={{
+                        left: `${timelineHover.x}px`,
+                        top: `${Math.max(timelineHover.y - 10, 8)}px`,
+                        transform: 'translate(-50%, -100%)',
+                      }}
+                    >
+                      <div className="mb-1 flex items-center justify-between text-[10px]">
+                        <span className="font-semibold text-foreground">{timelineHover.label}</span>
+                        <span className="text-muted-foreground">{formatCompactTokens(timelineHover.total)}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {timelineHover.rows.slice(0, 6).map((row) => (
+                          <div key={row.model} className="flex items-center justify-between text-[10px]">
+                            <span className="inline-flex min-w-0 items-center gap-1 text-muted-foreground">
+                              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+                              <span className="truncate">{row.model}</span>
+                            </span>
+                            <span className="tabular-nums text-foreground">{formatCompactTokens(row.tokens)}</span>
+                          </div>
+                        ))}
+                        {timelineHover.rows.length > 6 && (
+                          <div className="text-[10px] text-muted-foreground">+{timelineHover.rows.length - 6} more models</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
                 </div>
               </div>
             )}
@@ -505,7 +505,7 @@ export function AnalyticsDashboard() {
         {shouldWarnCompression && (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
             <div className="flex items-center gap-2 font-medium">
-              <AlertTriangle size={14} /> Compression建议：当前上下文压力已超过70%，建议开启压缩或摘要策略。
+              <AlertTriangle size={14} /> Compression Suggestion: Current context usage exceeds 70%, suggest enabling compression or summarization strategy.
             </div>
           </div>
         )}

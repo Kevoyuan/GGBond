@@ -18,7 +18,7 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
     const handleSubmit = async () => {
         const trimmed = path.trim();
         if (!trimmed) {
-            setError('请输入项目路径');
+            setError('Please enter project path');
             return;
         }
 
@@ -29,7 +29,7 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
             // Validate by trying to list the directory
             const res = await fetch(`/api/files?path=${encodeURIComponent(trimmed)}`);
             if (!res.ok) {
-                setError('无法访问该目录，请检查路径是否正确');
+                setError('Cannot access directory, please check if path is correct');
                 return;
             }
 
@@ -38,7 +38,7 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
             setError(null);
             onClose();
         } catch {
-            setError('验证路径时出错');
+            setError('Error validating path');
         } finally {
             setIsValidating(false);
         }
@@ -56,8 +56,8 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
                             <FolderOpen className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                            <h3 className="font-semibold text-base">添加 Workspace</h3>
-                            <p className="text-xs text-muted-foreground">输入项目文件夹的完整路径</p>
+                            <h3 className="font-semibold text-base">Add Workspace</h3>
+                            <p className="text-xs text-muted-foreground">Enter the full path of the project folder</p>
                         </div>
                     </div>
                     <button
@@ -72,7 +72,7 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
                 <div className="p-5 space-y-4">
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground">
-                            项目路径
+                            Project Path
                         </label>
                         <input
                             type="text"
@@ -97,8 +97,8 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
                     </div>
 
                     <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3 border border-border/40">
-                        <p>💡 Workspace 相当于 <code className="text-primary/80 bg-primary/5 px-1 rounded">cd</code> 到该项目目录再开始工作。</p>
-                        <p className="mt-1">Gemini 的文件操作和对话都会基于此目录。</p>
+                        <p>💡 Workspace is equivalent to <code className="text-primary/80 bg-primary/5 px-1 rounded">cd</code> into the project directory to start working.</p>
+                        <p className="mt-1">Gemini's file operations and conversations will be based on this directory.</p>
                     </div>
                 </div>
 
@@ -108,7 +108,7 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
                         onClick={onClose}
                         className="px-4 py-2 text-sm rounded-lg border hover:bg-accent transition-colors"
                     >
-                        取消
+                        Cancel
                     </button>
                     <button
                         onClick={handleSubmit}
@@ -121,7 +121,7 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
                         )}
                     >
                         {isValidating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                        添加
+                        Add
                     </button>
                 </div>
             </div>

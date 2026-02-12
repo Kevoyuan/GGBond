@@ -652,7 +652,7 @@ export default function Home() {
 
     if (trimmedInput.startsWith('/rewind')) {
       if (!currentSessionId) {
-        addMessageToTree({ role: 'model', content: '⚠️ 当前没有可回退的会话。' }, headId);
+        addMessageToTree({ role: 'model', content: '⚠️ No session to rewind.' }, headId);
         return;
       }
 
@@ -669,7 +669,7 @@ export default function Home() {
 
       if (!rewindRes.ok) {
         const data = await rewindRes.json().catch(() => ({}));
-        addMessageToTree({ role: 'model', content: `⚠️ 回退失败：${data.error || '未知错误'}` }, headId);
+        addMessageToTree({ role: 'model', content: `⚠️ Rewind failed: ${data.error || 'Unknown error'}` }, headId);
         return;
       }
 
@@ -684,13 +684,13 @@ export default function Home() {
 
     if (trimmedInput.startsWith('/restore')) {
       if (!currentSessionId) {
-        addMessageToTree({ role: 'model', content: '⚠️ 当前没有可恢复的会话。' }, headId);
+        addMessageToTree({ role: 'model', content: '⚠️ No session to restore.' }, headId);
         return;
       }
 
-      const toolId = trimmedInput.split(/\s+/)[1];
-      if (!toolId) {
-        addMessageToTree({ role: 'model', content: '⚠️ 用法：`/restore [tool_id]`' }, headId);
+      const restoreId = trimmedInput.split(/\s+/)[1];
+      if (!restoreId) {
+        addMessageToTree({ role: 'model', content: '⚠️ Usage: `/restore [checkpoint_id]`' }, headId);
         return;
       }
 
@@ -700,7 +700,8 @@ export default function Home() {
         body: JSON.stringify({
           action: 'restore',
           sessionId: currentSessionId,
-          toolId,
+          checkpointId: restoreId,
+          toolId: restoreId,
           workspace: currentWorkspace,
           model: settings.model
         })
@@ -708,10 +709,16 @@ export default function Home() {
 
       if (!restoreRes.ok) {
         const data = await restoreRes.json().catch(() => ({}));
-        addMessageToTree({ role: 'model', content: `⚠️ 恢复失败：${data.error || '未知错误'}` }, headId);
+        addMessageToTree({ role: 'model', content: `⚠️ Restore failed: ${data.error || 'Unknown error'}` }, headId);
         return;
       }
-      console.info(`[chat] restored checkpoint for tool ${toolId}`);
+
+      const restoreData = await restoreRes.json().catch(() => ({} as Record<string, unknown>));
+      const restoredCheckpoint = typeof restoreData.restoreResult === 'object' && restoreData.restoreResult
+        ? String((restoreData.restoreResult as { checkpoint?: unknown }).checkpoint || restoreId)
+        : restoreId;
+      addMessageToTree({ role: 'model', content: `✅ Restored checkpoint: \`${restoredCheckpoint}\`` }, headId);
+      console.info(`[chat] restored checkpoint ${restoredCheckpoint}`);
       return;
     }
 
@@ -1178,14 +1185,43 @@ export default function Home() {
     }
   };
 
-  const handleUndoTool = async (restoreId: string) => {
+  const pruneLocalBranchFrom = useCallback((rootMessageId: string) => {
+    if (!rootMessageId || !messagesMap.has(rootMessageId)) return;
+
+    setMessagesMap(prev => {
+      if (!prev.has(rootMessageId)) return prev;
+      const next = new Map(prev);
+      const stack = [rootMessageId];
+
+      while (stack.length > 0) {
+        const current = stack.pop() as string;
+        next.delete(current);
+        for (const [id, msg] of Array.from(next.entries())) {
+          if (msg.parentId === current) {
+            stack.push(id);
+          }
+        }
+      }
+      return next;
+    });
+
+    const parentId = messagesMap.get(rootMessageId)?.parentId ?? null;
+    setHeadId(parentId);
+  }, [messagesMap]);
+
+  const handleUndoTool = async (restoreId: string, sourceMessageId?: string) => {
     if (!currentSessionId) {
-      addMessageToTree({ role: 'model', content: '⚠️ 当前没有可恢复的会话。' }, headId);
+      addMessageToTree({ role: 'model', content: '⚠️ No session to restore.' }, headId);
+      return;
+    }
+
+    if (isLoading) {
+      addMessageToTree({ role: 'model', content: '⚠️ Please wait for the current run to finish before undo.' }, headId);
       return;
     }
 
     if (!restoreId) {
-      addMessageToTree({ role: 'model', content: '⚠️ 缺少可恢复的 checkpoint id。' }, headId);
+      addMessageToTree({ role: 'model', content: '⚠️ Missing restore checkpoint id.' }, headId);
       return;
     }
 
@@ -1195,7 +1231,9 @@ export default function Home() {
       body: JSON.stringify({
         action: 'restore',
         sessionId: currentSessionId,
+        checkpointId: restoreId,
         toolId: restoreId,
+        messageId: sourceMessageId,
         workspace: currentWorkspace,
         model: settings.model
       })
@@ -1203,16 +1241,38 @@ export default function Home() {
 
     if (!restoreRes.ok) {
       const data = await restoreRes.json().catch(() => ({}));
-      addMessageToTree({ role: 'model', content: `⚠️ Undo 失败：${data.error || '未知错误'}` }, headId);
+      addMessageToTree({ role: 'model', content: `⚠️ Undo failed: ${data.error || 'Unknown error'}` }, headId);
       return;
     }
 
-    await fetchSessions();
-    try {
-      await loadSessionTree(currentSessionId);
-    } catch (error) {
-      console.error('Failed to reload session tree after undo restore', error);
+    const restoreData = await restoreRes.json().catch(() => ({} as Record<string, unknown>));
+    const restoredCheckpoint = typeof restoreData.restoreResult === 'object' && restoreData.restoreResult
+      ? String((restoreData.restoreResult as { checkpoint?: unknown }).checkpoint || restoreId)
+      : restoreId;
+
+    const wasPruned = restoreData.pruned === true;
+    if (wasPruned) {
+      try {
+        await loadSessionTree(currentSessionId);
+        await fetchSessions();
+        return;
+      } catch (error) {
+        console.error('Failed to reload session after undo prune', error);
+      }
     }
+
+    const fallbackParentId = sourceMessageId
+      ? (messagesMap.get(sourceMessageId)?.parentId ?? headId)
+      : headId;
+
+    if (sourceMessageId && messagesMap.has(sourceMessageId)) {
+      pruneLocalBranchFrom(sourceMessageId);
+    }
+
+    addMessageToTree(
+      { role: 'model', content: `✅ Undo complete for checkpoint: \`${restoredCheckpoint}\`` },
+      fallbackParentId
+    );
   };
 
   const handleNodeClick = (nodeId: string) => {
