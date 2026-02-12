@@ -13,7 +13,7 @@ interface ChatContainerProps {
     previewFile: { name: string; path: string } | null;
     onClosePreview: () => void;
     settings: ChatSettings;
-    onSendMessage: (text: string) => void;
+    onSendMessage: (text: string, options?: { approvalMode?: 'safe' | 'auto' }) => void;
     onRetry: (index: number, mode: 'once' | 'session') => void;
     onCancel: (index: number) => void;
     onModelChange: (model: string) => void;
@@ -24,6 +24,7 @@ interface ChatContainerProps {
     onModeChange: (mode: 'code' | 'plan' | 'ask') => void;
     onApprovalModeChange: (mode: 'safe' | 'auto') => void;
     workspacePath?: string;
+    onInputHeightChange?: (height: number) => void;
 }
 
 export function ChatContainer({
@@ -42,7 +43,8 @@ export function ChatContainer({
     mode,
     onModeChange,
     onApprovalModeChange,
-    workspacePath
+    workspacePath,
+    onInputHeightChange
 }: ChatContainerProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -118,6 +120,7 @@ export function ChatContainer({
                         onModeChange={onModeChange}
                         onApprovalModeChange={onApprovalModeChange}
                         workspacePath={workspacePath}
+                        onHeightChange={onInputHeightChange}
                     />
                 </>
             )}

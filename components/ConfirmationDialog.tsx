@@ -35,11 +35,12 @@ export interface ConfirmationDetails {
 
 interface ConfirmationDialogProps {
     details: ConfirmationDetails;
-    onConfirm: (payload?: any) => void;
+    onConfirm: (mode?: 'once' | 'session') => void;
     onCancel: () => void;
+    bottomOffset?: number;
 }
 
-export function ConfirmationDialog({ details, onConfirm, onCancel }: ConfirmationDialogProps) {
+export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset = 120 }: ConfirmationDialogProps) {
     const {
         type,
         title,
@@ -76,10 +77,14 @@ export function ConfirmationDialog({ details, onConfirm, onCancel }: Confirmatio
             : type === 'edit'
                 ? 'Apply Changes'
                 : 'Confirm';
+    const showAllowSession = type !== 'ask_user' && type !== 'exit_plan_mode';
 
     return (
-        <div className="fixed left-1/2 bottom-20 z-50 w-[min(560px,calc(100vw-2rem))] -translate-x-1/2 pointer-events-none animate-in slide-in-from-bottom-2 fade-in duration-200">
-            <div className="pointer-events-auto rounded-lg border border-border/70 bg-background/95 backdrop-blur-md shadow-[0_16px_42px_-20px_rgba(0,0,0,0.7)] overflow-hidden">
+        <div
+            className="absolute inset-x-0 z-50 flex justify-center px-2 pointer-events-none animate-in slide-in-from-bottom-2 fade-in duration-200"
+            style={{ bottom: `${Math.max(8, bottomOffset + 8)}px` }}
+        >
+            <div className="pointer-events-auto w-[min(520px,100%)] rounded-lg border border-border/70 bg-background/95 backdrop-blur-md shadow-[0_16px_42px_-20px_rgba(0,0,0,0.7)] overflow-hidden">
                 <div className="flex items-center gap-2 border-b border-border/70 px-3 py-2.5">
                     <Icon className={cn('h-4 w-4', accent)} />
                     <h3 className="text-sm font-semibold text-foreground">{title}</h3>
@@ -127,8 +132,16 @@ export function ConfirmationDialog({ details, onConfirm, onCancel }: Confirmatio
                     >
                         Cancel
                     </button>
+                    {showAllowSession && (
+                        <button
+                            onClick={() => onConfirm('session')}
+                            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground border border-border hover:bg-muted hover:text-foreground transition-colors"
+                        >
+                            Allow Session
+                        </button>
+                    )}
                     <button
-                        onClick={() => onConfirm()}
+                        onClick={() => onConfirm('once')}
                         className={cn(
                             'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-semibold text-white transition-colors',
                             button

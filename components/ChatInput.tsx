@@ -5,7 +5,7 @@ import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
 
 interface ChatInputProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, options?: { approvalMode?: 'safe' | 'auto' }) => void;
   isLoading: boolean;
   currentModel: string;
   onModelChange: (model: string) => void;
@@ -18,6 +18,7 @@ interface ChatInputProps {
   onModeChange?: (mode: 'code' | 'plan' | 'ask') => void;
   onApprovalModeChange?: (mode: 'safe' | 'auto') => void;
   workspacePath?: string;
+  onHeightChange?: (height: number) => void;
 }
 
 interface CommandItem {
@@ -109,7 +110,7 @@ const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
   'uninstall',
 ]);
 
-export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, onApprovalModeChange, workspacePath }: ChatInputProps) {
+export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, onApprovalModeChange, workspacePath, onHeightChange }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | 'skill' | null>(null);
@@ -132,6 +133,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
   const [showContextTooltip, setShowContextTooltip] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const inlineSkillTokenPattern = new RegExp(INLINE_SKILL_TOKEN_SOURCE, 'g');
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const currentMode = MODE_OPTIONS.find(m => m.value === mode) || MODE_OPTIONS[0];
 
@@ -151,7 +153,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     setIsCompressing(true);
     try {
       // Use the native /compress command from gemini-cli
-      onSend("/compress");
+      onSend("/compress", { approvalMode });
       setShowContextTooltip(false);
     } catch (error) {
       console.error('Compression failed:', error);
@@ -793,7 +795,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
       ? `${skillPrefix}${cleanedInput ? `\n${cleanedInput}` : ''}`
       : cleanedInput;
 
-    onSend(finalMessage.replace(/\u2011/g, '-'));
+    onSend(finalMessage.replace(/\u2011/g, '-'), { approvalMode });
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -872,9 +874,30 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
     onApprovalModeChange?.(approvalMode);
   }, [approvalMode, onApprovalModeChange]);
 
+  useEffect(() => {
+    if (!onHeightChange) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    const notify = () => {
+      onHeightChange(Math.ceil(el.getBoundingClientRect().height));
+    };
+
+    notify();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => notify());
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', notify);
+    return () => window.removeEventListener('resize', notify);
+  }, [onHeightChange]);
+
 
   return (
-    <div className="p-4 bg-background border-t relative">
+    <div ref={containerRef} className="p-4 bg-background border-t relative">
       <div className="max-w-3xl mx-auto relative">
         {/* Command Suggestions */}
         {showCommands && (
@@ -1103,7 +1126,7 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
                     ? "text-red-500 bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/20"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 )}
-                title={approvalMode === 'auto' ? "Auto-Approve: ON (Dangerous)" : "Safe Mode: Ask for approval"}
+                title={approvalMode === 'auto' ? "Auto Mode: All tool calls are allowed" : "Safe Mode: Ask for approval"}
               >
                 {approvalMode === 'auto' ? (
                   <>
