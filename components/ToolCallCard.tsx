@@ -7,6 +7,7 @@ import {
     Check,
     X,
     Loader2,
+    Circle,
     Terminal,
     FileText,
     Search,
@@ -25,9 +26,17 @@ interface ToolCallCardProps {
     args: Record<string, any>;
     status?: 'running' | 'completed' | 'failed';
     result?: string;
+    resultData?: unknown;
     duration?: string;
     onRetry?: (mode: 'once' | 'session') => void;
     onCancel?: () => void;
+}
+
+type TodoStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+
+interface TodoItem {
+    description: string;
+    status: TodoStatus;
 }
 
 // Map tool names to Lucide icons
@@ -77,7 +86,55 @@ function getToolTarget(args: Record<string, any>): string {
     return '';
 }
 
-export function ToolCallCard({ toolName, args, status = 'completed', result, duration, onRetry, onCancel }: ToolCallCardProps) {
+function normalizeTodoStatus(status: unknown): TodoStatus {
+    if (status === 'in-progress') return 'in_progress';
+    if (
+        status === 'pending' ||
+        status === 'in_progress' ||
+        status === 'completed' ||
+        status === 'cancelled'
+    ) {
+        return status;
+    }
+    return 'pending';
+}
+
+function extractTodos(resultData: unknown, result?: string): TodoItem[] | null {
+    const parseTodosContainer = (candidate: unknown): TodoItem[] | null => {
+        if (!candidate || typeof candidate !== 'object') return null;
+        const todosRaw = (candidate as { todos?: unknown }).todos;
+        if (!Array.isArray(todosRaw)) return null;
+
+        return todosRaw
+            .map((item) => {
+                if (!item || typeof item !== 'object') return null;
+                const description = (item as { description?: unknown }).description;
+                if (typeof description !== 'string' || !description.trim()) return null;
+                return {
+                    description: description.trim(),
+                    status: normalizeTodoStatus((item as { status?: unknown }).status),
+                };
+            })
+            .filter((item): item is TodoItem => item !== null);
+    };
+
+    const fromStructured = parseTodosContainer(resultData);
+    if (fromStructured) return fromStructured;
+
+    if (typeof result === 'string') {
+        try {
+            const parsed = JSON.parse(result);
+            const fromTextJson = parseTodosContainer(parsed);
+            if (fromTextJson) return fromTextJson;
+        } catch {
+            // Ignore plain text outputs.
+        }
+    }
+
+    return null;
+}
+
+export function ToolCallCard({ toolName, args, status = 'completed', result, resultData, duration, onRetry, onCancel }: ToolCallCardProps) {
     const [expanded, setExpanded] = useState(false);
     const [copied, setCopied] = useState(false);
 
@@ -109,6 +166,9 @@ export function ToolCallCard({ toolName, args, status = 'completed', result, dur
         statusBorder = "border-rose-500/30";
     }
 
+    const isTodoTool = toolName.toLowerCase().includes('todo');
+    const todos = isTodoTool ? extractTodos(resultData, result) : null;
+
     const handleCopy = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (result) {
@@ -117,6 +177,76 @@ export function ToolCallCard({ toolName, args, status = 'completed', result, dur
             setTimeout(() => setCopied(false), 2000);
         }
     };
+
+    if (isTodoTool && todos) {
+        const completedCount = todos.filter((todo) => todo.status === 'completed').length;
+        const totalCount = todos.length;
+        const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+
+        return (
+            <div className={cn(
+                "my-2 rounded-xl border bg-card/80 shadow-sm overflow-hidden",
+                statusBorder
+            )}>
+                <div className="px-4 py-3 border-b border-border/50 bg-muted/30">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                            <List className="w-4 h-4 text-primary" />
+                            <span className="text-sm font-semibold text-foreground">Task Progress</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground font-medium">
+                            {completedCount} out of {totalCount} tasks completed
+                        </span>
+                    </div>
+                    <div className="mt-2 h-1.5 rounded-full bg-secondary overflow-hidden">
+                        <div
+                            className="h-full bg-primary transition-all duration-300"
+                            style={{ width: `${progress}%` }}
+                        />
+                    </div>
+                </div>
+                <div className="px-4 py-3 space-y-2.5">
+                    {totalCount === 0 ? (
+                        <div className="text-sm text-muted-foreground">Todo list cleared.</div>
+                    ) : (
+                        <div className="max-h-[9.6rem] overflow-y-auto custom-scrollbar pr-1 space-y-1.5">
+                            {todos.map((todo, index) => (
+                                <div key={`${todo.description}-${index}`} className="flex items-start gap-2.5 min-h-[1.9rem]">
+                                    <div className="mt-0.5 shrink-0">
+                                        {todo.status === 'completed' && (
+                                            <Check className="w-4 h-4 text-emerald-500" />
+                                        )}
+                                        {todo.status === 'in_progress' && (
+                                            <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                                        )}
+                                        {todo.status === 'cancelled' && (
+                                            <X className="w-4 h-4 text-muted-foreground" />
+                                        )}
+                                        {todo.status === 'pending' && (
+                                            <Circle className="w-4 h-4 text-muted-foreground/70" />
+                                        )}
+                                    </div>
+                                    <div
+                                        className={cn(
+                                            "text-sm leading-7 truncate",
+                                            todo.status === 'completed'
+                                                ? "text-muted-foreground line-through"
+                                                : todo.status === 'cancelled'
+                                                    ? "text-muted-foreground/80 line-through"
+                                                    : "text-foreground"
+                                        )}
+                                        title={todo.description}
+                                    >
+                                        {index + 1}. {todo.description}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={cn(

@@ -6,6 +6,7 @@ import { ChatInput } from './ChatInput';
 import { FilePreview } from './FilePreview';
 import { cn } from '@/lib/utils';
 import { ChatSettings } from './SettingsDialog';
+import { TaskProgressDock, TodoItem } from './TaskProgressDock';
 
 interface ChatContainerProps {
     messages: Message[];
@@ -56,6 +57,77 @@ export function ChatContainer({
     useEffect(() => {
         scrollToBottom();
     }, [messages.length, isLoading]);
+
+    const normalizeTodoStatus = (value: unknown): TodoItem['status'] => {
+        if (value === 'in-progress') return 'in_progress';
+        if (value === 'pending' || value === 'in_progress' || value === 'completed' || value === 'cancelled') {
+            return value;
+        }
+        return 'pending';
+    };
+
+    const extractTodosFromPayload = (payload: unknown): TodoItem[] | null => {
+        if (!payload || typeof payload !== 'object') return null;
+        const todosRaw = (payload as { todos?: unknown }).todos;
+        if (!Array.isArray(todosRaw)) return null;
+
+        const todos = todosRaw
+            .map((todo) => {
+                if (!todo || typeof todo !== 'object') return null;
+                const description = (todo as { description?: unknown }).description;
+                if (typeof description !== 'string' || !description.trim()) return null;
+                return {
+                    description: description.trim(),
+                    status: normalizeTodoStatus((todo as { status?: unknown }).status),
+                };
+            })
+            .filter((todo): todo is TodoItem => todo !== null);
+
+        return todos;
+    };
+
+    const parseLatestTodos = (): TodoItem[] | null => {
+        for (let i = messages.length - 1; i >= 0; i -= 1) {
+            const message = messages[i];
+            if (message.role !== 'model' || !message.content.includes('<tool-call')) continue;
+
+            const matches = Array.from(
+                message.content.matchAll(/<tool-call[^>]*name="([^"]+)"[^>]*>/g)
+            );
+            for (let j = matches.length - 1; j >= 0; j -= 1) {
+                const fullTag = matches[j][0];
+                const toolName = (matches[j][1] || '').toLowerCase();
+                if (!toolName.includes('todo')) continue;
+
+                const resultDataMatch = fullTag.match(/result_data="([^"]+)"/);
+                if (resultDataMatch?.[1]) {
+                    try {
+                        const decoded = decodeURIComponent(resultDataMatch[1]);
+                        const parsed = JSON.parse(decoded);
+                        const todos = extractTodosFromPayload(parsed);
+                        if (todos) return todos;
+                    } catch {
+                        // Fall through to `result` parsing.
+                    }
+                }
+
+                const resultMatch = fullTag.match(/result="([^"]+)"/);
+                if (resultMatch?.[1]) {
+                    try {
+                        const decoded = decodeURIComponent(resultMatch[1]);
+                        const parsed = JSON.parse(decoded);
+                        const todos = extractTodosFromPayload(parsed);
+                        if (todos) return todos;
+                    } catch {
+                        // Ignore plain text results.
+                    }
+                }
+            }
+        }
+        return null;
+    };
+
+    const latestTodos = parseLatestTodos();
 
     return (
         <div className="flex-1 flex flex-col min-w-0">
@@ -109,6 +181,7 @@ export function ChatContainer({
                         )}
                     </div>
 
+                    {latestTodos && latestTodos.length > 0 && <TaskProgressDock todos={latestTodos} />}
                     <ChatInput
                         onSend={onSendMessage}
                         isLoading={isLoading}

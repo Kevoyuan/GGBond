@@ -1,23 +1,21 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Bot, Network } from 'lucide-react';
+import { Maximize2, Minimize2, Network } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
-import { MessageBubble, LoadingBubble, Message } from '../components/MessageBubble';
+import { Message } from '../components/MessageBubble';
 import { SkillsDialog } from '../components/SkillsDialog';
 import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
 import { cn } from '@/lib/utils';
 import { ConversationGraph, GraphMessage } from '../components/ConversationGraph';
 
-import { ChatInput } from '../components/ChatInput';
 import { ChatContainer } from '../components/ChatContainer';
 import { ConfirmationDialog, ConfirmationDetails } from '../components/ConfirmationDialog';
 import { QuestionPanel, Question } from '../components/QuestionPanel';
 import { HookEvent } from '../components/HooksPanel';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
-import { FilePreview } from '../components/FilePreview';
 
 
 interface Session {
@@ -29,6 +27,142 @@ interface Session {
   isCore?: boolean;
   lastUpdated?: string;
 }
+
+interface ApiMessageRecord {
+  id?: string | number | null;
+  role?: string;
+  content?: string;
+  parentId?: string | number | null;
+  parent_id?: string | number | null;
+  stats?: unknown;
+  thought?: string;
+  citations?: string[];
+  sessionId?: string;
+  error?: boolean;
+}
+
+const toMessageId = (value: unknown, fallback: string): string => {
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return fallback;
+};
+
+const toStatsValue = (value: unknown): Message['stats'] | undefined => {
+  if (!value) return undefined;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as Message['stats'];
+    } catch {
+      return undefined;
+    }
+  }
+  if (typeof value === 'object') {
+    return value as Message['stats'];
+  }
+  return undefined;
+};
+
+const TOOL_CALL_TAG_REGEX = /<tool-call[^>]*\/>/g;
+
+const getToolCallAttribute = (tag: string, key: string) => {
+  const match = tag.match(new RegExp(`${key}="([^"]*)"`));
+  return match?.[1] || '';
+};
+
+const buildTreeFromApiMessages = (rawMessages: ApiMessageRecord[]) => {
+  const normalized = rawMessages.map((rawMessage, index) => {
+    const id = toMessageId(rawMessage.id, `msg-${index}`);
+    const parentCandidateRaw = rawMessage.parentId ?? rawMessage.parent_id ?? null;
+    const parentCandidate = parentCandidateRaw === null || parentCandidateRaw === undefined
+      ? null
+      : String(parentCandidateRaw);
+
+    const normalizedMessage: Message = {
+      id,
+      role: rawMessage.role === 'user' ? 'user' : 'model',
+      content: typeof rawMessage.content === 'string' ? rawMessage.content : '',
+      stats: toStatsValue(rawMessage.stats),
+      parentId: null,
+      thought: typeof rawMessage.thought === 'string' ? rawMessage.thought : undefined,
+      citations: Array.isArray(rawMessage.citations) ? rawMessage.citations : undefined,
+      sessionId: typeof rawMessage.sessionId === 'string' ? rawMessage.sessionId : undefined,
+      error: Boolean(rawMessage.error),
+    };
+
+    return {
+      id,
+      parentCandidate,
+      message: normalizedMessage,
+    };
+  });
+
+  const knownIds = new Set(normalized.map((entry) => entry.id));
+  const hasExplicitParents = normalized.some((entry) => entry.parentCandidate !== null);
+  const nextMap = new Map<string, Message>();
+  let previousId: string | null = null;
+
+  for (const entry of normalized) {
+    let parentId: string | null = null;
+
+    if (
+      entry.parentCandidate &&
+      knownIds.has(entry.parentCandidate) &&
+      entry.parentCandidate !== entry.id
+    ) {
+      parentId = entry.parentCandidate;
+    } else if (!hasExplicitParents && previousId) {
+      parentId = previousId;
+    }
+
+    nextMap.set(entry.id, {
+      ...entry.message,
+      parentId,
+    });
+
+    previousId = entry.id;
+  }
+
+  const nextHeadId = normalized.length > 0 ? normalized[normalized.length - 1].id : null;
+  return { nextMap, nextHeadId };
+};
+
+function InsightCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border/70 bg-muted/20 px-2 py-1.5">
+      <div className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{label}</div>
+      <div className="text-sm font-semibold text-foreground">{value}</div>
+    </div>
+  );
+}
+
+function MiniInsightBadge({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border/70 bg-muted/20 px-1.5 py-1 text-center">
+      <div className="text-[9px] uppercase tracking-[0.08em] text-muted-foreground">{label}</div>
+      <div className="text-xs font-semibold text-foreground">{value}</div>
+    </div>
+  );
+}
+
+const summarizeBranchContent = (content: string) => {
+  if (!content) return '(empty)';
+
+  const textOnly = content.replace(TOOL_CALL_TAG_REGEX, ' ').replace(/\s+/g, ' ').trim();
+  if (textOnly) return textOnly;
+
+  const firstTag = content.match(/<tool-call[^>]*\/>/)?.[0];
+  if (!firstTag) return '(empty)';
+
+  const name = getToolCallAttribute(firstTag, 'name');
+  const status = getToolCallAttribute(firstTag, 'status');
+  if (name && status) return `Tool ${name} (${status})`;
+  if (name) return `Tool ${name}`;
+  return '[tool call]';
+};
 
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -72,10 +206,10 @@ export default function Home() {
   const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
   const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>('safe');
   const [showGraph, setShowGraph] = useState(false);
+  const [isBranchInsightsMinimized, setIsBranchInsightsMinimized] = useState(false);
   const [inputAreaHeight, setInputAreaHeight] = useState(120);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // -- Derived Linear Thread --
   const messages = useMemo(() => {
@@ -97,14 +231,104 @@ export default function Home() {
     // Only generate graph data if graph is shown to save performance
     if (!showGraph) return [];
 
-    return Array.from(messagesMap.values()).map(msg => ({
-      id: msg.id || `temp-${Date.now()}`,
-      parentId: msg.parentId || null,
-      role: msg.role,
-      content: msg.content,
-      isLeaf: msg.id === headId
-    }));
+    return Array.from(messagesMap.entries()).map(([mapId, msg]) => {
+      const stableId = msg.id || mapId;
+      return {
+        id: stableId,
+        parentId: msg.parentId || null,
+        role: msg.role,
+        content: msg.content,
+        isLeaf: stableId === headId
+      };
+    });
   }, [messagesMap, headId, showGraph]);
+
+  const branchInsights = useMemo(() => {
+    if (!graphMessages.length) {
+      return {
+        nodeCount: 0,
+        leafCount: 0,
+        branchPointIds: [] as string[],
+        maxDepth: 0,
+        activeDepth: 0,
+      };
+    }
+
+    const parentById = new Map<string, string | null>();
+    const childrenById = new Map<string, string[]>();
+
+    for (const message of graphMessages) {
+      parentById.set(message.id, message.parentId);
+      childrenById.set(message.id, []);
+    }
+
+    for (const message of graphMessages) {
+      if (message.parentId && childrenById.has(message.parentId)) {
+        childrenById.get(message.parentId)?.push(message.id);
+      }
+    }
+
+    const roots = graphMessages
+      .filter((message) => !message.parentId || !childrenById.has(message.parentId))
+      .map((message) => message.id);
+
+    if (!roots.length) {
+      roots.push(graphMessages[0].id);
+    }
+
+    const depthById = new Map<string, number>();
+    const visited = new Set<string>();
+    const queue = roots.map((id) => ({ id, depth: 0 }));
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current || visited.has(current.id)) continue;
+      visited.add(current.id);
+      depthById.set(current.id, current.depth);
+      const children = childrenById.get(current.id) || [];
+      for (const childId of children) {
+        queue.push({ id: childId, depth: current.depth + 1 });
+      }
+    }
+
+    const maxDepth = Array.from(depthById.values()).reduce((max, depth) => Math.max(max, depth), 0);
+    const branchPointIds = Array.from(childrenById.entries())
+      .filter(([, children]) => children.length > 1)
+      .sort((a, b) => (depthById.get(a[0]) || 0) - (depthById.get(b[0]) || 0))
+      .map(([id]) => id);
+    const leafCount = Array.from(childrenById.values()).filter((children) => children.length === 0).length;
+
+    let activeDepth = 0;
+    let cursor = headId;
+    const pathGuard = new Set<string>();
+    while (cursor && !pathGuard.has(cursor)) {
+      pathGuard.add(cursor);
+      const parent = parentById.get(cursor) || null;
+      if (!parent) break;
+      activeDepth += 1;
+      cursor = parent;
+    }
+
+    return {
+      nodeCount: graphMessages.length,
+      leafCount,
+      branchPointIds,
+      maxDepth,
+      activeDepth,
+    };
+  }, [graphMessages, headId]);
+
+  const selectedGraphMessage = useMemo(() => {
+    if (!headId) return null;
+    return messagesMap.get(headId) || null;
+  }, [messagesMap, headId]);
+
+  const branchJumpMessages = useMemo(() => {
+    return branchInsights.branchPointIds
+      .map((id) => ({ id, message: messagesMap.get(id) }))
+      .filter((entry): entry is { id: string; message: Message } => Boolean(entry.message))
+      .slice(0, 6);
+  }, [branchInsights.branchPointIds, messagesMap]);
 
   const [confirmation, setConfirmation] = useState<{ details: ConfirmationDetails, correlationId: string } | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<{
@@ -233,6 +457,22 @@ export default function Home() {
     fetchSessions();
   }, []);
 
+  const loadSessionTree = useCallback(async (sessionId: string) => {
+    const res = await fetch(`/api/sessions/${sessionId}`);
+    if (!res.ok) {
+      throw new Error(`Failed to load session: ${sessionId}`);
+    }
+
+    const data = await res.json() as { messages?: ApiMessageRecord[]; session?: Session };
+    const rawMessages = Array.isArray(data.messages) ? data.messages : [];
+    const { nextMap, nextHeadId } = buildTreeFromApiMessages(rawMessages);
+
+    setMessagesMap(nextMap);
+    setHeadId(nextHeadId);
+
+    return data;
+  }, []);
+
   // Handle Session Selection
   const handleSelectSession = async (id: string) => {
     if (id === currentSessionId) return;
@@ -247,31 +487,9 @@ export default function Home() {
     }
 
     try {
-      const res = await fetch(`/api/sessions/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        const loadedMessages: Message[] = data.messages || [];
-
-        // Rebuild Tree from flat list
-        const newMap = new Map<string, Message>();
-        let lastMsgId: string | null = null;
-
-        loadedMessages.forEach((msg, index) => {
-          const msgId = msg.id || `msg-${index}`; // Ensure ID exists
-          // If parentId is missing (legacy), chain them linearly
-          if (!msg.parentId && index > 0) {
-            // Try to find previous message ID
-            // For simplicity in legacy, we assume linear order in array
-            const prevMsg = loadedMessages[index - 1];
-            msg.parentId = prevMsg.id || `msg-${index - 1}`;
-          }
-
-          newMap.set(msgId, { ...msg, id: msgId });
-          lastMsgId = msgId;
-        });
-
-        setMessagesMap(newMap);
-        setHeadId(lastMsgId);
+      const data = await loadSessionTree(id);
+      if (!session && data.session?.workspace) {
+        setCurrentWorkspace(data.session.workspace || null);
       }
     } catch (error) {
       console.error('Failed to load session', error);
@@ -326,8 +544,9 @@ export default function Home() {
 
   // Helper to add a new message to the tree
   const addMessageToTree = useCallback((msg: Message, parentId: string | null) => {
-    const newId = msg.id || `temp-${Date.now()}-${Math.random()}`;
-    const newMessage = { ...msg, id: newId, parentId };
+    const newId = msg.id ? String(msg.id) : `temp-${Date.now()}-${Math.random()}`;
+    const normalizedParentId = parentId ? String(parentId) : null;
+    const newMessage = { ...msg, id: newId, parentId: normalizedParentId };
 
     setMessagesMap(prev => {
       const next = new Map(prev);
@@ -387,15 +606,12 @@ export default function Home() {
         return;
       }
 
-      if (messages.length >= 2) {
-        const newHead = messages[messages.length - 2]?.parentId || null;
-        setHeadId(newHead);
-      } else {
-        setHeadId(null);
+      try {
+        await loadSessionTree(currentSessionId);
+        await fetchSessions();
+      } catch (error) {
+        console.error('Failed to reload session after rewind', error);
       }
-
-      fetchSessions();
-      addMessageToTree({ role: 'model', content: '✅ 已回退到上一轮对话。' }, headId);
       return;
     }
 
@@ -428,8 +644,7 @@ export default function Home() {
         addMessageToTree({ role: 'model', content: `⚠️ 恢复失败：${data.error || '未知错误'}` }, headId);
         return;
       }
-
-      addMessageToTree({ role: 'model', content: `✅ 已恢复到工具执行前状态（tool_id: ${toolId}）。` }, headId);
+      console.info(`[chat] restored checkpoint for tool ${toolId}`);
       return;
     }
 
@@ -440,6 +655,35 @@ export default function Home() {
 
     // 1. Add User Message
     const userMsgId = addMessageToTree({ role: 'user', content: text }, parentIdToUse);
+    const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const buildCompletedToolCallTag = ({
+      id,
+      name,
+      args,
+      status,
+      output,
+      resultData,
+    }: {
+      id: string;
+      name: string;
+      args: string;
+      status: 'completed' | 'failed';
+      output?: string;
+      resultData?: unknown;
+    }) => {
+      const encodedResult = encodeURIComponent(output || '');
+      let encodedResultData: string | undefined;
+      if (resultData !== undefined) {
+        try {
+          encodedResultData = encodeURIComponent(JSON.stringify(resultData));
+        } catch {
+          encodedResultData = undefined;
+        }
+      }
+      return `<tool-call id="${id}" name="${name}" args="${args}" status="${status}" result="${encodedResult}"${
+        encodedResultData ? ` result_data="${encodedResultData}"` : ''
+      } />`;
+    };
 
     try {
       const response = await fetch('/api/chat', {
@@ -574,31 +818,62 @@ export default function Home() {
             }
 
             if (data.type === 'tool_use') {
-              const toolCallTag = `\n\n<tool-call id="${data.tool_id || ''}" name="${data.tool_name}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}" status="running" />\n\n`;
+              const toolName = String(data.tool_name || 'Unknown Tool');
+              const toolCallTag = `\n\n<tool-call id="${data.tool_id || ''}" name="${toolName}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}" status="running" />\n\n`;
               assistantContent += toolCallTag;
               updateMessageInTree(assistantMsgId, { content: assistantContent });
             }
 
             if (data.type === 'tool_result') {
-              // Regex replace for tool status
-              const regex = /<tool-call id="([^"]*)" name="([^"]+)" args="([^"]+)" status="running" \/>/g;
-              let match;
-              let lastMatchIndex = -1;
+              const resolvedStatus = data.is_error ? 'failed' : 'completed';
+              const resolvedOutput = data.output || data.result || '';
+              const resolvedResultData = data.result_data;
+              const resolvedToolId = data.tool_id ? String(data.tool_id) : '';
 
-              while ((match = regex.exec(assistantContent)) !== null) {
-                lastMatchIndex = match.index;
+              if (resolvedToolId) {
+                const exactRegex = new RegExp(
+                  `<tool-call id="${escapeRegex(resolvedToolId)}" name="([^"]*)" args="([^"]*)" status="running" \\/>`
+                );
+                const exactMatch = assistantContent.match(exactRegex);
+                if (exactMatch) {
+                  assistantContent = assistantContent.replace(
+                    exactRegex,
+                    buildCompletedToolCallTag({
+                      id: resolvedToolId,
+                      name: exactMatch[1],
+                      args: exactMatch[2],
+                      status: resolvedStatus,
+                      output: resolvedOutput,
+                      resultData: resolvedResultData,
+                    })
+                  );
+                  updateMessageInTree(assistantMsgId, { content: assistantContent });
+                  continue;
+                }
               }
 
-              if (lastMatchIndex !== -1) {
-                const before = assistantContent.substring(0, lastMatchIndex);
-                const after = assistantContent.substring(lastMatchIndex);
+              const fallbackRegex = /<tool-call id="([^"]*)" name="([^"]*)" args="([^"]*)" status="running" \/>/g;
+              let fallbackMatch: RegExpExecArray | null;
+              let lastMatch: RegExpExecArray | null = null;
 
-                const updatedTag = after.replace(
-                  'status="running" />',
-                  `status="${data.is_error ? 'failed' : 'completed'}" result="${encodeURIComponent(data.output || data.result || '')}" />`
-                );
+              while ((fallbackMatch = fallbackRegex.exec(assistantContent)) !== null) {
+                lastMatch = fallbackMatch;
+              }
 
-                assistantContent = before + updatedTag;
+              if (lastMatch) {
+                const [fullMatch, fallbackId, fallbackName, fallbackArgs] = lastMatch;
+                const updatedTag = buildCompletedToolCallTag({
+                  id: resolvedToolId || fallbackId,
+                  name: fallbackName,
+                  args: fallbackArgs,
+                  status: resolvedStatus,
+                  output: resolvedOutput,
+                  resultData: resolvedResultData,
+                });
+                assistantContent =
+                  assistantContent.slice(0, lastMatch.index) +
+                  updatedTag +
+                  assistantContent.slice(lastMatch.index + fullMatch.length);
                 updateMessageInTree(assistantMsgId, { content: assistantContent });
               }
             }
@@ -639,8 +914,15 @@ export default function Home() {
         }
       }
 
-      // Final refresh
-      fetchSessions();
+      // Final refresh to keep local tree ids in sync with persisted ids.
+      await fetchSessions();
+      if (streamSessionId) {
+        try {
+          await loadSessionTree(streamSessionId);
+        } catch (reloadError) {
+          console.error('Failed to reload session tree after turn', reloadError);
+        }
+      }
 
     } catch (error) {
       console.error('Chat error:', error);
@@ -655,7 +937,7 @@ export default function Home() {
     }
   };
 
-  const handleRetry = (messageIndex: number, mode: 'once' | 'session') => {
+  const handleRetry = (messageIndex: number, _mode: 'once' | 'session') => {
     // Retry needs to branch off from the message *before* the user message that led to this response (or failure).
     // In thread view (messages array), `messageIndex` is the index in the *displayed* list.
     // displayed list is [msg0, msg1, ... msgN] where msg0 is usually user, msg1 is model...
@@ -879,12 +1161,95 @@ export default function Home() {
         <div className="flex-1 flex overflow-hidden">
           {/* Graph Panel */}
           {showGraph && (
-            <div className="w-1/3 border-r bg-muted/10 relative">
+            <div className="w-[44%] min-w-[420px] max-w-[900px] border-r bg-muted/10 relative">
               <ConversationGraph
                 messages={graphMessages}
                 currentLeafId={headId}
                 onNodeClick={handleNodeClick}
               />
+
+              <div className="pointer-events-none absolute right-3 top-3 z-20">
+                <aside
+                  className={cn(
+                    'pointer-events-auto max-h-[calc(100%-1.5rem)] overflow-y-auto rounded-xl border border-border/70 bg-background/90 backdrop-blur-md p-3 shadow-xl transition-all',
+                    isBranchInsightsMinimized ? 'w-[228px] space-y-2' : 'w-[280px] space-y-3'
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Branch Insights</div>
+                    <button
+                      type="button"
+                      onClick={() => setIsBranchInsightsMinimized((value) => !value)}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border/70 bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                      title={isBranchInsightsMinimized ? 'Expand Branch Insights' : 'Minimize Branch Insights'}
+                    >
+                      {isBranchInsightsMinimized ? <Maximize2 size={12} /> : <Minimize2 size={12} />}
+                    </button>
+                  </div>
+
+                  {isBranchInsightsMinimized ? (
+                    <>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        <MiniInsightBadge label="N" value={String(branchInsights.nodeCount)} />
+                        <MiniInsightBadge label="L" value={String(branchInsights.leafCount)} />
+                        <MiniInsightBadge label="F" value={String(branchInsights.branchPointIds.length)} />
+                        <MiniInsightBadge label="D" value={String(branchInsights.maxDepth)} />
+                      </div>
+                      <div className="rounded-md border border-border/70 bg-muted/20 px-2 py-1.5 text-[11px] text-muted-foreground truncate">
+                        {headId ? `Head #${headId}` : 'No active node'}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <InsightCard label="Nodes" value={String(branchInsights.nodeCount)} />
+                        <InsightCard label="Leafs" value={String(branchInsights.leafCount)} />
+                        <InsightCard label="Forks" value={String(branchInsights.branchPointIds.length)} />
+                        <InsightCard label="Depth" value={String(branchInsights.maxDepth)} />
+                      </div>
+
+                      <div className="rounded-lg border border-border/70 bg-muted/20 p-2.5">
+                        <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-1">Active Branch</div>
+                        <div className="text-sm font-medium text-foreground">
+                          {headId ? `Head #${headId}` : 'No active node'}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Path depth: {branchInsights.activeDepth}
+                        </div>
+                        {selectedGraphMessage && (
+                          <div className="mt-2 text-xs text-muted-foreground line-clamp-4 break-words">
+                            {summarizeBranchContent(selectedGraphMessage.content)}
+                          </div>
+                        )}
+                      </div>
+
+                      {branchJumpMessages.length > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Fork Nodes</div>
+                          {branchJumpMessages.map(({ id, message }) => (
+                            <button
+                              key={id}
+                              type="button"
+                              onClick={() => setHeadId(id)}
+                              className={cn(
+                                'w-full text-left rounded-md border px-2 py-1.5 transition-colors',
+                                id === headId
+                                  ? 'border-primary/60 bg-primary/10 text-primary'
+                                  : 'border-border/70 bg-muted/10 hover:bg-muted/30'
+                              )}
+                            >
+                              <div className="text-xs font-medium truncate">#{id}</div>
+                              <div className="text-[11px] text-muted-foreground truncate">
+                                {summarizeBranchContent(message.content)}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </aside>
+              </div>
             </div>
           )}
 
