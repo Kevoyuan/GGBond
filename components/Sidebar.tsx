@@ -543,7 +543,14 @@ export function Sidebar({
               )}
             </div>
 
-            <div className="p-3 border-t bg-card/50 backdrop-blur-sm">
+            <div className="p-3 border-t bg-card/50 backdrop-blur-sm space-y-1.5">
+              <Link
+                href="/modules"
+                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-md text-sm text-muted-foreground transition-colors overflow-hidden whitespace-nowrap"
+              >
+                <LayoutGrid className="w-4 h-4 shrink-0" />
+                <span className="truncate">Deep Monitoring</span>
+              </Link>
               <button
                 onClick={onShowStats}
                 className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-md text-sm text-muted-foreground transition-colors overflow-hidden whitespace-nowrap"
