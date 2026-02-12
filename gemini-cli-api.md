@@ -1,6 +1,6 @@
 # 🔧 Gemini CLI - GUI 深度定制 API 完整参考手册
 
-> 基于 `@google/gemini-cli-core` v0.30.0 源码分析 · 提取全部可编程接口
+> 基于 `@google/gemini-cli-core` v0.28.0 源码分析 · 提取全部可编程接口
 >
 > **npm**: https://www.npmjs.com/package/@google/gemini-cli-core
 >
@@ -14,10 +14,10 @@
 # 稳定版 (v0.28.0)
 npm install @google/gemini-cli-core
 
-# 预览版 (v0.29.0-preview.0)
+# 预览版 (v0.29.0-preview.0，可能与本文有差异)
 npm install @google/gemini-cli-core@preview
 
-# 最新 nightly (v0.30.0-nightly)
+# 最新 nightly (v0.30.0-nightly，可能与本文有差异)
 npm install @google/gemini-cli-core@nightly
 ```
 
@@ -157,9 +157,10 @@ config.getApprovalMode(): ApprovalMode
 
 ```typescript
 enum ApprovalMode {
-  ALWAYS_CONFIRM,   // 所有工具调用都需确认
-  AUTO_APPROVE,     // 自动批准（基于策略）
-  YOLO              // 全自动，不确认
+  DEFAULT = 'default',    // 标准审批策略
+  AUTO_EDIT = 'autoEdit', // 自动批准编辑类操作
+  YOLO = 'yolo',          // 全自动，不确认
+  PLAN = 'plan'           // 规划模式
 }
 ```
 

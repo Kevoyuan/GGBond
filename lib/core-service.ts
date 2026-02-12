@@ -2,7 +2,6 @@
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
-import { Storage } from '@google/gemini-cli-core/dist/src/config/storage.js';
 import { readFile } from 'fs/promises';
 import {
     Config,
@@ -15,14 +14,14 @@ import {
     MessageBus,
     MessageBusType,
     FileDiscoveryService,
-    ChatRecordingService,
     getProjectHash,
     AuthType,
     ApprovalMode,
     PolicyDecision,
-    TelemetrySettings,
     ToolConfirmationOutcome,
     createPolicyUpdater,
+    Storage,
+    debugLogger,
 } from '@google/gemini-cli-core';
 import type { Tool } from '@google/genai';
 import type {
@@ -30,11 +29,8 @@ import type {
     ToolCall,
     ToolCallRequestInfo,
     WaitingToolCall,
-} from '@google/gemini-cli-core/dist/src/scheduler/types.js';
-import type { SerializableConfirmationDetails } from '@google/gemini-cli-core/dist/src/confirmation-bus/types.js';
-
-// Monkey patch debugLogger to prevent circular JSON errors in Next.js environment
-import { debugLogger } from '@google/gemini-cli-core/dist/src/utils/debugLogger.js';
+    SerializableConfirmationDetails,
+} from '@google/gemini-cli-core';
 
 const originalError = debugLogger.error.bind(debugLogger);
 debugLogger.error = (...args: any[]) => {
