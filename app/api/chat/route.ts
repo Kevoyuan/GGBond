@@ -137,6 +137,9 @@ export async function POST(req: Request) {
     }
 
     let fullResponse = '';
+    let persistedAssistantContent = '';
+    let persistedAssistantThought = '';
+    const persistedAssistantCitations: string[] = [];
     let finalStats: {
       input_tokens: number;
       output_tokens: number;
@@ -151,6 +154,57 @@ export async function POST(req: Request) {
       totalTokenCount: number;
       durationMs: number;
     } | null = null;
+
+    const upsertToolCallResult = ({
+      toolId,
+      status,
+      output,
+      resultData,
+    }: {
+      toolId?: string;
+      status: 'completed' | 'failed';
+      output?: string;
+      resultData?: unknown;
+    }) => {
+      const encodedResult = encodeURIComponent(output || '');
+      const encodedResultData = resultData === undefined
+        ? undefined
+        : encodeURIComponent(JSON.stringify(resultData));
+      const replacement = `status="${status}" result="${encodedResult}"${
+        encodedResultData ? ` result_data="${encodedResultData}"` : ''
+      } />`;
+
+      if (toolId) {
+        const escapedToolId = toolId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const exactRegex = new RegExp(
+          `<tool-call id="${escapedToolId}" name="([^"]*)" args="([^"]*)" status="running" \\/>`
+        );
+        if (exactRegex.test(persistedAssistantContent)) {
+          persistedAssistantContent = persistedAssistantContent.replace(
+            exactRegex,
+            `<tool-call id="${toolId}" name="$1" args="$2" ${replacement}`
+          );
+          return;
+        }
+      }
+
+      const fallbackRegex = /<tool-call id="([^"]*)" name="([^"]*)" args="([^"]*)" status="running" \/>/g;
+      let match: RegExpExecArray | null;
+      let lastMatchIndex = -1;
+
+      while ((match = fallbackRegex.exec(persistedAssistantContent)) !== null) {
+        lastMatchIndex = match.index;
+      }
+
+      if (lastMatchIndex !== -1) {
+        const before = persistedAssistantContent.substring(0, lastMatchIndex);
+        const after = persistedAssistantContent.substring(lastMatchIndex);
+        persistedAssistantContent = before + after.replace(
+          'status="running" />',
+          replacement
+        );
+      }
+    };
 
     let streamClosed = false;
     let cleanupStream = () => {};
@@ -176,8 +230,35 @@ export async function POST(req: Request) {
 
         let cleanupMessageBusListeners = () => {};
         const pendingConfirmationIds = new Set<string>();
+        const toolNameByCallId = new Map<string, string>();
         let isPollingConfirmationQueue = false;
         let confirmationQueuePollTimer: ReturnType<typeof setInterval> | null = null;
+        const toSerializableResultData = (value: unknown): unknown => {
+          if (value === undefined) {
+            return undefined;
+          }
+          if (typeof value === 'string') {
+            return value;
+          }
+          try {
+            return JSON.parse(JSON.stringify(value));
+          } catch {
+            return undefined;
+          }
+        };
+        const toResultOutput = (value: unknown): string | undefined => {
+          if (typeof value === 'string') {
+            return value;
+          }
+          if (value === undefined || value === null) {
+            return undefined;
+          }
+          try {
+            return JSON.stringify(value, null, 2);
+          } catch {
+            return String(value);
+          }
+        };
         const safeEnqueue = (payload: unknown) => {
           if (streamClosed) return;
           try {
@@ -289,6 +370,7 @@ export async function POST(req: Request) {
               const chunk = event.value; // string
               if (typeof chunk === 'string') {
                 fullResponse += chunk;
+                persistedAssistantContent += chunk;
                 safeEnqueue({
                   type: 'message',
                   role: 'assistant',
@@ -299,6 +381,9 @@ export async function POST(req: Request) {
 
             else if (event.type === GeminiEventType.ToolCallRequest) {
               const info = event.value as ToolCallRequestInfo;
+              toolNameByCallId.set(info.callId, info.name);
+              const toolCallTag = `\n\n<tool-call id="${info.callId || ''}" name="${info.name}" args="${encodeURIComponent(JSON.stringify(info.args || {}))}" status="running" />\n\n`;
+              persistedAssistantContent += toolCallTag;
               safeEnqueue({
                 type: 'tool_use',
                 tool_name: info.name,
@@ -310,12 +395,10 @@ export async function POST(req: Request) {
             else if (event.type === GeminiEventType.ToolCallResponse) {
               const info = event.value as ToolCallResponseInfo;
               const resultDisplay = info.resultDisplay;
-              const output =
-                typeof resultDisplay === 'string'
-                  ? resultDisplay
-                  : resultDisplay
-                    ? JSON.stringify(resultDisplay)
-                    : undefined;
+              const resultData = toSerializableResultData(resultDisplay);
+              const output = toResultOutput(resultDisplay);
+              const toolName = toolNameByCallId.get(info.callId);
+              toolNameByCallId.delete(info.callId);
               const error =
                 info.error
                   ? {
@@ -323,13 +406,21 @@ export async function POST(req: Request) {
                       message: info.error.message || String(info.error)
                     }
                   : undefined;
+              upsertToolCallResult({
+                toolId: info.callId,
+                status: info.error ? 'failed' : 'completed',
+                output: output || info.error?.message,
+                resultData,
+              });
 
               safeEnqueue({
                 type: 'tool_result',
                 tool_id: info.callId,
+                tool_name: toolName,
                 status: info.error ? 'error' : 'success',
                 is_error: !!info.error,
                 output: output || info.error?.message,
+                result_data: resultData,
                 error
               });
             }
@@ -337,6 +428,7 @@ export async function POST(req: Request) {
             else if (event.type === GeminiEventType.Thought) {
               const thought = event.value as any;
               const text = typeof thought === 'string' ? thought : thought.text || JSON.stringify(thought);
+              persistedAssistantThought += text;
               safeEnqueue({
                 type: 'thought',
                 content: text
@@ -345,6 +437,9 @@ export async function POST(req: Request) {
 
             else if (event.type === GeminiEventType.Citation) {
               const citation = event.value as string;
+              if (citation) {
+                persistedAssistantCitations.push(citation);
+              }
               safeEnqueue({
                 type: 'citation',
                 content: citation
@@ -415,12 +510,19 @@ export async function POST(req: Request) {
 
           // Save Assistant Message to DB
           try {
-            db.prepare('INSERT INTO messages (session_id, role, content, stats, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+            const serializedCitations = persistedAssistantCitations.length > 0
+              ? JSON.stringify(Array.from(new Set(persistedAssistantCitations)))
+              : null;
+            db.prepare(
+              'INSERT INTO messages (session_id, role, content, stats, thought, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            )
               .run(
                 finalSessionId,
                 'model',
-                fullResponse,
+                persistedAssistantContent || fullResponse,
                 finalStats ? JSON.stringify(finalStats) : null,
+                persistedAssistantThought || null,
+                serializedCitations,
                 userMessageId,
                 Date.now()
               );

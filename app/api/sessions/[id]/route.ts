@@ -20,6 +20,20 @@ export async function GET(
     const parsedMessages = messages.map((msg: any) => ({
       ...msg,
       stats: msg.stats ? JSON.parse(msg.stats) : undefined,
+      thought: typeof msg.thought === 'string' ? msg.thought : undefined,
+      citations: (() => {
+        if (!msg.citations) return undefined;
+        if (Array.isArray(msg.citations)) return msg.citations;
+        if (typeof msg.citations === 'string') {
+          try {
+            const parsed = JSON.parse(msg.citations);
+            return Array.isArray(parsed) ? parsed : undefined;
+          } catch {
+            return undefined;
+          }
+        }
+        return undefined;
+      })(),
       parent_id: msg.parent_id,
       parentId: msg.parent_id === null || msg.parent_id === undefined ? null : String(msg.parent_id),
       id: msg.id === null || msg.id === undefined ? undefined : String(msg.id),

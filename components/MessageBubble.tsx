@@ -397,11 +397,21 @@ function ContentRenderer({ content, onRetry, onCancel }: { content: string, onRe
           const argsMatch = part.match(/args="([^"]+)"/);
           const statusMatch = part.match(/status="([^"]+)"/);
           const resultMatch = part.match(/result="([^"]+)"/);
+          const resultDataMatch = part.match(/result_data="([^"]+)"/);
 
           const name = nameMatch ? nameMatch[1] : 'Unknown Tool';
           const argsStr = argsMatch ? decodeURIComponent(argsMatch[1]) : '{}';
           const status = statusMatch ? statusMatch[1] as 'running' | 'completed' | 'failed' : 'completed';
           const result = resultMatch ? decodeURIComponent(resultMatch[1]) : undefined;
+          const resultDataStr = resultDataMatch ? decodeURIComponent(resultDataMatch[1]) : undefined;
+          let resultData: unknown = undefined;
+          if (resultDataStr) {
+            try {
+              resultData = JSON.parse(resultDataStr);
+            } catch {
+              resultData = resultDataStr;
+            }
+          }
 
           let args = {};
           try { args = JSON.parse(argsStr); } catch { args = { raw: argsStr }; }
@@ -413,6 +423,7 @@ function ContentRenderer({ content, onRetry, onCancel }: { content: string, onRe
               args={args}
               status={status}
               result={result}
+              resultData={resultData}
               onRetry={onRetry}
               onCancel={onCancel}
             />

@@ -22,6 +22,7 @@ import {
     resolveTelemetrySettings,
     Storage,
     ToolErrorType,
+    WriteTodosTool,
 } from '@google/gemini-cli-core';
 import type {
     CompletedToolCall,
@@ -158,6 +159,7 @@ export class CoreService {
             // Otherwise a chat instance created before a tools-format fix can keep stale invalid schemas.
             try {
                 const geminiClient = this.config.getGeminiClient();
+                this.ensureWriteTodosToolEnabled();
                 await geminiClient.setTools();
                 this.chat = geminiClient.getChat();
                 if (params.systemInstruction) {
@@ -277,6 +279,7 @@ export class CoreService {
         }
 
         // 2. Setup / refresh tools on the core GeminiClient (CLI-aligned path)
+        this.ensureWriteTodosToolEnabled();
         const registry = this.config.getToolRegistry();
         const toolDeclarations = registry.getFunctionDeclarations();
         console.log(
@@ -305,6 +308,33 @@ export class CoreService {
 
         this.initialized = true;
         console.log('[CoreService] Initialization complete.');
+    }
+
+    private ensureWriteTodosToolEnabled() {
+        if (!this.config) return;
+
+        const configWithWriteTodos = this.config as unknown as {
+            useWriteTodos?: boolean;
+        };
+        configWithWriteTodos.useWriteTodos = true;
+
+        const registry = this.config.getToolRegistry() as unknown as {
+            getTool?: (name: string) => unknown;
+            registerTool?: (tool: unknown) => void;
+            sortTools?: () => void;
+        };
+
+        if (registry.getTool?.('write_todos')) {
+            return;
+        }
+
+        try {
+            registry.registerTool?.(new WriteTodosTool(this.config.getMessageBus()));
+            registry.sortTools?.();
+            console.log(`[CoreService] Enabled write_todos for model ${this.config.getModel()}`);
+        } catch (error) {
+            console.warn('[CoreService] Failed to force-enable write_todos tool:', error);
+        }
     }
 
     private registerSystemEvents() {

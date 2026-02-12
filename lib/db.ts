@@ -29,6 +29,8 @@ db.exec(`
     role TEXT NOT NULL,
     content TEXT NOT NULL,
     stats TEXT,
+    thought TEXT,
+    citations TEXT,
     parent_id INTEGER,
     created_at INTEGER NOT NULL,
     FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE,
@@ -65,6 +67,16 @@ try {
 try {
   const tableInfo = db.prepare("PRAGMA table_info(messages)").all() as { name: string }[];
   const hasParentId = tableInfo.some(col => col.name === 'parent_id');
+  const hasThought = tableInfo.some(col => col.name === 'thought');
+  const hasCitations = tableInfo.some(col => col.name === 'citations');
+
+  if (!hasThought) {
+    db.exec('ALTER TABLE messages ADD COLUMN thought TEXT');
+  }
+
+  if (!hasCitations) {
+    db.exec('ALTER TABLE messages ADD COLUMN citations TEXT');
+  }
 
   if (!hasParentId) {
     console.log('Migrating messages table: Adding parent_id...');
@@ -107,6 +119,8 @@ export interface DbMessage {
   role: 'user' | 'model';
   content: string;
   stats?: string; // JSON string
+  thought?: string | null;
+  citations?: string | null; // JSON string
   parent_id?: number | null;
   created_at: number;
 }
