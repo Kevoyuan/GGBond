@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ModuleCard } from '../ModuleCard';
-import { Activity, Loader2, RefreshCw, TrendingUp, AlertTriangle, Wrench, Clock } from 'lucide-react';
+import { Activity, Loader2, RefreshCw, TrendingUp, AlertTriangle, Wrench } from 'lucide-react';
 
 interface TelemetrySummary {
     totalApiRequests: number;
@@ -18,6 +18,7 @@ interface TelemetryData {
     tokensByModel: Record<string, { input: number; output: number; cached: number; thoughts: number }>;
     toolsByName: Record<string, { count: number; success: number; fail: number; avgLatency: number }>;
     totalEvents: number;
+    dataSource?: 'telemetry' | 'db_fallback';
 }
 
 export function PerformancePanel() {
@@ -43,12 +44,21 @@ export function PerformancePanel() {
         );
     }
 
-    if (!data || data.totalEvents === 0) {
+    const hasAnyData = !!data && (
+        data.summary.totalApiRequests > 0 ||
+        data.summary.totalToolCalls > 0 ||
+        Object.keys(data.tokensByModel || {}).length > 0
+    );
+
+    if (!hasAnyData) {
         return (
             <ModuleCard title="Performance" description="Telemetry metrics" icon={Activity}>
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                    <Activity size={24} className="mx-auto mb-2 opacity-30" />
-                    No telemetry data yet
+                <div className="h-full flex flex-col items-center justify-center text-center py-8 text-sm text-muted-foreground">
+                    <Activity size={24} className="mb-2 opacity-30" />
+                    <div className="font-medium text-zinc-500 dark:text-zinc-400">No performance data yet</div>
+                    <div className="text-xs mt-1 max-w-[280px]">
+                        Send at least one request in this workspace. If telemetry logging is disabled, the panel will fallback to session DB stats.
+                    </div>
                 </div>
             </ModuleCard>
         );
@@ -65,7 +75,16 @@ export function PerformancePanel() {
             description={`${data.totalEvents} events`}
             icon={Activity}
             actions={
-                <button onClick={fetchTelemetry} className="p-1 text-zinc-500 hover:text-foreground transition-colors"><RefreshCw size={14} /></button>
+                <div className="flex items-center gap-2">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                        data.dataSource === 'db_fallback'
+                            ? 'border-amber-400/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                            : 'border-emerald-400/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                        {data.dataSource === 'db_fallback' ? 'DB Fallback' : 'Telemetry'}
+                    </span>
+                    <button onClick={fetchTelemetry} className="p-1 text-zinc-500 hover:text-foreground transition-colors"><RefreshCw size={14} /></button>
+                </div>
             }
         >
             <div className="space-y-5">

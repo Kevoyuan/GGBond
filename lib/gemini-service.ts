@@ -259,6 +259,8 @@ export async function parseTelemetryLog(maxLines = 500): Promise<TelemetryEvent[
     // Try project-level first, then global
     const paths = [
         path.join(process.cwd(), '.gemini', 'telemetry.log'),
+        path.join(process.cwd(), 'gemini-home', '.gemini', 'telemetry.log'),
+        path.join(getGeminiHome(), '.gemini', 'telemetry.log'),
         path.join(getGeminiHome(), 'telemetry.log'),
     ];
 
