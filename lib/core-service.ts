@@ -21,6 +21,7 @@ import {
     ApprovalMode,
     TelemetrySettings,
     ToolConfirmationOutcome,
+    createPolicyUpdater,
 } from '@google/gemini-cli-core';
 import type { Tool } from '@google/genai';
 import type {
@@ -80,11 +81,13 @@ type PendingConfirmationRequest = {
 
 type PendingConfirmation = {
     callId: string;
-    onConfirm: (confirmed: boolean) => Promise<void>;
+    onConfirm: (outcome: ToolConfirmationOutcome) => Promise<void>;
 };
 
 export class CoreService {
     private static _instance: CoreService;
+    private static readonly SERVICE_VERSION = 2;
+    private static coreEventsRegistered = false;
     public config: Config | null = null;
     public chat: GeminiChat | null = null;
     public messageBus: MessageBus | null = null;
@@ -92,6 +95,10 @@ export class CoreService {
     private pendingConfirmations = new Map<string, PendingConfirmation>();
     private pendingConfirmationByCallId = new Map<string, string>();
     private confirmationSubscribers = new Set<(request: PendingConfirmationRequest) => void>();
+    private readonly serviceVersion = CoreService.SERVICE_VERSION;
+    private systemEventsRegistered = false;
+    private policyUpdaterMessageBus: MessageBus | null = null;
+    private systemListenerMessageBus: MessageBus | null = null;
 
     private constructor() { }
 
@@ -101,10 +108,15 @@ export class CoreService {
                 !!global.__gemini_core_service &&
                 typeof (global.__gemini_core_service as unknown as {
                     subscribeConfirmationRequests?: unknown;
+                    clearConfirmationSubscribers?: unknown;
                     submitConfirmation?: unknown;
+                    serviceVersion?: unknown;
                 }).subscribeConfirmationRequests !== 'function';
+            const hasLatestVersion =
+                !!global.__gemini_core_service &&
+                (global.__gemini_core_service as unknown as { serviceVersion?: unknown }).serviceVersion === CoreService.SERVICE_VERSION;
 
-            if (!global.__gemini_core_service || isStaleInstance) {
+            if (!global.__gemini_core_service || isStaleInstance || !hasLatestVersion) {
                 global.__gemini_core_service = new CoreService();
             }
             return global.__gemini_core_service;
@@ -116,12 +128,32 @@ export class CoreService {
     }
 
     public async initialize(params: InitParams) {
+        const normalizedApprovalMode = (() => {
+            if (params.approvalMode === 'auto') {
+                return ApprovalMode.YOLO;
+            }
+            if (params.approvalMode === ApprovalMode.AUTO_EDIT) {
+                return ApprovalMode.AUTO_EDIT;
+            }
+            return (params.approvalMode as ApprovalMode) ?? ApprovalMode.DEFAULT;
+        })();
+
         if (this.initialized && this.config?.getSessionId() === params.sessionId) {
             console.log('[CoreService] Already initialized for session:', params.sessionId);
             // Update model if changed
             if (params.model && this.config.getModel() !== params.model) {
                 console.log(`[CoreService] Switching model from ${this.config.getModel()} to ${params.model}`);
                 this.config.setModel(params.model);
+            }
+            if (this.config.getApprovalMode() !== normalizedApprovalMode) {
+                this.config.setApprovalMode(normalizedApprovalMode);
+            }
+            if (this.messageBus && this.policyUpdaterMessageBus !== this.messageBus) {
+                createPolicyUpdater(this.config.getPolicyEngine(), this.messageBus);
+                this.policyUpdaterMessageBus = this.messageBus;
+            }
+            if (this.messageBus && this.systemListenerMessageBus !== this.messageBus) {
+                this.registerSystemEvents();
             }
             // IMPORTANT: Refresh tools even for same session.
             // Otherwise a chat instance created before a tools-format fix can keep stale invalid schemas.
@@ -160,7 +192,7 @@ export class CoreService {
             cwd: projectRoot,
             debugMode: false,
             interactive: true,
-            approvalMode: (params.approvalMode as ApprovalMode) ?? ApprovalMode.DEFAULT,
+            approvalMode: normalizedApprovalMode,
             recordResponses: '',
             telemetry: {
                 enabled: false,
@@ -250,6 +282,10 @@ export class CoreService {
         const tools: Tool[] = [{ functionDeclarations: toolDeclarations }];
 
         this.messageBus = this.config.getMessageBus();
+        if (this.messageBus && this.policyUpdaterMessageBus !== this.messageBus) {
+            createPolicyUpdater(this.config.getPolicyEngine(), this.messageBus);
+            this.policyUpdaterMessageBus = this.messageBus;
+        }
 
         // 3. Initialize Chat
         const history: any[] = [];
@@ -270,15 +306,24 @@ export class CoreService {
     }
 
     private registerSystemEvents() {
-        // User Feedback
-        coreEvents.on(CoreEvent.UserFeedback, (payload) => {
-            console.log('[CoreEvent:UserFeedback]', payload);
-        });
+        if (!CoreService.coreEventsRegistered) {
+            // User Feedback
+            coreEvents.on(CoreEvent.UserFeedback, (payload) => {
+                console.log('[CoreEvent:UserFeedback]', payload);
+            });
 
-        // Model Changed
-        coreEvents.on(CoreEvent.ModelChanged, (payload) => {
-            console.log('[CoreEvent:ModelChanged]', payload);
-        });
+            // Model Changed
+            coreEvents.on(CoreEvent.ModelChanged, (payload) => {
+                console.log('[CoreEvent:ModelChanged]', payload);
+            });
+            CoreService.coreEventsRegistered = true;
+        }
+
+        if (!this.messageBus || this.systemListenerMessageBus === this.messageBus) {
+            return;
+        }
+        this.systemEventsRegistered = true;
+        this.systemListenerMessageBus = this.messageBus;
 
         // Tool Confirmation (We also need to expose this via API/SSE)
         // Subscription to TOOL_CONFIRMATION_REQUEST
@@ -312,12 +357,18 @@ export class CoreService {
         };
     }
 
+    public clearConfirmationSubscribers() {
+        this.confirmationSubscribers.clear();
+    }
+
     private emitConfirmationRequest(request: PendingConfirmationRequest) {
-        for (const listener of this.confirmationSubscribers) {
+        for (const listener of Array.from(this.confirmationSubscribers)) {
             try {
                 listener(request);
             } catch (error) {
                 console.error('[CoreService] Confirmation subscriber error:', error);
+                // Drop broken subscribers (e.g. closed stream controllers) to avoid repeated failures.
+                this.confirmationSubscribers.delete(listener);
             }
         }
     }
@@ -424,10 +475,7 @@ export class CoreService {
 
         this.pendingConfirmations.set(correlationId, {
             callId,
-            onConfirm: async (confirmed: boolean) => {
-                const outcome = confirmed
-                    ? ToolConfirmationOutcome.ProceedOnce
-                    : ToolConfirmationOutcome.Cancel;
+            onConfirm: async (outcome: ToolConfirmationOutcome) => {
                 await onConfirm(outcome);
             },
         });
@@ -574,8 +622,18 @@ export class CoreService {
         });
     }
 
-    public async submitConfirmation(correlationId: string, confirmed: boolean) {
+    public async submitConfirmation(
+        correlationId: string,
+        confirmed: boolean,
+        outcome?: ToolConfirmationOutcome
+    ) {
         console.log('[CoreService] Submitting confirmation:', { correlationId, confirmed });
+
+        const resolvedOutcome =
+            outcome ??
+            (confirmed
+                ? ToolConfirmationOutcome.ProceedOnce
+                : ToolConfirmationOutcome.Cancel);
 
         let pending = this.pendingConfirmations.get(correlationId);
         if (!pending && this.pendingConfirmations.size === 1) {
@@ -593,7 +651,7 @@ export class CoreService {
 
         if (pending) {
             this.cleanupPendingConfirmationByCallId(pending.callId);
-            await pending.onConfirm(confirmed);
+            await pending.onConfirm(resolvedOutcome);
             return;
         }
 
@@ -613,9 +671,7 @@ export class CoreService {
             type: MessageBusType.TOOL_CONFIRMATION_RESPONSE,
             correlationId,
             confirmed,
-            outcome: confirmed
-                ? ToolConfirmationOutcome.ProceedOnce
-                : ToolConfirmationOutcome.Cancel
+            outcome: resolvedOutcome
         } as any);
     }
 

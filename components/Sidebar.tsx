@@ -135,6 +135,53 @@ export function Sidebar({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [sidePanelWidth, setSidePanelWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
+  const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null);
+
+  const formatSessionAge = useCallback((session: Session): string => {
+    const raw = session.updated_at ?? session.created_at;
+    if (!raw) return '';
+
+    const ts = typeof raw === 'number' ? raw : new Date(raw).getTime();
+    if (!Number.isFinite(ts)) return '';
+
+    const diffMs = Date.now() - ts;
+    if (diffMs < 0) return 'now';
+
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'now';
+    if (mins < 60) return `${mins}m`;
+
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h`;
+
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d`;
+
+    const weeks = Math.floor(days / 7);
+    if (weeks < 5) return `${weeks}w`;
+
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo`;
+
+    const years = Math.floor(days / 365);
+    return `${years}y`;
+  }, []);
+
+  useEffect(() => {
+    if (!pendingDeleteSessionId) return;
+    const timer = setTimeout(() => {
+      setPendingDeleteSessionId(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [pendingDeleteSessionId]);
+
+  useEffect(() => {
+    if (!pendingDeleteSessionId) return;
+    const stillExists = sessions.some((session) => session.id === pendingDeleteSessionId);
+    if (!stillExists) {
+      setPendingDeleteSessionId(null);
+    }
+  }, [pendingDeleteSessionId, sessions]);
 
   // Load state from local storage
   useEffect(() => {
@@ -449,15 +496,37 @@ export function Sidebar({
                                 <span className="truncate max-w-[50px]">{branchInfo[workspace]}</span>
                               </span>
                             )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteSession(session.id);
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-all"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                            <div className="relative shrink-0 w-12 h-5 flex items-center justify-end">
+                              {pendingDeleteSessionId === session.id ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPendingDeleteSessionId(null);
+                                    onDeleteSession(session.id);
+                                  }}
+                                  className="w-full h-5 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-[10px] font-semibold leading-none hover:bg-destructive/15 transition-colors"
+                                  title="Confirm delete"
+                                >
+                                  Confirm
+                                </button>
+                              ) : (
+                                <>
+                                  <span className="absolute right-0 text-[10px] text-muted-foreground/80 tabular-nums transition-opacity group-hover:opacity-0">
+                                    {formatSessionAge(session)}
+                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPendingDeleteSessionId(session.id);
+                                    }}
+                                    className="absolute right-0 opacity-0 group-hover:opacity-100 h-5 w-5 inline-flex items-center justify-center hover:bg-destructive/10 hover:text-destructive rounded transition-all"
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
