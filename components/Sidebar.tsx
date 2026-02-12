@@ -140,6 +140,31 @@ export function Sidebar({
   const [isResizing, setIsResizing] = useState(false);
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null);
 
+  const getSessionUpdatedAt = useCallback((session: Session) => {
+    const raw = session.updated_at ?? session.lastUpdated ?? session.created_at;
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+    if (typeof raw === 'string') {
+      const parsed = new Date(raw).getTime();
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }, []);
+
+  const dedupedSessions = useMemo(() => {
+    const byId = new Map<string, Session>();
+    for (const session of sessions) {
+      const existing = byId.get(session.id);
+      if (!existing) {
+        byId.set(session.id, session);
+        continue;
+      }
+      if (getSessionUpdatedAt(session) >= getSessionUpdatedAt(existing)) {
+        byId.set(session.id, session);
+      }
+    }
+    return Array.from(byId.values());
+  }, [sessions, getSessionUpdatedAt]);
+
   const formatSessionAge = useCallback((session: Session): string => {
     const raw = session.updated_at ?? session.created_at;
     if (!raw) return '';
@@ -172,11 +197,11 @@ export function Sidebar({
 
   useEffect(() => {
     if (!pendingDeleteSessionId) return;
-    const stillExists = sessions.some((session) => session.id === pendingDeleteSessionId);
+    const stillExists = dedupedSessions.some((session) => session.id === pendingDeleteSessionId);
     if (!stillExists) {
       setPendingDeleteSessionId(null);
     }
-  }, [pendingDeleteSessionId, sessions]);
+  }, [pendingDeleteSessionId, dedupedSessions]);
 
   // Load state from local storage
   useEffect(() => {
@@ -214,7 +239,7 @@ export function Sidebar({
   const groupedSessions = useMemo(() => {
     const groups: Record<string, Session[]> = {};
 
-    sessions.forEach(session => {
+    dedupedSessions.forEach(session => {
       const workspace = session.workspace || 'Default';
       if (!groups[workspace]) {
         groups[workspace] = [];
@@ -223,7 +248,7 @@ export function Sidebar({
     });
 
     return groups;
-  }, [sessions]);
+  }, [dedupedSessions]);
 
   // Git branch awareness
   const workspaceNames = useMemo(() => Object.keys(groupedSessions), [groupedSessions]);
