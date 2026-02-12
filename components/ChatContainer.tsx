@@ -26,6 +26,8 @@ interface ChatContainerProps {
     onModeChange: (mode: 'code' | 'plan' | 'ask') => void;
     onApprovalModeChange: (mode: 'safe' | 'auto') => void;
     workspacePath?: string;
+    showTerminal?: boolean;
+    onToggleTerminal?: () => void;
     onInputHeightChange?: (height: number) => void;
 }
 
@@ -47,6 +49,8 @@ export function ChatContainer({
     onModeChange,
     onApprovalModeChange,
     workspacePath,
+    showTerminal,
+    onToggleTerminal,
     onInputHeightChange
 }: ChatContainerProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -196,6 +200,8 @@ export function ChatContainer({
                         onModeChange={onModeChange}
                         onApprovalModeChange={onApprovalModeChange}
                         workspacePath={workspacePath}
+                        showTerminal={showTerminal}
+                        onToggleTerminal={onToggleTerminal}
                         onHeightChange={onInputHeightChange}
                     />
                 </>

@@ -5,7 +5,6 @@ import { Maximize2, Minimize2, Network } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { Message } from '../components/MessageBubble';
-import { SkillsDialog } from '../components/SkillsDialog';
 import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
 import { cn } from '@/lib/utils';
 import { ConversationGraph, GraphMessage } from '../components/ConversationGraph';
@@ -16,6 +15,7 @@ import { QuestionPanel, Question } from '../components/QuestionPanel';
 import { HookEvent } from '../components/HooksPanel';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
+import { TerminalPanel } from '../components/TerminalPanel';
 
 
 interface Session {
@@ -67,6 +67,7 @@ const toStatsValue = (value: unknown): Message['stats'] | undefined => {
 };
 
 const TOOL_CALL_TAG_REGEX = /<tool-call[^>]*\/>/g;
+const DEFAULT_TERMINAL_PANEL_HEIGHT = 360;
 
 const getToolCallAttribute = (tag: string, key: string) => {
   const match = tag.match(new RegExp(`${key}="([^"]*)"`));
@@ -177,6 +178,7 @@ export default function Home() {
 
   const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [runningSessionCounts, setRunningSessionCounts] = useState<Record<string, number>>({});
+  const [terminalRunningSessionCounts, setTerminalRunningSessionCounts] = useState<Record<string, number>>({});
 
   // Settings state
   const [settings, setSettings] = useState<ChatSettings>({
@@ -198,7 +200,6 @@ export default function Home() {
 
   // UI state
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [skillsOpen, setSkillsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showUsageStats, setShowUsageStats] = useState(false);
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
@@ -207,8 +208,10 @@ export default function Home() {
   const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
   const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>('safe');
   const [showGraph, setShowGraph] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(false);
   const [isBranchInsightsMinimized, setIsBranchInsightsMinimized] = useState(false);
   const [inputAreaHeight, setInputAreaHeight] = useState(120);
+  const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentSessionIdRef = useRef<string | null>(currentSessionId);
@@ -253,6 +256,32 @@ export default function Home() {
   const runningSessionIds = useMemo(
     () => Object.keys(runningSessionCounts).filter((sessionId) => (runningSessionCounts[sessionId] ?? 0) > 0),
     [runningSessionCounts]
+  );
+
+  const updateTerminalRunningSessionCount = useCallback((sessionId: string | null | undefined, delta: number) => {
+    if (!sessionId || !Number.isFinite(delta) || delta === 0) return;
+
+    setTerminalRunningSessionCounts((prev) => {
+      const current = prev[sessionId] ?? 0;
+      const nextCount = Math.max(0, current + delta);
+      if (nextCount === current) return prev;
+
+      const next = { ...prev };
+      if (nextCount === 0) {
+        delete next[sessionId];
+      } else {
+        next[sessionId] = nextCount;
+      }
+      return next;
+    });
+  }, []);
+
+  const terminalRunningSessionIds = useMemo(
+    () =>
+      Object.keys(terminalRunningSessionCounts).filter(
+        (sessionId) => (terminalRunningSessionCounts[sessionId] ?? 0) > 0
+      ),
+    [terminalRunningSessionCounts]
   );
 
   const isCurrentSessionRunning = useMemo(() => {
@@ -1210,13 +1239,13 @@ export default function Home() {
           sessions={sessions}
           currentSessionId={currentSessionId}
           runningSessionIds={runningSessionIds}
+          terminalRunningSessionIds={terminalRunningSessionIds}
           onSelectSession={handleSelectSession}
           onDeleteSession={handleDeleteSession}
           onNewChat={handleNewChat}
           onNewChatInWorkspace={handleNewChatInWorkspace}
           currentWorkspace={currentWorkspace === null ? undefined : currentWorkspace}
           onAddWorkspace={() => setShowAddWorkspace(true)}
-          onOpenSkills={() => setSkillsOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           isDark={theme === 'dark'}
           toggleTheme={toggleTheme}
@@ -1227,11 +1256,6 @@ export default function Home() {
           selectedAgentName={selectedAgent?.name}
         />
       </div>
-
-      <SkillsDialog
-        open={skillsOpen}
-        onClose={() => setSkillsOpen(false)}
-      />
 
       <SettingsDialog
         open={settingsOpen}
@@ -1256,143 +1280,161 @@ export default function Home() {
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-2">
           <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} />
-          <button
-            onClick={() => setShowGraph(!showGraph)}
-            className={cn(
-              "p-2 rounded-md transition-colors",
-              showGraph ? "bg-primary/10 text-primary" : "hover:bg-muted text-muted-foreground"
-            )}
-            title="Toggle Conversation Graph"
-          >
-            <Network className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowGraph(!showGraph)}
+              className={cn(
+                "p-2 rounded-md transition-colors",
+                showGraph ? "bg-primary/10 text-primary" : "hover:bg-muted text-muted-foreground"
+              )}
+              title="Toggle Conversation Graph"
+            >
+              <Network className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="flex-1 flex overflow-hidden">
-          {/* Graph Panel */}
-          {showGraph && (
-            <div className="w-[44%] min-w-[420px] max-w-[900px] border-r bg-muted/10 relative">
-              <ConversationGraph
-                messages={graphMessages}
-                currentLeafId={headId}
-                onNodeClick={handleNodeClick}
-              />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex overflow-hidden">
+            {/* Graph Panel */}
+            {showGraph && (
+              <div className="w-[44%] min-w-[420px] max-w-[900px] border-r bg-muted/10 relative">
+                <ConversationGraph
+                  messages={graphMessages}
+                  currentLeafId={headId}
+                  onNodeClick={handleNodeClick}
+                />
 
-              <div className="pointer-events-none absolute right-3 top-3 z-20">
-                <aside
-                  className={cn(
-                    'pointer-events-auto max-h-[calc(100%-1.5rem)] overflow-y-auto rounded-xl border border-border/70 bg-background/90 backdrop-blur-md p-3 shadow-xl transition-all',
-                    isBranchInsightsMinimized ? 'w-[228px] space-y-2' : 'w-[280px] space-y-3'
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Branch Insights</div>
-                    <button
-                      type="button"
-                      onClick={() => setIsBranchInsightsMinimized((value) => !value)}
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border/70 bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                      title={isBranchInsightsMinimized ? 'Expand Branch Insights' : 'Minimize Branch Insights'}
-                    >
-                      {isBranchInsightsMinimized ? <Maximize2 size={12} /> : <Minimize2 size={12} />}
-                    </button>
-                  </div>
+                <div className="pointer-events-none absolute right-3 top-3 z-20">
+                  <aside
+                    className={cn(
+                      'pointer-events-auto max-h-[calc(100%-1.5rem)] overflow-y-auto rounded-xl border border-border/70 bg-background/90 backdrop-blur-md p-3 shadow-xl transition-all',
+                      isBranchInsightsMinimized ? 'w-[228px] space-y-2' : 'w-[280px] space-y-3'
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Branch Insights</div>
+                      <button
+                        type="button"
+                        onClick={() => setIsBranchInsightsMinimized((value) => !value)}
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border/70 bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                        title={isBranchInsightsMinimized ? 'Expand Branch Insights' : 'Minimize Branch Insights'}
+                      >
+                        {isBranchInsightsMinimized ? <Maximize2 size={12} /> : <Minimize2 size={12} />}
+                      </button>
+                    </div>
 
-                  {isBranchInsightsMinimized ? (
-                    <>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        <MiniInsightBadge label="N" value={String(branchInsights.nodeCount)} />
-                        <MiniInsightBadge label="L" value={String(branchInsights.leafCount)} />
-                        <MiniInsightBadge label="F" value={String(branchInsights.branchPointIds.length)} />
-                        <MiniInsightBadge label="D" value={String(branchInsights.maxDepth)} />
-                      </div>
-                      <div className="rounded-md border border-border/70 bg-muted/20 px-2 py-1.5 text-[11px] text-muted-foreground truncate">
-                        {headId ? `Head #${headId}` : 'No active node'}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-2 gap-2">
-                        <InsightCard label="Nodes" value={String(branchInsights.nodeCount)} />
-                        <InsightCard label="Leafs" value={String(branchInsights.leafCount)} />
-                        <InsightCard label="Forks" value={String(branchInsights.branchPointIds.length)} />
-                        <InsightCard label="Depth" value={String(branchInsights.maxDepth)} />
-                      </div>
-
-                      <div className="rounded-lg border border-border/70 bg-muted/20 p-2.5">
-                        <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-1">Active Branch</div>
-                        <div className="text-sm font-medium text-foreground">
+                    {isBranchInsightsMinimized ? (
+                      <>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          <MiniInsightBadge label="N" value={String(branchInsights.nodeCount)} />
+                          <MiniInsightBadge label="L" value={String(branchInsights.leafCount)} />
+                          <MiniInsightBadge label="F" value={String(branchInsights.branchPointIds.length)} />
+                          <MiniInsightBadge label="D" value={String(branchInsights.maxDepth)} />
+                        </div>
+                        <div className="rounded-md border border-border/70 bg-muted/20 px-2 py-1.5 text-[11px] text-muted-foreground truncate">
                           {headId ? `Head #${headId}` : 'No active node'}
                         </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Path depth: {branchInsights.activeDepth}
+                      </>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          <InsightCard label="Nodes" value={String(branchInsights.nodeCount)} />
+                          <InsightCard label="Leafs" value={String(branchInsights.leafCount)} />
+                          <InsightCard label="Forks" value={String(branchInsights.branchPointIds.length)} />
+                          <InsightCard label="Depth" value={String(branchInsights.maxDepth)} />
                         </div>
-                        {selectedGraphMessage && (
-                          <div className="mt-2 text-xs text-muted-foreground line-clamp-4 break-words">
-                            {summarizeBranchContent(selectedGraphMessage.content)}
+
+                        <div className="rounded-lg border border-border/70 bg-muted/20 p-2.5">
+                          <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-1">Active Branch</div>
+                          <div className="text-sm font-medium text-foreground">
+                            {headId ? `Head #${headId}` : 'No active node'}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Path depth: {branchInsights.activeDepth}
+                          </div>
+                          {selectedGraphMessage && (
+                            <div className="mt-2 text-xs text-muted-foreground line-clamp-4 break-words">
+                              {summarizeBranchContent(selectedGraphMessage.content)}
+                            </div>
+                          )}
+                        </div>
+
+                        {branchJumpMessages.length > 0 && (
+                          <div className="space-y-1.5">
+                            <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Fork Nodes</div>
+                            {branchJumpMessages.map(({ id, message }) => (
+                              <button
+                                key={id}
+                                type="button"
+                                onClick={() => setHeadId(id)}
+                                className={cn(
+                                  'w-full text-left rounded-md border px-2 py-1.5 transition-colors',
+                                  id === headId
+                                    ? 'border-primary/60 bg-primary/10 text-primary'
+                                    : 'border-border/70 bg-muted/10 hover:bg-muted/30'
+                                )}
+                              >
+                                <div className="text-xs font-medium truncate">#{id}</div>
+                                <div className="text-[11px] text-muted-foreground truncate">
+                                  {summarizeBranchContent(message.content)}
+                                </div>
+                              </button>
+                            ))}
                           </div>
                         )}
-                      </div>
-
-                      {branchJumpMessages.length > 0 && (
-                        <div className="space-y-1.5">
-                          <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Fork Nodes</div>
-                          {branchJumpMessages.map(({ id, message }) => (
-                            <button
-                              key={id}
-                              type="button"
-                              onClick={() => setHeadId(id)}
-                              className={cn(
-                                'w-full text-left rounded-md border px-2 py-1.5 transition-colors',
-                                id === headId
-                                  ? 'border-primary/60 bg-primary/10 text-primary'
-                                  : 'border-border/70 bg-muted/10 hover:bg-muted/30'
-                              )}
-                            >
-                              <div className="text-xs font-medium truncate">#{id}</div>
-                              <div className="text-[11px] text-muted-foreground truncate">
-                                {summarizeBranchContent(message.content)}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </aside>
+                      </>
+                    )}
+                  </aside>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Chat Area */}
-          <ChatContainer
-            messages={messages}
-            isLoading={isLoading}
-            previewFile={previewFile}
-            onClosePreview={() => setPreviewFile(null)}
-            settings={settings}
-            onSendMessage={handleSendMessage}
-            onUndoTool={handleUndoTool}
-            onRetry={handleRetry}
-            onCancel={handleCancel}
-            onModelChange={(model) => setSettings(s => ({ ...s, model }))}
-            currentModel={settings.model}
-            sessionStats={sessionStats}
-            currentContextUsage={currentContextUsage}
-            mode={mode}
-            onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
-            onApprovalModeChange={setApprovalMode}
-            workspacePath={currentWorkspace || undefined}
-            onInputHeightChange={(height) => {
-              setInputAreaHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
-            }}
-          />
+            {/* Chat Area */}
+            <ChatContainer
+              messages={messages}
+              isLoading={isLoading}
+              previewFile={previewFile}
+              onClosePreview={() => setPreviewFile(null)}
+              settings={settings}
+              onSendMessage={handleSendMessage}
+              onUndoTool={handleUndoTool}
+              onRetry={handleRetry}
+              onCancel={handleCancel}
+              onModelChange={(model) => setSettings(s => ({ ...s, model }))}
+              currentModel={settings.model}
+              sessionStats={sessionStats}
+              currentContextUsage={currentContextUsage}
+              mode={mode}
+              onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
+              onApprovalModeChange={setApprovalMode}
+              workspacePath={currentWorkspace || undefined}
+              showTerminal={showTerminal}
+              onToggleTerminal={() => setShowTerminal((value) => !value)}
+              onInputHeightChange={(height) => {
+                setInputAreaHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
+              }}
+            />
+          </div>
+
+          <div className={showTerminal ? '' : 'hidden'}>
+            <TerminalPanel
+              workspacePath={currentWorkspace || undefined}
+              sessionId={currentSessionId}
+              onSessionRunStateChange={updateTerminalRunningSessionCount}
+              onClose={() => setShowTerminal(false)}
+              onHeightChange={(height) => {
+                setTerminalPanelHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
+              }}
+            />
+          </div>
         </div>
         {confirmation && (
           <ConfirmationDialog
             details={confirmation.details}
             onConfirm={(mode) => handleConfirm(true, mode ?? 'once')}
             onCancel={() => handleConfirm(false, 'once')}
-            bottomOffset={inputAreaHeight}
+            bottomOffset={inputAreaHeight + (showTerminal ? terminalPanelHeight : 0)}
           />
         )}
       </div>
