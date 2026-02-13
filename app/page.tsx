@@ -38,6 +38,7 @@ interface ApiMessageRecord {
   stats?: unknown;
   thought?: string;
   citations?: string[];
+  images?: Array<{ dataUrl: string; type: string; name: string }>;
   sessionId?: string;
   error?: boolean;
 }
@@ -101,6 +102,7 @@ const buildTreeFromApiMessages = (rawMessages: ApiMessageRecord[]) => {
       parentId: null,
       thought: typeof rawMessage.thought === 'string' ? rawMessage.thought : undefined,
       citations: Array.isArray(rawMessage.citations) ? rawMessage.citations : undefined,
+      images: Array.isArray(rawMessage.images) ? rawMessage.images : undefined,
       sessionId: typeof rawMessage.sessionId === 'string' ? rawMessage.sessionId : undefined,
       error: Boolean(rawMessage.error),
     };
@@ -241,6 +243,8 @@ export default function Home() {
   const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [runningSessionCounts, setRunningSessionCounts] = useState<Record<string, number>>({});
   const [terminalRunningSessionCounts, setTerminalRunningSessionCounts] = useState<Record<string, number>>({});
+  // Track sessions with unread completed messages (not the current viewed session)
+  const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(new Set());
 
   // Settings state
   const [settings, setSettings] = useState<ChatSettings>(DEFAULT_CHAT_SETTINGS);
@@ -259,10 +263,12 @@ export default function Home() {
   const [isBranchInsightsMinimized, setIsBranchInsightsMinimized] = useState(false);
   const [inputAreaHeight, setInputAreaHeight] = useState(120);
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
+  const [streamingStatus, setStreamingStatus] = useState<string | undefined>(undefined);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentSessionIdRef = useRef<string | null>(currentSessionId);
   const activeChatAbortRef = useRef<AbortController | null>(null);
+  const loadSessionTreeRef = useRef<typeof loadSessionTree | null>(null);
 
   // -- Derived Linear Thread --
   const messages = useMemo(() => {
@@ -281,6 +287,64 @@ export default function Home() {
 
   useEffect(() => {
     currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
+
+  // Handle page visibility changes for background continuity
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    const checkBackgroundJobs = async () => {
+      if (!currentSessionId || !loadSessionTreeRef.current) return;
+
+      try {
+        const res = await fetch(`/api/chat/status?sessionId=${currentSessionId}`);
+        if (res.ok) {
+          const data = await res.json();
+          // If there are running jobs in background, reload the session tree
+          if (data.hasRunningJobs) {
+            console.log('[visibility] Background job detected, reloading session...');
+            await loadSessionTreeRef.current(currentSessionId);
+          }
+        }
+      } catch (e) {
+        console.error('[visibility] Failed to check background status:', e);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      const isVisible = document.visibilityState === 'visible';
+
+      if (isVisible) {
+        // Page became visible - check and refresh immediately
+        void checkBackgroundJobs();
+        // Stop polling when visible
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+      } else {
+        // Page became hidden - start polling to keep track of background jobs
+        // Poll every 5 seconds when hidden to update status
+        pollInterval = setInterval(() => {
+          void checkBackgroundJobs();
+        }, 5000);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // Initial check
+    if (document.visibilityState === 'hidden') {
+      pollInterval = setInterval(() => {
+        void checkBackgroundJobs();
+      }, 5000);
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
   }, [currentSessionId]);
 
   const updateRunningSessionCount = useCallback((sessionId: string | null | undefined, delta: number) => {
@@ -592,12 +656,22 @@ export default function Home() {
     return data;
   }, []);
 
+  // Keep ref updated with latest loadSessionTree function
+  loadSessionTreeRef.current = loadSessionTree;
+
   // Handle Session Selection
   const handleSelectSession = async (id: string) => {
     if (id === currentSessionId) return;
 
     setIsSessionLoading(true);
     setCurrentSessionId(id);
+
+    // Mark this session as read (clear unread)
+    setUnreadSessionIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
 
     // Find session to set workspace
     const session = sessions.find(s => s.id === id);
@@ -622,6 +696,10 @@ export default function Home() {
   };
 
   const handleNewChat = () => {
+    // Note: We intentionally do NOT stop running sessions here
+    // Multiple sessions can run concurrently
+    // But we clear the abort ref so new messages can be sent in new session
+    activeChatAbortRef.current = null;
     setCurrentSessionId(null);
     setCurrentWorkspace(null);
     setMessagesMap(new Map());
@@ -632,6 +710,10 @@ export default function Home() {
   };
 
   const handleNewChatInWorkspace = (workspace: string) => {
+    // Note: We intentionally do NOT stop running sessions here
+    // Multiple sessions can run concurrently
+    // But we clear the abort ref so new messages can be sent in new session
+    activeChatAbortRef.current = null;
     setCurrentSessionId(null);
     setCurrentWorkspace(workspace);
     setMessagesMap(new Map());
@@ -642,6 +724,10 @@ export default function Home() {
   };
 
   const handleAddWorkspace = (workspacePath: string) => {
+    // Note: We intentionally do NOT stop running sessions here
+    // Multiple sessions can run concurrently
+    // But we clear the abort ref so new messages can be sent in new session
+    activeChatAbortRef.current = null;
     setCurrentSessionId(null);
     setCurrentWorkspace(workspacePath);
     setMessagesMap(new Map());
@@ -695,23 +781,33 @@ export default function Home() {
   }, []);
 
 
+  interface UploadedImage {
+    id: string;
+    file: File;
+    preview: string;
+    dataUrl: string;
+  }
+
   const handleSendMessage = async (
     text: string,
-    options?: { parentId?: string; approvalMode?: 'safe' | 'auto' }
+    options?: { parentId?: string; approvalMode?: 'safe' | 'auto'; images?: UploadedImage[] }
   ) => {
-    if (!text.trim()) return;
+    // Allow sending if there's text OR images
+    if (!text.trim() && (!options?.images || options.images.length === 0)) return;
     if (isSessionLoading) return;
     if (activeChatAbortRef.current) return;
     if (currentSessionId && (runningSessionCounts[currentSessionId] ?? 0) > 0) return;
 
-    // Handle slash commands
+    // Handle slash commands (only if there's text)
     const trimmedInput = text.trim();
-    if (trimmedInput.startsWith('/clear')) {
-      handleNewChat();
-      return;
-    }
+    // Handle slash commands (only if there's text)
+    if (trimmedInput) {
+      if (trimmedInput.startsWith('/clear')) {
+        handleNewChat();
+        return;
+      }
 
-    if (trimmedInput.startsWith('/doctor')) {
+      if (trimmedInput.startsWith('/doctor')) {
       const runHealthCheck = async (name: string, url: string) => {
         const startedAt = Date.now();
         try {
@@ -773,6 +869,7 @@ export default function Home() {
 
       addMessageToTree({ role: 'model', content: report }, headId);
       return;
+    }
     }
 
     if (trimmedInput.startsWith('/cost')) {
@@ -1023,8 +1120,17 @@ export default function Home() {
       updateRunningSessionCount(trackedRunningSessionId, 1);
     }
 
-    // 1. Add User Message
-    const userMsgId = addMessageToTree({ role: 'user', content: text }, parentIdToUse);
+    // 1. Add User Message (with images if provided)
+    const messageImages = options?.images?.map(img => ({
+      dataUrl: img.dataUrl,
+      type: img.file.type,
+      name: img.file.name,
+    }));
+    const userMsgId = addMessageToTree({
+      role: 'user',
+      content: text,
+      images: messageImages
+    }, parentIdToUse);
     const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const decodeAttr = (value?: string) => {
       if (!value) return undefined;
@@ -1061,17 +1167,23 @@ export default function Home() {
           encodedResultData = undefined;
         }
       }
-      return `<tool-call id="${id}" name="${name}" args="${args}"${
-        encodedCheckpoint ? ` checkpoint="${encodedCheckpoint}"` : ''
-      } status="${status}" result="${encodedResult}"${
-        encodedResultData ? ` result_data="${encodedResultData}"` : ''
-      } />`;
+      return `<tool-call id="${id}" name="${name}" args="${args}"${encodedCheckpoint ? ` checkpoint="${encodedCheckpoint}"` : ''
+        } status="${status}" result="${encodedResult}"${encodedResultData ? ` result_data="${encodedResultData}"` : ''
+        } />`;
     };
 
     const requestAbortController = new AbortController();
     activeChatAbortRef.current = requestAbortController;
+    setStreamingStatus("Initializing...");
 
     try {
+      // Prepare images for API
+      const images = options?.images?.map(img => ({
+        dataUrl: img.dataUrl,
+        type: img.file.type,
+        name: img.file.name,
+      }));
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1087,7 +1199,8 @@ export default function Home() {
           modelSettings: settings.modelSettings,
           selectedAgent: selectedAgent?.name,
           // Only persisted numeric IDs are valid for backend parent linkage.
-          parentId: apiParentId // Pass tree context
+          parentId: apiParentId, // Pass tree context
+          images,
         }),
       });
       console.log('[chat/ui] send approval mode', {
@@ -1131,6 +1244,7 @@ export default function Home() {
             console.log('[Stream Event]', data.type, data);
 
             if (data.type === 'init' && data.session_id) {
+              setStreamingStatus("Connected...");
               const nextSessionId = String(data.session_id);
               if (!streamSessionId) {
                 streamSessionId = nextSessionId;
@@ -1146,6 +1260,7 @@ export default function Home() {
             }
 
             if (data.type === 'thought' && data.content) {
+              setStreamingStatus("Thinking...");
               assistantThought += data.content;
               const updates: Partial<Message> = { thought: assistantThought };
               if (streamSessionId) updates.sessionId = streamSessionId;
@@ -1194,6 +1309,11 @@ export default function Home() {
             }
 
             if (data.type === 'hook' || data.type === 'hook_event') {
+              const hookName = data.hookName || data.name || 'unknown';
+              if (data.type === 'hook' ? data.value?.type === 'start' : data.hook_type === 'start') {
+                setStreamingStatus(`Executing hook: ${hookName}...`);
+              }
+
               const hookEvent: HookEvent = {
                 id: data.id || Math.random().toString(36).substr(2, 9),
                 name: data.hookName || data.name,
@@ -1214,6 +1334,7 @@ export default function Home() {
 
             if (data.type === 'tool_use') {
               const toolName = String(data.tool_name || 'Unknown Tool');
+              setStreamingStatus(`Running tool: ${toolName}...`);
               const checkpointAttr = typeof data.checkpoint === 'string' && data.checkpoint
                 ? ` checkpoint="${encodeURIComponent(data.checkpoint)}"`
                 : '';
@@ -1223,6 +1344,7 @@ export default function Home() {
             }
 
             if (data.type === 'tool_result') {
+              setStreamingStatus("Processing tool result...");
               const resolvedStatus = data.is_error ? 'failed' : 'completed';
               const resolvedOutput = data.output || data.result || '';
               const resolvedResultData = data.result_data;
@@ -1280,6 +1402,7 @@ export default function Home() {
             }
 
             if (data.type === 'message' && data.role === 'assistant' && data.content) {
+              setStreamingStatus("Generating response...");
               assistantContent += data.content;
               const updates: Partial<Message> = { content: assistantContent };
               if (streamSessionId) updates.sessionId = streamSessionId;
@@ -1335,6 +1458,7 @@ export default function Home() {
       if (activeChatAbortRef.current === requestAbortController) {
         activeChatAbortRef.current = null;
       }
+      setStreamingStatus(undefined);
 
       try {
         await fetchSessions();
@@ -1352,6 +1476,16 @@ export default function Home() {
 
       if (trackedRunningSessionId) {
         updateRunningSessionCount(trackedRunningSessionId, -1);
+
+        // If this session is not the currently viewed session, mark as unread
+        const sessionIdToMark = trackedRunningSessionId;
+        if (sessionIdToMark && sessionIdToMark !== currentSessionId) {
+          setUnreadSessionIds(prev => {
+            const next = new Set(prev);
+            next.add(sessionIdToMark);
+            return next;
+          });
+        }
       }
     }
   };
@@ -1733,6 +1867,7 @@ export default function Home() {
           currentSessionId={currentSessionId}
           runningSessionIds={runningSessionIds}
           terminalRunningSessionIds={terminalRunningSessionIds}
+          unreadSessionIds={Array.from(unreadSessionIds)}
           onSelectSession={handleSelectSession}
           onDeleteSession={handleDeleteSession}
           onNewChat={handleNewChat}
@@ -1911,6 +2046,7 @@ export default function Home() {
               onInputHeightChange={(height) => {
                 setInputAreaHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
               }}
+              streamingStatus={streamingStatus}
             />
           </div>
 
