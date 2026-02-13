@@ -29,17 +29,9 @@
     color: var(--color-muted-foreground);
     opacity: 0.45;
     border-radius: 50%;
-    /* Ensure round for shadow */
     width: 6px;
-    /* Explicit width for shadow centering */
     height: 6px;
-    /* Explicit height */
-    /* Adjust position for explicit size (center of 20px line-height is 10px, dot is 6px, so top 7px) */
     top: 15px;
-    /* (20px line-height + 6px padding-top)/2 - 3px = ~10px relative to content? No, absolute. */
-    /* Let's keep original font-based dot for simplicity unless we switch to div */
-    /* Actually, to perform box-shadow glow, it's better to be a block/inline-block, not text character. */
-    /* But Qwen used text character. Text shadow works for character. */
 }
 
 /* Reverting to text-based dot for consistency with Qwen, but using text-shadow for glow */
@@ -124,19 +116,28 @@
     display: none;
 }
 
-/* ─── Fade in ─── */
-@keyframes tl-fadein {
-    from {
-        opacity: 0;
-        transform: translateY(4px);
+/* ─── Highlight Animation for Chat Messages ─── */
+@keyframes message-highlight-pulse {
+    0% {
+        box-shadow: 0 0 0 0px var(--color-primary);
+        border-color: var(--color-primary);
+        background-color: color-mix(in srgb, var(--color-primary), transparent 95%);
     }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
+    30% {
+        box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-primary), transparent 70%);
+        border-color: var(--color-primary);
+        background-color: color-mix(in srgb, var(--color-primary), transparent 85%);
+    }
+    100% {
+        box-shadow: 0 0 0 0px transparent;
+        border-color: transparent; /* Assuming default is transparent or handled by removal */
+        background-color: transparent;
     }
 }
 
-.timeline-item {
-    /* animation: tl-fadein 0.15s ease-out; */
+.message-highlight {
+    animation: message-highlight-pulse 0.8s ease-out forwards;
+    border-radius: var(--radius-lg);
+    position: relative;
+    z-index: 10;
 }

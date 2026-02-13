@@ -501,6 +501,7 @@ export async function POST(req: Request) {
         const pendingConfirmationIds = new Set<string>();
         const toolNameByCallId = new Map<string, string>();
         const checkpointByCallId = new Map<string, string>();
+        const toolStartTimeByCallId = new Map<string, number>();
         const pendingHookByKey = new Map<string, Array<{ id: string; startedAt: number }>>();
         let hookCounter = 0;
         let isPollingConfirmationQueue = false;
@@ -723,6 +724,7 @@ export async function POST(req: Request) {
             else if (event.type === GeminiEventType.ToolCallRequest) {
               const info = event.value as ToolCallRequestInfo;
               toolNameByCallId.set(info.callId, info.name);
+              toolStartTimeByCallId.set(info.callId, Date.now());
               if (typeof info.checkpoint === 'string' && info.checkpoint) {
                 checkpointByCallId.set(info.callId, info.checkpoint);
               }
@@ -752,6 +754,7 @@ export async function POST(req: Request) {
               const checkpoint = checkpointByCallId.get(info.callId);
               toolNameByCallId.delete(info.callId);
               checkpointByCallId.delete(info.callId);
+              toolStartTimeByCallId.delete(info.callId);
               const error =
                 info.error
                   ? {
@@ -778,6 +781,48 @@ export async function POST(req: Request) {
                 result_data: resultData,
                 error
               });
+
+              // Record tool stats for analytics
+              try {
+                const startTime = toolStartTimeByCallId.get(info.callId) || Date.now();
+                const durationMs = Date.now() - startTime;
+                db.prepare(`
+                  INSERT INTO tool_stats (tool_name, session_id, status, error_message, duration_ms, created_at)
+                  VALUES (?, ?, ?, ?, ?, ?)
+                `).run(
+                  toolName || 'unknown',
+                  sessionId || null,
+                  info.error ? 'failed' : 'success',
+                  info.error?.message || null,
+                  durationMs,
+                  Date.now()
+                );
+              } catch (err) {
+                console.error('[DB] Failed to record tool stats:', err);
+              }
+
+              // Record file operations for heatmap
+              if (resultData && typeof resultData === 'object') {
+                const rd = resultData as Record<string, unknown>;
+                const filePath = (rd.file_path as string) || (rd.path as string);
+                const operation = (rd.operation as string) || (rd.tool as string) || toolName;
+                if (filePath && operation) {
+                  try {
+                    db.prepare(`
+                      INSERT INTO file_ops (file_path, operation, session_id, workspace, created_at)
+                      VALUES (?, ?, ?, ?, ?)
+                    `).run(
+                      filePath,
+                      operation,
+                      sessionId || null,
+                      workspace || null,
+                      Date.now()
+                    );
+                  } catch (err) {
+                    console.error('[DB] Failed to record file ops:', err);
+                  }
+                }
+              }
             }
 
             else if (event.type === GeminiEventType.Thought) {

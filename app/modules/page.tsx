@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 import { AnalyticsDashboard } from '@/components/modules/analytics/AnalyticsDashboard';
 import { PerformancePanel } from '@/components/modules/analytics/PerformancePanel';
+import { ToolStatsPanel } from '@/components/modules/analytics/ToolStatsPanel';
+import { FileHeatmapPanel } from '@/components/modules/analytics/FileHeatmapPanel';
 import { SessionTimeline } from '@/components/modules/timeline/SessionTimeline';
 import { ProjectContext } from '@/components/modules/project/ProjectContext';
 import { ChatManager } from '@/components/modules/ChatModules';
@@ -55,6 +57,10 @@ export default function ModulesPage() {
             <div className="grid lg:grid-cols-2 gap-4">
               <AnalyticsDashboard />
               <PerformancePanel />
+            </div>
+            <div className="grid lg:grid-cols-2 gap-4 mt-4">
+              <ToolStatsPanel />
+              <FileHeatmapPanel />
             </div>
           </section>
 

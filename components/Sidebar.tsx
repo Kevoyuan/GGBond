@@ -25,7 +25,9 @@ import {
   Layers,
   Activity,
   Database,
-  Puzzle
+  Puzzle,
+  Network,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -71,9 +73,11 @@ interface SidebarProps {
   hookEvents?: HookEvent[];
   onSelectAgent?: (agent: any) => void;
   selectedAgentName?: string;
+  sidePanelType?: 'graph' | 'timeline' | null;
+  onToggleSidePanel?: (type: 'graph' | 'timeline' | null) => void;
 }
 
-type SidebarView = 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory';
+type SidebarView = 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory' | 'agent-runs';
 
 const MIN_SIDEBAR_WIDTH = 160;
 const MAX_SIDEBAR_WIDTH = 600;
@@ -134,7 +138,9 @@ export function Sidebar({
   onFileSelect,
   hookEvents = [],
   onSelectAgent,
-  selectedAgentName
+  selectedAgentName,
+  sidePanelType,
+  onToggleSidePanel
 }: SidebarProps) {
   const [activeView, setActiveView] = useState<SidebarView>('chat');
   const [searchTerm, setSearchTerm] = useState('');
@@ -433,6 +439,26 @@ export function Sidebar({
             icon={Database}
             label="Knowledge Base"
           />
+
+          {onToggleSidePanel && (
+            <>
+              <div className="w-8 h-px bg-border/50 my-1" />
+              
+              <NavButton
+                active={sidePanelType === 'graph'}
+                onClick={() => onToggleSidePanel('graph')}
+                icon={Network}
+                label="Conversation Graph"
+              />
+
+              <NavButton
+                active={sidePanelType === 'timeline'}
+                onClick={() => onToggleSidePanel('timeline')}
+                icon={Clock}
+                label="Timeline"
+              />
+            </>
+          )}
         </div>
 
         <div className="mt-auto flex flex-col gap-3 w-full px-2 items-center">

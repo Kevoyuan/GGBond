@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Maximize2, Minimize2, Network } from 'lucide-react';
+import { Maximize2, Minimize2, Network, Clock, Sparkles } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { Message } from '../components/MessageBubble';
 import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
 import { cn } from '@/lib/utils';
 import { ConversationGraph, GraphMessage } from '../components/ConversationGraph';
+import { MessageTimeline } from '../components/MessageTimeline';
 
 import { ChatContainer } from '../components/ChatContainer';
 import { ConfirmationDialog, ConfirmationDetails } from '../components/ConfirmationDialog';
@@ -258,7 +259,9 @@ export default function Home() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
   const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>(DEFAULT_CHAT_SETTINGS.toolPermissionStrategy);
-  const [showGraph, setShowGraph] = useState(false);
+  const [sidePanelType, setSidePanelType] = useState<'graph' | 'timeline' | null>(null);
+  const [sidePanelWidth, setSidePanelWidth] = useState(400);
+  const [isResizing, setIsResizing] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
   const [isBranchInsightsMinimized, setIsBranchInsightsMinimized] = useState(false);
   const [inputAreaHeight, setInputAreaHeight] = useState(120);
@@ -266,6 +269,7 @@ export default function Home() {
   const [streamingStatus, setStreamingStatus] = useState<string | undefined>(undefined);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sidePanelRef = useRef<HTMLDivElement>(null);
   const currentSessionIdRef = useRef<string | null>(currentSessionId);
   const activeChatAbortRef = useRef<AbortController | null>(null);
   const loadSessionTreeRef = useRef<typeof loadSessionTree | null>(null);
@@ -288,6 +292,35 @@ export default function Home() {
   useEffect(() => {
     currentSessionIdRef.current = currentSessionId;
   }, [currentSessionId]);
+
+  // Handle Resizing
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    setIsResizing(true);
+    e.preventDefault();
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = useCallback((e: MouseEvent) => {
+    if (isResizing && sidePanelRef.current) {
+      // Panel is on the right, so width is window width - mouse X
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth > 280 && newWidth < 800) {
+        setSidePanelWidth(newWidth);
+      }
+    }
+  }, [isResizing]);
+
+  useEffect(() => {
+    window.addEventListener('mousemove', resize);
+    window.addEventListener('mouseup', stopResizing);
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [resize, stopResizing]);
 
   // Handle page visibility changes for background continuity
   useEffect(() => {
@@ -406,7 +439,7 @@ export default function Home() {
   // -- Graph Data for Visualization --
   const graphMessages: GraphMessage[] = useMemo(() => {
     // Only generate graph data if graph is shown to save performance
-    if (!showGraph) return [];
+    if (sidePanelType !== 'graph') return [];
 
     return Array.from(messagesMap.entries()).map(([mapId, msg]) => {
       const stableId = msg.id || mapId;
@@ -418,7 +451,7 @@ export default function Home() {
         isLeaf: stableId === headId
       };
     });
-  }, [messagesMap, headId, showGraph]);
+  }, [messagesMap, headId, sidePanelType]);
 
   const branchInsights = useMemo(() => {
     if (!graphMessages.length) {
@@ -1882,6 +1915,8 @@ export default function Home() {
           hookEvents={hookEvents}
           onSelectAgent={(agent) => setSelectedAgent(agent)}
           selectedAgentName={selectedAgent?.name}
+          sidePanelType={sidePanelType}
+          onToggleSidePanel={(type) => setSidePanelType(current => current === type ? null : type)}
         />
       </div>
 
@@ -1908,113 +1943,55 @@ export default function Home() {
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-2">
           <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} />
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowGraph(!showGraph)}
-              className={cn(
-                "p-2 rounded-md transition-colors",
-                showGraph ? "bg-primary/10 text-primary" : "hover:bg-muted text-muted-foreground"
-              )}
-              title="Toggle Conversation Graph"
-            >
-              <Network className="w-5 h-5" />
-            </button>
-          </div>
         </div>
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 flex overflow-hidden">
-            {/* Graph Panel */}
-            {showGraph && (
-              <div className="w-[44%] min-w-[420px] max-w-[900px] border-r bg-muted/10 relative">
-                <ConversationGraph
-                  messages={graphMessages}
-                  currentLeafId={headId}
-                  onNodeClick={handleNodeClick}
+            {/* Side Panel (Graph or Timeline) - Left Side */}
+            {sidePanelType && (
+              <div
+                ref={sidePanelRef}
+                className="flex-none border-r bg-muted/5 relative flex flex-col overflow-hidden transition-[width] duration-75 ease-out"
+                style={{ width: sidePanelWidth }}
+              >
+                {/* Resize Handle (Right edge) */}
+                <div
+                  onMouseDown={startResizing}
+                  className={cn(
+                    "absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-50 transition-colors hover:bg-primary/30",
+                    isResizing && "bg-primary/50"
+                  )}
                 />
 
-                <div className="pointer-events-none absolute right-3 top-3 z-20">
-                  <aside
-                    className={cn(
-                      'pointer-events-auto max-h-[calc(100%-1.5rem)] overflow-y-auto rounded-xl border border-border/70 bg-background/90 backdrop-blur-md p-3 shadow-xl transition-all',
-                      isBranchInsightsMinimized ? 'w-[228px] space-y-2' : 'w-[280px] space-y-3'
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Branch Insights</div>
-                      <button
-                        type="button"
-                        onClick={() => setIsBranchInsightsMinimized((value) => !value)}
-                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border/70 bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                        title={isBranchInsightsMinimized ? 'Expand Branch Insights' : 'Minimize Branch Insights'}
-                      >
-                        {isBranchInsightsMinimized ? <Maximize2 size={12} /> : <Minimize2 size={12} />}
-                      </button>
-                    </div>
+                {sidePanelType === 'graph' && (
+                  <ConversationGraph
+                    messages={graphMessages}
+                    currentLeafId={headId}
+                    onNodeClick={handleNodeClick}
+                  />
+                )}
 
-                    {isBranchInsightsMinimized ? (
-                      <>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          <MiniInsightBadge label="N" value={String(branchInsights.nodeCount)} />
-                          <MiniInsightBadge label="L" value={String(branchInsights.leafCount)} />
-                          <MiniInsightBadge label="F" value={String(branchInsights.branchPointIds.length)} />
-                          <MiniInsightBadge label="D" value={String(branchInsights.maxDepth)} />
-                        </div>
-                        <div className="rounded-md border border-border/70 bg-muted/20 px-2 py-1.5 text-[11px] text-muted-foreground truncate">
-                          {headId ? `Head #${headId}` : 'No active node'}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="grid grid-cols-2 gap-2">
-                          <InsightCard label="Nodes" value={String(branchInsights.nodeCount)} />
-                          <InsightCard label="Leafs" value={String(branchInsights.leafCount)} />
-                          <InsightCard label="Forks" value={String(branchInsights.branchPointIds.length)} />
-                          <InsightCard label="Depth" value={String(branchInsights.maxDepth)} />
-                        </div>
-
-                        <div className="rounded-lg border border-border/70 bg-muted/20 p-2.5">
-                          <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-1">Active Branch</div>
-                          <div className="text-sm font-medium text-foreground">
-                            {headId ? `Head #${headId}` : 'No active node'}
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Path depth: {branchInsights.activeDepth}
-                          </div>
-                          {selectedGraphMessage && (
-                            <div className="mt-2 text-xs text-muted-foreground line-clamp-4 break-words">
-                              {summarizeBranchContent(selectedGraphMessage.content)}
-                            </div>
-                          )}
-                        </div>
-
-                        {branchJumpMessages.length > 0 && (
-                          <div className="space-y-1.5">
-                            <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Fork Nodes</div>
-                            {branchJumpMessages.map(({ id, message }) => (
-                              <button
-                                key={id}
-                                type="button"
-                                onClick={() => setHeadId(id)}
-                                className={cn(
-                                  'w-full text-left rounded-md border px-2 py-1.5 transition-colors',
-                                  id === headId
-                                    ? 'border-primary/60 bg-primary/10 text-primary'
-                                    : 'border-border/70 bg-muted/10 hover:bg-muted/30'
-                                )}
-                              >
-                                <div className="text-xs font-medium truncate">#{id}</div>
-                                <div className="text-[11px] text-muted-foreground truncate">
-                                  {summarizeBranchContent(message.content)}
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </aside>
-                </div>
+                {sidePanelType === 'timeline' && (
+                  <MessageTimeline
+                    messages={messages}
+                    currentIndex={messages.length - 1}
+                    onMessageClick={(index) => {
+                      setTimeout(() => {
+                        const messageElements = document.querySelectorAll('[data-message-index]');
+                        const targetElement = messageElements[index] as HTMLElement;
+                        if (targetElement) {
+                          targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          targetElement.classList.remove('message-highlight');
+                          void targetElement.offsetWidth;
+                          targetElement.classList.add('message-highlight');
+                          setTimeout(() => {
+                            targetElement.classList.remove('message-highlight');
+                          }, 800);
+                        }
+                      }, 50);
+                    }}
+                  />
+                )}
               </div>
             )}
 
@@ -2048,7 +2025,7 @@ export default function Home() {
               }}
               streamingStatus={streamingStatus}
             />
-          </div>
+
 
           <div className={showTerminal ? '' : 'hidden'}>
             <TerminalPanel
