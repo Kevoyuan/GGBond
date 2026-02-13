@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { User, Sparkles, Shield, Cpu, ExternalLink, Play, RefreshCw, Layers, Plus, Trash, Link2, Search, SlidersHorizontal, Loader2, Ban, CheckCircle2, BookOpen, AlertCircle, FolderSearch } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CreateAgentDialog } from './CreateAgentDialog';
-import { AgentRunsList, RunAgentDialog } from './AgentRunsList';
+import { AgentRunsList } from './AgentRunsList';
 
 interface AgentDefinition {
     name: string;
@@ -43,9 +44,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
     const [scanning, setScanning] = useState(false);
     const [isDirectory, setIsDirectory] = useState(false);
 
-    // Run agent state
-    const [showRunDialog, setShowRunDialog] = useState(false);
-    const [runAgent, setRunAgent] = useState<AgentDefinition | null>(null);
+    // Run agent state (kept for compatibility)
 
     const fetchAgents = async () => {
         setLoading(true);
@@ -463,17 +462,13 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                                     )}
                                                 </button>
                                             )}
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setRunAgent(agent);
-                                                    setShowRunDialog(true);
-                                                }}
+                                            <Link
+                                                href={`/agents/run?agent=${encodeURIComponent(agent.name)}`}
                                                 className="p-1 text-zinc-400 hover:text-primary rounded"
                                                 title="Run Agent"
                                             >
                                                 <Play size={12} />
-                                            </button>
+                                            </Link>
                                         </div>
                                     </div>
                                 ))
@@ -487,13 +482,6 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                 open={showCreateDialog}
                 onOpenChange={setShowCreateDialog}
                 onSuccess={fetchAgents}
-            />
-
-            <RunAgentDialog
-                open={showRunDialog}
-                onOpenChange={setShowRunDialog}
-                agentName={runAgent?.name || ''}
-                agentDisplayName={runAgent?.displayName}
             />
 
             <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">

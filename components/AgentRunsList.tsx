@@ -1,7 +1,25 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { Loader2, Play, CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Sparkles, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import {
+  Loader2,
+  Play,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Trash2,
+  RefreshCw,
+  Sparkles,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Terminal,
+  Square,
+  Copy,
+  ExternalLink,
+  MoreVertical,
+  Activity
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface AgentRun {
@@ -23,12 +41,14 @@ interface AgentRun {
 
 interface AgentRunsListProps {
   className?: string;
+  onNavigateToChat?: () => void;
 }
 
-export function AgentRunsList({ className }: AgentRunsListProps) {
+export function AgentRunsList({ className, onNavigateToChat }: AgentRunsListProps) {
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(false);
+  const [expandedRun, setExpandedRun] = useState<string | null>(null);
 
   const fetchRuns = useCallback(async () => {
     try {
@@ -56,7 +76,7 @@ export function AgentRunsList({ className }: AgentRunsListProps) {
     const interval = setInterval(() => {
       setPolling(true);
       fetchRuns().finally(() => setPolling(false));
-    }, 3000);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [runs, fetchRuns]);
@@ -74,31 +94,20 @@ export function AgentRunsList({ className }: AgentRunsListProps) {
     return date.toLocaleDateString();
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'running':
-        return <Loader2 className="w-4 h-4 animate-spin text-blue-500" />;
-      case 'completed':
-        return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
-      case 'failed':
-        return <XCircle className="w-4 h-4 text-red-500" />;
-      default:
-        return <Clock className="w-4 h-4 text-zinc-400" />;
-    }
+  const getDuration = (start: number, end?: number) => {
+    const endTime = end || Date.now();
+    const diffMs = endTime - start;
+    const secs = Math.floor(diffMs / 1000);
+    if (secs < 60) return `${secs}s`;
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins}m ${secs % 60}s`;
+    const hours = Math.floor(mins / 60);
+    return `${hours}h ${mins % 60}m`;
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'running':
-        return 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400';
-      case 'completed':
-        return 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400';
-      case 'failed':
-        return 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400';
-      default:
-        return 'bg-zinc-500/10 border-zinc-500/30 text-zinc-600 dark:text-zinc-400';
-    }
-  };
+  const runningCount = runs.filter(r => r.status === 'running' || r.status === 'pending').length;
+  const completedCount = runs.filter(r => r.status === 'completed').length;
+  const failedCount = runs.filter(r => r.status === 'failed').length;
 
   if (loading) {
     return (
@@ -109,13 +118,21 @@ export function AgentRunsList({ className }: AgentRunsListProps) {
   }
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn("space-y-4", className)}>
+      {/* Header with stats */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium flex items-center gap-2">
-          <Sparkles className="w-4 h-4" />
-          Agent Runs
-          {polling && <Loader2 className="w-3 h-3 animate-spin" />}
-        </h3>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium">Agent Runs</span>
+          </div>
+          {runningCount > 0 && (
+            <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400">
+              <Activity className="w-3 h-3 animate-pulse" />
+              {runningCount} running
+            </span>
+          )}
+        </div>
         <button
           onClick={fetchRuns}
           className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -125,68 +142,245 @@ export function AgentRunsList({ className }: AgentRunsListProps) {
         </button>
       </div>
 
+      {/* Stats bar */}
+      {runs.length > 0 && (
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+            {completedCount} completed
+          </span>
+          <span className="flex items-center gap-1">
+            <XCircle className="w-3 h-3 text-red-500" />
+            {failedCount} failed
+          </span>
+        </div>
+      )}
+
       {runs.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground text-sm">
-          <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p>No agent runs yet</p>
-          <p className="text-xs mt-1">Run an agent to see it here</p>
+        <div className="text-center py-12 text-muted-foreground">
+          <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mx-auto mb-4">
+            <Sparkles className="w-8 h-8 opacity-50" />
+          </div>
+          <p className="font-medium">No agent runs yet</p>
+          <p className="text-sm mt-1">Run an agent from the panel above</p>
         </div>
       ) : (
-        <div className="space-y-2 max-h-96 overflow-y-auto">
+        <div className="space-y-2">
           {runs.map((run) => (
-            <div
+            <AgentRunCard
               key={run.id}
-              className={cn(
-                "p-3 rounded-lg border transition-colors",
-                "hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
-                getStatusColor(run.status)
-              )}
-            >
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5">
-                  {getStatusIcon(run.status)}
+              run={run}
+              isExpanded={expandedRun === run.id}
+              onToggleExpand={() => setExpandedRun(expandedRun === run.id ? null : run.id)}
+              onNavigateToChat={onNavigateToChat}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface AgentRunCardProps {
+  run: AgentRun;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onNavigateToChat?: () => void;
+}
+
+function AgentRunCard({ run, isExpanded, onToggleExpand, onNavigateToChat }: AgentRunCardProps) {
+  const [showMenu, setShowMenu] = useState(false);
+
+  const getDuration = (start: number, end?: number) => {
+    const endTime = end || Date.now();
+    const diffMs = endTime - start;
+    const secs = Math.floor(diffMs / 1000);
+    if (secs < 60) return `${secs}s`;
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins}m ${secs % 60}s`;
+    const hours = Math.floor(mins / 60);
+    return `${hours}h ${mins % 60}m`;
+  };
+
+  const getStatusConfig = (status: string) => {
+    switch (status) {
+      case 'running':
+        return {
+          icon: <Loader2 className="w-4 h-4 animate-spin" />,
+          color: 'text-blue-500',
+          bg: 'bg-blue-500/10',
+          border: 'border-blue-500/30',
+          label: 'Running'
+        };
+      case 'completed':
+        return {
+          icon: <CheckCircle2 className="w-4 h-4" />,
+          color: 'text-emerald-500',
+          bg: 'bg-emerald-500/10',
+          border: 'border-emerald-500/30',
+          label: 'Completed'
+        };
+      case 'failed':
+        return {
+          icon: <XCircle className="w-4 h-4" />,
+          color: 'text-red-500',
+          bg: 'bg-red-500/10',
+          border: 'border-red-500/30',
+          label: 'Failed'
+        };
+      default:
+        return {
+          icon: <Clock className="w-4 h-4" />,
+          color: 'text-zinc-400',
+          bg: 'bg-zinc-500/10',
+          border: 'border-zinc-500/30',
+          label: 'Pending'
+        };
+    }
+  };
+
+  const status = getStatusConfig(run.status);
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border transition-all duration-200",
+        status.bg, status.border,
+        isExpanded && "ring-1 ring-primary/20"
+      )}
+    >
+      {/* Card Header */}
+      <div
+        className="flex items-center gap-3 p-3 cursor-pointer"
+        onClick={onToggleExpand}
+      >
+        <div className={cn("p-2 rounded-lg bg-background/50", status.color)}>
+          {status.icon}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm truncate">
+              {run.agent_display_name || run.agent_name}
+            </span>
+            <span className={cn(
+              "text-xs px-2 py-0.5 rounded-full font-medium",
+              status.bg, status.color
+            )}>
+              {status.label}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground truncate mt-0.5">
+            {run.task}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {getDuration(run.created_at, run.completed_at)}
+          </span>
+          {isExpanded ? (
+            <ChevronUp className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          )}
+        </div>
+      </div>
+
+      {/* Expanded Content */}
+      {isExpanded && (
+        <div className="px-3 pb-3 space-y-3">
+          {/* Meta info */}
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {new Date(run.created_at).toLocaleString()}
+            </span>
+            {run.model && (
+              <span className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700">
+                {run.model}
+              </span>
+            )}
+            {run.workspace && (
+              <span className="truncate max-w-[120px]" title={run.workspace}>
+                {run.workspace.split('/').pop()}
+              </span>
+            )}
+          </div>
+
+          {/* Output/Error */}
+          {(run.status === 'running' || run.status === 'completed' || run.status === 'failed') && (
+            <div className="rounded-lg bg-background/50 border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 bg-zinc-100 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-700">
+                <div className="flex items-center gap-2 text-xs font-medium">
+                  <Terminal className="w-3 h-3" />
+                  Output
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm truncate">
-                      {run.agent_display_name || run.agent_name}
-                    </span>
-                    <span className={cn(
-                      "text-xs px-1.5 py-0.5 rounded-full",
-                      run.status === 'running' && "bg-blue-500/20",
-                      run.status === 'completed' && "bg-emerald-500/20",
-                      run.status === 'failed' && "bg-red-500/20"
-                    )}>
-                      {run.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1 truncate">
-                    {run.task}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                    <Clock className="w-3 h-3" />
-                    <span>{formatTime(run.created_at)}</span>
-                    {run.workspace && (
-                      <>
-                        <span>·</span>
-                        <span className="truncate max-w-[100px]">{run.workspace.split('/').pop()}</span>
-                      </>
-                    )}
-                  </div>
-                  {run.status === 'running' && run.current_content && (
-                    <div className="mt-2 text-xs bg-zinc-100 dark:bg-zinc-900 p-2 rounded truncate">
-                      {run.current_content.substring(0, 200)}
-                    </div>
-                  )}
-                  {run.status === 'failed' && run.error && (
-                    <div className="mt-2 text-xs bg-red-50 dark:bg-red-950/30 p-2 rounded text-red-600 dark:text-red-400">
-                      {run.error}
-                    </div>
-                  )}
+                <div className="flex items-center gap-1">
+                  <button
+                    className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                    title="Copy output"
+                    onClick={() => {
+                      const content = run.current_content || run.result || run.error || '';
+                      navigator.clipboard.writeText(content);
+                    }}
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
                 </div>
               </div>
+              <div className="p-3 max-h-48 overflow-y-auto text-xs font-mono whitespace-pre-wrap">
+                {run.status === 'running' && run.current_content ? (
+                  <span className="text-blue-600 dark:text-blue-400">{run.current_content}</span>
+                ) : run.status === 'failed' && run.error ? (
+                  <span className="text-red-600 dark:text-red-400">{run.error}</span>
+                ) : run.result ? (
+                  <span className="text-zinc-700 dark:text-zinc-300">{run.result}</span>
+                ) : (
+                  <span className="text-muted-foreground italic">No output</span>
+                )}
+              </div>
             </div>
-          ))}
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            {run.status === 'running' && (
+              <button
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Stop functionality would go here
+                }}
+              >
+                <Square className="w-3 h-3" />
+                Stop
+              </button>
+            )}
+            {run.status === 'completed' && onNavigateToChat && (
+              <button
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNavigateToChat();
+                }}
+              >
+                <ExternalLink className="w-3 h-3" />
+                View in Chat
+              </button>
+            )}
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                const content = run.current_content || run.result || run.error || '';
+                navigator.clipboard.writeText(content);
+              }}
+            >
+              <Copy className="w-3 h-3" />
+              Copy
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -199,9 +393,10 @@ interface RunAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRun?: (runId: string) => void;
+  workspaces?: { path: string; name: string }[];
 }
 
-export function RunAgentDialog({ agentName, agentDisplayName, open, onOpenChange, onRun }: RunAgentDialogProps) {
+export function RunAgentDialog({ agentName, agentDisplayName, open, onOpenChange, onRun, workspaces = [] }: RunAgentDialogProps) {
   const [task, setTask] = useState('');
   const [workspace, setWorkspace] = useState('');
   const [model, setModel] = useState('gemini-2.5-pro');
@@ -242,44 +437,77 @@ export function RunAgentDialog({ agentName, agentDisplayName, open, onOpenChange
     }
   };
 
-  return (
-    <dialog open={open} className="modal modal-open">
-      <div className="modal-box max-w-lg">
-        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <Play className="w-5 h-5 text-blue-500" />
-          Run Agent: {agentDisplayName || agentName}
-        </h3>
+  if (!open) return null;
 
-        <div className="space-y-4">
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={() => !loading && onOpenChange(false)}
+      />
+
+      {/* Dialog */}
+      <div className="relative w-full max-w-lg mx-4 bg-background rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 animate-in fade-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20">
+              <Play className="w-5 h-5 text-blue-500" />
+            </div>
+            <div>
+              <h3 className="font-semibold">Run Agent</h3>
+              <p className="text-sm text-muted-foreground">{agentDisplayName || agentName}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+            className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-4">
+          {/* Task Input */}
           <div>
-            <label className="block text-sm font-medium mb-1">Task</label>
+            <label className="block text-sm font-medium mb-2">Task Description</label>
             <textarea
               value={task}
               onChange={(e) => setTask(e.target.value)}
               placeholder="Describe what you want the agent to do..."
-              className="textarea textarea-bordered w-full h-24"
+              className="w-full h-32 px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none text-sm"
               disabled={loading}
+              autoFocus
             />
           </div>
 
+          {/* Options */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Workspace (optional)</label>
-              <input
-                type="text"
+              <label className="block text-sm font-medium mb-2">Workspace</label>
+              <select
                 value={workspace}
                 onChange={(e) => setWorkspace(e.target.value)}
-                placeholder="Project directory"
-                className="input input-bordered w-full"
+                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm"
                 disabled={loading}
-              />
+              >
+                <option value="">Default</option>
+                {workspaces.map((ws) => (
+                  <option key={ws.path} value={ws.path}>
+                    {ws.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Model</label>
+              <label className="block text-sm font-medium mb-2">Model</label>
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="select select-bordered w-full"
+                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm"
                 disabled={loading}
               >
                 <option value="gemini-2.5-pro">gemini-2.5-pro</option>
@@ -290,23 +518,24 @@ export function RunAgentDialog({ agentName, agentDisplayName, open, onOpenChange
           </div>
 
           {error && (
-            <div className="alert alert-error">
-              <AlertCircle className="w-4 h-4" />
-              <span>{error}</span>
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-600">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {error}
             </div>
           )}
         </div>
 
-        <div className="modal-action">
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-200 dark:border-zinc-800">
           <button
-            className="btn btn-ghost"
+            className="px-4 py-2 text-sm font-medium rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             onClick={() => onOpenChange(false)}
             disabled={loading}
           >
             Cancel
           </button>
           <button
-            className="btn btn-primary"
+            className="flex items-center gap-2 px-5 py-2 text-sm font-medium rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             onClick={handleRun}
             disabled={loading || !task.trim()}
           >
@@ -318,15 +547,12 @@ export function RunAgentDialog({ agentName, agentDisplayName, open, onOpenChange
             ) : (
               <>
                 <Play className="w-4 h-4" />
-                Run Agent
+                Start Agent
               </>
             )}
           </button>
         </div>
       </div>
-      <form method="dialog" className="modal-backdrop">
-        <button onClick={() => onOpenChange(false)}>close</button>
-      </form>
-    </dialog>
+    </div>
   );
 }
