@@ -87,6 +87,25 @@ db.exec(`
     updated_at INTEGER NOT NULL,
     completed_at INTEGER
   );
+
+  CREATE TABLE IF NOT EXISTS tool_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tool_name TEXT NOT NULL,
+    session_id TEXT,
+    status TEXT NOT NULL DEFAULT 'success',
+    error_message TEXT,
+    duration_ms INTEGER,
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS file_ops (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_path TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    session_id TEXT,
+    workspace TEXT,
+    created_at INTEGER NOT NULL
+  );
 `);
 
 // Migration: Add workspace column if it doesn't exist
