@@ -138,7 +138,9 @@ export function AnalyticsDashboard() {
     return totalB - totalA;
   })[0]?.[0] || 'gemini-3-pro-preview';
   const { pricing } = getModelInfo(dominantModel);
-  const contextUsagePercent = Math.min((current.totalTokens / pricing.contextWindow) * 100, 100);
+  // Show average request size relative to context window (more meaningful than cumulative)
+  const avgTokensPerRequest = current.count > 0 ? current.totalTokens / current.count : 0;
+  const contextUsagePercent = Math.min((avgTokensPerRequest / pricing.contextWindow) * 100, 100);
   const cacheHitRate = current.inputTokens > 0 ? (current.cachedTokens / current.inputTokens) * 100 : 0;
   const avgCostPerRequest = current.count > 0 ? current.cost / current.count : 0;
   const costPer1k = current.totalTokens > 0 ? (current.cost / current.totalTokens) * 1000 : 0;
@@ -148,7 +150,8 @@ export function AnalyticsDashboard() {
   const rateLimit = quotaBuckets.find(bucket => /minute|second|rate/i.test(bucket.tokenType || ''));
   const dailyQuotaPercent = dailyQuota?.remainingFraction !== undefined ? dailyQuota.remainingFraction * 100 : null;
   const rateLimitPercent = rateLimit?.remainingFraction !== undefined ? rateLimit.remainingFraction * 100 : null;
-  const shouldWarnCompression = contextUsagePercent > 70;
+  // Only warn if avg request uses more than 50% of context window
+  const shouldWarnCompression = avgTokensPerRequest > pricing.contextWindow * 0.5;
   const timelinePeriod: 'today' | 'week' | 'month' = period === 'daily'
     ? 'today'
     : period === 'weekly'
@@ -453,8 +456,8 @@ export function AnalyticsDashboard() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-muted-foreground">Context Window Gauge</h4>
-              <span className="text-[10px] text-muted-foreground">{(pricing.contextWindow / 1024 / 1024).toFixed(1)}M</span>
+              <h4 className="text-xs font-semibold text-muted-foreground">Avg Request Size</h4>
+              <span className="text-[10px] text-muted-foreground">/{(pricing.contextWindow / 1024 / 1024).toFixed(0)}k</span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
               <div
@@ -463,8 +466,8 @@ export function AnalyticsDashboard() {
               />
             </div>
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span className="flex items-center gap-1"><Gauge size={12} /> {contextUsagePercent.toFixed(2)}% used</span>
-              <span>{dominantModel}</span>
+              <span className="flex items-center gap-1"><Gauge size={12} /> {contextUsagePercent.toFixed(1)}% of context</span>
+              <span>{formatCompactTokens(avgTokensPerRequest)} avg</span>
             </div>
           </div>
 
@@ -505,7 +508,7 @@ export function AnalyticsDashboard() {
         {shouldWarnCompression && (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
             <div className="flex items-center gap-2 font-medium">
-              <AlertTriangle size={14} /> Compression Suggestion: Current context usage exceeds 70%, suggest enabling compression or summarization strategy.
+              <AlertTriangle size={14} /> High Context Usage: Average request uses {contextUsagePercent.toFixed(0)}% of context window. Consider using /compress or shorter prompts.
             </div>
           </div>
         )}
