@@ -15,7 +15,10 @@ interface ChatContainerProps {
     onClosePreview: () => void;
     settings: ChatSettings;
     onSendMessage: (text: string, options?: { approvalMode?: 'safe' | 'auto' }) => void;
+    onStopMessage?: () => void;
     onUndoTool?: (restoreId: string, sourceMessageId?: string) => Promise<void> | void;
+    onUndoMessage?: (messageId: string, messageContent: string) => Promise<void> | void;
+    inputPrefillRequest?: { id: number; text: string } | null;
     onRetry: (index: number, mode: 'once' | 'session') => void;
     onCancel: (index: number) => void;
     onModelChange: (model: string) => void;
@@ -39,7 +42,10 @@ export function ChatContainer({
     onClosePreview,
     settings,
     onSendMessage,
+    onStopMessage,
     onUndoTool,
+    onUndoMessage,
+    inputPrefillRequest,
     onRetry,
     onCancel,
     onModelChange,
@@ -179,6 +185,7 @@ export function ChatContainer({
                                             isLast={isLastInSequence}
                                             settings={settings}
                                             onUndoTool={onUndoTool}
+                                            onUndoMessage={onUndoMessage}
                                             onRetry={(mode) => onRetry(idx, mode)}
                                             onCancel={() => onCancel(idx)}
                                         />
@@ -193,6 +200,7 @@ export function ChatContainer({
                     {latestTodos && latestTodos.length > 0 && <TaskProgressDock todos={latestTodos} />}
                     <ChatInput
                         onSend={onSendMessage}
+                        onStop={onStopMessage}
                         isLoading={isLoading}
                         currentModel={currentModel}
                         onModelChange={onModelChange}
@@ -206,6 +214,7 @@ export function ChatContainer({
                         showTerminal={showTerminal}
                         onToggleTerminal={onToggleTerminal}
                         onHeightChange={onInputHeightChange}
+                        prefillRequest={inputPrefillRequest}
                     />
                 </>
             )}

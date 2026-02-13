@@ -1,4 +1,4 @@
-import { Bot, User, Info, Copy, Check, RefreshCw } from 'lucide-react';
+import { Bot, User, Info, Copy, Check, RefreshCw, Undo2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import React, { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
@@ -32,6 +32,7 @@ interface MessageBubbleProps {
   isLast: boolean;
   settings?: ChatSettings;
   onUndoTool?: (restoreId: string, sourceMessageId?: string) => Promise<void> | void;
+  onUndoMessage?: (messageId: string, messageContent: string) => Promise<void> | void;
   onRetry?: (mode: 'once' | 'session') => void;
   onCancel?: () => void;
   hideTodoToolCalls?: boolean;
@@ -95,6 +96,18 @@ async function loadSkillMetaMap(): Promise<SkillMetaMap> {
 
 function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan[] {
   const spans: SkillSpan[] = [];
+  const knownSkillIds = new Set(Object.keys(skillMetaMap || {}));
+  const knownSkillIdByLower = new Map<string, string>();
+  for (const skillId of knownSkillIds) {
+    knownSkillIdByLower.set(skillId.toLowerCase(), skillId);
+  }
+
+  const resolveKnownSkillId = (rawSkillId: string) => {
+    const normalized = String(rawSkillId || '').trim().toLowerCase();
+    if (!normalized) return null;
+    return knownSkillIdByLower.get(normalized) || null;
+  };
+
   const pathRe = /(?:~?\/[^\s`'"]*\/([A-Za-z0-9._-]+)\/SKILL\.md)/g;
   const dollarRe = /\$([A-Za-z0-9._-]+)/g;
   const skillsCmdRe = /\/skills\s+([A-Za-z0-9._-]+)/gi;
@@ -105,7 +118,8 @@ function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan
 
   while ((match = pathRe.exec(text)) !== null) {
     const full = match[0];
-    const skillId = match[1];
+    const skillId = resolveKnownSkillId(match[1]);
+    if (!skillId) continue;
     spans.push({
       start: match.index,
       end: match.index + full.length,
@@ -117,7 +131,8 @@ function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan
 
   while ((match = dollarRe.exec(text)) !== null) {
     const full = match[0];
-    const skillId = match[1];
+    const skillId = resolveKnownSkillId(match[1]);
+    if (!skillId) continue;
     spans.push({
       start: match.index,
       end: match.index + full.length,
@@ -128,7 +143,8 @@ function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan
 
   while ((match = skillsCmdRe.exec(text)) !== null) {
     const full = match[0];
-    const skillId = match[1];
+    const skillId = resolveKnownSkillId(match[1]);
+    if (!skillId) continue;
     const localIndex = full.lastIndexOf(skillId);
     const start = match.index + (localIndex >= 0 ? localIndex : 0);
     spans.push({
@@ -141,7 +157,8 @@ function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan
 
   while ((match = useSkillRe.exec(text)) !== null) {
     const full = match[0];
-    const skillId = match[1];
+    const skillId = resolveKnownSkillId(match[1]);
+    if (!skillId) continue;
     const localIndex = full.lastIndexOf(skillId);
     const start = match.index + (localIndex >= 0 ? localIndex : 0);
     spans.push({
@@ -154,7 +171,8 @@ function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan
 
   while ((match = activateSkillRe.exec(text)) !== null) {
     const full = match[0];
-    const skillId = match[1];
+    const skillId = resolveKnownSkillId(match[1]);
+    if (!skillId) continue;
     const localIndex = full.lastIndexOf(skillId);
     const start = match.index + (localIndex >= 0 ? localIndex : 0);
     spans.push({
@@ -165,28 +183,12 @@ function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan
     });
   }
 
-  if (skillMetaMap && Object.keys(skillMetaMap).length > 0) {
-    const knownSkillIds = new Set(Object.keys(skillMetaMap));
+  if (knownSkillIds.size > 0) {
     const tokenRe = /\b([A-Za-z0-9._-]+)\b/g;
     while ((match = tokenRe.exec(text)) !== null) {
-      const skillId = match[1];
-      if (!knownSkillIds.has(skillId)) continue;
+      const skillId = resolveKnownSkillId(match[1]);
+      if (!skillId) continue;
       if (!skillId.includes('-') && !skillId.includes('_') && !skillId.includes('.')) continue;
-      spans.push({
-        start: match.index,
-        end: match.index + skillId.length,
-        skillId,
-        source: 'token',
-      });
-    }
-  }
-
-  // Fallback: when metadata is unavailable, still treat obvious skill-like ids as chips.
-  if (!skillMetaMap || Object.keys(skillMetaMap).length === 0) {
-    const fallbackSkillTokenRe = /\b([A-Za-z0-9]+(?:[-_][A-Za-z0-9._-]+)+)\b/g;
-    while ((match = fallbackSkillTokenRe.exec(text)) !== null) {
-      const skillId = match[1];
-      if (!/skill/i.test(skillId)) continue;
       spans.push({
         start: match.index,
         end: match.index + skillId.length,
@@ -315,8 +317,8 @@ function ContentRenderer({
   onCancel?: () => void;
   hideTodoToolCalls?: boolean;
 }) {
-  const skillSpans = useMemo(() => collectSkillSpans(content), [content]);
   const [skillMetaMap, setSkillMetaMap] = useState<SkillMetaMap>(skillMetaCache || {});
+  const skillSpans = useMemo(() => collectSkillSpans(content, skillMetaMap), [content, skillMetaMap]);
   const attemptedSkillPathRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -599,12 +601,32 @@ export function MessageBubble({
   isLast,
   settings,
   onUndoTool,
+  onUndoMessage,
   onRetry,
   onCancel,
   hideTodoToolCalls = false
 }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isSnapshot = !isUser && message.content.includes('<state_snapshot>');
+  const [isUndoingMessage, setIsUndoingMessage] = useState(false);
+  const isUndoableUserMessage = Boolean(
+    isUser &&
+    typeof message.id === 'string' &&
+    /^\d+$/.test(message.id) &&
+    typeof onUndoMessage === 'function'
+  );
+
+  const handleUndoMessage = async () => {
+    if (!isUndoableUserMessage || !onUndoMessage || !message.id || isUndoingMessage) {
+      return;
+    }
+    setIsUndoingMessage(true);
+    try {
+      await onUndoMessage(message.id, message.content);
+    } finally {
+      setIsUndoingMessage(false);
+    }
+  };
 
   return (
     <div className={cn("flex gap-4 w-full animate-fade-in group", isUser ? "justify-end" : "justify-start")}>
@@ -622,7 +644,7 @@ export function MessageBubble({
             className={cn(
               "text-sm leading-relaxed max-w-full overflow-x-hidden",
               isUser
-                ? "bg-primary text-primary-foreground rounded-xl px-5 py-3.5 shadow-sm font-medium"
+                ? "relative bg-primary text-primary-foreground rounded-xl px-5 py-3.5 pr-10 pb-5 shadow-sm font-medium"
                 : "w-full"
             )}
           >
@@ -643,6 +665,22 @@ export function MessageBubble({
               </div>
             ) : (
               <div className="whitespace-pre-wrap">{message.content}</div>
+            )}
+
+            {isUndoableUserMessage && (
+              <button
+                type="button"
+                onClick={() => void handleUndoMessage()}
+                disabled={isUndoingMessage}
+                className="absolute bottom-1.5 right-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-primary-foreground/75 hover:text-primary-foreground hover:bg-primary-foreground/15 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+                title="Undo this message and restore files"
+              >
+                {isUndoingMessage ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Undo2 className="w-3.5 h-3.5" />
+                )}
+              </button>
             )}
           </div>
         )}
