@@ -72,11 +72,12 @@ export async function POST(req: Request) {
       approvalMode,
       modelSettings,
       parentId,
-      selectedAgent
+      selectedAgent,
+      images
     } = await req.json();
 
-    if (!prompt) {
-      return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+    if (!prompt && (!images || images.length === 0)) {
+      return NextResponse.json({ error: 'Prompt or images are required' }, { status: 400 });
     }
 
     // Respect the model selected by UI/caller; do not silently downgrade preview models.
@@ -208,8 +209,9 @@ export async function POST(req: Request) {
             })()
           : null;
 
-        const stmt = db.prepare('INSERT INTO messages (session_id, role, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)');
-        return stmt.run(finalSessionId, 'user', prompt, effectiveParentId, now);
+        const stmt = db.prepare('INSERT INTO messages (session_id, role, content, images, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+        const serializedImages = images && images.length > 0 ? JSON.stringify(images) : null;
+        return stmt.run(finalSessionId, 'user', prompt, serializedImages, effectiveParentId, now);
       });
 
       const info = insertSessionFn();
@@ -219,10 +221,80 @@ export async function POST(req: Request) {
       // Don't block chat on DB error
     }
 
+    // Create background job entry for incremental persistence
+    const backgroundJobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    let assistantMessageDbId: number | null = null;
+
     const userMessageDbId =
       typeof userMessageId === 'bigint'
         ? Number(userMessageId)
         : (typeof userMessageId === 'number' ? userMessageId : null);
+
+    try {
+      db.prepare(`
+        INSERT INTO background_jobs (id, session_id, user_message_id, status, created_at, updated_at)
+        VALUES (?, ?, ?, 'running', ?, ?)
+      `).run(backgroundJobId, finalSessionId, userMessageDbId, now, now);
+    } catch (e) {
+      console.error('[DB] Failed to create background job', e);
+    }
+
+    // Helper function to persist assistant message incrementally
+    const persistAssistantMessageIncremental = async (
+      content: string,
+      thought?: string,
+      toolCalls?: string
+    ) => {
+      const updateTs = Date.now();
+      try {
+        if (assistantMessageDbId === null) {
+          // Create new assistant message if doesn't exist
+          const insertResult = db.prepare(`
+            INSERT INTO messages (session_id, role, content, thought, parent_id, created_at)
+            VALUES (?, 'model', ?, ?, ?, ?)
+          `).run(finalSessionId, content, thought || null, userMessageDbId, updateTs);
+          assistantMessageDbId = Number(insertResult.lastInsertRowid);
+
+          // Link background job to assistant message
+          db.prepare(`
+            UPDATE background_jobs SET user_message_id = ?, updated_at = ?
+            WHERE id = ?
+          `).run(assistantMessageDbId, updateTs, backgroundJobId);
+        } else {
+          // Update existing assistant message
+          const existing = db.prepare('SELECT content, thought FROM messages WHERE id = ?').get(assistantMessageDbId) as { content: string; thought: string | null } | undefined;
+          if (existing) {
+            const newContent = content;
+            const newThought = thought !== undefined ? thought : (existing.thought || '');
+            db.prepare(`
+              UPDATE messages SET content = ?, thought = ?, updated_at = ? WHERE id = ?
+            `).run(newContent, newThought || null, updateTs, assistantMessageDbId);
+          }
+        }
+
+        // Update background job status
+        db.prepare(`
+          UPDATE background_jobs SET current_content = ?, current_thought = ?, current_tool_calls = ?, updated_at = ?
+          WHERE id = ?
+        `).run(content, thought || null, toolCalls || null, updateTs, backgroundJobId);
+      } catch (e) {
+        console.error('[DB] Failed to persist assistant message incrementally', e);
+      }
+    };
+
+    // Mark background job as completed
+    const markBackgroundJobCompleted = (error?: string) => {
+      const completedTs = Date.now();
+      try {
+        db.prepare(`
+          UPDATE background_jobs SET status = ?, current_content = ?, updated_at = ?, completed_at = ?, error = ?
+          WHERE id = ?
+        `).run(error ? 'failed' : 'completed', persistedAssistantContent, completedTs, completedTs, error || null, backgroundJobId);
+      } catch (e) {
+        console.error('[DB] Failed to mark background job completed', e);
+      }
+    };
+
     const workspaceRoot = path.resolve((workspace && workspace !== 'Default') ? workspace : process.cwd());
     let undoRestoreId: string | undefined;
     const fallbackFileUndoMap = new Map<string, FileUndoFallbackEntry>();
@@ -627,7 +699,7 @@ export async function POST(req: Request) {
           safeEnqueue(initEvent);
 
           const turnStartedAt = Date.now();
-          const generator = core.runTurn(finalPrompt, turnAbortController.signal);
+          const generator = core.runTurn(finalPrompt, turnAbortController.signal, images);
           let hasStreamError = false;
 
           for await (const event of generator) {
@@ -643,6 +715,8 @@ export async function POST(req: Request) {
                   role: 'assistant',
                   content: chunk
                 });
+                // Incrementally persist to DB for background continuity
+                await persistAssistantMessageIncremental(persistedAssistantContent, persistedAssistantThought);
               }
             }
 
@@ -664,6 +738,8 @@ export async function POST(req: Request) {
                 checkpoint: info.checkpoint,
                 parameters: info.args
               });
+              // Incrementally persist to DB for background continuity
+              await persistAssistantMessageIncremental(persistedAssistantContent, persistedAssistantThought);
             }
 
             else if (event.type === GeminiEventType.ToolCallResponse) {
@@ -712,6 +788,8 @@ export async function POST(req: Request) {
                 type: 'thought',
                 content: text
               });
+              // Incrementally persist to DB for background continuity
+              await persistAssistantMessageIncremental(persistedAssistantContent, persistedAssistantThought);
             }
 
             else if (event.type === GeminiEventType.Citation) {
@@ -780,6 +858,15 @@ export async function POST(req: Request) {
           }
 
           const turnWasAborted = turnAbortController.signal.aborted;
+
+          // Mark background job as completed or aborted
+          if (hasStreamError) {
+            markBackgroundJobCompleted('stream_error');
+          } else if (turnWasAborted) {
+            markBackgroundJobCompleted('aborted');
+          } else {
+            markBackgroundJobCompleted();
+          }
 
           if (!hasStreamError && !turnWasAborted) {
             safeEnqueue({
@@ -852,6 +939,11 @@ export async function POST(req: Request) {
               type: 'error',
               error: { message: errorMessage }
             });
+            // Mark background job as failed
+            markBackgroundJobCompleted(errorMessage);
+          } else {
+            // Mark as aborted
+            markBackgroundJobCompleted('aborted');
           }
         } finally {
           persistUndoSnapshot();

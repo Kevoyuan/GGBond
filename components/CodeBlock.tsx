@@ -9,15 +9,16 @@ import { cn } from '@/lib/utils';
 interface CodeBlockProps {
     language: string;
     code: string;
+    collapsible?: boolean;
 }
 
 const COLLAPSE_THRESHOLD = 20;
 const VISIBLE_LINES = 10;
 
-export function CodeBlock({ language, code }: CodeBlockProps) {
+export function CodeBlock({ language, code, collapsible = true }: CodeBlockProps) {
     const [copied, setCopied] = useState(false);
     const lineCount = code.split('\n').length;
-    const shouldCollapse = lineCount > COLLAPSE_THRESHOLD;
+    const shouldCollapse = collapsible && lineCount > COLLAPSE_THRESHOLD;
     const [collapsed, setCollapsed] = useState(shouldCollapse);
 
     const handleCopy = () => {
