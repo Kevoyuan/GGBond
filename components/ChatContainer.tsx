@@ -180,7 +180,7 @@ export function ChatContainer({
                                     const isLastInSequence = !next || next.role === 'user';
 
                                     return (
-                                        <div key={msg.id || idx} className={cn("flex flex-col gap-2", msg.role === 'user' && "items-end")}>
+                                        <div key={msg.id || idx} data-message-index={idx} className={cn("flex flex-col gap-2", msg.role === 'user' && "items-end")}>
                                             {/* Show images before user message - right aligned */}
                                             {msg.role === 'user' && msg.images && msg.images.length > 0 && (
                                                 <div className="flex gap-2 flex-wrap">
