@@ -55,6 +55,7 @@ interface SidebarProps {
   currentSessionId: string | null;
   runningSessionIds?: string[];
   terminalRunningSessionIds?: string[];
+  unreadSessionIds?: string[];
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
   onNewChat: () => void;
@@ -118,6 +119,7 @@ export function Sidebar({
   currentSessionId,
   runningSessionIds = [],
   terminalRunningSessionIds = [],
+  unreadSessionIds = [],
   onSelectSession,
   onDeleteSession,
   onNewChat,
@@ -597,14 +599,15 @@ export function Sidebar({
                               <div className="relative w-2.5 h-2.5 shrink-0 flex items-center justify-center">
                                 {isSessionRunning ? (
                                   <>
-                                    <span className="absolute inset-0 rounded-full border border-blue-400/80 border-t-transparent animate-spin [animation-duration:1s]" />
-                                    <span className="w-1 h-1 rounded-full bg-blue-400/90" />
+                                    <span className="absolute inset-0 rounded-full border border-muted-foreground/40 border-t-transparent animate-spin [animation-duration:1s]" />
                                   </>
+                                ) : currentSessionId === session.id ? (
+                                  // Current session is always considered read (shows blue dot)
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                ) : unreadSessionIds.includes(session.id) ? (
+                                  <span className="w-2 h-2 rounded-full bg-amber-500" title="Unread messages" />
                                 ) : (
-                                  <span className={cn(
-                                    "w-1.5 h-1.5 rounded-full",
-                                    currentSessionId === session.id ? "bg-blue-500" : "bg-transparent group-hover:bg-muted-foreground/30"
-                                  )} />
+                                  <span className="w-1.5 h-1.5 rounded-full bg-transparent group-hover:bg-muted-foreground/30" />
                                 )}
                               </div>
                               <span className="truncate flex-1 text-[13px]">{session.title}</span>

@@ -138,5 +138,5 @@
 }
 
 .timeline-item {
-    animation: tl-fadein 0.15s ease-out;
+    /* animation: tl-fadein 0.15s ease-out; */
 }
