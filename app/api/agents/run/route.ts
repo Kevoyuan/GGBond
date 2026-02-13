@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import db from '@/lib/db';
 import { CoreService } from '@/lib/core-service';
-import { Config } from '@google/gemini-cli-core';
-import path from 'path';
+import { GeminiEventType } from '@google/gemini-cli-core';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // Get agent definition
     const coreService = CoreService.getInstance();
-    const agentDefinition = coreService.getAgentDefinition(agentName);
+    const agentDefinition = coreService.getAgentDefinition(agentName) as any;
 
     if (!agentDefinition) {
       db.prepare(`
@@ -72,48 +71,32 @@ async function executeAgentRun(
   workspace?: string,
   model?: string
 ) {
-  const now = Date.now();
-
   try {
-    // Create a new config for this agent run
-    const sessionId = `agent-run-${runId}`;
-    const cwd = workspace || process.cwd();
+    // Use CoreService singleton to run the task
+    const coreService = CoreService.getInstance();
 
-    const config = new Config({
-      sessionId,
-      model: model || 'gemini-2.5-pro',
-      targetDir: cwd,
-      cwd,
-      debugMode: false,
-      output: { format: 'STREAM_JSON', verbose: false },
-    });
-
-    await config.initialize();
-
-    // Set agent system prompt
+    // Set system instruction for this agent
     if (systemPrompt) {
-      config.getGeminiClient()?.setSystemPrompt(systemPrompt);
+      coreService.setSystemInstruction(systemPrompt);
     }
 
-    // Create GeminiChat for this run
-    const { GeminiChat } = await import('@google/gemini-cli-core');
-    const chat = new GeminiChat(config, sessionId);
-
-    // Execute the task
-    const turn = chat.createTurn();
-    const stream = turn.execute(task);
-
+    // Run the turn and collect response
     let fullResponse = '';
+    const abortController = new AbortController();
 
-    for await (const event of stream) {
-      if (event.type === 'chunk' && event.value) {
-        const content = typeof event.value === 'string' ? event.value : JSON.stringify(event.value);
+    for await (const event of coreService.runTurn(task, abortController.signal)) {
+      // Collect content from events
+      if (event.type === GeminiEventType.Content && 'value' in event) {
+        const value = (event as any).value;
+        const content = typeof value === 'string' ? value : JSON.stringify(value);
         fullResponse += content;
 
-        // Update progress
-        db.prepare(`
-          UPDATE agent_runs SET current_content = ?, updated_at = ? WHERE id = ?
-        `).run(fullResponse.substring(0, 10000), Date.now(), runId);
+        // Update progress (throttled)
+        if (fullResponse.length % 500 === 0) {
+          db.prepare(`
+            UPDATE agent_runs SET current_content = ?, updated_at = ? WHERE id = ?
+          `).run(fullResponse.substring(0, 10000), Date.now(), runId);
+        }
       }
     }
 
