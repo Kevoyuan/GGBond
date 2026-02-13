@@ -31,6 +31,7 @@ db.exec(`
     stats TEXT,
     thought TEXT,
     citations TEXT,
+    images TEXT,
     parent_id INTEGER,
     created_at INTEGER NOT NULL,
     FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE,
@@ -55,6 +56,20 @@ db.exec(`
     FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE,
     FOREIGN KEY (user_message_id) REFERENCES messages (id) ON DELETE CASCADE,
     UNIQUE(session_id, user_message_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS background_jobs (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    user_message_id INTEGER,
+    status TEXT NOT NULL DEFAULT 'running',
+    current_content TEXT,
+    current_thought TEXT,
+    current_tool_calls TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    completed_at INTEGER,
+    FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
   );
 `);
 
