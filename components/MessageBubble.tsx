@@ -1,4 +1,4 @@
-import { Bot, User, Info, Copy, Check, RefreshCw, Undo2, Loader2 } from 'lucide-react';
+import { User, Info, Copy, Check, RefreshCw, Undo2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import React, { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
@@ -19,6 +19,7 @@ export interface Message {
   parentId?: string | null;
   thought?: string;
   citations?: string[];
+  images?: Array<{ dataUrl: string; type: string; name: string }>;
 }
 
 import { ThinkingBlock } from './ThinkingBlock';
@@ -595,6 +596,23 @@ function CitationsDisplay({ citations }: { citations: string[] }) {
   );
 }
 
+function GeminiIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className}>
+      <defs>
+        <linearGradient id="gemini-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style={{ stopColor: '#4E79F5', stopOpacity: 1 }} />
+          <stop offset="100%" style={{ stopColor: '#D36767', stopOpacity: 1 }} />
+        </linearGradient>
+      </defs>
+      <path
+        d="M12 2C12.5 7.5 16.5 11.5 22 12C16.5 12.5 12.5 16.5 12 22C11.5 16.5 7.5 12.5 2 12C7.5 11.5 11.5 7.5 12 2Z"
+        fill="url(#gemini-gradient)"
+      />
+    </svg>
+  );
+}
+
 export function MessageBubble({
   message,
   isFirst,
@@ -631,8 +649,8 @@ export function MessageBubble({
   return (
     <div className={cn("flex gap-4 w-full animate-fade-in group", isUser ? "justify-end" : "justify-start")}>
       {!isUser && (
-        <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5 border border-primary/20">
-          <Bot className="w-5 h-5 text-primary" />
+        <div className="w-8 h-8 flex items-center justify-center shrink-0 mt-0.5">
+          <GeminiIcon className="w-6 h-6" />
         </div>
       )}
 
@@ -719,11 +737,7 @@ export function MessageBubble({
         )}
       </div>
 
-      {isUser && (
-        <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center shrink-0 mt-0.5 border border-border">
-          <User className="w-5 h-5 text-secondary-foreground" />
-        </div>
-      )}
+      {isUser && null}
     </div>
   );
 }
@@ -748,19 +762,22 @@ function CopyButton({ content }: { content: string }) {
   );
 }
 
-export function LoadingBubble() {
+export function LoadingBubble({ status }: { status?: string }) {
   return (
     <div className="flex gap-4 w-full animate-fade-in">
-      <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5 border border-primary/20">
-        <Bot className="w-5 h-5 text-primary" />
+      <div className="w-8 h-8 flex items-center justify-center shrink-0 mt-0.5">
+        <GeminiIcon className="w-6 h-6" />
       </div>
       <div className="w-full">
         <div className="timeline-group">
           <div className="timeline-item timeline-item-loading">
-            <span className="text-sm text-muted-foreground italic font-medium">Processing...</span>
+            <span className="text-sm text-muted-foreground italic font-medium flex items-center gap-2">
+              {status || 'Processing...'}
+            </span>
           </div>
         </div>
       </div>
     </div>
   );
 }
+

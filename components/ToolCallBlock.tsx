@@ -102,7 +102,7 @@ export function ToolCallBlock({ toolName, args, status = 'completed', result, du
 
     return (
         <div className={cn(
-            "group/tool my-1 rounded-md border transition-all duration-200 overflow-hidden",
+            "group/tool my-1 rounded-md border overflow-hidden",
             expanded ? "bg-muted/10 border-border/40 shadow-sm" : "bg-transparent border-transparent hover:bg-muted/50"
         )}>
             {/* Header / Summary Row */}
@@ -140,7 +140,7 @@ export function ToolCallBlock({ toolName, args, status = 'completed', result, du
                         <span>{duration}</span>
                     )}
                     <ChevronRight className={cn(
-                        "w-3.5 h-3.5 transition-transform duration-200 opacity-0 group-hover/tool:opacity-50",
+                        "w-3.5 h-3.5 opacity-0 group-hover/tool:opacity-50",
                         expanded && "rotate-90 opacity-100"
                     )} />
                 </div>
@@ -148,7 +148,7 @@ export function ToolCallBlock({ toolName, args, status = 'completed', result, du
 
             {/* Expanded Details */}
             {expanded && (
-                <div className="border-t border-border/20 px-3 py-2 text-[11px] bg-muted/5 animate-in slide-in-from-top-1 duration-200">
+                <div className="border-t border-border/20 px-3 py-2 text-[11px] bg-muted/5">
 
                     {/* Arguments Section */}
                     <div className="mb-2">
@@ -181,7 +181,7 @@ export function ToolCallBlock({ toolName, args, status = 'completed', result, du
 
             {/* Action Buttons - Always Visible if Action Required */}
             {result && (result.includes('Tool "run_shell_command" not found') || result.includes('Action Required')) && (
-                <div className="mx-3 mb-3 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 animate-in slide-in-from-top-1">
+                <div className="mx-3 mb-3 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10">
                     <div className="flex items-center gap-2 mb-2 text-amber-500 font-medium text-xs">
                         <div className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>

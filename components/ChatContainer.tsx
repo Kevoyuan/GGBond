@@ -33,6 +33,7 @@ interface ChatContainerProps {
     showTerminal?: boolean;
     onToggleTerminal?: () => void;
     onInputHeightChange?: (height: number) => void;
+    streamingStatus?: string;
 }
 
 export function ChatContainer({
@@ -59,7 +60,8 @@ export function ChatContainer({
     workspacePath,
     showTerminal,
     onToggleTerminal,
-    onInputHeightChange
+    onInputHeightChange,
+    streamingStatus
 }: ChatContainerProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -178,20 +180,34 @@ export function ChatContainer({
                                     const isLastInSequence = !next || next.role === 'user';
 
                                     return (
-                                        <MessageBubble
-                                            key={msg.id || idx}
-                                            message={msg}
-                                            isFirst={isFirstInSequence}
-                                            isLast={isLastInSequence}
-                                            settings={settings}
-                                            onUndoTool={onUndoTool}
-                                            onUndoMessage={onUndoMessage}
-                                            onRetry={(mode) => onRetry(idx, mode)}
-                                            onCancel={() => onCancel(idx)}
-                                        />
+                                        <div key={msg.id || idx} className={cn("flex flex-col gap-2", msg.role === 'user' && "items-end")}>
+                                            {/* Show images before user message - right aligned */}
+                                            {msg.role === 'user' && msg.images && msg.images.length > 0 && (
+                                                <div className="flex gap-2 flex-wrap">
+                                                    {msg.images.map((img, imgIdx) => (
+                                                        <img
+                                                            key={imgIdx}
+                                                            src={img.dataUrl}
+                                                            alt={img.name}
+                                                            className="max-w-[200px] max-h-[200px] object-contain rounded-lg border"
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <MessageBubble
+                                                message={msg}
+                                                isFirst={isFirstInSequence}
+                                                isLast={isLastInSequence}
+                                                settings={settings}
+                                                onUndoTool={onUndoTool}
+                                                onUndoMessage={onUndoMessage}
+                                                onRetry={(mode) => onRetry(idx, mode)}
+                                                onCancel={() => onCancel(idx)}
+                                            />
+                                        </div>
                                     );
                                 })}
-                                {isLoading && messages[messages.length - 1]?.role !== 'model' && <LoadingBubble />}
+                                {isLoading && messages[messages.length - 1]?.role !== 'model' && <LoadingBubble status={streamingStatus} />}
                                 <div ref={messagesEndRef} className="h-4" />
                             </div>
                         )}

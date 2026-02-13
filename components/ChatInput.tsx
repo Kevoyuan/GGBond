@@ -1,11 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
 
+interface UploadedImage {
+  id: string;
+  file: File;
+  preview: string;
+  dataUrl: string;
+}
+
 interface ChatInputProps {
-  onSend: (message: string, options?: { approvalMode?: 'safe' | 'auto' }) => void;
+  onSend: (message: string, options?: { approvalMode?: 'safe' | 'auto'; images?: UploadedImage[] }) => void;
   onStop?: () => void;
   isLoading: boolean;
   currentModel: string;
@@ -142,6 +149,97 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
   const [isCompressing, setIsCompressing] = useState(false);
   const inlineSkillTokenPattern = new RegExp(INLINE_SKILL_TOKEN_SOURCE, 'g');
   const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Image state
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+
+  // Process pasted image
+  const processPastedImage = useCallback((file: File): Promise<UploadedImage> => {
+    return new Promise((resolve, reject) => {
+      if (!file.type.startsWith('image/')) {
+        reject(new Error('Not an image file'));
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        const img = new Image();
+        img.onload = () => {
+          resolve({
+            id: crypto.randomUUID(),
+            file,
+            preview: dataUrl,
+            dataUrl,
+          });
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = dataUrl;
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+  // Handle paste event
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      const newImages: UploadedImage[] = [];
+      for (const file of imageFiles) {
+        try {
+          const img = await processPastedImage(file);
+          newImages.push(img);
+        } catch (err) {
+          console.error('Failed to process image:', err);
+        }
+      }
+      setUploadedImages(prev => [...prev, ...newImages]);
+    }
+  }, [processPastedImage]);
+
+  // Handle file input change
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newImages: UploadedImage[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.type.startsWith('image/')) {
+        try {
+          const img = await processPastedImage(file);
+          newImages.push(img);
+        } catch (err) {
+          console.error('Failed to process image:', err);
+        }
+      }
+    }
+    setUploadedImages(prev => [...prev, ...newImages]);
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [processPastedImage]);
+
+  // Remove image
+  const removeImage = useCallback((id: string) => {
+    setUploadedImages(prev => prev.filter(img => img.id !== id));
+  }, []);
 
   const currentMode = MODE_OPTIONS.find(m => m.value === mode) || MODE_OPTIONS[0];
 
@@ -824,8 +922,9 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
       ? `${skillPrefix}${cleanedInput ? `\n${cleanedInput}` : ''}`
       : cleanedInput;
 
-    onSend(finalMessage.replace(/\u2011/g, '-'), { approvalMode: currentApprovalMode });
+    onSend(finalMessage.replace(/\u2011/g, '-'), { approvalMode: currentApprovalMode, images: uploadedImages });
     setInput('');
+    setUploadedImages([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -932,6 +1031,37 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
   return (
     <div ref={containerRef} className="p-4 bg-background border-t relative">
       <div className="max-w-3xl mx-auto relative">
+        {/* Hidden file input for image upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+
+        {/* Image preview area */}
+        {uploadedImages.length > 0 && (
+          <div className="flex gap-2 mb-2 flex-wrap">
+            {uploadedImages.map((img) => (
+              <div key={img.id} className="relative group">
+                <img
+                  src={img.preview}
+                  alt="Uploaded"
+                  className="w-16 h-16 object-cover rounded-lg border"
+                />
+                <button
+                  onClick={() => removeImage(img.id)}
+                  className="absolute -top-1 -right-1 w-5 h-5 bg-background border rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Command Suggestions */}
         {showCommands && (
           <div className="absolute bottom-full left-0 mb-2 w-64 bg-card border rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50">
@@ -1038,6 +1168,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
               onSelect={handleSelect}
               onScroll={handleTextareaScroll}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder=""
               className="absolute inset-0 w-full h-full bg-transparent border-none focus:outline-none resize-none text-transparent caret-foreground selection:bg-primary/20 text-sm leading-relaxed px-2 py-1 z-0"
               rows={1}
@@ -1146,41 +1277,17 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
 
               <div className="w-px h-4 bg-border mx-1" />
 
-              {/* Approval Mode Toggle */}
-              <button
-                onClick={() => {
-                  const nextMode = currentApprovalMode === 'safe' ? 'auto' : 'safe';
-                  setCurrentApprovalMode(nextMode);
-                }}
-                className={cn(
-                  "flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-all duration-300",
-                  currentApprovalMode === 'auto'
-                    ? "text-red-500 bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/20"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                )}
-                title={currentApprovalMode === 'auto' ? "Auto Mode: All tool calls are allowed" : "Safe Mode: Ask for approval"}
-              >
-                {currentApprovalMode === 'auto' ? (
-                  <>
-                    <Zap className="w-3.5 h-3.5 fill-current animate-pulse" />
-                    <span>Auto</span>
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                  </>
-                ) : (
-                  <>
-                    <div className="w-3.5 h-3.5 rounded-full border border-current opacity-70" />
-                    <span>Safe</span>
-                  </>
-                )}
-              </button>
 
-              <div className="w-px h-4 bg-border mx-1" />
 
 
               <button className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors" title="Attach file">
                 <Paperclip className="w-4 h-4" />
               </button>
-              <button className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors" title="Add Image">
+              <button
+                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                title="Add Image"
+                onClick={() => fileInputRef.current?.click()}
+              >
                 <ImageIcon className="w-4 h-4" />
               </button>
             </div>
@@ -1195,14 +1302,16 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
                   disabled={!onStop}
                   aria-label="Stop"
                   className={cn(
-                    "h-8 w-8 rounded-full transition-all duration-200 inline-flex items-center justify-center",
+                    "group/stopbtn h-8 w-8 rounded-full transition-all duration-200 inline-flex items-center justify-center relative",
                     onStop
                       ? "bg-foreground text-background hover:opacity-90 shadow-sm"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
                   )}
-                  title="Stop current response"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
+                  <span className="absolute bottom-full mb-2 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover/stopbtn:opacity-100 group-hover/stopbtn:visible transition-all whitespace-nowrap z-50 border border-border">
+                    Stop response
+                  </span>
                 </button>
               ) : (
                 <button
@@ -1210,14 +1319,16 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
                   disabled={!input.trim()}
                   aria-label="Send"
                   className={cn(
-                    "h-8 w-8 rounded-full transition-all duration-200 inline-flex items-center justify-center",
+                    "group/sendbtn h-8 w-8 rounded-full transition-all duration-200 inline-flex items-center justify-center relative",
                     input.trim()
                       ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
                   )}
-                  title="Send message"
                 >
                   <Send className="w-3.5 h-3.5" />
+                  <span className="absolute bottom-full mb-2 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover/sendbtn:opacity-100 group-hover/sendbtn:visible transition-all whitespace-nowrap z-50 border border-border">
+                    Send message
+                  </span>
                 </button>
               )}
             </div>
@@ -1225,6 +1336,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
         </div>
 
         <div className="mt-2 flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
           <div
             className="relative flex items-center gap-1.5"
             onMouseEnter={() => setShowContextTooltip(true)}
@@ -1321,6 +1433,34 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
                 </motion.div>
               )}
             </AnimatePresence>
+          </div>
+
+              {/* Approval Mode Toggle */}
+              <button
+                onClick={() => {
+                  const nextMode = currentApprovalMode === 'safe' ? 'auto' : 'safe';
+                  setCurrentApprovalMode(nextMode);
+                }}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-all duration-300 relative z-20 w-[60px] h-[26px]",
+                  currentApprovalMode === 'auto'
+                    ? "text-orange-500 bg-orange-500/10 hover:bg-orange-500/20 ring-1 ring-orange-500/20"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                )}
+                title={currentApprovalMode === 'auto' ? "Auto Mode: All tool calls are allowed" : "Safe Mode: Ask for approval"}
+              >
+                {currentApprovalMode === 'auto' ? (
+                  <>
+                    <Zap className="w-3.5 h-3.5 fill-current animate-pulse shrink-0" />
+                    <span>YOLO</span>
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-3.5 h-3.5 opacity-70 shrink-0" />
+                    <span>Safe</span>
+                  </>
+                )}
+              </button>
           </div>
 
           {onToggleTerminal && (
