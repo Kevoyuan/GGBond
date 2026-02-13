@@ -71,6 +71,22 @@ db.exec(`
     completed_at INTEGER,
     FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS agent_runs (
+    id TEXT PRIMARY KEY,
+    agent_name TEXT NOT NULL,
+    agent_display_name TEXT,
+    description TEXT,
+    task TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    workspace TEXT,
+    model TEXT,
+    result TEXT,
+    error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    completed_at INTEGER
+  );
 `);
 
 // Migration: Add workspace column if it doesn't exist

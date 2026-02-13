@@ -631,7 +631,7 @@ export class CoreService {
         }
     }
 
-    public async *runTurn(message: string, signal?: AbortSignal) {
+    public async *runTurn(message: string, signal?: AbortSignal, images?: Array<{ dataUrl: string; type: string; name: string }>) {
         if (!this.config) throw new Error('Config not initialized');
         this.pendingConfirmations.clear();
         this.pendingConfirmationByCallId.clear();
@@ -639,7 +639,30 @@ export class CoreService {
         const promptId = crypto.randomUUID();
         const displayContent = message;
         const abortSignal = signal || new AbortController().signal;
-        let currentRequest: unknown = [{ text: message }];
+
+        // Build content array with text and optional images
+        const content: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+
+        // Add images if provided
+        if (images && images.length > 0) {
+            for (const img of images) {
+                // Extract base64 data from dataUrl
+                const base64Data = img.dataUrl.split(',')[1];
+                if (base64Data) {
+                    content.push({
+                        inlineData: {
+                            mimeType: img.type,
+                            data: base64Data,
+                        },
+                    });
+                }
+            }
+        }
+
+        // Add text message
+        content.push({ text: message });
+
+        let currentRequest: unknown = content;
         let turnCount = 0;
 
         console.log(`[CoreService] Running turn with model: ${this.config.getModel()}`);
