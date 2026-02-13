@@ -35,6 +35,21 @@ import type { GeminiChat } from '@google/gemini-cli-core';
 
 const MAX_TURNS = 100;
 
+function isGitWorkspace(startDir: string): boolean {
+    let current = path.resolve(startDir);
+
+    while (true) {
+        if (fs.existsSync(path.join(current, '.git'))) {
+            return true;
+        }
+        const parent = path.dirname(current);
+        if (parent === current) {
+            return false;
+        }
+        current = parent;
+    }
+}
+
 // Type definition for Global to support HMR in Next.js
 declare global {
     var __gemini_core_service: CoreService | undefined;
@@ -70,9 +85,13 @@ type PendingConfirmation = {
     correlationId: string;
 };
 
+type UndoCheckpointResult =
+    | { success: true; restoreId: string }
+    | { success: false; error: string };
+
 export class CoreService {
     private static _instance: CoreService;
-    private static readonly SERVICE_VERSION = 2;
+    private static readonly SERVICE_VERSION = 3;
     private static coreEventsRegistered = false;
     public config: Config | null = null;
     public chat: GeminiChat | null = null;
@@ -181,6 +200,7 @@ export class CoreService {
         console.log('[CoreService] Initializing...', params);
 
         const projectRoot = params.cwd || process.cwd();
+        const checkpointingEnabled = isGitWorkspace(projectRoot);
         const projectGeminiHome = path.join(process.cwd(), 'gemini-home');
         const projectGeminiSettings = path.join(projectGeminiHome, '.gemini', 'settings.json');
 
@@ -234,22 +254,37 @@ export class CoreService {
 
         // 1. Initialize Config
         // Cast approvalMode to any to avoid Enum type issues if not exported correctly
-        this.config = new Config({
+        const baseConfigOptions = {
             sessionId: params.sessionId,
             model: params.model,
             targetDir: projectRoot,
             cwd: projectRoot,
             debugMode: false,
             interactive: true,
+            checkpointing: checkpointingEnabled,
             approvalMode: normalizedApprovalMode,
             policyEngineConfig,
             recordResponses: '',
             telemetry: telemetrySettings,
             // auth info is auto-detected from env/files by Config internal logic or we can pass explicit
             // For now let Config handle standard auth
-        });
+        };
+        console.log(`[CoreService] Checkpointing: ${checkpointingEnabled ? 'enabled' : 'disabled'} (git workspace: ${checkpointingEnabled})`);
 
-        await this.config.initialize();
+        this.config = new Config(baseConfigOptions);
+        try {
+            await this.config.initialize();
+        } catch (error) {
+            if (!checkpointingEnabled) {
+                throw error;
+            }
+            console.warn('[CoreService] Failed to initialize with checkpointing enabled, retrying without checkpointing:', error);
+            this.config = new Config({
+                ...baseConfigOptions,
+                checkpointing: false,
+            });
+            await this.config.initialize();
+        }
         try {
             if (this.config.getApprovalMode() !== normalizedApprovalMode) {
                 this.config.setApprovalMode(normalizedApprovalMode);
@@ -1087,5 +1122,50 @@ export class CoreService {
             historyRestored,
             conversationRewound,
         };
+    }
+
+    public async createUndoCheckpoint(label?: string): Promise<UndoCheckpointResult> {
+        if (!this.config) {
+            return { success: false, error: 'Core service is not initialized.' };
+        }
+
+        try {
+            const gitService = await this.config.getGitService();
+            if (!gitService) {
+                return { success: false, error: 'Git service is unavailable.' };
+            }
+
+            const commitHash = await gitService.createFileSnapshot(
+                label || `Undo snapshot ${new Date().toISOString()}`
+            );
+            if (!commitHash) {
+                return { success: false, error: 'Failed to create git snapshot.' };
+            }
+
+            const restoreId = `undo-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+            const checkpointsDir = this.config.storage.getProjectTempCheckpointsDir();
+            await fs.promises.mkdir(checkpointsDir, { recursive: true });
+
+            const conversation = this.chat?.getChatRecordingService().getConversation();
+            const recordingMessageId = conversation?.messages.at(-1)?.id;
+            const checkpointData = {
+                commitHash,
+                clientHistory: this.config.getGeminiClient().getHistory(),
+                messageId: typeof recordingMessageId === 'string' ? recordingMessageId : undefined,
+            };
+
+            await fs.promises.writeFile(
+                path.join(checkpointsDir, `${restoreId}.json`),
+                JSON.stringify(checkpointData, null, 2),
+                'utf-8'
+            );
+
+            return { success: true, restoreId };
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Failed to create undo checkpoint.',
+            };
+        }
     }
 }

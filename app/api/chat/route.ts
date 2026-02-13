@@ -6,6 +6,7 @@ import { getGeminiEnv } from '@/lib/gemini-utils';
 import { calculateCost } from '@/lib/pricing';
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
+import path from 'path';
 import {
   GeminiEventType,
   ToolCallRequestInfo,
@@ -44,6 +45,18 @@ const buildAgentSystemInstruction = (agent: AgentDefinitionLike) => {
 
   return parts.join('\n\n');
 };
+
+type FileUndoFallbackEntry = {
+  path: string;
+  existedBefore: boolean;
+  originalContentBase64?: string;
+};
+
+function isSameOrChildPath(candidatePath: string, parentPath: string) {
+  const candidate = path.resolve(candidatePath);
+  const parent = path.resolve(parentPath);
+  return candidate === parent || candidate.startsWith(`${parent}${path.sep}`);
+}
 
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
@@ -206,6 +219,23 @@ export async function POST(req: Request) {
       // Don't block chat on DB error
     }
 
+    const userMessageDbId =
+      typeof userMessageId === 'bigint'
+        ? Number(userMessageId)
+        : (typeof userMessageId === 'number' ? userMessageId : null);
+    const workspaceRoot = path.resolve((workspace && workspace !== 'Default') ? workspace : process.cwd());
+    let undoRestoreId: string | undefined;
+    const fallbackFileUndoMap = new Map<string, FileUndoFallbackEntry>();
+
+    if (userMessageDbId && Number.isFinite(userMessageDbId) && userMessageDbId > 0) {
+      const checkpointResult = await core.createUndoCheckpoint(`Undo snapshot before message #${userMessageDbId}`);
+      if (checkpointResult.success) {
+        undoRestoreId = checkpointResult.restoreId;
+      } else {
+        console.info('[chat] undo checkpoint unavailable, using file-level fallback only:', checkpointResult.error);
+      }
+    }
+
     let fullResponse = '';
     let persistedAssistantContent = '';
     let persistedAssistantThought = '';
@@ -224,6 +254,73 @@ export async function POST(req: Request) {
       totalTokenCount: number;
       durationMs: number;
     } | null = null;
+
+    const captureFallbackFileUndo = (resultData: unknown) => {
+      if (!resultData || typeof resultData !== 'object') {
+        return;
+      }
+
+      const payload = resultData as Record<string, unknown>;
+      const rawPath = typeof payload.filePath === 'string'
+        ? payload.filePath
+        : (typeof payload.file_path === 'string' ? payload.file_path : null);
+      if (!rawPath) return;
+
+      const normalizedFilePath = path.isAbsolute(rawPath)
+        ? path.resolve(rawPath)
+        : path.resolve(workspaceRoot, rawPath);
+      if (!isSameOrChildPath(normalizedFilePath, workspaceRoot)) {
+        return;
+      }
+      if (fallbackFileUndoMap.has(normalizedFilePath)) {
+        // Keep the earliest "before" state for this turn.
+        return;
+      }
+
+      const originalContent = payload.originalContent;
+      const isNewFile = payload.isNewFile === true;
+      if (typeof originalContent === 'string') {
+        fallbackFileUndoMap.set(normalizedFilePath, {
+          path: normalizedFilePath,
+          existedBefore: !isNewFile,
+          originalContentBase64: Buffer.from(originalContent, 'utf8').toString('base64'),
+        });
+        return;
+      }
+
+      if (isNewFile) {
+        fallbackFileUndoMap.set(normalizedFilePath, {
+          path: normalizedFilePath,
+          existedBefore: false,
+        });
+      }
+    };
+
+    let undoSnapshotPersisted = false;
+    const persistUndoSnapshot = () => {
+      if (undoSnapshotPersisted) return;
+      if (!userMessageDbId || !Number.isFinite(userMessageDbId) || userMessageDbId <= 0) return;
+
+      const fallbackFiles = Array.from(fallbackFileUndoMap.values());
+      if (!undoRestoreId && fallbackFiles.length === 0) return;
+
+      try {
+        db.prepare(
+          `INSERT OR REPLACE INTO undo_snapshots (
+             session_id, user_message_id, restore_id, fallback_files, created_at
+           ) VALUES (?, ?, ?, ?, ?)`
+        ).run(
+          finalSessionId,
+          userMessageDbId,
+          undoRestoreId || null,
+          fallbackFiles.length > 0 ? JSON.stringify(fallbackFiles) : null,
+          Date.now()
+        );
+        undoSnapshotPersisted = true;
+      } catch (error) {
+        console.error('[DB] Failed to persist undo snapshot', error);
+      }
+    };
 
     const upsertToolCallResult = ({
       toolId,
@@ -573,6 +670,7 @@ export async function POST(req: Request) {
               const info = event.value as ToolCallResponseInfo;
               const resultDisplay = info.resultDisplay;
               const resultData = toSerializableResultData(resultDisplay);
+              captureFallbackFileUndo(resultData);
               const output = toResultOutput(resultDisplay);
               const toolName = toolNameByCallId.get(info.callId);
               const checkpoint = checkpointByCallId.get(info.callId);
@@ -681,7 +779,9 @@ export async function POST(req: Request) {
             }
           }
 
-          if (!hasStreamError) {
+          const turnWasAborted = turnAbortController.signal.aborted;
+
+          if (!hasStreamError && !turnWasAborted) {
             safeEnqueue({
               type: 'result',
               status: 'complete',
@@ -694,6 +794,18 @@ export async function POST(req: Request) {
             const serializedCitations = persistedAssistantCitations.length > 0
               ? JSON.stringify(Array.from(new Set(persistedAssistantCitations)))
               : null;
+            const assistantContentToPersist = persistedAssistantContent || fullResponse || '';
+            const hasAssistantPayload = Boolean(
+              assistantContentToPersist.trim() ||
+              persistedAssistantThought.trim() ||
+              serializedCitations ||
+              finalStats
+            );
+
+            if (!hasAssistantPayload) {
+              return;
+            }
+
             const assistantInsertTx = db.transaction(() => {
               const insertTs = Date.now();
               ensureSessionRow(insertTs);
@@ -713,7 +825,7 @@ export async function POST(req: Request) {
                 .run(
                   finalSessionId,
                   'model',
-                  persistedAssistantContent || fullResponse,
+                  assistantContentToPersist,
                   finalStats ? JSON.stringify(finalStats) : null,
                   persistedAssistantThought || null,
                   serializedCitations,
@@ -728,13 +840,21 @@ export async function POST(req: Request) {
           }
 
         } catch (err) {
-          console.error('Turn execution error:', err);
-          const errorMessage = err instanceof Error ? err.message : String(err);
-          safeEnqueue({
-            type: 'error',
-            error: { message: errorMessage }
-          });
+          const isAbortError =
+            (err instanceof DOMException && err.name === 'AbortError') ||
+            (err instanceof Error && err.name === 'AbortError') ||
+            turnAbortController.signal.aborted;
+
+          if (!isAbortError) {
+            console.error('Turn execution error:', err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            safeEnqueue({
+              type: 'error',
+              error: { message: errorMessage }
+            });
+          }
         } finally {
+          persistUndoSnapshot();
           cleanupStream();
           if (!streamClosed) {
             streamClosed = true;

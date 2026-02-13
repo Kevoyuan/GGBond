@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare } from 'lucide-react';
+import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
 
 interface ChatInputProps {
   onSend: (message: string, options?: { approvalMode?: 'safe' | 'auto' }) => void;
+  onStop?: () => void;
   isLoading: boolean;
   currentModel: string;
   onModelChange: (model: string) => void;
@@ -22,6 +23,7 @@ interface ChatInputProps {
   showTerminal?: boolean;
   onToggleTerminal?: () => void;
   onHeightChange?: (height: number) => void;
+  prefillRequest?: { id: number; text: string } | null;
 }
 
 interface CommandItem {
@@ -116,7 +118,7 @@ const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
   'uninstall',
 ]);
 
-export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange }: ChatInputProps) {
+export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange, prefillRequest }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | 'skill' | null>(null);
@@ -352,6 +354,27 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
   useEffect(() => {
     inputRef.current = input;
   }, [input]);
+
+  useEffect(() => {
+    if (!prefillRequest) return;
+
+    const nextValue = prefillRequest.text || '';
+    const nextCursor = nextValue.length;
+    setInput(nextValue);
+    inputRef.current = nextValue;
+    setCursorPosition(nextCursor);
+    cursorRef.current = { start: nextCursor, end: nextCursor };
+
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(nextCursor, nextCursor);
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+      }
+    });
+    void updateSuggestions(nextValue, nextCursor);
+  }, [prefillRequest?.id]);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -1166,18 +1189,37 @@ export function ChatInput({ onSend, isLoading, currentModel, onModelChange, sess
               <span className="text-[10px] text-muted-foreground hidden sm:inline-block">
                 Cmd+Enter
               </span>
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || isLoading}
-                className={cn(
-                  "p-1.5 rounded-md transition-all duration-200 flex items-center justify-center",
-                  input.trim() && !isLoading
-                    ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
-                    : "bg-muted text-muted-foreground cursor-not-allowed"
-                )}
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
+              {isLoading ? (
+                <button
+                  onClick={onStop}
+                  disabled={!onStop}
+                  aria-label="Stop"
+                  className={cn(
+                    "h-8 w-8 rounded-full transition-all duration-200 inline-flex items-center justify-center",
+                    onStop
+                      ? "bg-foreground text-background hover:opacity-90 shadow-sm"
+                      : "bg-muted text-muted-foreground cursor-not-allowed"
+                  )}
+                  title="Stop current response"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim()}
+                  aria-label="Send"
+                  className={cn(
+                    "h-8 w-8 rounded-full transition-all duration-200 inline-flex items-center justify-center",
+                    input.trim()
+                      ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
+                      : "bg-muted text-muted-foreground cursor-not-allowed"
+                  )}
+                  title="Send message"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </div>

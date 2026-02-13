@@ -16,6 +16,7 @@ import { HookEvent } from '../components/HooksPanel';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 import { TerminalPanel } from '../components/TerminalPanel';
+import { UndoMessageConfirmDialog, UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
 
 
 interface Session {
@@ -39,6 +40,16 @@ interface ApiMessageRecord {
   citations?: string[];
   sessionId?: string;
   error?: boolean;
+}
+
+interface UndoConfirmState {
+  sessionId: string;
+  messageId: string;
+  messageContent: string;
+  workspace: string | null;
+  model: string;
+  hasCheckpoint: boolean;
+  fileChanges: UndoPreviewFileChange[];
 }
 
 const toMessageId = (value: unknown, fallback: string): string => {
@@ -251,6 +262,7 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentSessionIdRef = useRef<string | null>(currentSessionId);
+  const activeChatAbortRef = useRef<AbortController | null>(null);
 
   // -- Derived Linear Thread --
   const messages = useMemo(() => {
@@ -438,6 +450,9 @@ export default function Home() {
     correlationId: string;
     source: 'confirmation';
   } | null>(null);
+  const [undoConfirm, setUndoConfirm] = useState<UndoConfirmState | null>(null);
+  const [isApplyingUndoMessage, setIsApplyingUndoMessage] = useState(false);
+  const [inputPrefillRequest, setInputPrefillRequest] = useState<{ id: number; text: string } | null>(null);
   const [hookEvents, setHookEvents] = useState<HookEvent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<any | null>(null);
 
@@ -673,6 +688,12 @@ export default function Home() {
     });
   }, []);
 
+  const handleStopMessage = useCallback(() => {
+    const activeAbort = activeChatAbortRef.current;
+    if (!activeAbort || activeAbort.signal.aborted) return;
+    activeAbort.abort();
+  }, []);
+
 
   const handleSendMessage = async (
     text: string,
@@ -680,6 +701,7 @@ export default function Home() {
   ) => {
     if (!text.trim()) return;
     if (isSessionLoading) return;
+    if (activeChatAbortRef.current) return;
     if (currentSessionId && (runningSessionCounts[currentSessionId] ?? 0) > 0) return;
 
     // Handle slash commands
@@ -968,10 +990,34 @@ export default function Home() {
     }
 
     // Determine parent ID: passed option or current head
-    const parentIdToUse = options?.parentId !== undefined ? options.parentId : headId;
-    const initialSessionIdAtSend = currentSessionId;
+    const parentIdToUseRaw = options?.parentId !== undefined ? options.parentId : headId;
+    const parentIdToUse = parentIdToUseRaw ? String(parentIdToUseRaw) : null;
+    const resolvePersistedParentId = (candidateId: string | null): string | undefined => {
+      if (!candidateId) return undefined;
+      const visited = new Set<string>();
+      let cursor: string | null = candidateId;
+      while (cursor && !visited.has(cursor)) {
+        visited.add(cursor);
+        if (/^\d+$/.test(cursor)) {
+          return cursor;
+        }
+        const nextParent: string | null | undefined = messagesMap.get(cursor)?.parentId;
+        cursor = nextParent ? String(nextParent) : null;
+      }
+      return undefined;
+    };
+    const apiParentId = resolvePersistedParentId(parentIdToUse);
+
+    const generatedSessionId = currentSessionId || crypto.randomUUID();
+    const initialSessionIdAtSend = generatedSessionId;
     const selectedSessionIdAtSend = currentSessionIdRef.current;
     let trackedRunningSessionId: string | null = initialSessionIdAtSend;
+    let streamSessionId: string | null = initialSessionIdAtSend;
+    let abortedByUser = false;
+
+    if (!currentSessionId && currentSessionIdRef.current === selectedSessionIdAtSend) {
+      setCurrentSessionId(generatedSessionId);
+    }
 
     if (trackedRunningSessionId) {
       updateRunningSessionCount(trackedRunningSessionId, 1);
@@ -1022,21 +1068,26 @@ export default function Home() {
       } />`;
     };
 
+    const requestAbortController = new AbortController();
+    activeChatAbortRef.current = requestAbortController;
+
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: requestAbortController.signal,
         body: JSON.stringify({
           prompt: text,
           model: settings.model,
           systemInstruction: settings.systemInstruction,
-          sessionId: currentSessionId,
+          sessionId: generatedSessionId,
           workspace: currentWorkspace,
           mode,
           approvalMode: options?.approvalMode ?? approvalMode,
           modelSettings: settings.modelSettings,
           selectedAgent: selectedAgent?.name,
-          parentId: parentIdToUse // Pass tree context
+          // Only persisted numeric IDs are valid for backend parent linkage.
+          parentId: apiParentId // Pass tree context
         }),
       });
       console.log('[chat/ui] send approval mode', {
@@ -1064,7 +1115,6 @@ export default function Home() {
       let assistantContent = '';
       let assistantThought = '';
       const assistantCitations: string[] = [];
-      let streamSessionId = initialSessionIdAtSend;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1265,18 +1315,16 @@ export default function Home() {
         }
       }
 
-      // Final refresh to keep local tree ids in sync with persisted ids.
-      await fetchSessions();
-      if (streamSessionId && currentSessionIdRef.current === streamSessionId) {
-        try {
-          await loadSessionTree(streamSessionId);
-        } catch (reloadError) {
-          console.error('Failed to reload session tree after turn', reloadError);
-        }
-      }
-
     } catch (error) {
-      console.error('Chat error:', error);
+      const isAbortError =
+        (error instanceof DOMException && error.name === 'AbortError') ||
+        (error instanceof Error && error.name === 'AbortError');
+      if (isAbortError) {
+        abortedByUser = true;
+      }
+      if (!isAbortError) {
+        console.error('Chat error:', error);
+      }
       // We should probably add an error message node if we haven't already
       // But we already added an assistant node. Let's update it.
       // Note: we don't have access to assistantMsgId easily here unless we scoped it. 
@@ -1284,6 +1332,24 @@ export default function Home() {
       // For now, let's just log. Better error handling requires refs or more state.
       // Actually we can add a new error message if we failed BEFORE creating assistant node.
     } finally {
+      if (activeChatAbortRef.current === requestAbortController) {
+        activeChatAbortRef.current = null;
+      }
+
+      try {
+        await fetchSessions();
+        if (streamSessionId && currentSessionIdRef.current === streamSessionId) {
+          await loadSessionTree(streamSessionId);
+        }
+      } catch (reloadError) {
+        console.error(
+          abortedByUser
+            ? 'Failed to reload session tree after abort'
+            : 'Failed to reload session tree after turn',
+          reloadError
+        );
+      }
+
       if (trackedRunningSessionId) {
         updateRunningSessionCount(trackedRunningSessionId, -1);
       }
@@ -1406,9 +1472,12 @@ export default function Home() {
 
 
   const handleCancel = (messageIndex: number) => {
-    // Just stop loading? Or delete the branch?
-    // For now, simple client-side stop would require AbortController which we haven't wired up full yet (fetch supports it).
-    // Let's just implement visual "pruning" or "rewind" to the parent.
+    if (isLoading) {
+      handleStopMessage();
+      return;
+    }
+
+    // If not running, fallback to rewinding this branch to the parent message.
 
     // 1. Identify user message
     let userMsgIndex = -1;
@@ -1518,6 +1587,125 @@ export default function Home() {
       { role: 'model', content: `✅ Undo complete for checkpoint: \`${restoredCheckpoint}\`` },
       fallbackParentId
     );
+  };
+
+  const handleUndoMessage = async (messageId: string, messageContent: string) => {
+    if (!currentSessionId) {
+      addMessageToTree({ role: 'model', content: '⚠️ No session to restore.' }, headId);
+      return;
+    }
+
+    if (isLoading) {
+      addMessageToTree({ role: 'model', content: '⚠️ Please wait for the current run to finish before undo.' }, headId);
+      return;
+    }
+
+    if (!/^\d+$/.test(messageId)) {
+      addMessageToTree({ role: 'model', content: '⚠️ This message cannot be undone yet. Please retry after the turn is saved.' }, headId);
+      return;
+    }
+
+    const previewRes = await fetch('/api/chat/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'undo_message_preview',
+        sessionId: currentSessionId,
+        messageId,
+        workspace: currentWorkspace,
+        model: settings.model
+      })
+    });
+
+    if (!previewRes.ok) {
+      const data = await previewRes.json().catch(() => ({}));
+      addMessageToTree({ role: 'model', content: `⚠️ Undo failed: ${data.error || 'Unknown error'}` }, headId);
+      return;
+    }
+
+    const previewData = await previewRes.json().catch(() => ({} as Record<string, unknown>));
+    const rawFileChanges = Array.isArray((previewData as { fileChanges?: unknown[] }).fileChanges)
+      ? ((previewData as { fileChanges?: unknown[] }).fileChanges as unknown[])
+      : [];
+    const fileChanges: UndoPreviewFileChange[] = rawFileChanges
+      .map((rawEntry) => {
+        if (!rawEntry || typeof rawEntry !== 'object') return null;
+        const entry = rawEntry as Record<string, unknown>;
+
+        const pathValue = typeof entry.path === 'string' ? entry.path : '';
+        if (!pathValue) return null;
+
+        let status: UndoPreviewFileChange['status'] = 'modified';
+        if (entry.status === 'created' || entry.status === 'deleted' || entry.status === 'modified') {
+          status = entry.status;
+        }
+
+        return {
+          path: pathValue,
+          displayPath: typeof entry.displayPath === 'string' ? entry.displayPath : pathValue,
+          status,
+          addedLines: typeof entry.addedLines === 'number' ? entry.addedLines : 0,
+          removedLines: typeof entry.removedLines === 'number' ? entry.removedLines : 0,
+        };
+      })
+      .filter((entry): entry is UndoPreviewFileChange => Boolean(entry));
+
+    setUndoConfirm({
+      sessionId: currentSessionId,
+      messageId,
+      messageContent,
+      workspace: currentWorkspace,
+      model: settings.model,
+      hasCheckpoint: Boolean((previewData as { hasCheckpoint?: unknown }).hasCheckpoint),
+      fileChanges,
+    });
+  };
+
+  const handleCancelUndoMessage = () => {
+    if (isApplyingUndoMessage) return;
+    setUndoConfirm(null);
+  };
+
+  const handleConfirmUndoMessage = async () => {
+    if (!undoConfirm || isApplyingUndoMessage) return;
+
+    setIsApplyingUndoMessage(true);
+    const pending = undoConfirm;
+
+    try {
+      const undoRes = await fetch('/api/chat/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'undo_message',
+          sessionId: pending.sessionId,
+          messageId: pending.messageId,
+          workspace: pending.workspace,
+          model: pending.model
+        })
+      });
+
+      if (!undoRes.ok) {
+        const data = await undoRes.json().catch(() => ({}));
+        addMessageToTree({ role: 'model', content: `⚠️ Undo failed: ${data.error || 'Unknown error'}` }, headId);
+        return;
+      }
+
+      setUndoConfirm(null);
+      setInputPrefillRequest({
+        id: Date.now(),
+        text: pending.messageContent,
+      });
+
+      try {
+        await loadSessionTree(pending.sessionId);
+        await fetchSessions();
+      } catch (error) {
+        console.error('Failed to reload session after message undo', error);
+      }
+    } finally {
+      setIsApplyingUndoMessage(false);
+    }
   };
 
   const handleNodeClick = (nodeId: string) => {
@@ -1703,7 +1891,10 @@ export default function Home() {
               onClosePreview={() => setPreviewFile(null)}
               settings={settings}
               onSendMessage={handleSendMessage}
+              onStopMessage={handleStopMessage}
               onUndoTool={handleUndoTool}
+              onUndoMessage={handleUndoMessage}
+              inputPrefillRequest={inputPrefillRequest}
               onRetry={handleRetry}
               onCancel={handleCancel}
               onModelChange={(model) => setSettings(s => ({ ...s, model }))}
@@ -1743,6 +1934,14 @@ export default function Home() {
             bottomOffset={inputAreaHeight + (showTerminal ? terminalPanelHeight : 0)}
           />
         )}
+        <UndoMessageConfirmDialog
+          open={Boolean(undoConfirm)}
+          fileChanges={undoConfirm?.fileChanges || []}
+          hasCheckpoint={undoConfirm?.hasCheckpoint || false}
+          onCancel={handleCancelUndoMessage}
+          onConfirm={() => void handleConfirmUndoMessage()}
+          isConfirming={isApplyingUndoMessage}
+        />
       </div>
 
       {activeQuestion && (

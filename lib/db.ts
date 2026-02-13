@@ -44,6 +44,18 @@ db.exec(`
     payload TEXT,
     created_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS undo_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    user_message_id INTEGER NOT NULL,
+    restore_id TEXT,
+    fallback_files TEXT,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE,
+    FOREIGN KEY (user_message_id) REFERENCES messages (id) ON DELETE CASCADE,
+    UNIQUE(session_id, user_message_id)
+  );
 `);
 
 // Migration: Add workspace column if it doesn't exist
