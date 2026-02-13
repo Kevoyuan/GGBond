@@ -34,6 +34,19 @@ export async function GET(
         }
         return undefined;
       })(),
+      images: (() => {
+        if (!msg.images) return undefined;
+        if (Array.isArray(msg.images)) return msg.images;
+        if (typeof msg.images === 'string') {
+          try {
+            const parsed = JSON.parse(msg.images);
+            return Array.isArray(parsed) ? parsed : undefined;
+          } catch {
+            return undefined;
+          }
+        }
+        return undefined;
+      })(),
       parent_id: msg.parent_id,
       parentId: msg.parent_id === null || msg.parent_id === undefined ? null : String(msg.parent_id),
       id: msg.id === null || msg.id === undefined ? undefined : String(msg.id),
