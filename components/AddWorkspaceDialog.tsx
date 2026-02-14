@@ -14,14 +14,14 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
     const [isValidating, setIsValidating] = useState(false);
 
     const handleFileSelect = async () => {
-        // @ts-ignore
+        // @ts-expect-error - electronAPI is only available in Electron environment
         if (!window.electronAPI) {
             setError('File picker is only available in the Desktop App mode (npm run desktop:dev)');
             return;
         }
 
         try {
-            // @ts-ignore
+            // @ts-expect-error - electronAPI is only available in Electron environment
             const selectedPath = await window.electronAPI.openDirectory();
             if (selectedPath) {
                 setPath(selectedPath);

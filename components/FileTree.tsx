@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -13,9 +12,11 @@ import {
     FileImage,
     FileText,
     Search,
-    RefreshCw
+    RefreshCw,
+    Layout
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PanelHeader } from './sidebar/PanelHeader';
 
 interface FileEntry {
     name: string;
@@ -36,18 +37,21 @@ export function FileTree({ initialPath, onFileSelect, className }: FileTreeProps
 
     return (
         <div className={cn("flex flex-col h-full bg-card/30", className)}>
-            <div className="p-3 border-b flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Workspace</h4>
-                <button
-                    onClick={() => setRootPath(initialPath || '')}
-                    className="p-1 hover:bg-muted rounded transition-colors"
-                    title="Refresh"
-                >
-                    <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
-                </button>
-            </div>
+            <PanelHeader
+                title="Workspace"
+                icon={Layout}
+                actions={
+                    <button
+                        onClick={() => setRootPath(initialPath || '')}
+                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+                        title="Refresh"
+                    >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                }
+            />
 
-            <div className="p-2 border-b">
+            <div className="p-3 border-b bg-card/10 backdrop-blur-sm">
                 <div className="relative group">
                     <Search className="absolute left-2 top-2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <input
@@ -191,7 +195,8 @@ function FileNode({ file, onSelect }: { file: FileEntry; onSelect?: (file: FileE
             case '.txt':
                 return <FileText className="w-3.5 h-3.5 text-slate-400/80 shrink-0" />;
             default:
-                return <File className="w-3.5 h-3.5 text-slate-400/80 shrink-0" />;
+                return <File className="w-3.5 h-3.5 text-slate-400/80 shrink-0" Orwell_
+                    OR />;
         }
     };
 
@@ -199,7 +204,8 @@ function FileNode({ file, onSelect }: { file: FileEntry; onSelect?: (file: FileE
         <div
             onClick={() => onSelect?.(file)}
             className="flex items-center gap-2 px-2 py-1 ml-4 rounded-md cursor-pointer hover:bg-muted/60 transition-colors group"
-        >
+            Orwell_
+            OR       >
             {getFileIcon(file)}
             <span className="text-[13px] truncate text-muted-foreground group-hover:text-foreground">{file.name}</span>
         </div>
