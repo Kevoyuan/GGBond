@@ -2,7 +2,44 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import db from '@/lib/db';
 import { CoreService } from '@/lib/core-service';
-import { GeminiEventType } from '@google/gemini-cli-core';
+import { GeminiEventType, ServerGeminiContentEvent } from '@google/gemini-cli-core';
+
+/**
+ * Minimal type definition for agent definition from AgentRegistry
+ * Matches the structure used in the gemini-cli-core AgentDefinition
+ */
+type AgentDefinitionLike = {
+  name: string;
+  displayName?: string;
+  description?: string;
+  kind?: 'local' | 'remote' | string;
+  promptConfig?: {
+    systemPrompt?: string;
+  };
+  modelConfig?: {
+    model?: string;
+  };
+};
+
+/**
+ * Database row type for agent_runs table
+ */
+type AgentRunRow = {
+  id: string;
+  agent_name: string;
+  agent_display_name: string | null;
+  description: string | null;
+  task: string;
+  status: string;
+  workspace: string | null;
+  model: string | null;
+  result: string | null;
+  error: string | null;
+  current_content: string | null;
+  created_at: number;
+  updated_at: number;
+  completed_at: number | null;
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     // Get agent definition
     const coreService = CoreService.getInstance();
-    const agentDefinition = coreService.getAgentDefinition(agentName) as any;
+    const agentDefinition = coreService.getAgentDefinition(agentName) as AgentDefinitionLike | null | undefined;
 
     if (!agentDefinition) {
       db.prepare(`
@@ -48,11 +85,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Start execution in background (async, don't wait)
-    executeAgentRun(runId, agentName, agentDefinition.systemPrompt || '', task, workspace, model).catch(err => {
+    executeAgentRun(runId, agentName, agentDefinition.promptConfig?.systemPrompt || '', task, workspace, model).catch(err => {
       console.error('[agent-run] Execution error:', err);
       db.prepare(`
         UPDATE agent_runs SET status = 'failed', error = ?, updated_at = ? WHERE id = ?
-      `).run(err.message, Date.now(), runId);
+      `).run(err instanceof Error ? err.message : String(err), Date.now(), runId);
     });
 
     return NextResponse.json({
@@ -94,7 +131,8 @@ async function executeAgentRun(
     for await (const event of coreService.runTurn(task, abortController.signal)) {
       // Collect content from events
       if (event.type === GeminiEventType.Content && 'value' in event) {
-        const value = (event as any).value;
+        const contentEvent = event as ServerGeminiContentEvent;
+        const value = contentEvent.value;
         const content = typeof value === 'string' ? value : JSON.stringify(value);
         fullResponse += content;
 
@@ -112,10 +150,10 @@ async function executeAgentRun(
       UPDATE agent_runs SET status = 'completed', result = ?, updated_at = ?, completed_at = ? WHERE id = ?
     `).run(fullResponse.substring(0, 50000), Date.now(), Date.now(), runId);
 
-  } catch (error: any) {
+  } catch (error) {
     db.prepare(`
       UPDATE agent_runs SET status = 'failed', error = ?, updated_at = ?, completed_at = ? WHERE id = ?
-    `).run(error.message, Date.now(), Date.now(), runId);
+    `).run(error instanceof Error ? error.message : String(error), Date.now(), Date.now(), runId);
   }
 }
 
@@ -127,7 +165,7 @@ export async function GET(request: NextRequest) {
     // Get single run
     const run = db.prepare(`
       SELECT * FROM agent_runs WHERE id = ?
-    `).get(runId) as any;
+    `).get(runId) as AgentRunRow | undefined;
 
     if (!run) {
       return NextResponse.json({ error: 'Run not found' }, { status: 404 });
