@@ -289,7 +289,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
 
     return (
         <div className={cn("flex flex-col h-full bg-card", className)}>
-            <div className="p-4 border-b flex items-center justify-between bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+            <div className="p-3 border-b flex items-center justify-between bg-card/50 backdrop-blur-sm sticky top-0 z-10">
                 <div className="flex items-center gap-2">
                     <Database className="w-5 h-5 text-primary" />
                     <h2 className="font-semibold text-sm">Knowledge Base</h2>

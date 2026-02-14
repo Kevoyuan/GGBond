@@ -73,6 +73,7 @@ interface SidebarProps {
   onAddWorkspace?: () => void;
   onFileSelect?: (file: { name: string; path: string }) => void;
   hookEvents?: HookEvent[];
+  onClearHooks?: () => void;
   onSelectAgent?: (agent: any) => void;
   selectedAgentName?: string;
   sidePanelType?: 'graph' | 'timeline' | null;
@@ -139,6 +140,7 @@ export function Sidebar({
   onAddWorkspace,
   onFileSelect,
   hookEvents = [],
+  onClearHooks,
   onSelectAgent,
   selectedAgentName,
   sidePanelType,
@@ -723,7 +725,7 @@ export function Sidebar({
         ) : activeView === 'skills' ? (
           <SkillsManager compact className="h-full" />
         ) : activeView === 'hooks' ? (
-          <HooksPanel className="h-full" events={hookEvents} />
+          <HooksPanel className="h-full" events={hookEvents} onClear={onClearHooks} />
         ) : activeView === 'agents' ? (
           <AgentPanel className="h-full" onSelectAgent={onSelectAgent!} selectedAgentName={selectedAgentName} />
         ) : activeView === 'quota' ? (
