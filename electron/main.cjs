@@ -1,8 +1,17 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const path = require('path');
-const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage, ipcMain, shell } = require('electron');
 
-const START_URL = process.env.ELECTRON_START_URL || 'http://localhost:3000';
+// Performance: Enable hardware acceleration
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+
+// Detect if running in development
+const isDev = !app.isPackaged;
+const START_URL = isDev
+  ? (process.env.ELECTRON_START_URL || 'http://localhost:3000')
+  : `file://${path.join(__dirname, '../.next/start.html')}`;
 const WINDOW_TITLE = 'Gemini CodePilot';
 const TOGGLE_SHORTCUT = process.env.ELECTRON_TOGGLE_SHORTCUT || 'CommandOrControl+Shift+Space';
 
@@ -19,11 +28,29 @@ function createMainWindow() {
     title: WINDOW_TITLE,
     autoHideMenuBar: true,
     show: false,
+    // Performance optimizations
+    backgroundColor: '#000000',
+    transparent: false,
     webPreferences: {
       contextIsolation: true,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs'),
+      // Enable web security in production
+      webSecurity: !isDev,
+      // Enable hardware acceleration for webgl
+      webgl: true,
+      // Faster rendering
+      enableBlinkFeatures: 'CSSColorSchemeUARendering',
     },
   });
+
+  // Performance: Enable caching
+  window.webContents.session.setCacheEnabled(true);
+
+  // Performance: Preload scripts
+  if (isDev) {
+    window.webContents.openDevTools();
+  }
 
   window.once('ready-to-show', () => {
     window.show();
@@ -36,7 +63,19 @@ function createMainWindow() {
     }
   });
 
-  window.loadURL(START_URL);
+  // Load the app
+  if (isDev) {
+    window.loadURL(START_URL);
+  } else {
+    // In production, load from the Next.js build output
+    window.loadFile(path.join(__dirname, '../.next/server/app/index.html')).catch(() => {
+      // Fallback to standard Next.js output structure
+      window.loadFile(path.join(__dirname, '../.next/index.html')).catch(() => {
+        window.loadURL('file://' + path.join(__dirname, '../.next/BUILD_ID'));
+      });
+    });
+  }
+
   return window;
 }
 
@@ -88,8 +127,53 @@ function createTray() {
   tray.on('click', () => toggleMainWindow());
 }
 
+// IPC Handlers
+ipcMain.handle('app:getVersion', () => app.getVersion());
+
+ipcMain.on('window:minimize', () => {
+  if (mainWindow) mainWindow.minimize();
+});
+
+ipcMain.on('window:maximize', () => {
+  if (mainWindow) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
+
+ipcMain.on('window:close', () => {
+  if (mainWindow) mainWindow.close();
+});
+
+ipcMain.handle('window:isMaximized', () => {
+  return mainWindow ? mainWindow.isMaximized() : false;
+});
+
+ipcMain.handle('system:showItemInFolder', (event, filePath) => {
+  shell.showItemInFolder(filePath);
+});
+
+ipcMain.handle('system:getPath', (event, name) => {
+  return app.getPath(name);
+});
+
+// Track maximize/unmaximize events
+function setupMaximizeListener() {
+  if (!mainWindow) return;
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send('window:maximizeChange', true);
+  });
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window:maximizeChange', false);
+  });
+}
+
 app.whenReady().then(() => {
   mainWindow = createMainWindow();
+  setupMaximizeListener();
   createTray();
   globalShortcut.register(TOGGLE_SHORTCUT, () => toggleMainWindow());
 
