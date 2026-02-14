@@ -18,7 +18,8 @@ import {
   Copy,
   ExternalLink,
   MoreVertical,
-  Activity
+  Activity,
+  Cpu
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -81,6 +82,36 @@ export function AgentRunsList({ className, onNavigateToChat }: AgentRunsListProp
     return () => clearInterval(interval);
   }, [runs, fetchRuns]);
 
+  const deleteRun = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      const res = await fetch(`/api/agents/run?id=${id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        fetchRuns();
+      }
+    } catch (err) {
+      console.error('Failed to delete run:', err);
+    }
+  };
+
+  const clearHistory = async () => {
+    try {
+      const res = await fetch('/api/agents/run', {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setShowClearConfirm(false);
+        fetchRuns();
+      }
+    } catch (err) {
+      console.error('Failed to clear history:', err);
+    }
+  };
+
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
   const formatTime = (ts: number) => {
     const date = new Date(ts);
     const now = new Date();
@@ -120,7 +151,7 @@ export function AgentRunsList({ className, onNavigateToChat }: AgentRunsListProp
   return (
     <div className={cn("space-y-4", className)}>
       {/* Header with stats */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between group">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-primary" />
@@ -133,13 +164,38 @@ export function AgentRunsList({ className, onNavigateToChat }: AgentRunsListProp
             </span>
           )}
         </div>
-        <button
-          onClick={fetchRuns}
-          className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-          title="Refresh"
-        >
-          <RefreshCw className={cn("w-4 h-4", polling && "animate-spin")} />
-        </button>
+        <div className="flex items-center gap-1">
+          {runs.length > 0 && (
+            <div
+              className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity"
+              onMouseLeave={() => setShowClearConfirm(false)}
+            >
+              {showClearConfirm ? (
+                <button
+                  onClick={clearHistory}
+                  className="px-2 py-1 text-[10px] font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors animate-in fade-in slide-in-from-right-2 duration-200"
+                >
+                  Confirm
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowClearConfirm(true)}
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors"
+                  title="Clear history"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
+          <button
+            onClick={fetchRuns}
+            className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className={cn("w-4 h-4", polling && "animate-spin")} />
+          </button>
+        </div>
       </div>
 
       {/* Stats bar */}
@@ -172,6 +228,7 @@ export function AgentRunsList({ className, onNavigateToChat }: AgentRunsListProp
               run={run}
               isExpanded={expandedRun === run.id}
               onToggleExpand={() => setExpandedRun(expandedRun === run.id ? null : run.id)}
+              onDelete={(e) => deleteRun(run.id, e)}
               onNavigateToChat={onNavigateToChat}
             />
           ))}
@@ -185,11 +242,12 @@ interface AgentRunCardProps {
   run: AgentRun;
   isExpanded: boolean;
   onToggleExpand: () => void;
+  onDelete: (e: React.MouseEvent) => void;
   onNavigateToChat?: () => void;
 }
 
-function AgentRunCard({ run, isExpanded, onToggleExpand, onNavigateToChat }: AgentRunCardProps) {
-  const [showMenu, setShowMenu] = useState(false);
+function AgentRunCard({ run, isExpanded, onToggleExpand, onDelete, onNavigateToChat }: AgentRunCardProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   useEffect(() => {
@@ -254,7 +312,7 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onNavigateToChat }: Age
   return (
     <div
       className={cn(
-        "rounded-xl border transition-all duration-200",
+        "rounded-xl border transition-all duration-200 group",
         status.bg, status.border,
         isExpanded && "ring-1 ring-primary/20"
       )}
@@ -289,6 +347,35 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onNavigateToChat }: Age
           <span className="text-xs text-muted-foreground">
             {getDuration(run.created_at, run.completed_at)}
           </span>
+          {run.status !== 'running' && run.status !== 'pending' && (
+            <div
+              className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity"
+              onMouseLeave={() => setShowDeleteConfirm(false)}
+            >
+              {showDeleteConfirm ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(e);
+                  }}
+                  className="px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors animate-in fade-in slide-in-from-right-1 duration-200"
+                >
+                  Confirm
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDeleteConfirm(true);
+                  }}
+                  className="p-1 rounded-md text-muted-foreground/40 hover:text-primary transition-colors"
+                  title="Delete run"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
           {isExpanded ? (
             <ChevronUp className="w-4 h-4 text-muted-foreground" />
           ) : (
@@ -301,18 +388,19 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onNavigateToChat }: Age
       {isExpanded && (
         <div className="px-3 pb-3 space-y-3">
           {/* Meta info */}
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <div className="flex items-center gap-3 text-[10px] text-muted-foreground/70">
             <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {new Date(run.created_at).toLocaleString()}
+              <Clock className="w-2.5 h-2.5" />
+              {new Date(run.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
             </span>
             {run.model && (
-              <span className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700">
+              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 font-mono font-medium text-zinc-600 dark:text-zinc-400">
+                <Cpu className="w-2.5 h-2.5 text-primary/70" />
                 {run.model}
               </span>
             )}
             {run.workspace && (
-              <span className="truncate max-w-[120px]" title={run.workspace}>
+              <span className="truncate max-w-[120px] px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700" title={run.workspace}>
                 {run.workspace.split('/').pop()}
               </span>
             )}

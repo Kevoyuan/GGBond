@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, Sparkles, Settings, Wrench, Check, ChevronRight, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ModelSelector } from './ModelSelector';
 
 interface CreateAgentDialogProps {
   open: boolean;
@@ -9,12 +10,6 @@ interface CreateAgentDialogProps {
   onSuccess?: () => void;
 }
 
-const AVAILABLE_MODELS = [
-  { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro' },
-  { id: 'gemini-2.5-flash', name: 'gemini-2.5-flash' },
-  { id: 'gemini-2.0-flash', name: 'gemini-2.0-flash' },
-  { id: 'inherit', name: 'Inherit from settings' },
-];
 
 const AVAILABLE_TOOLS = [
   'Read',
@@ -232,17 +227,12 @@ export function CreateAgentDialog({ open, onOpenChange, onSuccess }: CreateAgent
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium mb-2 block">Model</label>
-                  <select
+                  <ModelSelector
                     value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    className="w-full px-4 py-3 text-sm rounded-lg border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    {AVAILABLE_MODELS.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setModel}
+                    variant="form"
+                    showInherit={true}
+                  />
                 </div>
 
                 <div>
