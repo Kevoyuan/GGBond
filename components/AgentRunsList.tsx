@@ -394,8 +394,8 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onDelete, onNavigateToC
               {new Date(run.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
             </span>
             {run.model && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 font-mono font-medium text-zinc-600 dark:text-zinc-400">
-                <Cpu className="w-2.5 h-2.5 text-primary/70" />
+              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 border border-zinc-200 dark:border-zinc-700/50 shadow-[0_0_10px_rgba(0,0,0,0.02)] dark:shadow-none font-mono font-bold text-zinc-600 dark:text-zinc-400 group/model transition-colors hover:border-primary/30">
+                <Cpu className="w-2.5 h-2.5 text-primary/60 group-hover/model:text-primary transition-colors" />
                 {run.model}
               </span>
             )}

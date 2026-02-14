@@ -69,7 +69,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
     const resize = useCallback((e: MouseEvent) => {
         if (isResizing && panelRef.current) {
             const panelRect = panelRef.current.getBoundingClientRect();
-            const newHeight = e.clientY - panelRect.top - 120; // 120 is the header height roughly
+            const newHeight = e.clientY - panelRect.top - 48; // 48 is the header height
             if (newHeight > 150 && newHeight < panelRect.height - 150) {
                 setAgentListHeight(newHeight);
             }
