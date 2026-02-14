@@ -59,3 +59,7 @@ gemini-home/
 
 # TypeScript
 *.tsbuildinfo
+
+# Documentation (should not be committed)
+*.md
+!README.md
