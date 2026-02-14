@@ -339,11 +339,21 @@ export function ConversationGraph({ messages, currentLeafId, onNodeClick, classN
             if (data.isOnActivePath) return '#60a5fa';
             return data.role === 'user' ? '#10b981' : '#64748b';
           }}
-          className="!border !border-border/60 !bg-background/80"
+          className="!border !border-border/40 !bg-background/40 dark:!bg-zinc-900/40 !backdrop-blur-md rounded-xl"
         />
-        <Controls className="!border !border-border/60 !bg-background/80" />
-        <Background gap={20} size={1} color="rgba(148,163,184,0.24)" />
+        <Controls
+          className="!border !border-border/40 !bg-background/40 dark:!bg-zinc-900/40 !backdrop-blur-md rounded-lg overflow-hidden !shadow-xl [&_button]:!bg-transparent [&_button]:!border-border/20 [&_svg]:!fill-foreground [&_svg]:!text-foreground"
+          showInteractive={false}
+        />
+        <Background gap={20} size={1} color="rgba(148,163,184,0.15)" />
       </ReactFlow>
+
+      {/* Hide React Flow Attribution via standard CSS */}
+      <style jsx global>{`
+        .react-flow__attribution {
+          display: none !important;
+        }
+      `}</style>
     </div>
   );
 }

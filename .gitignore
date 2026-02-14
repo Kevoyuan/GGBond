@@ -47,8 +47,15 @@ htmlcov/
 # Next.js
 .next/
 
+# Claude Code
+.agent/
+.claude/
+
 # Tooling
 gemini-home/
 .gemini/
 .npm-cache/
 .codex/environments/environment.toml
+
+# TypeScript
+*.tsbuildinfo

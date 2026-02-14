@@ -60,28 +60,46 @@
     opacity: 1;
 }
 
-/* Loading / Pulsing / Breathing */
-.timeline-item-loading::before {
-    color: var(--color-primary);
-    /* Use primary color for running state */
-    opacity: 1;
-    animation: tl-breathing 1.5s ease-in-out infinite;
-}
+/* ─── Premium Animations ─── */
 
-@keyframes tl-breathing {
-
-    0%,
-    100% {
+/* 1. Ripple Effect for Loading Dots */
+@keyframes tl-ripple {
+    0% {
+        box-shadow: 0 0 0 0 var(--color-primary);
         opacity: 1;
-        text-shadow: 0 0 4px var(--color-primary);
         transform: scale(1);
     }
 
     50% {
-        opacity: 0.6;
-        text-shadow: 0 0 1px var(--color-primary);
-        transform: scale(0.9);
+        opacity: 0.8;
     }
+
+    100% {
+        box-shadow: 0 0 0 8px transparent;
+        opacity: 0;
+        transform: scale(1.1);
+    }
+}
+
+/* 2. Shimmer Effect for Highlights */
+@keyframes shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Loading / Pulsing / Breathing - Updated to Ripple */
+.timeline-item-loading::before {
+    color: var(--color-primary);
+    opacity: 1;
+    /* Use a pseudo-element for the ripple to avoid affecting the dot itself too much if needed, 
+       but here we apply it to the dot directly or use a shadow. 
+       Let's use the shadow approach on the dot itself. */
+    animation: tl-ripple 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* ─── Connector line (::after) ─── */
@@ -116,28 +134,25 @@
     display: none;
 }
 
-/* ─── Highlight Animation for Chat Messages ─── */
-@keyframes message-highlight-pulse {
-    0% {
-        box-shadow: 0 0 0 0px var(--color-primary);
-        border-color: var(--color-primary);
-        background-color: color-mix(in srgb, var(--color-primary), transparent 95%);
-    }
-    30% {
-        box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-primary), transparent 70%);
-        border-color: var(--color-primary);
-        background-color: color-mix(in srgb, var(--color-primary), transparent 85%);
-    }
-    100% {
-        box-shadow: 0 0 0 0px transparent;
-        border-color: transparent; /* Assuming default is transparent or handled by removal */
-        background-color: transparent;
-    }
+/* ─── Premium Highlight Animation for Chat Messages ─── */
+.message-highlight {
+    position: relative;
+    border-radius: var(--radius-lg);
+    z-index: 10;
+    transition: all 0.2s ease-out;
+
+    /* Gemini-inspired Clean Blue Border */
+    border: 1.5px solid #4285f4;
+    /* Google Blue */
+    background-color: rgba(66, 133, 244, 0.03);
+    /* Extremely subtle tint */
+
+    /* Minimalist Glow */
+    box-shadow: 0 0 0 1px rgba(66, 133, 244, 0.1), 0 2px 8px rgba(66, 133, 244, 0.15);
 }
 
-.message-highlight {
-    animation: message-highlight-pulse 0.8s ease-out forwards;
-    border-radius: var(--radius-lg);
-    position: relative;
-    z-index: 10;
+/* Optional: Slight hover lift for highlighted items if not already handled */
+.message-highlight:hover {
+    box-shadow: 0 0 0 1px rgba(66, 133, 244, 0.2), 0 4px 12px rgba(66, 133, 244, 0.2);
+    transform: translateY(-1px);
 }
