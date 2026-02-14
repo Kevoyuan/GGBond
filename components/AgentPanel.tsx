@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { User, Sparkles, Shield, Cpu, ExternalLink, Play, RefreshCw, Layers, Plus, Trash, Link2, Search, SlidersHorizontal, Loader2, Ban, CheckCircle2, BookOpen, AlertCircle, FolderSearch } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CreateAgentDialog } from './CreateAgentDialog';
+import { RunAgentDialog } from './RunAgentDialog';
 import { AgentRunsList } from './AgentRunsList';
+import { useAppStore } from '@/stores/useAppStore';
 
 interface AgentDefinition {
     name: string;
@@ -36,6 +38,8 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
 
     // Create dialog
     const [showCreateDialog, setShowCreateDialog] = useState(false);
+    const [showRunAgentDialog, setShowRunAgentDialog] = useState(false);
+    const [runAgentPreselectedAgent, setRunAgentPreselectedAgent] = useState<string | null>(null);
 
     // Import state
     const [importSource, setImportSource] = useState('');
@@ -45,14 +49,25 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
     const [isDirectory, setIsDirectory] = useState(false);
 
     // Run agent state (kept for compatibility)
+    const { getAgents, setAgents: saveAgents } = useAppStore();
 
     const fetchAgents = async () => {
+        // Try cache first
+        const cachedAgents = getAgents();
+        if (cachedAgents) {
+            setAgents(cachedAgents);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         try {
             const res = await fetch('/api/agents');
             if (res.ok) {
                 const data = await res.json();
-                setAgents(data.agents || []);
+                const agentsData = data.agents || [];
+                setAgents(agentsData);
+                saveAgents(agentsData);
                 setError(null);
             } else {
                 setError('Failed to fetch agents');
@@ -462,13 +477,16 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                                     )}
                                                 </button>
                                             )}
-                                            <Link
-                                                href={`/agents/run?agent=${encodeURIComponent(agent.name)}`}
+                                            <button
+                                                onClick={() => {
+                                                    setRunAgentPreselectedAgent(agent.name);
+                                                    setShowRunAgentDialog(true);
+                                                }}
                                                 className="p-1 text-zinc-400 hover:text-primary rounded"
                                                 title="Run Agent"
                                             >
                                                 <Play size={12} />
-                                            </Link>
+                                            </button>
                                         </div>
                                     </div>
                                 ))
@@ -482,6 +500,15 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                 open={showCreateDialog}
                 onOpenChange={setShowCreateDialog}
                 onSuccess={fetchAgents}
+            />
+
+            <RunAgentDialog
+                open={showRunAgentDialog}
+                onOpenChange={(open) => {
+                    setShowRunAgentDialog(open);
+                    if (!open) setRunAgentPreselectedAgent(null);
+                }}
+                preselectedAgent={runAgentPreselectedAgent}
             />
 
             <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">

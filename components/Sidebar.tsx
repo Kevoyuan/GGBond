@@ -22,6 +22,7 @@ import {
   TerminalSquare,
   ShieldCheck,
   Zap,
+  Play,
   Layers,
   Activity,
   Database,
@@ -30,7 +31,6 @@ import {
   Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
 
 import { AgentPanel } from './AgentPanel';
 import { QuotaPanel } from './QuotaPanel';
@@ -40,6 +40,8 @@ import { HooksPanel, type HookEvent } from './HooksPanel';
 import { MCPPanel } from './MCPPanel';
 import { SkillsManager } from './modules/SkillsManager';
 import { UsageStatsDialog } from './UsageStatsDialog';
+import { ModulesDialog } from './ModulesDialog';
+import { RunAgentDialog } from './RunAgentDialog';
 
 interface Session {
   id: string;
@@ -149,6 +151,10 @@ export function Sidebar({
   const [sidePanelWidth, setSidePanelWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null);
+
+  // Dialog states
+  const [showModulesDialog, setShowModulesDialog] = useState(false);
+  const [showRunAgentDialog, setShowRunAgentDialog] = useState(false);
 
   const getSessionUpdatedAt = useCallback((session: Session) => {
     const raw = session.updated_at ?? session.lastUpdated ?? session.created_at;
@@ -462,8 +468,8 @@ export function Sidebar({
         </div>
 
         <div className="mt-auto flex flex-col gap-3 w-full px-2 items-center">
-          <Link
-            href="/modules"
+          <button
+            onClick={() => setShowModulesDialog(true)}
             className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
             aria-label="Deep Monitoring"
             title="Deep Monitoring"
@@ -472,7 +478,7 @@ export function Sidebar({
             <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
               Deep Monitoring
             </div>
-          </Link>
+          </button>
           <button
             onClick={toggleSidebar}
             className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
@@ -744,6 +750,16 @@ export function Sidebar({
           </div>
         )}
       </div>
+
+      {/* Dialogs */}
+      <ModulesDialog
+        open={showModulesDialog}
+        onOpenChange={setShowModulesDialog}
+      />
+      <RunAgentDialog
+        open={showRunAgentDialog}
+        onOpenChange={setShowRunAgentDialog}
+      />
     </div>
   );
 }
