@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Gemini CodePilot",
+  title: "GG-Bond",
   description: "A pixel-perfect AI IDE interface for gemini-cli",
 };
 

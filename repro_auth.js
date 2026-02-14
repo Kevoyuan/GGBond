@@ -14,7 +14,7 @@ function getGeminiPath() {
 }
 
 const GEMINI_PATH = getGeminiPath();
-const TEST_HOME = '/tmp/gemini-gui-home';
+const TEST_HOME = '/tmp/gg-bond-home';
 // const TEST_HOME = path.join(__dirname, '.repro_home'); 
 // Using actual GUI home to test auth state
 

@@ -12,7 +12,7 @@ const isDev = !app.isPackaged;
 const START_URL = isDev
   ? (process.env.ELECTRON_START_URL || 'http://localhost:3000')
   : `file://${path.join(__dirname, '../.next/start.html')}`;
-const WINDOW_TITLE = 'Gemini CodePilot';
+const WINDOW_TITLE = 'GG-Bond';
 const TOGGLE_SHORTCUT = process.env.ELECTRON_TOGGLE_SHORTCUT || 'CommandOrControl+Shift+Space';
 
 let mainWindow = null;
@@ -67,11 +67,14 @@ function createMainWindow() {
   if (isDev) {
     window.loadURL(START_URL);
   } else {
-    // In production, load from the Next.js build output
-    window.loadFile(path.join(__dirname, '../.next/server/app/index.html')).catch(() => {
-      // Fallback to standard Next.js output structure
+    // In production, load the pre-built HTML from Next.js output
+    const indexPath = path.join(__dirname, '../.next/server/app/index.html');
+    window.loadFile(indexPath).catch((err) => {
+      console.error('[Electron] Failed to load index.html:', err);
+      // Fallback - try alternative path
       window.loadFile(path.join(__dirname, '../.next/index.html')).catch(() => {
-        window.loadURL('file://' + path.join(__dirname, '../.next/BUILD_ID'));
+        // Last resort: show error
+        window.loadURL('about:blank');
       });
     });
   }

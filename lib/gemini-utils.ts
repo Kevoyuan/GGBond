@@ -2,7 +2,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
-const GEMINI_GUI_HOME = '/tmp/gemini-gui-home';
+const GEMINI_GUI_HOME = '/tmp/gg-bond-home';
 const GEMINI_ORIGINAL_HOME = path.join(process.env.HOME || '~', '.gemini');
 const GEMINI_GUI_CONFIG_DIR = path.join(GEMINI_GUI_HOME, '.gemini');
 const PROJECT_GEMINI_HOME = path.join(process.cwd(), 'gemini-home');
