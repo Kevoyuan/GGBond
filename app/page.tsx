@@ -999,7 +999,6 @@ export default function Home() {
       sessionId: currentSessionId
     }, parentId || null);
 
-    addToast('info', 'Message queued - will send when AI is free');
   };
 
   // Process queued messages
