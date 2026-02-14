@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // System
   showItemInFolder: (path) => ipcRenderer.invoke('system:showItemInFolder', path),
   getPath: (name) => ipcRenderer.invoke('system:getPath', name),
+  openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
 
   // Events from main process
   onMaximizeChange: (callback) => {
