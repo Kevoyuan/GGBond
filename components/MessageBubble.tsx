@@ -648,6 +648,11 @@ export function MessageBubble({
     }
   };
 
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(message.content);
+  };
+
   return (
     <div className={cn("flex gap-4 w-full animate-fade-in group", isUser ? "justify-end" : "justify-start")}>
       {!isUser && (
@@ -692,22 +697,25 @@ export function MessageBubble({
           </div>
         )}
 
-        {isUndoableUserMessage && (
-          <div className="flex justify-end mt-1 w-full px-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <button
-              type="button"
-              onClick={() => void handleUndoMessage()}
-              disabled={isUndoingMessage}
-              className="inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 dark:hover:bg-muted/30 transition-all disabled:cursor-not-allowed disabled:opacity-50"
-              title="Undo this message"
-            >
-              {isUndoingMessage ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Undo2 className="w-3 h-3" />
-              )}
-              <span>Undo</span>
-            </button>
+        {isUser && !isSnapshot && (
+          <div className="flex justify-end mt-1 w-full px-1 gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <MessageCopyButton content={message.content} />
+            {isUndoableUserMessage && (
+              <button
+                type="button"
+                onClick={() => void handleUndoMessage()}
+                disabled={isUndoingMessage}
+                className="inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 dark:hover:bg-muted/30 transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                title="Undo this message"
+              >
+                {isUndoingMessage ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Undo2 className="w-3 h-3" />
+                )}
+                <span>Undo</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -734,6 +742,7 @@ export function MessageBubble({
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Regenerate</span>
             </button>
+            <MessageCopyButton content={message.content} />
           </div>
         )}
 
@@ -766,6 +775,29 @@ function CopyButton({ content }: { content: string }) {
       title="Copy code"
     >
       {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
+function MessageCopyButton({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 dark:hover:bg-muted/30 transition-all"
+      title="Copy message text"
+    >
+      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+      <span>{copied ? 'Copied' : 'Copy'}</span>
     </button>
   );
 }
