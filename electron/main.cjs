@@ -1,15 +1,17 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const path = require('path');
-const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage, ipcMain, shell } = require('electron');
-
+const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage, ipcMain, shell, dialog } = require('electron');
 // Performance: Enable hardware acceleration
-app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('enable-zero-copy');
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
+// app.commandLine.appendSwitch('enable-gpu-rasterization');
+// app.commandLine.appendSwitch('enable-zero-copy');
+// app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('no-sandbox');
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+app.disableHardwareAcceleration();
 
 // Detect if running in development
 const isDev = !app.isPackaged;
-const START_URL = isDev
+let START_URL = isDev
   ? (process.env.ELECTRON_START_URL || 'http://localhost:3000')
   : `file://${path.join(__dirname, '../.next/start.html')}`;
 const WINDOW_TITLE = 'GG-Bond';
@@ -18,6 +20,35 @@ const TOGGLE_SHORTCUT = process.env.ELECTRON_TOGGLE_SHORTCUT || 'CommandOrContro
 let mainWindow = null;
 let tray = null;
 let allowQuit = false;
+let nextServer = null;
+
+// Start Next.js server in production
+function startNextServer() {
+  return new Promise((resolve) => {
+    const port = 3456;
+    nextServer = spawn('node', ['node_modules/next/dist/bin/next', 'start', '-p', port.toString()], {
+      cwd: process.cwd(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, PORT: port.toString() },
+    });
+
+    nextServer.stdout.on('data', (data) => {
+      const output = data.toString();
+      console.log('[Next.js]', output);
+      if (output.includes('Ready') || output.includes('started server')) {
+        resolve(`http://localhost:${port}`);
+      }
+    });
+
+    nextServer.stderr.on('data', (data) => {
+      console.error('[Next.js Error]', data.toString());
+    });
+
+    nextServer.on('close', (code) => {
+      console.log('[Next.js] Server closed with code:', code);
+    });
+  });
+}
 
 function createMainWindow() {
   const window = new BrowserWindow({
@@ -45,7 +76,7 @@ function createMainWindow() {
   });
 
   // Performance: Enable caching
-  window.webContents.session.setCacheEnabled(true);
+  // window.webContents.session.setCacheEnabled(true);
 
   // Performance: Preload scripts
   if (isDev) {
@@ -63,21 +94,11 @@ function createMainWindow() {
     }
   });
 
-  // Load the app
-  if (isDev) {
-    window.loadURL(START_URL);
-  } else {
-    // In production, load the pre-built HTML from Next.js output
-    const indexPath = path.join(__dirname, '../.next/server/app/index.html');
-    window.loadFile(indexPath).catch((err) => {
-      console.error('[Electron] Failed to load index.html:', err);
-      // Fallback - try alternative path
-      window.loadFile(path.join(__dirname, '../.next/index.html')).catch(() => {
-        // Last resort: show error
-        window.loadURL('about:blank');
-      });
-    });
-  }
+  // Load the app - now START_URL will be the local server in production
+  window.loadURL(START_URL).catch((err) => {
+    console.error('[Electron] Failed to load URL:', START_URL, err);
+    window.loadURL('about:blank');
+  });
 
   return window;
 }
@@ -163,6 +184,16 @@ ipcMain.handle('system:getPath', (event, name) => {
   return app.getPath(name);
 });
 
+ipcMain.handle('dialog:openDirectory', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled) {
+    return null;
+  }
+  return result.filePaths[0];
+});
+
 // Track maximize/unmaximize events
 function setupMaximizeListener() {
   if (!mainWindow) return;
@@ -174,7 +205,16 @@ function setupMaximizeListener() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // In production, start the Next.js server first
+  if (!isDev) {
+    console.log('[Electron] Starting Next.js server...');
+    const serverUrl = await startNextServer();
+    console.log('[Electron] Next.js server started at:', serverUrl);
+    // Override START_URL to use local server
+    START_URL = serverUrl;
+  }
+
   mainWindow = createMainWindow();
   setupMaximizeListener();
   createTray();
@@ -195,4 +235,9 @@ app.on('before-quit', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  // Kill the Next.js server if running
+  if (nextServer) {
+    nextServer.kill();
+    console.log('[Electron] Next.js server killed');
+  }
 });
