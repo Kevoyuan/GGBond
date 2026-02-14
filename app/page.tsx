@@ -19,6 +19,8 @@ import { UsageStatsDialog } from '../components/UsageStatsDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 import { TerminalPanel } from '../components/TerminalPanel';
 import { UndoMessageConfirmDialog, UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
+import { Toast, ToastContainer, ToastType } from '../components/Toast';
+import { QueuePanel } from '../components/QueuePanel';
 
 
 interface Session {
@@ -268,6 +270,34 @@ export default function Home() {
   const [inputAreaHeight, setInputAreaHeight] = useState(120);
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
   const [streamingStatus, setStreamingStatus] = useState<string | undefined>(undefined);
+  // Toast notifications state
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Toast helper functions
+  const addToast = useCallback((type: ToastType, message: string, duration = 5000) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev, { id, type, message, duration }]);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const showErrorToast = useCallback((message: string, duration = 6000) => {
+    addToast('error', message, duration);
+  }, [addToast]);
+
+  const showWarningToast = useCallback((message: string, duration = 5000) => {
+    addToast('warning', message, duration);
+  }, [addToast]);
+
+  const showSuccessToast = useCallback((message: string, duration = 4000) => {
+    addToast('success', message, duration);
+  }, [addToast]);
+
+  const showInfoToast = useCallback((message: string, duration = 4000) => {
+    addToast('info', message, duration);
+  }, [addToast]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sidePanelRef = useRef<HTMLDivElement>(null);
@@ -588,6 +618,11 @@ export default function Home() {
   const [inputPrefillRequest, setInputPrefillRequest] = useState<{ id: number; text: string } | null>(null);
   const [hookEvents, setHookEvents] = useState<HookEvent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<any | null>(null);
+
+  // Queue message states
+  const [queueEnabled, setQueueEnabled] = useState(false);
+  const [showQueuePanel, setShowQueuePanel] = useState(false);
+  const [queueProcessing, setQueueProcessing] = useState(false);
 
   const sessionStats = useMemo(() => {
     return messages.reduce((acc, msg) => {
@@ -1111,6 +1146,7 @@ export default function Home() {
         await fetchSessions();
       } catch (error) {
         console.error('Failed to reload session after rewind', error);
+        showWarningToast('Session rewind succeeded but failed to reload the session tree');
       }
       return;
     }
@@ -1245,6 +1281,12 @@ export default function Home() {
     activeChatAbortRef.current = requestAbortController;
     setStreamingStatus("Initializing...");
 
+    // Variables for tracking assistant message - declared here so they're accessible in catch
+    let assistantMsgId: string | undefined;
+    let assistantContent = '';
+    const assistantHooks: HookEvent[] = [];
+    const assistantCitations: string[] = [];
+
     try {
       // Prepare images for API
       const images = options?.images?.map(img => ({
@@ -1289,15 +1331,12 @@ export default function Home() {
 
       // 2. Initialize Assistant Message
       // The assistant message's parent is the user message we just created
-      const assistantMsgId = addMessageToTree({ role: 'model', content: '' }, userMsgId);
+      assistantMsgId = addMessageToTree({ role: 'model', content: '' }, userMsgId);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let assistantContent = '';
       let assistantThought = '';
-      const assistantHooks: HookEvent[] = [];
-      const assistantCitations: string[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1533,14 +1572,30 @@ export default function Home() {
         abortedByUser = true;
       }
       if (!isAbortError) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         console.error('Chat error:', error);
+
+        // Show error toast notification to user
+        showErrorToast(`Failed to get response: ${errorMessage}`, 8000);
+
+        // Try to add error message to conversation if we have access to assistantMsgId
+        // This will be undefined if error occurred before assistant message was created
+        try {
+          if (typeof assistantMsgId !== 'undefined') {
+            const errorContent = `\n\n> **Error**: ${errorMessage}\n\nThe conversation was interrupted.`;
+            updateMessageInTree(assistantMsgId, { content: errorContent, error: true });
+          } else if (userMsgId) {
+            // If we failed before creating assistant message, add error as new message
+            addMessageToTree({
+              role: 'model',
+              content: `> **Error**: ${errorMessage}\n\nPlease try again or check the logs for details.`,
+              error: true,
+            }, userMsgId);
+          }
+        } catch (updateError) {
+          console.error('Failed to update error message in tree:', updateError);
+        }
       }
-      // We should probably add an error message node if we haven't already
-      // But we already added an assistant node. Let's update it.
-      // Note: we don't have access to assistantMsgId easily here unless we scoped it. 
-      // We can use headId but we must be careful. 
-      // For now, let's just log. Better error handling requires refs or more state.
-      // Actually we can add a new error message if we failed BEFORE creating assistant node.
     } finally {
       if (activeChatAbortRef.current === requestAbortController) {
         activeChatAbortRef.current = null;
@@ -1553,12 +1608,16 @@ export default function Home() {
           await loadSessionTree(streamSessionId);
         }
       } catch (reloadError) {
+        const errorMsg = reloadError instanceof Error ? reloadError.message : String(reloadError);
         console.error(
           abortedByUser
             ? 'Failed to reload session tree after abort'
             : 'Failed to reload session tree after turn',
           reloadError
         );
+        if (!abortedByUser) {
+          showWarningToast(`Session updated but failed to refresh: ${errorMsg}`);
+        }
       }
 
       if (trackedRunningSessionId) {
@@ -1923,6 +1982,7 @@ export default function Home() {
         await fetchSessions();
       } catch (error) {
         console.error('Failed to reload session after message undo', error);
+        showWarningToast('Message undone but failed to refresh session');
       }
     } finally {
       setIsApplyingUndoMessage(false);
@@ -1935,6 +1995,7 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans antialiased">
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} position="top-right" />
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
@@ -2000,7 +2061,7 @@ export default function Home() {
         </div>
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden">
             {/* Side Panel (Graph or Timeline) - Left Side */}
             {sidePanelType && (
               <div
@@ -2097,6 +2158,9 @@ export default function Home() {
                 setInputAreaHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
               }}
               streamingStatus={streamingStatus}
+              // Queue-related props
+              queueEnabled={queueEnabled}
+              onToggleQueue={() => setQueueEnabled(v => !v)}
             />
 
 
