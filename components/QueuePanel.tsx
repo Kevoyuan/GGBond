@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Queue, Play, Pause, Trash2, RotateCcw, ChevronDown, ChevronUp, X, AlertCircle, CheckCircle, Clock, Loader2 } from 'lucide-react';
+import { ListOrdered, Play, Pause, Trash2, RotateCcw, ChevronDown, ChevronUp, X, AlertCircle, CheckCircle, Clock, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface QueueItem {
@@ -135,7 +135,7 @@ export function QueuePanel({ sessionId, isOpen, onToggle, onProcessNext, isProce
     <div className-t border-gray="border-700 bg-gray-900">
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700">
         <div className="flex items-center gap-2">
-          <Queue className="w-4 h-4 text-gray-400" />
+          <ListOrdered className="w-4 h-4 text-gray-400" />
           <span className="text-sm font-medium text-gray-200">Message Queue</span>
           {stats && (
             <span className="text-xs text-gray-400">
