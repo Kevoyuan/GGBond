@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, Loader2, Play, Sparkles, Settings, Search, Check, Folder, Cpu, AlertCircle, Activity, Code2, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAppStore } from '@/stores/useAppStore';
 
 interface AgentDefinition {
   name: string;
@@ -38,19 +39,36 @@ function RunAgentContent() {
     agent.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Load agents
+  // Load agents with cache
+  const { getAgents, setAgents: saveAgents, isAgentsCacheValid } = useAppStore();
+
   useEffect(() => {
+    // Try to get cached agents first
+    const cachedAgents = getAgents();
+    if (cachedAgents) {
+      setAgents(cachedAgents);
+      if (preselectedAgent) {
+        const agent = cachedAgents.find((a: AgentDefinition) => a.name === preselectedAgent);
+        if (agent) setSelectedAgent(agent);
+      }
+      setLoading(false);
+      return;
+    }
+
+    // Fetch fresh data if no valid cache
     fetch('/api/agents')
       .then(res => res.json())
       .then(data => {
-        setAgents(data.agents || []);
+        const agentsData = data.agents || [];
+        setAgents(agentsData);
+        saveAgents(agentsData);
         if (preselectedAgent) {
-          const agent = data.agents?.find((a: AgentDefinition) => a.name === preselectedAgent);
+          const agent = agentsData.find((a: AgentDefinition) => a.name === preselectedAgent);
           if (agent) setSelectedAgent(agent);
         }
       })
       .finally(() => setLoading(false));
-  }, [preselectedAgent]);
+  }, [preselectedAgent, getAgents, saveAgents]);
 
   const handleRun = async () => {
     if (!selectedAgent || !task.trim()) return;

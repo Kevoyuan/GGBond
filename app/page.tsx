@@ -892,6 +892,67 @@ export default function Home() {
     dataUrl: string;
   }
 
+  // Handle queue message processing
+  const handleProcessNextQueueItem = async () => {
+    if (!currentSessionId || queueProcessing) return;
+
+    setQueueProcessing(true);
+    try {
+      // Get the next pending message
+      const res = await fetch('/api/queue/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: currentSessionId })
+      });
+      const data = await res.json();
+
+      if (data.hasNext && data.message) {
+        // Process the queued message
+        await handleSendMessage(data.message.content, {
+          approvalMode: approvalMode,
+          images: data.message.images ? JSON.parse(data.message.images) : undefined
+        });
+
+        // Mark as completed (fire and forget)
+        fetch('/api/queue/process', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            queueItemId: data.processedId,
+            status: 'completed'
+          })
+        });
+      }
+    } catch (error) {
+      console.error('Failed to process queue item:', error);
+    } finally {
+      setQueueProcessing(false);
+    }
+  };
+
+  // Add message to queue
+  const handleAddToQueue = async (text: string, images?: UploadedImage[]) => {
+    if (!currentSessionId) return;
+
+    try {
+      await fetch('/api/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: currentSessionId,
+          content: text,
+          images: images?.map(img => img.dataUrl),
+          priority: 0
+        })
+      });
+
+      // Show notification
+      addToast('info', 'Message added to queue');
+    } catch (error) {
+      console.error('Failed to add to queue:', error);
+    }
+  };
+
   const handleSendMessage = async (
     text: string,
     options?: { parentId?: string; approvalMode?: 'safe' | 'auto'; images?: UploadedImage[] }
@@ -901,6 +962,13 @@ export default function Home() {
     if (isSessionLoading) return;
     if (activeChatAbortRef.current) return;
     if (currentSessionId && (runningSessionCounts[currentSessionId] ?? 0) > 0) return;
+
+    // If queue mode is enabled and not processing, add to queue instead of sending directly
+    if (queueEnabled && currentSessionId && !queueProcessing) {
+      await handleAddToQueue(text, options?.images);
+      setShowQueuePanel(true); // Show the queue panel
+      return;
+    }
 
     // Handle slash commands (only if there's text)
     const trimmedInput = text.trim();
@@ -2061,7 +2129,7 @@ export default function Home() {
         </div>
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex overflow-hidden">
             {/* Side Panel (Graph or Timeline) - Left Side */}
             {sidePanelType && (
               <div
@@ -2163,6 +2231,16 @@ export default function Home() {
               onToggleQueue={() => setQueueEnabled(v => !v)}
             />
 
+            {/* Queue Panel */}
+            <div className={showQueuePanel ? '' : 'hidden'}>
+              <QueuePanel
+                sessionId={currentSessionId}
+                isOpen={showQueuePanel}
+                onToggle={() => setShowQueuePanel(false)}
+                onProcessNext={handleProcessNextQueueItem}
+                isProcessing={queueProcessing}
+              />
+            </div>
 
             <div className={showTerminal ? '' : 'hidden'}>
               <TerminalPanel
