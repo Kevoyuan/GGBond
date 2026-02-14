@@ -44,6 +44,7 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
+*.txt
 # Next.js
 .next/
 
@@ -67,3 +68,5 @@ gemini-home/
 !README.md
 !README.zh-CN.md
 *.html
+next-env.d.ts
+tsconfig.tsbuildinfo
