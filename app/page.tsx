@@ -2197,61 +2197,65 @@ export default function Home() {
               </div>
             )}
 
-            {/* Chat Area */}
-            <ChatContainer
-              messages={messages}
-              isLoading={isLoading}
-              previewFile={previewFile}
-              onClosePreview={() => setPreviewFile(null)}
-              settings={settings}
-              onSendMessage={handleSendMessage}
-              onStopMessage={handleStopMessage}
-              onUndoTool={handleUndoTool}
-              onUndoMessage={handleUndoMessage}
-              inputPrefillRequest={inputPrefillRequest}
-              onRetry={handleRetry}
-              onCancel={handleCancel}
-              onModelChange={(model) => setSettings(s => ({ ...s, model }))}
-              currentModel={settings.model}
-              sessionStats={sessionStats}
-              currentContextUsage={currentContextUsage}
-              mode={mode}
-              onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
-              approvalMode={approvalMode}
-              onApprovalModeChange={handleApprovalModeChange}
-              workspacePath={currentWorkspace || undefined}
-              showTerminal={showTerminal}
-              onToggleTerminal={() => setShowTerminal((value) => !value)}
-              onInputHeightChange={(height) => {
-                setInputAreaHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
-              }}
-              streamingStatus={streamingStatus}
-              // Queue-related props
-              queueEnabled={queueEnabled}
-              onToggleQueue={() => setQueueEnabled(v => !v)}
-            />
-
-            {/* Queue Panel */}
-            <div className={showQueuePanel ? '' : 'hidden'}>
-              <QueuePanel
-                sessionId={currentSessionId}
-                isOpen={showQueuePanel}
-                onToggle={() => setShowQueuePanel(false)}
-                onProcessNext={handleProcessNextQueueItem}
-                isProcessing={queueProcessing}
-              />
-            </div>
-
-            <div className={showTerminal ? '' : 'hidden'}>
-              <TerminalPanel
+            {/* Right Side: Chat + Queue + Terminal (vertical stack) */}
+            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+              {/* Chat Area */}
+              <ChatContainer
+                messages={messages}
+                isLoading={isLoading}
+                previewFile={previewFile}
+                onClosePreview={() => setPreviewFile(null)}
+                settings={settings}
+                onSendMessage={handleSendMessage}
+                onStopMessage={handleStopMessage}
+                onUndoTool={handleUndoTool}
+                onUndoMessage={handleUndoMessage}
+                inputPrefillRequest={inputPrefillRequest}
+                onRetry={handleRetry}
+                onCancel={handleCancel}
+                onModelChange={(model) => setSettings(s => ({ ...s, model }))}
+                currentModel={settings.model}
+                sessionStats={sessionStats}
+                currentContextUsage={currentContextUsage}
+                mode={mode}
+                onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
+                approvalMode={approvalMode}
+                onApprovalModeChange={handleApprovalModeChange}
                 workspacePath={currentWorkspace || undefined}
-                sessionId={currentSessionId}
-                onSessionRunStateChange={updateTerminalRunningSessionCount}
-                onClose={() => setShowTerminal(false)}
-                onHeightChange={(height) => {
-                  setTerminalPanelHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
+                showTerminal={showTerminal}
+                onToggleTerminal={() => setShowTerminal((value) => !value)}
+                onInputHeightChange={(height) => {
+                  setInputAreaHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
                 }}
+                streamingStatus={streamingStatus}
+                // Queue-related props
+                queueEnabled={queueEnabled}
+                onToggleQueue={() => setQueueEnabled(v => !v)}
               />
+
+              {/* Queue Panel */}
+              <div className={showQueuePanel ? '' : 'hidden'}>
+                <QueuePanel
+                  sessionId={currentSessionId}
+                  isOpen={showQueuePanel}
+                  onToggle={() => setShowQueuePanel(false)}
+                  onProcessNext={handleProcessNextQueueItem}
+                  isProcessing={queueProcessing}
+                />
+              </div>
+
+              {/* Terminal Panel */}
+              <div className={showTerminal ? '' : 'hidden'}>
+                <TerminalPanel
+                  workspacePath={currentWorkspace || undefined}
+                  sessionId={currentSessionId}
+                  onSessionRunStateChange={updateTerminalRunningSessionCount}
+                  onClose={() => setShowTerminal(false)}
+                  onHeightChange={(height) => {
+                    setTerminalPanelHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
+                  }}
+                />
+              </div>
             </div>
           </div>
           {confirmation && (
