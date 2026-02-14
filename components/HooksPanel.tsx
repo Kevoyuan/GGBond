@@ -21,6 +21,7 @@ import {
     Cpu
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PanelHeader } from './sidebar/PanelHeader';
 
 export type HookEventType =
     | 'tool_call'
@@ -242,11 +243,6 @@ export function HooksPanel({
         }) + '.' + String(date.getMilliseconds()).padStart(3, '0');
     };
 
-    const getEventIcon = (type: HookEventType) => {
-        const config = EVENT_TYPE_CONFIG[type];
-        return config?.icon || Zap;
-    };
-
     const renderEventContent = (event: HookEvent) => {
         const config = EVENT_TYPE_CONFIG[event.type];
         const Icon = config?.icon || Zap;
@@ -307,8 +303,8 @@ export function HooksPanel({
                                     event.outcome.decision === 'approve' || event.outcome.decision === 'allow' || event.outcome.decision === 'proceed'
                                         ? "bg-emerald-500/10 text-emerald-500"
                                         : event.outcome.decision === 'deny' || event.outcome.decision === 'cancel'
-                                        ? "bg-red-500/10 text-red-500"
-                                        : "bg-amber-500/10 text-amber-500"
+                                            ? "bg-red-500/10 text-red-500"
+                                            : "bg-amber-500/10 text-amber-500"
                                 )}>
                                     {event.outcome.decision}
                                 </span>
@@ -388,38 +384,35 @@ export function HooksPanel({
 
     return (
         <div className={cn("flex flex-col h-full bg-card/30 rounded-lg border border-primary/10", className)}>
-            {/* Header */}
-            <div className="p-3 border-b border-primary/10">
-                <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-2">
-                        <Zap className="w-3.5 h-3.5 text-yellow-500" />
-                        Hooks Inspector
-                    </h4>
-                    <div className="flex items-center gap-2">
+            <PanelHeader
+                title="Hooks Inspector"
+                icon={Zap}
+                badge={filteredEvents.length}
+                actions={
+                    <div className="flex items-center gap-1">
                         {onClear && events.length > 0 && (
                             <button
                                 onClick={onClear}
-                                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
                                 title="Clear events"
                             >
                                 <X className="w-3.5 h-3.5" />
                             </button>
                         )}
-                        <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-mono">
-                            {filteredEvents.length} {filteredEvents.length === events.length ? '' : `/${events.length}`}
-                        </span>
                     </div>
-                </div>
+                }
+            />
 
+            <div className="p-3 border-b border-primary/10 space-y-2">
                 {/* Search bar */}
-                <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <div className="relative group">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-all" />
                     <input
                         type="text"
                         placeholder="Search hooks..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full h-7 pl-8 pr-8 text-xs bg-muted/50 border border-primary/10 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/50"
+                        className="w-full h-8 pl-8 pr-8 text-xs bg-muted/30 border border-primary/10 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/50 transition-all font-mono"
                     />
                     {searchQuery && (
                         <button
@@ -431,23 +424,22 @@ export function HooksPanel({
                     )}
                 </div>
 
-                {/* Filter toggle */}
-                <div className="flex items-center justify-between mt-2">
+                {/* Filter toggle & stats */}
+                <div className="flex items-center justify-between">
                     <button
                         onClick={() => setShowFilters(!showFilters)}
                         className={cn(
-                            "flex items-center gap-1 text-[10px] px-2 py-1 rounded transition-colors",
-                            showFilters ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"
+                            "flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md transition-all font-medium",
+                            showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                         )}
                     >
                         <Filter className="w-3 h-3" />
                         Filter
                         {typeFilter !== 'all' && (
-                            <span className="ml-1 w-1.5 h-1.5 rounded-full bg-primary" />
+                            <span className="w-1 h-1 rounded-full bg-current" />
                         )}
                     </button>
 
-                    {/* Quick stats */}
                     <div className="flex items-center gap-2">
                         {Object.entries(eventStats).slice(0, 3).map(([type, count]) => {
                             const config = EVENT_TYPE_CONFIG[type as HookEventType];
@@ -455,7 +447,7 @@ export function HooksPanel({
                             return (
                                 <div
                                     key={type}
-                                    className="flex items-center gap-1 text-[9px] text-muted-foreground"
+                                    className="flex items-center gap-1 text-[9px] text-muted-foreground/80 font-mono"
                                 >
                                     <config.icon className={cn("w-2.5 h-2.5", config.color)} />
                                     <span>{count}</span>
@@ -467,23 +459,21 @@ export function HooksPanel({
 
                 {/* Filter dropdown */}
                 {showFilters && (
-                    <div className="mt-2 p-2 bg-muted/50 rounded-md border border-primary/10">
-                        <div className="flex flex-wrap gap-1">
-                            {FILTER_OPTIONS.map(option => (
-                                <button
-                                    key={option.value}
-                                    onClick={() => setTypeFilter(option.value)}
-                                    className={cn(
-                                        "text-[10px] px-2 py-1 rounded-full transition-colors",
-                                        typeFilter === option.value
-                                            ? "bg-primary text-primary-foreground"
-                                            : "bg-muted hover:bg-muted/80 text-muted-foreground"
-                                    )}
-                                >
-                                    {option.label}
-                                </button>
-                            ))}
-                        </div>
+                    <div className="pt-2 flex flex-wrap gap-1 border-t border-primary/5">
+                        {FILTER_OPTIONS.map(option => (
+                            <button
+                                key={option.value}
+                                onClick={() => setTypeFilter(option.value)}
+                                className={cn(
+                                    "text-[9px] px-2 py-0.5 rounded-full transition-all border uppercase tracking-tighter font-bold",
+                                    typeFilter === option.value
+                                        ? "bg-primary text-primary-foreground border-primary"
+                                        : "bg-muted/50 border-transparent text-muted-foreground hover:border-muted-foreground/30"
+                                )}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
                     </div>
                 )}
             </div>
@@ -496,15 +486,15 @@ export function HooksPanel({
                     <div className="flex flex-col items-center justify-center h-40 opacity-30 grayscale">
                         {searchQuery || typeFilter !== 'all' ? (
                             <>
-                                <Search className="w-12 h-12 mb-2" />
+                                <Search className="w-10 h-10 mb-2" />
                                 <p className="text-xs uppercase tracking-widest font-bold">No matches</p>
-                                <p className="text-[10px] text-muted-foreground mt-1">
-                                    Try adjusting your filters
+                                <p className="text-[10px] text-muted-foreground mt-1 text-center px-4">
+                                    Try adjusting your search query or filters
                                 </p>
                             </>
                         ) : (
                             <>
-                                <Zap className="w-12 h-12 mb-2" />
+                                <Zap className="w-10 h-10 mb-2" />
                                 <p className="text-xs uppercase tracking-widest font-bold">No active hooks</p>
                             </>
                         )}
@@ -533,7 +523,7 @@ export function HooksPanelCompact({
 
     return (
         <div className={cn("flex flex-col gap-1", className)}>
-            {recentEvents.map((event, index) => {
+            {recentEvents.map((event) => {
                 const config = EVENT_TYPE_CONFIG[event.type];
                 const Icon = config?.icon || Zap;
 

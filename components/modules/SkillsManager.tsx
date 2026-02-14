@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ModuleCard } from './ModuleCard';
 import { Sparkles, Loader2, RefreshCw, Trash2, BookOpen, Search, CheckCircle2, Ban, Plus, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PanelHeader } from '../sidebar/PanelHeader';
 
 interface Skill {
     id: string;
@@ -157,8 +158,6 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                     <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">{disabledCount}</div>
                 </div>
             </div>
-
-
 
             <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -363,38 +362,41 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
         </div>
     );
 
+    const headerActions = (
+        <div className="flex items-center gap-1">
+            <button
+                onClick={() => setShowAdvanced((prev) => !prev)}
+                className={cn(
+                    "p-1.5 rounded-lg transition-all",
+                    showAdvanced
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                )}
+                title="Advanced settings"
+            >
+                <SlidersHorizontal size={14} />
+            </button>
+            <button
+                onClick={fetchSkills}
+                className="p-1.5 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary transition-all"
+                title="Refresh"
+            >
+                <RefreshCw size={14} className={cn(loading && "animate-spin")} />
+            </button>
+        </div>
+    );
+
     if (compact) {
         return (
             <div className={cn("flex flex-col h-full bg-card/30", className)}>
-                <div className="p-3 border-b flex items-center justify-between">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-2">
-                        <Sparkles className="w-3.5 h-3.5 text-primary" />
-                        Skills
-                    </h4>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setShowAdvanced((prev) => !prev)}
-                            className={cn(
-                                "inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors",
-                                showAdvanced
-                                    ? "bg-primary text-primary-foreground border-primary/60"
-                                    : "text-muted-foreground hover:text-foreground border-zinc-300 dark:border-zinc-700 hover:bg-muted/40"
-                            )}
-                            title="Advanced settings"
-                        >
-                            <SlidersHorizontal size={12} />
-                            Advanced
-                        </button>
-                        <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-mono">
-                            {skills.length}
-                        </span>
-                        <button onClick={fetchSkills} className="p-1 text-zinc-500 hover:text-foreground transition-colors" title="Refresh">
-                            <RefreshCw size={14} />
-                        </button>
-                    </div>
-                </div>
+                <PanelHeader
+                    title="Skills"
+                    icon={Sparkles}
+                    badge={skills.length}
+                    actions={headerActions}
+                />
                 <div className="flex-1 overflow-y-auto p-3 scrollbar-thin">
-                    {loading ? (
+                    {loading && skills.length === 0 ? (
                         <div className="flex items-center justify-center py-8">
                             <Loader2 size={18} className="animate-spin text-muted-foreground" />
                         </div>
@@ -406,41 +408,18 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
         );
     }
 
-    if (loading) {
-        return (
-            <ModuleCard title="Skills" description="Installed skills" icon={Sparkles}>
-                <div className="flex items-center justify-center py-8"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
-            </ModuleCard>
-        );
-    }
-
     return (
         <ModuleCard
             title="Skills"
-            description={`${skills.length} installed · ${enabledCount} enabled`}
+            description={loading ? "Loading..." : `${skills.length} installed · ${enabledCount} enabled`}
             icon={Sparkles}
-            actions={
-                <div className="flex items-center gap-1">
-                    <button
-                        onClick={() => setShowAdvanced((prev) => !prev)}
-                        className={cn(
-                            "inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors",
-                            showAdvanced
-                                ? "bg-primary text-primary-foreground border-primary/60"
-                                : "text-muted-foreground hover:text-foreground border-zinc-300 dark:border-zinc-700 hover:bg-muted/40"
-                        )}
-                        title="Advanced settings"
-                    >
-                        <SlidersHorizontal size={12} />
-                        Advanced
-                    </button>
-                    <button onClick={fetchSkills} className="p-1 text-zinc-500 hover:text-foreground transition-colors" title="Refresh">
-                        <RefreshCw size={14} />
-                    </button>
-                </div>
-            }
+            actions={headerActions}
         >
-            {body}
+            {loading && skills.length === 0 ? (
+                <div className="flex items-center justify-center py-8"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
+            ) : (
+                body
+            )}
         </ModuleCard>
     );
 }
