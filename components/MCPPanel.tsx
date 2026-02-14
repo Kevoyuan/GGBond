@@ -15,6 +15,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PanelHeader } from './sidebar/PanelHeader';
 
 type ServerStatus = 'connected' | 'connecting' | 'disconnected' | 'disconnecting' | 'error';
 
@@ -219,98 +220,98 @@ export function MCPPanel({ className }: MCPPanelProps) {
 
     return (
         <div className={cn("flex flex-col h-full bg-card/30", className)}>
-            <div className="p-3 border-b flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-2">
-                    <Plug className="w-3.5 h-3.5 text-primary" />
-                    MCP Manager
-                </h4>
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        {discoveryState.replace('_', ' ')}
-                    </span>
+            <PanelHeader
+                title="MCP Manager"
+                icon={Plug}
+                badge={discoveryState === 'started' ? 'Scanning' : undefined}
+                actions={
                     <button
                         onClick={loadServers}
                         disabled={isLoading}
-                        className="p-1 hover:bg-muted rounded transition-colors disabled:opacity-50"
+                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all disabled:opacity-50"
+                        title="Refresh Servers"
                     >
-                        <RefreshCw className={cn("w-3.5 h-3.5 text-muted-foreground", isLoading && "animate-spin")} />
+                        <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
                     </button>
-                </div>
-            </div>
+                }
+            />
 
             {error && (
                 <div className="mx-3 mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-2 text-[11px] text-red-300 flex items-center gap-2">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>{error}</span>
+                    <span className="truncate">{error}</span>
                 </div>
             )}
 
             {showAddForm && (
-                <div className="mx-3 mt-3 rounded-lg border border-border/60 bg-card p-3 space-y-2">
+                <div className="mx-3 mt-3 rounded-lg border border-border/60 bg-background/50 backdrop-blur-md p-3 space-y-2 animate-in slide-in-from-top-2 duration-200">
                     <div className="flex items-center justify-between">
-                        <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Add MCP Server</h5>
+                        <h5 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">Add MCP Server</h5>
                         <button
                             onClick={() => setShowAddForm(false)}
-                            className="p-1 rounded hover:bg-muted"
+                            className="p-1 rounded hover:bg-muted text-muted-foreground"
                         >
                             <X className="w-3.5 h-3.5" />
                         </button>
                     </div>
 
-                    <input
-                        value={newServerName}
-                        onChange={(e) => setNewServerName(e.target.value)}
-                        placeholder="server name"
-                        className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-                    />
-
-                    <select
-                        value={transportType}
-                        onChange={(e) => setTransportType(e.target.value as 'stdio' | 'sse' | 'http')}
-                        className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-                    >
-                        <option value="stdio">stdio (command)</option>
-                        <option value="sse">sse (url)</option>
-                        <option value="http">http (url)</option>
-                    </select>
-
-                    {transportType === 'stdio' ? (
-                        <>
-                            <input
-                                value={command}
-                                onChange={(e) => setCommand(e.target.value)}
-                                placeholder="command (e.g. npx @modelcontextprotocol/server-filesystem)"
-                                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-                            />
-                            <input
-                                value={argsInput}
-                                onChange={(e) => setArgsInput(e.target.value)}
-                                placeholder="args (space-separated)"
-                                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-                            />
-                        </>
-                    ) : (
+                    <div className="space-y-1.5">
                         <input
-                            value={urlInput}
-                            onChange={(e) => setUrlInput(e.target.value)}
-                            placeholder="url"
-                            className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+                            value={newServerName}
+                            onChange={(e) => setNewServerName(e.target.value)}
+                            placeholder="Server name"
+                            className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-all font-mono"
                         />
-                    )}
 
-                    <input
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="description (optional)"
-                        className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-                    />
+                        <select
+                            value={transportType}
+                            onChange={(e) => setTransportType(e.target.value as 'stdio' | 'sse' | 'http')}
+                            className="w-full rounded-md border border-border/50 bg-background/50 px-2 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-all"
+                        >
+                            <option value="stdio">stdio (Local Command)</option>
+                            <option value="sse">sse (Network Stream)</option>
+                            <option value="http">http (Rest API)</option>
+                        </select>
+
+                        {transportType === 'stdio' ? (
+                            <>
+                                <input
+                                    value={command}
+                                    onChange={(e) => setCommand(e.target.value)}
+                                    placeholder="command (e.g. npx @modelcontextprotocol/...)"
+                                    className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-all font-mono"
+                                />
+                                <input
+                                    value={argsInput}
+                                    onChange={(e) => setArgsInput(e.target.value)}
+                                    placeholder="arguments (space-separated)"
+                                    className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-all font-mono"
+                                />
+                            </>
+                        ) : (
+                            <input
+                                value={urlInput}
+                                onChange={(e) => setUrlInput(e.target.value)}
+                                placeholder="http://localhost:3000/sse"
+                                className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-all font-mono"
+                            />
+                        )}
+
+                        <input
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="brief description (optional)"
+                            className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-all"
+                        />
+                    </div>
 
                     <button
                         onClick={handleAddServer}
                         disabled={isSavingServer}
-                        className="w-full py-1.5 rounded bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-60"
+                        className="w-full py-2 mt-1 rounded bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-60 transition-all shadow-sm flex items-center justify-center gap-2"
                     >
-                        {isSavingServer ? 'Saving...' : 'Save Server'}
+                        {isSavingServer ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                        Save Server
                     </button>
                 </div>
             )}
@@ -322,40 +323,42 @@ export function MCPPanel({ className }: MCPPanelProps) {
                     const toolCount = config.includeToolsCount ?? (Array.isArray(config.includeTools) ? config.includeTools.length : null);
 
                     return (
-                        <div key={name} className="bg-muted/30 border border-border/50 rounded-lg p-3 hover:border-primary/30 transition-all">
+                        <div key={name} className="group relative p-3 rounded-xl border border-border/50 bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-all duration-200">
                             <div className="flex items-start justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                    <div className="p-1.5 bg-primary/10 rounded-md">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-primary/5 rounded-lg border border-primary/10 group-hover:bg-primary/10 transition-colors">
                                         {kind === 'stdio'
-                                            ? <Terminal className="w-4 h-4 text-primary" />
-                                            : <Globe className="w-4 h-4 text-primary" />}
+                                            ? <Terminal className="w-4 h-4 text-primary/80" />
+                                            : <Globe className="w-4 h-4 text-primary/80" />}
                                     </div>
-                                    <div>
-                                        <h5 className="text-sm font-semibold text-foreground">{name}</h5>
-                                        <p className="text-[10px] text-muted-foreground uppercase tracking-tight font-mono">
-                                            {kind} · {toolCount === null ? 'all tools' : `${toolCount} tools`}
-                                        </p>
+                                    <div className="min-w-0">
+                                        <h5 className="text-sm font-semibold text-foreground truncate">{name}</h5>
+                                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground uppercase tracking-tight font-mono">
+                                            <span className="px-1 py-0.5 rounded bg-muted/50">{kind}</span>
+                                            <span>•</span>
+                                            <span>{toolCount === null ? 'all tools' : `${toolCount} tools`}</span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                    <div className={cn("w-2 h-2 rounded-full", statusColorMap[status])} />
-                                    <span className="text-[10px] font-medium uppercase text-muted-foreground">
+                                <div className="flex flex-col items-end gap-1">
+                                    <div className={cn("w-1.5 h-1.5 rounded-full", statusColorMap[status], "shadow-[0_0_8px_rgba(255,255,255,0.2)]")} />
+                                    <span className="text-[9px] font-bold uppercase tracking-tighter text-muted-foreground/60">
                                         {statusLabelMap[status]}
                                     </span>
                                 </div>
                             </div>
 
                             {config.description && (
-                                <p className="text-xs text-muted-foreground leading-relaxed mb-3 line-clamp-2">
+                                <p className="text-[11px] text-muted-foreground leading-relaxed mb-3 line-clamp-2 px-1">
                                     {config.description}
                                 </p>
                             )}
 
-                            <div className="flex items-center gap-2 mt-auto">
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
                                 <button
                                     onClick={() => handleRestart(name)}
                                     disabled={restartingServer === name}
-                                    className="flex-1 py-1.5 rounded bg-secondary/50 hover:bg-secondary text-[11px] font-medium transition-colors border border-border/50 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                    className="flex-1 py-1.5 rounded-md bg-secondary/40 hover:bg-secondary/60 text-[11px] font-bold uppercase tracking-wider transition-all border border-border/50 flex items-center justify-center gap-1.5 disabled:opacity-50"
                                 >
                                     {restartingServer === name
                                         ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -364,7 +367,7 @@ export function MCPPanel({ className }: MCPPanelProps) {
                                 </button>
                                 <button
                                     onClick={() => void handleDetails(name, config)}
-                                    className="flex-1 py-1.5 rounded bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-medium transition-colors border border-primary/20 flex items-center justify-center gap-1.5"
+                                    className="flex-1 py-1.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-bold uppercase tracking-wider transition-all border border-primary/20 flex items-center justify-center gap-1.5"
                                 >
                                     <ExternalLink className="w-3 h-3" />
                                     Details
@@ -375,48 +378,50 @@ export function MCPPanel({ className }: MCPPanelProps) {
                 })}
 
                 {orderedServers.length === 0 && !isLoading && (
-                    <div className="flex flex-col items-center justify-center h-60 opacity-30">
-                        <Activity className="w-12 h-12 mb-3" />
-                        <p className="text-sm font-bold uppercase tracking-widest">No MCP Servers</p>
-                        <p className="text-[11px] mt-1 text-center px-4 italic">Add a server to start using MCP tools.</p>
+                    <div className="flex flex-col items-center justify-center h-48 opacity-20 grayscale">
+                        <Activity className="w-10 h-10 mb-3" />
+                        <p className="text-xs font-bold uppercase tracking-widest text-center">No active servers</p>
                     </div>
                 )}
 
                 {isLoading && orderedServers.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-60 opacity-30">
-                        <Loader2 className="w-12 h-12 animate-spin mb-3" />
-                        <p className="text-sm font-bold uppercase tracking-widest">Loading Servers...</p>
+                    <div className="flex flex-col items-center justify-center h-48 opacity-20">
+                        <Loader2 className="w-10 h-10 animate-spin mb-3" />
+                        <p className="text-xs font-bold uppercase tracking-widest">Scanning MCPs...</p>
                     </div>
                 )}
             </div>
 
-            <div className="p-3 border-t bg-muted/20">
+            <div className="p-3 border-t bg-card/20 group">
                 <button
                     onClick={() => setShowAddForm(true)}
-                    className="w-full py-2 bg-primary text-primary-foreground rounded-md text-xs font-bold uppercase tracking-wider hover:brightness-110 transition-all shadow-md flex items-center justify-center gap-2"
+                    className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg text-xs font-bold uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all shadow-lg flex items-center justify-center gap-2 overflow-hidden relative"
                 >
-                    <Plus className="w-4 h-4" />
-                    Add New Server
+                    <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                    <Plus className="w-4 h-4 relative z-10" />
+                    <span className="relative z-10">Add Server</span>
                 </button>
             </div>
 
             {activeDetails && (
-                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-30 flex items-center justify-center p-4">
-                    <div className="w-full max-w-2xl rounded-lg border border-border bg-card shadow-2xl overflow-hidden">
-                        <div className="flex items-center justify-between p-3 border-b bg-muted/30">
-                            <div className="flex items-center gap-2">
-                                <CheckCircle2 className="w-4 h-4 text-primary" />
-                                <h4 className="text-sm font-semibold">{activeDetails.name}</h4>
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-md z-30 flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="w-full max-w-2xl rounded-xl border border-primary/20 bg-background/95 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                        <div className="flex items-center justify-between p-3.5 border-b bg-primary/5">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                                </div>
+                                <h4 className="text-sm font-bold uppercase tracking-tight">{activeDetails.name}</h4>
                             </div>
                             <button
                                 onClick={() => setActiveDetails(null)}
-                                className="p-1 rounded hover:bg-muted"
+                                className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors"
                             >
-                                <X className="w-4 h-4" />
+                                <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="p-3 max-h-[60vh] overflow-auto">
-                            <pre className="text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-all rounded-md border border-border/60 bg-muted/20 p-3">
+                        <div className="p-4 overflow-auto scrollbar-thin">
+                            <pre className="text-[12px] leading-relaxed font-mono whitespace-pre-wrap break-all rounded-lg border border-border/80 bg-muted/30 p-4 text-foreground/90 selection:bg-primary/30">
                                 {JSON.stringify(activeDetails.server, null, 2)}
                             </pre>
                         </div>

@@ -1,6 +1,9 @@
+'use client';
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { ListOrdered, Play, Pause, Trash2, RotateCcw, ChevronDown, ChevronUp, X, AlertCircle, CheckCircle, Clock, Loader2 } from 'lucide-react';
+import { ListOrdered, Play, Pause, Trash2, RotateCcw, ChevronDown, ChevronRight, X, AlertCircle, CheckCircle, Clock, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PanelHeader } from './sidebar/PanelHeader';
 
 interface QueueItem {
   id: number;
@@ -104,10 +107,10 @@ export function QueuePanel({ sessionId, isOpen, onToggle, onProcessNext, isProce
   };
 
   const formatTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleTimeString();
+    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
-  const truncateContent = (content: string, maxLength: number = 80) => {
+  const truncateContent = (content: string, maxLength: number = 60) => {
     if (content.length <= maxLength) return content;
     return content.substring(0, maxLength) + '...';
   };
@@ -115,15 +118,15 @@ export function QueuePanel({ sessionId, isOpen, onToggle, onProcessNext, isProce
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pending':
-        return <Clock className="w-4 h-4 text-gray-400" />;
+        return <Clock className="w-3.5 h-3.5 text-muted-foreground/60" />;
       case 'processing':
-        return <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />;
+        return <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />;
       case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-400" />;
+        return <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />;
       case 'failed':
-        return <AlertCircle className="w-4 h-4 text-red-400" />;
+        return <AlertCircle className="w-3.5 h-3.5 text-red-500" />;
       case 'cancelled':
-        return <X className="w-4 h-4 text-gray-400" />;
+        return <X className="w-3.5 h-3.5 text-muted-foreground/60" />;
       default:
         return null;
     }
@@ -132,106 +135,133 @@ export function QueuePanel({ sessionId, isOpen, onToggle, onProcessNext, isProce
   if (!isOpen) return null;
 
   return (
-    <div className="border border-gray-700 bg-gray-900">
-      <div className="p-3 border-b border-gray-700 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ListOrdered className="w-4 h-4 text-gray-400" />
-          <span className="text-sm font-medium text-gray-200">Message Queue</span>
-          {stats && (
-            <span className="text-xs text-gray-400">
-              ({stats.pending} pending, {stats.processing} processing)
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={fetchQueue}
-            className="p-1 hover:bg-gray-700 rounded"
-            title="Refresh"
-          >
-            <RotateCcw className={cn("w-4 h-4 text-gray-400", loading && "animate-spin")} />
-          </button>
-          {onProcessNext && stats && stats.pending > 0 && (
+    <div className="flex flex-col h-full bg-card/30 border-l border-border/40">
+      <PanelHeader
+        title="Message Queue"
+        icon={ListOrdered}
+        badge={stats?.pending || undefined}
+        actions={
+          <div className="flex items-center gap-1">
             <button
-              onClick={onProcessNext}
-              disabled={isProcessing}
-              className={cn(
-                "flex items-center gap-1 px-2 py-1 text-xs rounded",
-                isProcessing
-                  ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700 text-white"
-              )}
+              onClick={fetchQueue}
+              className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+              title="Refresh Queue"
             >
-              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-              Process Next
+              <RotateCcw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
             </button>
-          )}
-          <button
-            onClick={() => handleClear('completed')}
-            className="p-1 hover:bg-gray-700 rounded"
-            title="Clear completed"
-          >
-            <Trash2 className="w-4 h-4 text-gray-400" />
-          </button>
-        </div>
-      </div>
+            {onProcessNext && stats && stats.pending > 0 && (
+              <button
+                onClick={onProcessNext}
+                disabled={isProcessing}
+                className={cn(
+                  "p-1.5 rounded-lg transition-all",
+                  isProcessing
+                    ? "bg-muted text-muted-foreground/30 cursor-not-allowed"
+                    : "bg-primary/10 text-primary hover:bg-primary/20"
+                )}
+                title="Process Next"
+              >
+                {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+              </button>
+            )}
+            <button
+              onClick={() => handleClear('completed')}
+              className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-all"
+              title="Clear Completed"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        }
+      />
 
-      <div className="max-h-64 overflow-y-auto">
+      {stats && (
+        <div className="px-4 py-2 bg-card/10 border-b border-border/30 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+          <div className="flex gap-3">
+            <span className="flex items-center gap-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              {stats.pending} Pending
+            </span>
+            <span className="flex items-center gap-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              {stats.processing} Active
+            </span>
+          </div>
+          <span className="font-mono text-[9px] opacity-40">Total: {stats.total}</span>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto scrollbar-thin">
         {items.length === 0 ? (
-          <div className="px-4 py-8 text-center text-gray-400 text-sm">
-            No messages in queue
+          <div className="flex flex-col items-center justify-center h-48 opacity-30 grayscale">
+            <ListOrdered className="w-10 h-10 mb-2" />
+            <p className="text-[10px] font-bold uppercase tracking-widest">Queue Vacuum</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-700">
+          <div className="divide-y divide-border/20">
             {items.map((item) => (
               <div
                 key={item.id}
                 className={cn(
-                  "flex items-start gap-3 px-4 py-3",
-                  item.status === 'processing' && "bg-blue-900/20"
+                  "p-3 group hover:bg-muted/30 transition-colors relative",
+                  item.status === 'processing' && "bg-primary/5"
                 )}
               >
-                <div className="mt-0.5">
-                  {getStatusIcon(item.status)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-200 truncate">
-                    {truncateContent(item.content)}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
-                    <span>{formatTime(item.created_at)}</span>
-                    {item.started_at && (
-                      <span>→ {formatTime(item.started_at)}</span>
-                    )}
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5">
+                    {getStatusIcon(item.status)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground/90 truncate group-hover:text-foreground transition-colors">
+                      {truncateContent(item.content)}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground/50 font-mono">
+                      <span>{formatTime(item.created_at)}</span>
+                      {item.started_at && (
+                        <>
+                          <span>→</span>
+                          <span className="text-primary/70">{formatTime(item.started_at)}</span>
+                        </>
+                      )}
+                    </div>
                     {item.error && (
-                      <span className="text-red-400">Error: {item.error}</span>
+                      <div className="mt-1 flex items-center gap-1 text-[9px] text-red-500/80 font-bold uppercase tracking-tighter">
+                        <AlertCircle className="w-2.5 h-2.5" />
+                        <span className="truncate">{item.error}</span>
+                      </div>
                     )}
                   </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  {(item.status === 'pending' || item.status === 'processing') && (
-                    <button
-                      onClick={() => handleCancel(item.id)}
-                      className="p-1 hover:bg-gray-700 rounded"
-                      title="Cancel"
-                    >
-                      <X className="w-4 h-4 text-gray-400" />
-                    </button>
-                  )}
-                  {(item.status === 'failed' || item.status === 'cancelled') && (
-                    <button
-                      onClick={() => handleRetry(item.id)}
-                      className="p-1 hover:bg-gray-700 rounded"
-                      title="Retry"
-                    >
-                      <RotateCcw className="w-4 h-4 text-gray-400" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    {(item.status === 'pending' || item.status === 'processing') && (
+                      <button
+                        onClick={() => handleCancel(item.id)}
+                        className="p-1 hover:bg-red-500/10 hover:text-red-500 rounded transition-colors"
+                        title="Cancel Task"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {(item.status === 'failed' || item.status === 'cancelled') && (
+                      <button
+                        onClick={() => handleRetry(item.id)}
+                        className="p-1 hover:bg-emerald-500/10 hover:text-emerald-500 rounded transition-colors"
+                        title="Retry Task"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
+      </div>
+
+      <div className="p-4 border-t bg-card/10">
+        <p className="text-[10px] leading-relaxed text-muted-foreground/60 italic">
+          Items are processed sequentially by the active model turn. Clearing completed tasks improves interface speed.
+        </p>
       </div>
     </div>
   );

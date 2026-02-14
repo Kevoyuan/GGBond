@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -11,9 +13,12 @@ import {
     AlertCircle,
     CheckCircle2,
     Save,
-    X
+    X,
+    Layout,
+    ArrowUpRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PanelHeader } from './sidebar/PanelHeader';
 
 interface MemoryPanelProps {
     onFileSelect?: (file: { name: string; path: string }) => void;
@@ -99,13 +104,13 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                 body: JSON.stringify({ action: 'refresh' }),
             });
             if (res.ok) {
-                setStatus({ type: 'success', message: 'Memory context reloaded successfully' });
+                setStatus({ type: 'success', message: 'Context updated' });
                 await fetchFiles();
             } else {
-                setStatus({ type: 'error', message: 'Failed to reload memory' });
+                setStatus({ type: 'error', message: 'Reload failed' });
             }
         } catch {
-            setStatus({ type: 'error', message: 'Network error during reload' });
+            setStatus({ type: 'error', message: 'Network error' });
         } finally {
             setRefreshing(false);
             setTimeout(() => setStatus(null), 3000);
@@ -125,7 +130,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
             const res = await fetch(`/api/memory?${params.toString()}`);
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
-                throw new Error(data.error || 'Failed to read memory file');
+                throw new Error(data.error || 'Failed to read file');
             }
             const data = await res.json();
             setEditorPath(data.path || filePath);
@@ -134,7 +139,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
         } catch (err) {
             setStatus({
                 type: 'error',
-                message: err instanceof Error ? err.message : 'Failed to open memory file',
+                message: err instanceof Error ? err.message : 'Open failed',
             });
         } finally {
             setEditorLoading(false);
@@ -145,7 +150,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
         const existingGeminiPath = files.find((filePath) => isGeminiMemoryFile(filePath));
         if (existingGeminiPath) {
             await openEditor(existingGeminiPath);
-            setStatus({ type: 'success', message: 'GEMINI.md already exists. Opened for editing.' });
+            setStatus({ type: 'success', message: 'Found existing GEMINI.md' });
             return;
         }
 
@@ -172,7 +177,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
 
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
-                throw new Error(data.error || 'Failed to save memory file');
+                throw new Error(data.error || 'Save failed');
             }
 
             const data = await res.json().catch(() => ({}));
@@ -181,13 +186,13 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
             setEditorMode('edit');
             setStatus({
                 type: 'success',
-                message: editorMode === 'create' ? 'Created GEMINI.md' : 'Memory file saved',
+                message: editorMode === 'create' ? 'Initialized memory' : 'Memory persistent',
             });
             await fetchFiles();
         } catch (err) {
             setStatus({
                 type: 'error',
-                message: err instanceof Error ? err.message : 'Failed to save memory file',
+                message: err instanceof Error ? err.message : 'Persistence failed',
             });
         } finally {
             setSaving(false);
@@ -195,7 +200,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
     };
 
     const handleDelete = async (filePath: string) => {
-        const confirmed = window.confirm(`Delete ${filePath}?`);
+        const confirmed = window.confirm(`Permanently delete ${filePath}?`);
         if (!confirmed) return;
 
         try {
@@ -211,18 +216,18 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
 
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
-                throw new Error(data.error || 'Failed to delete memory file');
+                throw new Error(data.error || 'Deletion failed');
             }
 
             if (editorPath === filePath) {
                 closeEditor();
             }
-            setStatus({ type: 'success', message: 'Memory file deleted' });
+            setStatus({ type: 'success', message: 'Document purged' });
             await fetchFiles();
         } catch (err) {
             setStatus({
                 type: 'error',
-                message: err instanceof Error ? err.message : 'Failed to delete memory file',
+                message: err instanceof Error ? err.message : 'Purge failed',
             });
         }
     };
@@ -237,89 +242,101 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
     }, []);
 
     const editorModal = editorPath ? (
-        <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm p-2 sm:p-4 md:p-6 flex items-center justify-center">
-            <div className="w-full max-w-4xl h-[calc(100vh-1rem)] sm:h-[min(88vh,920px)] rounded-xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
-                <div className="flex items-start justify-between gap-3 p-3 sm:p-4 border-b bg-muted/20">
-                    <div className="min-w-0 space-y-1">
-                        <p className="text-base font-semibold truncate">{editorFileName}</p>
-                        <p className="text-[11px] text-muted-foreground truncate">{editorPath}</p>
+        <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-md p-4 sm:p-8 flex items-center justify-center animate-in zoom-in-95 duration-300">
+            <div className="w-full max-w-5xl h-[calc(100vh-4rem)] rounded-2xl border border-primary/20 bg-background/95 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between gap-4 p-4 border-b bg-primary/5">
+                    <div className="min-w-0 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                            <FileText className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-bold uppercase tracking-tight truncate">{editorFileName}</p>
+                            <p className="text-[10px] text-muted-foreground truncate font-mono opacity-60">{editorPath}</p>
+                        </div>
                     </div>
                     <button
                         onClick={closeEditor}
-                        className="p-1.5 rounded hover:bg-muted"
+                        className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-all"
                     >
-                        <X className="w-4 h-4" />
+                        <X className="w-6 h-6" />
                     </button>
                 </div>
 
-                <div className="flex-1 p-2 sm:p-4 overflow-hidden">
+                <div className="flex-1 p-4 overflow-hidden relative group">
                     {editorLoading ? (
-                        <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                            Loading file...
+                        <div className="h-full flex flex-col items-center justify-center text-muted-foreground/50">
+                            <RefreshCw className="w-8 h-8 mb-2 animate-spin" />
+                            <p className="text-xs font-bold uppercase tracking-widest">Reading knowledge...</p>
                         </div>
                     ) : (
                         <textarea
                             value={editorContent}
                             onChange={(event) => setEditorContent(event.target.value)}
-                            className="w-full h-full min-h-0 resize-none rounded-lg border border-border bg-background p-3 sm:p-4 text-[13px] leading-6 font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                            spellCheck={false}
+                            className="w-full h-full min-h-0 resize-none rounded-xl border border-border/50 bg-muted/20 p-6 text-[14px] leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all selection:bg-primary/20"
                         />
                     )}
                 </div>
 
-                <div className="p-3 sm:p-4 border-t bg-muted/20 flex items-center justify-end gap-2">
-                    <button
-                        onClick={closeEditor}
-                        className="px-3 py-2 rounded-md text-sm font-medium hover:bg-muted"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={() => void handleSave()}
-                        disabled={saving || editorLoading}
-                        className="px-3 py-2 rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-1.5"
-                    >
-                        <Save className="w-3.5 h-3.5" />
-                        {saving ? 'Saving...' : 'Save'}
-                    </button>
+                <div className="p-4 border-t bg-primary/5 flex items-center justify-between">
+                    <p className="text-[10px] text-muted-foreground italic px-2">
+                        Content is used as long-lived context for all turns in this project.
+                    </p>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={closeEditor}
+                            className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-muted transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={() => void handleSave()}
+                            disabled={saving || editorLoading}
+                            className="px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest bg-primary text-primary-foreground hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all shadow-lg flex items-center gap-2"
+                        >
+                            {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            {saving ? 'Saving...' : 'Save Context'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     ) : null;
 
     return (
-        <div className={cn("flex flex-col h-full bg-card", className)}>
-            <div className="p-3 border-b flex items-center justify-between bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-                <div className="flex items-center gap-2">
-                    <Database className="w-5 h-5 text-primary" />
-                    <h2 className="font-semibold text-sm">Knowledge Base</h2>
-                </div>
-                <div className="flex items-center gap-1">
-                    <button
-                        onClick={handleCreate}
-                        className="p-1.5 hover:bg-accent rounded-md transition-colors"
-                        title="Create GEMINI.md"
-                    >
-                        <Plus className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={handleRefresh}
-                        className="p-1.5 hover:bg-accent rounded-md transition-colors"
-                        title="Reload Memory Context"
-                        disabled={refreshing}
-                    >
-                        <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
-                    </button>
-                </div>
-            </div>
+        <div className={cn("flex flex-col h-full bg-card/30", className)}>
+            <PanelHeader
+                title="Knowledge Base"
+                icon={Database}
+                badge={files.length}
+                actions={
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={handleCreate}
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+                            title="Add Memory Document"
+                        >
+                            <Plus className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={handleRefresh}
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+                            title="Force Sync Context"
+                            disabled={refreshing}
+                        >
+                            <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
+                        </button>
+                    </div>
+                }
+            />
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin">
                 {status && (
                     <div className={cn(
-                        "p-2.5 rounded-lg text-[10px] font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-1",
+                        "p-2.5 rounded-lg text-[10px] font-bold uppercase tracking-tight flex items-center gap-2 animate-in fade-in slide-in-from-top-1 shadow-sm",
                         status.type === 'success'
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                            ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                            : "bg-red-500/10 text-red-500 border border-red-500/20"
                     )}>
                         {status.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
                         {status.message}
@@ -327,42 +344,43 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                 )}
 
                 {loading && files.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-40 space-y-2 opacity-50">
-                        <RefreshCw className="w-8 h-8 animate-spin text-primary" />
-                        <p className="text-xs">Loading knowledge base...</p>
+                    <div className="flex flex-col items-center justify-center h-48 opacity-20">
+                        <RefreshCw className="w-10 h-10 animate-spin mb-3" />
+                        <p className="text-xs font-bold uppercase tracking-widest text-center">Reading Project Memory...</p>
                     </div>
                 ) : error ? (
-                    <div className="p-4 text-center space-y-2">
-                        <p className="text-xs text-destructive">{error}</p>
+                    <div className="p-6 text-center space-y-3 opacity-60">
+                        <AlertCircle className="w-10 h-10 mx-auto text-destructive" />
+                        <p className="text-xs font-bold uppercase tracking-tight text-destructive">{error}</p>
                         <button
                             onClick={fetchFiles}
-                            className="text-xs text-primary hover:underline"
+                            className="text-[10px] font-bold uppercase tracking-widest text-primary hover:underline underline-offset-4"
                         >
-                            Try Again
+                            Retry Sync
                         </button>
                     </div>
                 ) : files.length === 0 ? (
-                    <div className="p-8 text-center space-y-4">
-                        <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto opacity-50">
-                            <FileText className="w-8 h-8 text-muted-foreground" />
+                    <div className="p-8 text-center space-y-6">
+                        <div className="w-20 h-20 bg-primary/5 rounded-3xl border border-primary/10 flex items-center justify-center mx-auto opacity-30 group hover:opacity-100 transition-all duration-500">
+                            <FileText className="w-10 h-10 text-primary group-hover:scale-110 transition-transform" />
                         </div>
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium">No Memory Files</p>
-                            <p className="text-xs text-muted-foreground leading-relaxed px-4">
-                                Create <code>GEMINI.md</code> in your workspace or run <code>/init</code> in chat to scaffold memory context.
+                        <div className="space-y-2">
+                            <p className="text-sm font-bold uppercase tracking-widest text-foreground">Tabula Rasa</p>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed px-2">
+                                Scaffolding <code>GEMINI.md</code> allows the agent to maintain long-term context of your design patterns and constraints.
                             </p>
                         </div>
                         <button
                             onClick={handleCreate}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded-lg mx-auto hover:bg-primary/90 transition-colors"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-widest rounded-xl mx-auto hover:brightness-110 active:scale-95 transition-all shadow-xl"
                         >
                             <Plus className="w-4 h-4" />
-                            Initialize GEMINI.md
+                            Enshrine Knowledge
                         </button>
                     </div>
                 ) : (
                     <div className="space-y-2">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Loaded Memory Documents</p>
+                        <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest px-1">Active Documents</p>
                         {files.map((filePath) => {
                             const segments = filePath.split(/[\\/]/);
                             const name = segments[segments.length - 1] || filePath;
@@ -371,29 +389,29 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                             return (
                                 <div
                                     key={filePath}
-                                    className="group flex flex-col p-3 rounded-xl border bg-card hover:bg-accent/50 hover:border-primary/20 transition-all cursor-pointer relative"
+                                    className="group relative flex flex-col p-3 rounded-xl border border-border/50 bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-all duration-200 cursor-pointer"
                                     onClick={() => onFileSelect?.({ name, path: filePath })}
                                 >
                                     <div className="flex items-start justify-between">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 flex items-center justify-center shrink-0">
-                                                <FileText className="w-4 h-4" />
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-500 border border-blue-500/20 flex items-center justify-center shrink-0 group-hover:bg-blue-500/20 transition-colors">
+                                                <FileText className="w-5 h-5" />
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="text-sm font-medium truncate">{name}</p>
-                                                <p className="text-[10px] text-muted-foreground truncate opacity-70">
+                                                <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">{name}</p>
+                                                <p className="text-[10px] text-muted-foreground truncate opacity-60 font-mono">
                                                     {dir || 'Root'}
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                        <div className="opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1 mt-1">
                                             <button
                                                 onClick={(event) => {
                                                     event.stopPropagation();
                                                     void openEditor(filePath);
                                                 }}
-                                                className="p-1.5 hover:bg-background rounded-md text-muted-foreground transition-colors"
-                                                title="Edit"
+                                                className="p-1.5 hover:bg-primary/20 hover:text-primary rounded-md text-muted-foreground transition-all"
+                                                title="Edit Memory"
                                             >
                                                 <Edit3 className="w-3.5 h-3.5" />
                                             </button>
@@ -402,20 +420,20 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                                                     event.stopPropagation();
                                                     void handleDelete(filePath);
                                                 }}
-                                                className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded-md text-muted-foreground transition-colors"
-                                                title="Delete"
+                                                className="p-1.5 hover:bg-red-500/20 hover:text-red-500 rounded-md text-muted-foreground transition-all"
+                                                title="Purge Document"
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
                                     </div>
 
-                                    <div className="mt-3 flex items-center gap-3">
-                                        <div className="px-1.5 py-0.5 rounded-md bg-muted text-[9px] font-mono text-muted-foreground flex items-center gap-1">
-                                            <div className="w-1 h-1 rounded-full bg-green-500" />
-                                            Active
+                                    <div className="mt-4 flex items-center gap-3">
+                                        <div className="px-2 py-0.5 rounded bg-emerald-500/10 text-[9px] font-bold uppercase tracking-widest text-emerald-500 flex items-center gap-1.5 border border-emerald-500/20">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                            Persistent Context
                                         </div>
-                                        <span className="text-[9px] text-muted-foreground opacity-50">Reflected in every turn</span>
+                                        <span className="text-[9px] text-muted-foreground/50 italic">Reflected in every turn</span>
                                     </div>
                                 </div>
                             );
@@ -424,13 +442,16 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                 )}
             </div>
 
-            <div className="p-4 border-t bg-muted/30 text-[10px] text-muted-foreground space-y-2">
-                <p className="leading-relaxed">
-                    The agent uses these files as long-lived project context. Save updates and click refresh when needed.
+            <div className="p-4 border-t bg-card/20 space-y-3">
+                <p className="text-[10px] leading-relaxed text-muted-foreground/80 italic px-1">
+                    Knowledge Base documents are used as core system context. Updates are automatically synchronized with the active session.
                 </p>
-                <div className="flex items-center gap-2 text-primary font-medium hover:underline cursor-pointer">
-                    <ExternalLink className="w-3 h-3" />
-                    Learn about GEMINI.md patterns
+                <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-primary hover:text-primary/80 transition-colors cursor-pointer group">
+                    <span className="flex items-center gap-2">
+                        <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                        Documentation Guide
+                    </span>
+                    <Layout className="w-4 h-4 opacity-40" />
                 </div>
             </div>
 
