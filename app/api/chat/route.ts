@@ -202,11 +202,11 @@ export async function POST(req: Request) {
         ensureSessionRow(now);
         const effectiveParentId = requestedParentId
           ? (() => {
-              const parentExists = db
-                .prepare('SELECT id FROM messages WHERE id = ? AND session_id = ?')
-                .get(requestedParentId, finalSessionId);
-              return parentExists ? requestedParentId : null;
-            })()
+            const parentExists = db
+              .prepare('SELECT id FROM messages WHERE id = ? AND session_id = ?')
+              .get(requestedParentId, finalSessionId);
+            return parentExists ? requestedParentId : null;
+          })()
           : null;
 
         const stmt = db.prepare('INSERT INTO messages (session_id, role, content, images, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?)');
@@ -427,11 +427,9 @@ export async function POST(req: Request) {
         name: string;
         args: string;
         checkpointValue?: string;
-      }) => `<tool-call id="${id}" name="${name}" args="${args}"${
-        checkpointValue ? ` checkpoint="${checkpointValue}"` : ''
-      } status="${status}" result="${encodedResult}"${
-        encodedResultData ? ` result_data="${encodedResultData}"` : ''
-      } />`;
+      }) => `<tool-call id="${id}" name="${name}" args="${args}"${checkpointValue ? ` checkpoint="${checkpointValue}"` : ''
+        } status="${status}" result="${encodedResult}"${encodedResultData ? ` result_data="${encodedResultData}"` : ''
+        } />`;
 
       if (toolId) {
         const escapedToolId = toolId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -476,7 +474,7 @@ export async function POST(req: Request) {
     };
 
     let streamClosed = false;
-    let cleanupStream = () => {};
+    let cleanupStream = () => { };
     const turnAbortController = new AbortController();
 
     const stream = new ReadableStream({
@@ -497,7 +495,7 @@ export async function POST(req: Request) {
         // Clearing stale subscribers prevents closed-controller callbacks from prior turns.
         coreWithConfirmation.clearConfirmationSubscribers?.();
 
-        let cleanupMessageBusListeners = () => {};
+        let cleanupMessageBusListeners = () => { };
         const pendingConfirmationIds = new Set<string>();
         const toolNameByCallId = new Map<string, string>();
         const checkpointByCallId = new Map<string, string>();
@@ -758,9 +756,9 @@ export async function POST(req: Request) {
               const error =
                 info.error
                   ? {
-                      type: info.errorType || 'tool_error',
-                      message: info.error.message || String(info.error)
-                    }
+                    type: info.errorType || 'tool_error',
+                    message: info.error.message || String(info.error)
+                  }
                   : undefined;
               upsertToolCallResult({
                 toolId: info.callId,
@@ -945,16 +943,35 @@ export async function POST(req: Request) {
               const effectiveParentId = userMessageId == null
                 ? null
                 : (() => {
-                    const parentExists = db
-                      .prepare('SELECT id FROM messages WHERE id = ? AND session_id = ?')
-                      .get(userMessageId, finalSessionId);
-                    return parentExists ? userMessageId : null;
-                  })();
+                  const parentExists = db
+                    .prepare('SELECT id FROM messages WHERE id = ? AND session_id = ?')
+                    .get(userMessageId, finalSessionId);
+                  return parentExists ? userMessageId : null;
+                })();
 
-              db.prepare(
-                'INSERT INTO messages (session_id, role, content, stats, thought, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-              )
-                .run(
+              if (assistantMessageDbId !== null) {
+                // Update existing message created during streaming
+                db.prepare(
+                  `UPDATE messages SET 
+                    content = ?, 
+                    stats = ?, 
+                    thought = ?, 
+                    citations = ?, 
+                    updated_at = ? 
+                   WHERE id = ?`
+                ).run(
+                  assistantContentToPersist,
+                  finalStats ? JSON.stringify(finalStats) : null,
+                  persistedAssistantThought || null,
+                  serializedCitations,
+                  insertTs,
+                  assistantMessageDbId
+                );
+              } else {
+                // Fallback: Create new message if for some reason incremental persistence was skipped
+                db.prepare(
+                  'INSERT INTO messages (session_id, role, content, stats, thought, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                ).run(
                   finalSessionId,
                   'model',
                   assistantContentToPersist,
@@ -964,6 +981,7 @@ export async function POST(req: Request) {
                   effectiveParentId,
                   insertTs
                 );
+              }
             });
 
             assistantInsertTx();
