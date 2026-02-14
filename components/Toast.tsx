@@ -22,6 +22,13 @@ const ToastItem = ({ toast, onDismiss }: ToastItemProps) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
 
+  const handleDismiss = useCallback(() => {
+    setIsLeaving(true);
+    setTimeout(() => {
+      onDismiss(toast.id);
+    }, 300);
+  }, [onDismiss, toast.id]);
+
   useEffect(() => {
     // Animate in
     requestAnimationFrame(() => setIsVisible(true));
@@ -35,14 +42,7 @@ const ToastItem = ({ toast, onDismiss }: ToastItemProps) => {
       }, duration);
       return () => clearTimeout(timer);
     }
-  }, [toast.duration]);
-
-  const handleDismiss = useCallback(() => {
-    setIsLeaving(true);
-    setTimeout(() => {
-      onDismiss(toast.id);
-    }, 300);
-  }, [onDismiss, toast.id]);
+  }, [toast.duration, handleDismiss]);
 
   const icons = {
     error: <AlertCircle className="w-5 h-5 text-red-500" />,

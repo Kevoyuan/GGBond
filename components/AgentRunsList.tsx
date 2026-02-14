@@ -190,9 +190,19 @@ interface AgentRunCardProps {
 
 function AgentRunCard({ run, isExpanded, onToggleExpand, onNavigateToChat }: AgentRunCardProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (run.status === 'running') {
+      const interval = setInterval(() => {
+        setCurrentTime(Date.now());
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [run.status]);
 
   const getDuration = (start: number, end?: number) => {
-    const endTime = end || Date.now();
+    const endTime = end || currentTime;
     const diffMs = endTime - start;
     const secs = Math.floor(diffMs / 1000);
     if (secs < 60) return `${secs}s`;

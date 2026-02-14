@@ -58,7 +58,7 @@ export function DeleteConfirmDialog({
                 </div>
 
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                    Are you sure you want to delete <span className="font-medium text-foreground">"{agentName}"</span>?
+                    Are you sure you want to delete <span className="font-medium text-foreground">&quot;{agentName}&quot;</span>?
                     This action cannot be undone.
                 </p>
 
