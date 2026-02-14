@@ -106,6 +106,24 @@ db.exec(`
     workspace TEXT,
     created_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS message_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    images TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    priority INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    started_at INTEGER,
+    completed_at INTEGER,
+    result_message_id TEXT,
+    error TEXT,
+    FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_message_queue_session ON message_queue(session_id);
+  CREATE INDEX IF NOT EXISTS idx_message_queue_status ON message_queue(status);
 `);
 
 // Migration: Add workspace column if it doesn't exist
@@ -165,6 +183,109 @@ try {
 }
 
 export default db;
+
+// Message Queue Operations
+export interface QueueMessage {
+  id: number;
+  session_id: string;
+  content: string;
+  images?: string | null;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  priority: number;
+  created_at: number;
+  started_at?: number | null;
+  completed_at?: number | null;
+  result_message_id?: string | null;
+  error?: string | null;
+}
+
+export const queueMessage = {
+  add: (sessionId: string, content: string, images?: string[], priority: number = 0) => {
+    const stmt = db.prepare(`
+      INSERT INTO message_queue (session_id, content, images, priority, created_at, status)
+      VALUES (?, ?, ?, ?, ?, 'pending')
+    `);
+    const result = stmt.run(sessionId, content, images ? JSON.stringify(images) : null, priority, Date.now());
+    return result.lastInsertRowid;
+  },
+
+  getBySession: (sessionId: string) => {
+    const stmt = db.prepare(`
+      SELECT * FROM message_queue
+      WHERE session_id = ?
+      ORDER BY priority DESC, created_at ASC
+    `);
+    return stmt.all(sessionId) as QueueMessage[];
+  },
+
+  getPending: (sessionId: string) => {
+    const stmt = db.prepare(`
+      SELECT * FROM message_queue
+      WHERE session_id = ? AND status = 'pending'
+      ORDER BY priority DESC, created_at ASC
+      LIMIT 1
+    `);
+    return stmt.get(sessionId) as QueueMessage | undefined;
+  },
+
+  getById: (id: number) => {
+    const stmt = db.prepare('SELECT * FROM message_queue WHERE id = ?');
+    return stmt.get(id) as QueueMessage | undefined;
+  },
+
+  updateStatus: (id: number, status: string, resultMessageId?: string, error?: string) => {
+    const stmt = db.prepare(`
+      UPDATE message_queue
+      SET status = ?,
+          started_at = COALESCE(started_at, CASE WHEN ? = 'processing' THEN ? ELSE NULL END),
+          completed_at = CASE WHEN ? IN ('completed', 'failed', 'cancelled') THEN ? ELSE completed_at END,
+          result_message_id = COALESCE(?, result_message_id),
+          error = COALESCE(?, error)
+      WHERE id = ?
+    `);
+    return stmt.run(status, status, Date.now(), status, Date.now(), resultMessageId || null, error || null, id);
+  },
+
+  cancel: (id: number) => {
+    const stmt = db.prepare(`
+      UPDATE message_queue
+      SET status = 'cancelled', completed_at = ?
+      WHERE id = ? AND status IN ('pending', 'processing')
+    `);
+    return stmt.run(Date.now(), id);
+  },
+
+  clear: (sessionId: string, status?: string) => {
+    if (status) {
+      const stmt = db.prepare('DELETE FROM message_queue WHERE session_id = ? AND status = ?');
+      return stmt.run(sessionId, status);
+    }
+    const stmt = db.prepare('DELETE FROM message_queue WHERE session_id = ?');
+    return stmt.run(sessionId);
+  },
+
+  getStats: (sessionId: string) => {
+    const stmt = db.prepare(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
+      FROM message_queue
+      WHERE session_id = ?
+    `);
+    return stmt.get(sessionId) as {
+      total: number;
+      pending: number;
+      processing: number;
+      completed: number;
+      failed: number;
+      cancelled: number;
+    };
+  }
+};
 
 export interface Session {
   id: string;
