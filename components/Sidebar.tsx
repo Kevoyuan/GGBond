@@ -32,7 +32,6 @@ import { MemoryPanel } from './MemoryPanel';
 import { AgentPanel } from './AgentPanel';
 import { QuotaPanel } from './QuotaPanel';
 import { ModulesDialog } from './ModulesDialog';
-import { RunAgentDialog } from './RunAgentDialog';
 import { Tooltip } from '@/components/ui/Tooltip';
 
 // New separated components & hooks
@@ -114,7 +113,6 @@ export function Sidebar({
 
   // Dialog states
   const [showModulesDialog, setShowModulesDialog] = useState(false);
-  const [showRunAgentDialog, setShowRunAgentDialog] = useState(false);
 
   // Session utility
   const getSessionUpdatedAt = useCallback((session: Session) => {
@@ -357,7 +355,6 @@ export function Sidebar({
       </div>
 
       <ModulesDialog open={showModulesDialog} onOpenChange={setShowModulesDialog} />
-      <RunAgentDialog open={showRunAgentDialog} onOpenChange={setShowRunAgentDialog} />
     </div>
   );
 }

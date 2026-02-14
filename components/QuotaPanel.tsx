@@ -105,18 +105,18 @@ export function QuotaPanel({ className }: QuotaPanelProps) {
 
                             return (
                                 <div key={idx} className="group p-4 rounded-xl border border-border/50 bg-card/40 space-y-4 relative overflow-hidden transition-all duration-300 hover:border-primary/30">
-                                    <div className="flex items-start justify-between relative z-10">
-                                        <div className="flex items-center gap-3">
+                                    <div className="flex items-start justify-between relative z-10 gap-2">
+                                        <div className="flex items-center gap-3 min-w-0 flex-1">
                                             <div className={cn(
-                                                "w-9 h-9 rounded-lg flex items-center justify-center border transition-colors",
+                                                "w-9 h-9 rounded-lg flex items-center justify-center border transition-colors shrink-0",
                                                 isCritical ? "bg-red-500/10 text-red-500 border-red-500/20" :
                                                     isLow ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
                                                         "bg-primary/5 text-primary border-primary/10 group-hover:bg-primary/10"
                                             )}>
                                                 <Zap className="w-5 h-5" />
                                             </div>
-                                            <div className="min-w-0">
-                                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 truncate">
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/60 truncate">
                                                     {bucket.modelId || 'Provisioned Capacity'}
                                                 </p>
                                                 <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
@@ -124,14 +124,14 @@ export function QuotaPanel({ className }: QuotaPanelProps) {
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
+                                        <div className="text-right shrink-0">
                                             <p className={cn(
                                                 "text-xl font-mono font-bold leading-none tracking-tighter",
                                                 isCritical ? "text-red-500" : isLow ? "text-amber-500" : "text-primary"
                                             )}>
                                                 {(fraction * 100).toFixed(0)}%
                                             </p>
-                                            <p className="text-[10px] font-bold uppercase text-muted-foreground/40 mt-1 tracking-widest">Available</p>
+                                            <p className="text-[10px] font-bold uppercase text-muted-foreground/40 mt-1 tracking-tight">Available</p>
                                         </div>
                                     </div>
 
@@ -173,7 +173,7 @@ export function QuotaPanel({ className }: QuotaPanelProps) {
                 )}
             </div>
 
-            <div className="p-4 border-t bg-card/20 space-y-3">
+            <div className="p-4 border-t bg-card/20">
                 <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
                     <span className="flex items-center gap-2">
                         <Shield className="w-3.5 h-3.5" />
@@ -181,18 +181,7 @@ export function QuotaPanel({ className }: QuotaPanelProps) {
                     </span>
                     <span className="font-mono tabular-nums">{lastUpdated ? lastUpdated.toLocaleTimeString([], { hour12: false }) : '--:--:--'}</span>
                 </div>
-                <div className="p-3 rounded-lg border border-border/40 bg-muted/20 space-y-2 group cursor-pointer hover:border-primary/20 transition-all">
-                    <div className="flex items-center justify-between">
-                        <p className="text-[11px] font-bold uppercase tracking-widest text-foreground flex items-center gap-1.5">
-                            Standard Tier
-                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                        </p>
-                        <HelpCircle className="w-3.5 h-3.5 text-muted-foreground opacity-40 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        Reflects active Google Cloud quotas. Paid tiers significantly increase thresholds.
-                    </p>
-                </div>
+
             </div>
         </div>
     );
