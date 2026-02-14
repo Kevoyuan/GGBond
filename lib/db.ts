@@ -182,6 +182,32 @@ try {
   console.error('Failed to migrate messages table:', error);
 }
 
+// Migration: Add updated_at column to messages if it doesn't exist
+try {
+  const tableInfo = db.prepare("PRAGMA table_info(messages)").all() as { name: string }[];
+  const hasUpdatedAt = tableInfo.some(col => col.name === 'updated_at');
+
+  if (!hasUpdatedAt) {
+    db.exec('ALTER TABLE messages ADD COLUMN updated_at INTEGER');
+    console.log('Migration complete: updated_at column added to messages.');
+  }
+} catch (error) {
+  console.error('Failed to add updated_at column to messages:', error);
+}
+
+// Migration: Add error column to background_jobs if it doesn't exist
+try {
+  const tableInfo = db.prepare("PRAGMA table_info(background_jobs)").all() as { name: string }[];
+  const hasError = tableInfo.some(col => col.name === 'error');
+
+  if (!hasError) {
+    db.exec('ALTER TABLE background_jobs ADD COLUMN error TEXT');
+    console.log('Migration complete: error column added to background_jobs.');
+  }
+} catch (error) {
+  console.error('Failed to add error column to background_jobs:', error);
+}
+
 export default db;
 
 // Message Queue Operations

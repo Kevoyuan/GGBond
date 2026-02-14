@@ -132,7 +132,7 @@ export function QueuePanel({ sessionId, isOpen, onToggle, onProcessNext, isProce
   if (!isOpen) return null;
 
   return (
-    <div className-t border-gray="border-700 bg-gray-900">
+    <div className="border border-gray-700 bg-gray-900">
       <div className="p-3 border-b border-gray-700 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <ListOrdered className="w-4 h-4 text-gray-400" />

@@ -39,6 +39,7 @@ export function FileExplorer({ initialPath, onFileSelect, className }: FileExplo
     try {
       const params = new URLSearchParams();
       if (path) params.append('path', path);
+      params.append('ignore', '0'); // Show all files including gitignored
 
       const res = await fetch(`/api/files?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load files');

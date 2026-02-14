@@ -13,9 +13,10 @@ import {
   MarkerType,
 } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
-import { Bot, GitBranch, UserRound } from 'lucide-react';
+import { Bot, Copy, FileJson, FileText, GitBranch, UserRound } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
 import { cn } from '@/lib/utils';
+import { copyToClipboard, exportToJSON, exportToMermaid } from '@/lib/export-utils';
 
 export interface GraphMessage {
   id: string;
@@ -29,6 +30,7 @@ interface ConversationGraphProps {
   messages: GraphMessage[];
   currentLeafId: string | null;
   onNodeClick?: (nodeId: string) => void;
+  onCopyNotification?: (message: string) => void;
   className?: string;
 }
 
@@ -287,7 +289,7 @@ const buildTreeLayout = (messages: GraphMessage[], currentLeafId: string | null)
   return { nodes, edges };
 };
 
-export function ConversationGraph({ messages, currentLeafId, onNodeClick, className }: ConversationGraphProps) {
+export function ConversationGraph({ messages, currentLeafId, onNodeClick, onCopyNotification, className }: ConversationGraphProps) {
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => {
     return buildTreeLayout(messages, currentLeafId);
   }, [messages, currentLeafId]);
@@ -316,7 +318,34 @@ export function ConversationGraph({ messages, currentLeafId, onNodeClick, classN
   }
 
   return (
-    <div className={cn('h-full w-full', className)}>
+    <div className={cn('h-full w-full relative group', className)}>
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={async () => {
+            const content = exportToMermaid(messages);
+            await copyToClipboard(content);
+            onCopyNotification?.('Copied Mermaid Markdown');
+          }}
+          className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/60 px-3 py-1.5 text-[11px] font-medium backdrop-blur-md transition-all hover:bg-background/80 hover:border-border/60 shadow-lg"
+          title="Copy Mermaid Markdown"
+        >
+          <FileText size={14} className="text-muted-foreground" />
+          <span>Mermaid</span>
+        </button>
+        <button
+          onClick={async () => {
+            const content = exportToJSON(messages);
+            await copyToClipboard(content);
+            onCopyNotification?.('Copied JSON');
+          }}
+          className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/60 px-3 py-1.5 text-[11px] font-medium backdrop-blur-md transition-all hover:bg-background/80 hover:border-border/60 shadow-lg"
+          title="Copy JSON"
+        >
+          <FileJson size={14} className="text-muted-foreground" />
+          <span>JSON</span>
+        </button>
+      </div>
+
       <ReactFlow
         nodes={nodes}
         edges={edges}

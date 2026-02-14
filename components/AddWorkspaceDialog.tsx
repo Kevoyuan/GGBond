@@ -13,6 +13,26 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
     const [error, setError] = useState<string | null>(null);
     const [isValidating, setIsValidating] = useState(false);
 
+    const handleFileSelect = async () => {
+        // @ts-ignore
+        if (!window.electronAPI) {
+            setError('File picker is only available in the Desktop App mode (npm run desktop:dev)');
+            return;
+        }
+
+        try {
+            // @ts-ignore
+            const selectedPath = await window.electronAPI.openDirectory();
+            if (selectedPath) {
+                setPath(selectedPath);
+                setError(null);
+            }
+        } catch (err) {
+            console.error('Failed to open directory picker:', err);
+            setError('Failed to open file picker');
+        }
+    };
+
     if (!open) return null;
 
     const handleSubmit = async () => {
@@ -74,22 +94,33 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
                         <label className="text-sm font-medium text-foreground">
                             Project Path
                         </label>
-                        <input
-                            type="text"
-                            value={path}
-                            onChange={(e) => { setPath(e.target.value); setError(null); }}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
-                            placeholder="/path/to/your/project"
-                            className={cn(
-                                "w-full bg-background border rounded-lg px-3 py-2.5 text-sm font-mono",
-                                "focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all",
-                                "placeholder:text-muted-foreground/50",
-                                error && "border-destructive focus:ring-destructive/50"
-                            )}
-                            autoFocus
-                        />
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={path}
+                                onChange={(e) => { setPath(e.target.value); setError(null); }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+                                placeholder="/path/to/your/project"
+                                className={cn(
+                                    "w-full bg-background border rounded-lg pl-3 pr-10 py-2.5 text-sm font-mono",
+                                    "focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all",
+                                    "placeholder:text-muted-foreground/50",
+                                    "truncate",
+                                    error && "border-destructive focus:ring-destructive/50"
+                                )}
+                                autoFocus
+                            />
+                            <button
+                                type="button"
+                                onClick={handleFileSelect}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                                title="Select folder (Desktop App Only)"
+                            >
+                                <FolderOpen className="w-4 h-4" />
+                            </button>
+                        </div>
                         {error && (
-                            <div className="flex items-center gap-1.5 text-xs text-destructive">
+                            <div className="flex items-center gap-1.5 text-xs text-destructive mt-2">
                                 <AlertCircle className="w-3.5 h-3.5" />
                                 <span>{error}</span>
                             </div>
