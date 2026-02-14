@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, ListOrdered, Loader2 } from 'lucide-react';
+import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -31,8 +31,6 @@ interface ChatInputProps {
   onToggleTerminal?: () => void;
   onHeightChange?: (height: number) => void;
   prefillRequest?: { id: number; text: string } | null;
-  queueEnabled?: boolean;
-  onToggleQueue?: () => void;
 }
 
 interface CommandItem {
@@ -127,7 +125,7 @@ const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
   'uninstall',
 ]);
 
-export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange, prefillRequest, queueEnabled, onToggleQueue }: ChatInputProps) {
+export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange, prefillRequest }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | 'skill' | null>(null);
@@ -882,8 +880,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
   };
 
   const handleSend = () => {
-    if (isLoading) return;
-
+    // Always allow sending - parent component will handle queue logic if AI is busy
     const typedSkillPattern = /(\/skills?)\s+([A-Za-z0-9._/-]+)(?=\s|$)/g;
     const inlineTokenRegex = new RegExp(inlineSkillTokenPattern.source, 'g');
     const typedSkillMatches = Array.from(input.matchAll(typedSkillPattern));
@@ -1339,156 +1336,180 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
 
         <div className="mt-2 flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
-          <div
-            className="relative flex items-center gap-1.5"
-            onMouseEnter={() => setShowContextTooltip(true)}
-            onMouseLeave={() => setShowContextTooltip(false)}
-          >
-            <button
-              className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors hidden sm:flex group"
+            <div
+              className="relative flex items-center gap-1.5"
+              onMouseEnter={() => setShowContextTooltip(true)}
+              onMouseLeave={() => setShowContextTooltip(false)}
             >
-              <div className="relative w-4 h-4 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle
-                    cx="8"
-                    cy="8"
-                    r={radius}
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    fill="transparent"
-                    className="text-muted/20"
-                  />
-                  <circle
-                    cx="8"
-                    cy="8"
-                    r={radius}
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    fill="transparent"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={strokeDashoffset}
-                    strokeLinecap="round"
-                    className={cn(
-                      "transition-all duration-500",
-                      contextPercent > 90 ? "text-red-500" :
-                        contextPercent > 75 ? "text-yellow-500" :
-                          "text-primary"
-                    )}
-                  />
-                </svg>
-              </div>
-              <span>{contextPercent.toFixed(0)}%</span>
-            </button>
-
-            <AnimatePresence>
-              {showContextTooltip && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.15, ease: "easeOut" }}
-                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-64 p-3 rounded-xl bg-[#1e1e1e] border border-white/10 shadow-2xl z-50 text-white"
-                >
-                  <div className="flex flex-col gap-3">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-xs font-medium text-gray-400">Context Usage</span>
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-lg font-semibold tracking-tight">
-                          {contextPercent.toFixed(0)}%
-                        </span>
-                        <span className="text-xs text-gray-500 font-mono">
-                          of {(contextLimit / 1000).toFixed(0)}K
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-gray-600 font-mono mt-0.5">
-                        {usedTokens.toLocaleString()} tokens used
-                      </div>
-                    </div>
-
-                    <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-500",
-                          contextPercent > 90 ? "bg-red-500" :
-                            contextPercent > 75 ? "bg-yellow-500" :
-                              "bg-blue-500"
-                        )}
-                        style={{ width: `${contextPercent}%` }}
-                      />
-                    </div>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCompress();
-                      }}
-                      disabled={isCompressing}
-                      className="w-full flex items-center justify-center gap-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 transition-colors text-xs font-medium text-gray-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <RefreshCw className={cn("w-3.5 h-3.5", isCompressing && "animate-spin")} />
-                      {isCompressing ? "Compressing..." : "Compress Context"}
-                    </button>
-                  </div>
-
-                  {/* Arrow */}
-                  <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#1e1e1e] border-b border-r border-white/10 rotate-45" />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-              {/* Queue Mode Toggle */}
-              {onToggleQueue && (
-                <button
-                  onClick={onToggleQueue}
-                  className={cn(
-                    "flex items-center justify-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-all duration-300 relative z-20 w-[60px] h-[26px]",
-                    queueEnabled
-                      ? "text-blue-500 bg-blue-500/10 hover:bg-blue-500/20 ring-1 ring-blue-500/20"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  )}
-                  title={queueEnabled ? "Queue Mode: Messages will be queued" : "Queue Mode: Disabled"}
-                >
-                  {queueEnabled ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 fill-current animate-spin shrink-0" />
-                      <span>Queue</span>
-                    </>
-                  ) : (
-                    <>
-                      <ListOrdered className="w-3.5 h-3.5 opacity-70 shrink-0" />
-                      <span>Queue</span>
-                    </>
-                  )}
-                </button>
-              )}
-
-              {/* Approval Mode Toggle */}
               <button
-                onClick={() => {
-                  const nextMode = currentApprovalMode === 'safe' ? 'auto' : 'safe';
-                  setCurrentApprovalMode(nextMode);
-                }}
-                className={cn(
-                  "flex items-center justify-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-all duration-300 relative z-20 w-[60px] h-[26px]",
-                  currentApprovalMode === 'auto'
-                    ? "text-orange-500 bg-orange-500/10 hover:bg-orange-500/20 ring-1 ring-orange-500/20"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                )}
-                title={currentApprovalMode === 'auto' ? "Auto Mode: All tool calls are allowed" : "Safe Mode: Ask for approval"}
+                className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors hidden sm:flex group"
               >
-                {currentApprovalMode === 'auto' ? (
-                  <>
-                    <Zap className="w-3.5 h-3.5 fill-current animate-pulse shrink-0" />
-                    <span>YOLO</span>
-                  </>
-                ) : (
-                  <>
-                    <Shield className="w-3.5 h-3.5 opacity-70 shrink-0" />
-                    <span>Safe</span>
-                  </>
-                )}
+                <div className="relative w-4 h-4 flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle
+                      cx="8"
+                      cy="8"
+                      r={radius}
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      fill="transparent"
+                      className="text-muted/20"
+                    />
+                    <circle
+                      cx="8"
+                      cy="8"
+                      r={radius}
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      fill="transparent"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={strokeDashoffset}
+                      strokeLinecap="round"
+                      className={cn(
+                        "transition-all duration-500",
+                        contextPercent > 90 ? "text-red-500" :
+                          contextPercent > 75 ? "text-yellow-500" :
+                            "text-primary"
+                      )}
+                    />
+                  </svg>
+                </div>
+                <span>{contextPercent.toFixed(0)}%</span>
               </button>
+
+              <AnimatePresence>
+                {showContextTooltip && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="absolute bottom-full mb-3 left-0 w-[280px] p-4 rounded-xl bg-background/80 dark:bg-zinc-900/80 border border-border/50 shadow-2xl backdrop-blur-xl z-50 ring-1 ring-black/5 dark:ring-white/10"
+                  >
+                    <div className="flex flex-col gap-4">
+                      {/* Header */}
+                      <div className="flex items-center justify-between border-b border-border/40 pb-3">
+                        <div className="flex items-center gap-2">
+                          <div className={cn(
+                            "p-1.5 rounded-md",
+                            contextPercent > 90 ? "bg-red-500/10 text-red-500" :
+                              contextPercent > 75 ? "bg-amber-500/10 text-amber-500" :
+                                "bg-primary/10 text-primary"
+                          )}>
+                            <Cpu className="w-4 h-4" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold tracking-wide">CONTEXT WINDOW</span>
+                            <span className="text-[10px] text-muted-foreground">{currentModel}</span>
+                          </div>
+                        </div>
+                        <div className={cn(
+                          "text-xs font-bold px-2 py-0.5 rounded-full border",
+                          contextPercent > 90 ? "bg-red-500/10 text-red-500 border-red-500/20" :
+                            contextPercent > 75 ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
+                              "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                        )}>
+                          {contextPercent.toFixed(1)}%
+                        </div>
+                      </div>
+
+                      {/* Stats */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1 p-2 rounded-lg bg-muted/40 border border-border/20">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground/70 tracking-wider">Used</span>
+                          <span className="text-sm font-bold font-mono text-foreground flex items-center gap-1">
+                            {usedTokens.toLocaleString()}
+                            <span className="text-[10px] font-normal text-muted-foreground">tok</span>
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-1 p-2 rounded-lg bg-muted/40 border border-border/20">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground/70 tracking-wider">Remaining</span>
+                          <span className="text-sm font-bold font-mono text-foreground flex items-center gap-1">
+                            {(contextLimit - usedTokens).toLocaleString()}
+                            <span className="text-[10px] font-normal text-muted-foreground">tok</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Visual Bar */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-[10px] font-medium text-muted-foreground px-0.5">
+                          <span>Capacity Usage</span>
+                          <span>{(contextLimit / 1000).toFixed(0)}k Limit</span>
+                        </div>
+                        <div className="h-2 w-full bg-muted/60 rounded-full overflow-hidden ring-1 ring-black/5 dark:ring-white/5 relative">
+                          {/* Background ticks */}
+                          <div className="absolute inset-0 flex justify-between px-[25%] opacity-20 z-0">
+                            <div className="w-px h-full bg-foreground/50" />
+                            <div className="w-px h-full bg-foreground/50" />
+                            <div className="w-px h-full bg-foreground/50" />
+                          </div>
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.max(contextPercent, 2)}%` }}
+                            transition={{ duration: 0.5, ease: "easeOut" }}
+                            className={cn(
+                              "h-full rounded-full relative z-10 shadow-sm",
+                              contextPercent > 90
+                                ? "bg-gradient-to-r from-red-500 to-rose-600 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                                : contextPercent > 75
+                                  ? "bg-gradient-to-r from-amber-400 to-orange-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]"
+                                  : "bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]"
+                            )}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCompress();
+                        }}
+                        disabled={isCompressing}
+                        className="w-full group relative overflow-hidden rounded-lg bg-primary/5 hover:bg-primary/10 border border-primary/10 text-primary transition-all duration-200 py-2 flex items-center justify-center gap-2 font-medium text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent -translate-x-full group-hover:animate-shimmer" />
+                        <RefreshCw className={cn("w-3.5 h-3.5", isCompressing && "animate-spin")} />
+                        <span>{isCompressing ? "Compressing..." : "Compact"}</span>
+                      </button>
+
+                      {/* Tiny info */}
+                      <div className="text-[9px] text-center text-muted-foreground/50">
+                        Auto-compression triggers at 90%
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Approval Mode Toggle */}
+            <button
+              onClick={() => {
+                const nextMode = currentApprovalMode === 'safe' ? 'auto' : 'safe';
+                setCurrentApprovalMode(nextMode);
+              }}
+              className={cn(
+                "flex items-center justify-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-all duration-300 relative z-20 w-[60px] h-[26px]",
+                currentApprovalMode === 'auto'
+                  ? "text-orange-500 bg-orange-500/10 hover:bg-orange-500/20 ring-1 ring-orange-500/20"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              )}
+              title={currentApprovalMode === 'auto' ? "Auto Mode: All tool calls are allowed" : "Safe Mode: Ask for approval"}
+            >
+              {currentApprovalMode === 'auto' ? (
+                <>
+                  <Zap className="w-3.5 h-3.5 fill-current animate-pulse shrink-0" />
+                  <span>YOLO</span>
+                </>
+              ) : (
+                <>
+                  <Shield className="w-3.5 h-3.5 opacity-70 shrink-0" />
+                  <span>Safe</span>
+                </>
+              )}
+            </button>
           </div>
 
           {onToggleTerminal && (

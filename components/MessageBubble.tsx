@@ -7,6 +7,7 @@ import { DiffBlock } from './DiffBlock';
 import { CodeBlock } from './CodeBlock';
 import { ToolCallCard } from './ToolCallCard';
 import { PlanBlock } from './PlanBlock';
+import { StreamingIndicator } from './StreamingIndicator';
 
 export interface Message {
   id?: string;
@@ -21,6 +22,8 @@ export interface Message {
   citations?: string[];
   images?: Array<{ dataUrl: string; type: string; name: string }>;
   hooks?: import('./HooksPanel').HookEvent[];
+  queued?: boolean;
+  tempId?: string;
 }
 
 import { ThinkingBlock } from './ThinkingBlock';
@@ -34,11 +37,14 @@ interface MessageBubbleProps {
   isFirst: boolean;
   isLast: boolean;
   settings?: ChatSettings;
+  index?: number;
   onUndoTool?: (restoreId: string, sourceMessageId?: string) => Promise<void> | void;
   onUndoMessage?: (messageId: string, messageContent: string) => Promise<void> | void;
-  onRetry?: (mode: 'once' | 'session') => void;
-  onCancel?: () => void;
+  onRetry?: (index: number, mode: 'once' | 'session') => void;
+  onCancel?: (index: number) => void;
   hideTodoToolCalls?: boolean;
+  isStreaming?: boolean;
+  streamingStatus?: string;
 }
 
 type SkillMeta = {
@@ -55,6 +61,16 @@ type SkillSpan = {
   skillId: string;
   source: 'path' | 'token';
   path?: string;
+};
+
+// Skill utilities moved out and optimized
+const SKILL_REGEX = {
+  PATH: /(?:~?\/[^\s`'"]*\/([A-Za-z0-9._-]+)\/SKILL\.md)/g,
+  DOLLAR: /\$([A-Za-z0-9._-]+)/g,
+  CMD: /\/skills\s+([A-Za-z0-9._-]+)/gi,
+  USE: /\buse skill\s+([A-Za-z0-9._-]+)\b/gi,
+  ACTIVATE: /\bactivate_skill\s+([A-Za-z0-9._-]+)\b/gi,
+  TOKEN: /\b([A-Za-z0-9._-]+)\b/g
 };
 
 let skillMetaCache: SkillMetaMap | null = null;
@@ -97,9 +113,16 @@ async function loadSkillMetaMap(): Promise<SkillMetaMap> {
   return skillMetaPromise;
 }
 
+// Memoized helper to avoid recreating regexes or maps on every call
 function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan[] {
+  if (!text || !skillMetaMap) return [];
+
   const spans: SkillSpan[] = [];
-  const knownSkillIds = new Set(Object.keys(skillMetaMap || {}));
+  const knownSkillIds = Object.keys(skillMetaMap);
+  if (knownSkillIds.length === 0) return [];
+
+  // Create lookup map only if needed - result could be cached if skillMetaMap changes rarely
+  // For now we rebuild it as it's relatively cheap compared to regex
   const knownSkillIdByLower = new Map<string, string>();
   for (const skillId of knownSkillIds) {
     knownSkillIdByLower.set(skillId.toLowerCase(), skillId);
@@ -111,15 +134,17 @@ function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan
     return knownSkillIdByLower.get(normalized) || null;
   };
 
-  const pathRe = /(?:~?\/[^\s`'"]*\/([A-Za-z0-9._-]+)\/SKILL\.md)/g;
-  const dollarRe = /\$([A-Za-z0-9._-]+)/g;
-  const skillsCmdRe = /\/skills\s+([A-Za-z0-9._-]+)/gi;
-  const useSkillRe = /\buse skill\s+([A-Za-z0-9._-]+)\b/gi;
-  const activateSkillRe = /\bactivate_skill\s+([A-Za-z0-9._-]+)\b/gi;
-
   let match: RegExpExecArray | null;
 
-  while ((match = pathRe.exec(text)) !== null) {
+  // Reset lastIndex for global regexes
+  SKILL_REGEX.PATH.lastIndex = 0;
+  SKILL_REGEX.DOLLAR.lastIndex = 0;
+  SKILL_REGEX.CMD.lastIndex = 0;
+  SKILL_REGEX.USE.lastIndex = 0;
+  SKILL_REGEX.ACTIVATE.lastIndex = 0;
+
+  // Use shared regex objects
+  while ((match = SKILL_REGEX.PATH.exec(text)) !== null) {
     const full = match[0];
     const skillId = resolveKnownSkillId(match[1]);
     if (!skillId) continue;
@@ -132,7 +157,7 @@ function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan
     });
   }
 
-  while ((match = dollarRe.exec(text)) !== null) {
+  while ((match = SKILL_REGEX.DOLLAR.exec(text)) !== null) {
     const full = match[0];
     const skillId = resolveKnownSkillId(match[1]);
     if (!skillId) continue;
@@ -144,7 +169,7 @@ function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan
     });
   }
 
-  while ((match = skillsCmdRe.exec(text)) !== null) {
+  while ((match = SKILL_REGEX.CMD.exec(text)) !== null) {
     const full = match[0];
     const skillId = resolveKnownSkillId(match[1]);
     if (!skillId) continue;
@@ -158,7 +183,7 @@ function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan
     });
   }
 
-  while ((match = useSkillRe.exec(text)) !== null) {
+  while ((match = SKILL_REGEX.USE.exec(text)) !== null) {
     const full = match[0];
     const skillId = resolveKnownSkillId(match[1]);
     if (!skillId) continue;
@@ -172,7 +197,7 @@ function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan
     });
   }
 
-  while ((match = activateSkillRe.exec(text)) !== null) {
+  while ((match = SKILL_REGEX.ACTIVATE.exec(text)) !== null) {
     const full = match[0];
     const skillId = resolveKnownSkillId(match[1]);
     if (!skillId) continue;
@@ -186,9 +211,9 @@ function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan
     });
   }
 
-  if (knownSkillIds.size > 0) {
-    const tokenRe = /\b([A-Za-z0-9._-]+)\b/g;
-    while ((match = tokenRe.exec(text)) !== null) {
+  if (knownSkillIds.length > 0) {
+    SKILL_REGEX.TOKEN.lastIndex = 0;
+    while ((match = SKILL_REGEX.TOKEN.exec(text)) !== null) {
       const skillId = resolveKnownSkillId(match[1]);
       if (!skillId) continue;
       if (!skillId.includes('-') && !skillId.includes('_') && !skillId.includes('.')) continue;
@@ -228,7 +253,8 @@ function parseSkillFrontmatter(content: string): { name?: string; description?: 
   };
 }
 
-function SkillBadge({
+// Memoized to prevent re-renders when parent re-renders
+const SkillBadge = React.memo(function SkillBadge({
   skillId,
   source,
   meta,
@@ -252,7 +278,7 @@ function SkillBadge({
       </span>
     </span>
   );
-}
+});
 
 function renderTextWithSkillRefs(text: string, skillMetaMap: SkillMetaMap): ReactNode {
   const spans = collectSkillSpans(text, skillMetaMap);
@@ -416,6 +442,47 @@ function ContentRenderer({
     ? (restoreId: string) => onUndoTool(restoreId, sourceMessageId)
     : undefined;
 
+  // Memoize markdown components to avoid re-creation on every render
+  const markdownComponents = useMemo(() => ({
+    p({ children, ...props }: any) {
+      return <p {...props}>{injectSkillRefs(children, skillMetaMap)}</p>;
+    },
+    li({ children, ...props }: any) {
+      return <li {...props}>{injectSkillRefs(children, skillMetaMap)}</li>;
+    },
+    code({ className, children, ...props }: any) {
+      const match = /language-(\w+)/.exec(className || '')
+      const lang = match?.[1];
+      const codeStr = String(children).replace(/\n$/, '');
+      const inlineSpans = !match ? collectSkillSpans(codeStr, skillMetaMap) : [];
+
+      if (lang === 'diff') {
+        return <DiffBlock code={codeStr} />;
+      }
+
+      if (match && lang) {
+        return (
+          <div className="relative group">
+            <CodeBlock language={lang} code={codeStr} />
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <CodeCopyButton content={codeStr} />
+            </div>
+          </div>
+        );
+      }
+
+      if (inlineSpans.length > 0) {
+        return <>{renderTextWithSkillRefs(codeStr, skillMetaMap)}</>;
+      }
+
+      return (
+        <code {...props} className={cn(className, "text-xs font-mono")}>
+          {children}
+        </code>
+      )
+    }
+  }), [skillMetaMap]); // Only re-create when skillMetaMap changes
+
   return (
     <div className="timeline-group">
       {parts.map((part, index) => {
@@ -489,10 +556,6 @@ function ContentRenderer({
 
         // ── Plan Block ──
         if (part.trim().startsWith('# Updated Plan')) {
-          // Remove the header line for cleaner rendering? Or keep it?
-          // PlanBlock handles the header visual, so we pass the content.
-          // But PlanBlock expects valid markdown list items.
-          // Let's pass the whole part and let PlanBlock parse it.
           return <PlanBlock key={index} content={part} />;
         }
 
@@ -501,38 +564,7 @@ function ContentRenderer({
           <div key={index} className="timeline-item">
             <div className="prose dark:prose-invert prose-sm max-w-none break-words prose-p:leading-relaxed prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-code:bg-muted/30 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none opacity-90">
               <ReactMarkdown
-                components={{
-                  p({ children, ...props }) {
-                    return <p {...props}>{injectSkillRefs(children, skillMetaMap)}</p>;
-                  },
-                  li({ children, ...props }) {
-                    return <li {...props}>{injectSkillRefs(children, skillMetaMap)}</li>;
-                  },
-                  code({ className, children, ...props }) {
-                    const match = /language-(\w+)/.exec(className || '')
-                    const lang = match?.[1];
-                    const codeStr = String(children).replace(/\n$/, '');
-                    const inlineSpans = !match ? collectSkillSpans(codeStr, skillMetaMap) : [];
-
-                    if (lang === 'diff') {
-                      return <DiffBlock code={codeStr} />;
-                    }
-
-                    if (match && lang) {
-                      return <CodeBlock language={lang} code={codeStr} />;
-                    }
-
-                    if (inlineSpans.length > 0) {
-                      return <>{renderTextWithSkillRefs(codeStr, skillMetaMap)}</>;
-                    }
-
-                    return (
-                      <code {...props} className={cn(className, "text-xs font-mono")}>
-                        {children}
-                      </code>
-                    )
-                  }
-                }}
+                components={markdownComponents}
               >
                 {part}
               </ReactMarkdown>
@@ -544,7 +576,8 @@ function ContentRenderer({
   );
 }
 
-function CitationsDisplay({ citations }: { citations: string[] }) {
+// Memoize pure display components
+const CitationsDisplay = React.memo(function CitationsDisplay({ citations }: { citations: string[] }) {
   if (!citations || citations.length === 0) return null;
 
   // Deduplicate and clean
@@ -596,9 +629,9 @@ function CitationsDisplay({ citations }: { citations: string[] }) {
       </div>
     </div>
   );
-}
+});
 
-function GeminiIcon({ className }: { className?: string }) {
+const GeminiIcon = React.memo(function GeminiIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className}>
       <defs>
@@ -613,18 +646,21 @@ function GeminiIcon({ className }: { className?: string }) {
       />
     </svg>
   );
-}
+});
 
 export function MessageBubble({
   message,
   isFirst,
   isLast,
   settings,
+  index,
   onUndoTool,
   onUndoMessage,
   onRetry,
   onCancel,
-  hideTodoToolCalls = false
+  hideTodoToolCalls = false,
+  isStreaming = false,
+  streamingStatus
 }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isSnapshot = !isUser && message.content.includes('<state_snapshot>');
@@ -669,7 +705,9 @@ export function MessageBubble({
             className={cn(
               "text-sm leading-relaxed max-w-full overflow-x-hidden",
               isUser
-                ? "relative bg-primary text-primary-foreground rounded-2xl px-4 py-2.5 shadow-sm font-medium"
+                ? message.queued
+                  ? "relative bg-blue-600/50 text-blue-100 rounded-2xl px-4 py-2.5 shadow-sm font-medium italic opacity-70"
+                  : "relative bg-primary text-primary-foreground rounded-2xl px-4 py-2.5 shadow-sm font-medium"
                 : "w-full"
             )}
           >
@@ -683,8 +721,8 @@ export function MessageBubble({
                   content={message.content}
                   sourceMessageId={message.id}
                   onUndoTool={onUndoTool}
-                  onRetry={onRetry}
-                  onCancel={onCancel}
+                  onRetry={(mode) => onRetry?.(index!, mode)}
+                  onCancel={() => onCancel?.(index!)}
                   hideTodoToolCalls={hideTodoToolCalls}
                 />
                 {message.citations && message.citations.length > 0 && (
@@ -692,14 +730,27 @@ export function MessageBubble({
                 )}
               </div>
             ) : (
-              <div className="whitespace-pre-wrap">{message.content}</div>
+              <div className="whitespace-pre-wrap">
+                {message.queued && (
+                  <span className="inline-flex items-center gap-1 mr-1.5 opacity-70">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  </span>
+                )}
+                {message.content}
+              </div>
+            )}
+
+            {isStreaming && (
+              <div className="mt-3 mb-1 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <StreamingIndicator status={streamingStatus} />
+              </div>
             )}
           </div>
         )}
 
         {isUser && !isSnapshot && (
           <div className="flex justify-end mt-1 w-full px-1 gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <MessageCopyButton content={message.content} />
+            <CopyButton content={message.content} />
             {isUndoableUserMessage && (
               <button
                 type="button"
@@ -735,14 +786,14 @@ export function MessageBubble({
         {!isUser && !isSnapshot && !message.error && (
           <div className="flex items-center gap-2 mt-1 pl-[30px] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             <button
-              onClick={() => onRetry?.('once')}
+              onClick={() => onRetry?.(index!, 'once')}
               className="p-1.5 h-7 text-xs flex items-center gap-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               title="Regenerate response (New Branch)"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Regenerate</span>
             </button>
-            <MessageCopyButton content={message.content} />
+            <CopyButton content={message.content} />
           </div>
         )}
 
@@ -759,7 +810,7 @@ export function MessageBubble({
   );
 }
 
-function CopyButton({ content }: { content: string }) {
+const CodeCopyButton = React.memo(function CodeCopyButton({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -777,9 +828,9 @@ function CopyButton({ content }: { content: string }) {
       {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
     </button>
   );
-}
+});
 
-function MessageCopyButton({ content }: { content: string }) {
+function CopyButton({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = (e: React.MouseEvent) => {
@@ -804,19 +855,8 @@ function MessageCopyButton({ content }: { content: string }) {
 
 export function LoadingBubble({ status }: { status?: string }) {
   return (
-    <div className="flex gap-4 w-full animate-fade-in">
-      <div className="w-8 h-8 flex items-center justify-center shrink-0 mt-0.5">
-        <GeminiIcon className="w-6 h-6" />
-      </div>
-      <div className="w-full">
-        <div className="timeline-group">
-          <div className="timeline-item timeline-item-loading">
-            <span className="text-sm text-muted-foreground italic font-medium flex items-center gap-2">
-              {status || 'Processing...'}
-            </span>
-          </div>
-        </div>
-      </div>
+    <div className="flex gap-4 w-full animate-fade-in pl-[54px] mt-2">
+      <StreamingIndicator status={status || 'Thinking...'} />
     </div>
   );
 }

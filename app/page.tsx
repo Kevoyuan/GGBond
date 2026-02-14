@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Maximize2, Minimize2, Network, Clock, Sparkles } from 'lucide-react';
+import { Maximize2, Minimize2, Network, Clock, Sparkles, ListOrdered } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { Message } from '../components/MessageBubble';
@@ -20,7 +20,6 @@ import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 import { TerminalPanel } from '../components/TerminalPanel';
 import { UndoMessageConfirmDialog, UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
 import { Toast, ToastContainer, ToastType } from '../components/Toast';
-import { QueuePanel } from '../components/QueuePanel';
 
 
 interface Session {
@@ -243,6 +242,13 @@ export default function Home() {
   const [messagesMap, setMessagesMap] = useState<Map<string, Message>>(new Map());
   // headId points to the current "tip" of the conversation
   const [headId, setHeadId] = useState<string | null>(null);
+  const headIdRef = useRef<string | null>(null);
+
+  // Sync state to ref (for parts of the app that only read headId state)
+  // but we primarily update headIdRef manually for synchronous access.
+  useEffect(() => {
+    headIdRef.current = headId;
+  }, [headId]);
 
   const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [runningSessionCounts, setRunningSessionCounts] = useState<Record<string, number>>({});
@@ -303,6 +309,7 @@ export default function Home() {
   const sidePanelRef = useRef<HTMLDivElement>(null);
   const currentSessionIdRef = useRef<string | null>(currentSessionId);
   const activeChatAbortRef = useRef<AbortController | null>(null);
+  const aiProcessingRef = useRef(false); // Track if AI is currently processing
   const loadSessionTreeRef = useRef<typeof loadSessionTree | null>(null);
 
   // -- Derived Linear Thread --
@@ -619,10 +626,10 @@ export default function Home() {
   const [hookEvents, setHookEvents] = useState<HookEvent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<any | null>(null);
 
-  // Queue message states
-  const [queueEnabled, setQueueEnabled] = useState(false);
-  const [showQueuePanel, setShowQueuePanel] = useState(false);
-  const [queueProcessing, setQueueProcessing] = useState(false);
+  // Queue message states - in-memory queue for pending messages
+  const [pendingMessages, setPendingMessages] = useState<{ content: string; images?: UploadedImage[]; tempId?: string }[]>([]);
+  const pendingMessagesRef = useRef<{ content: string; images?: UploadedImage[]; tempId?: string; parentId?: string; sessionId: string }[]>([]);
+  const [showQueueIndicator, setShowQueueIndicator] = useState(false);
 
   const sessionStats = useMemo(() => {
     return messages.reduce((acc, msg) => {
@@ -754,10 +761,38 @@ export default function Home() {
     const rawMessages = Array.isArray(data.messages) ? data.messages : [];
     const { nextMap, nextHeadId } = buildTreeFromApiMessages(rawMessages);
 
+    // Merge pending messages into the map to preserve them
+    // This handles the case where loadSessionTree is called while messages are queued locally
+    const pendingMessages = pendingMessagesRef.current;
+    if (pendingMessages.length > 0) {
+      pendingMessages.forEach(pm => {
+        // Only add if it belongs to this session
+        const queueId = pm.tempId || `queued-${Date.now()}-${Math.random()}`;
+        if (pm.sessionId === sessionId && !nextMap.has(queueId)) {
+          nextMap.set(queueId, {
+            id: queueId,
+            role: 'user',
+            content: pm.content,
+            queued: true,
+            parentId: (pm.parentId || nextHeadId) ?? null, // Ensure string | null
+            sessionId: pm.sessionId,
+            images: pm.images?.map(img => ({
+              dataUrl: img.dataUrl,
+              type: img.file.type,
+              name: img.file.name
+            }))
+          });
+        }
+      });
+      // We don't necessarily update headId here because the queue processor will pick them up
+      // and attach them properly. But we ensure they exist in the map.
+    }
+
     setMessagesMap(nextMap);
     setHeadId(nextHeadId);
+    headIdRef.current = nextHeadId;
 
-    return data;
+    return { ...data, nextMap, nextHeadId };
   }, []);
 
   // Keep ref updated with latest loadSessionTree function
@@ -808,6 +843,7 @@ export default function Home() {
     setCurrentWorkspace(null);
     setMessagesMap(new Map());
     setHeadId(null);
+    headIdRef.current = null;
     if (window.innerWidth < 768) {
       setSidebarOpen(false);
     }
@@ -863,6 +899,7 @@ export default function Home() {
       return next;
     });
     setHeadId(newId);
+    headIdRef.current = newId;
     return newId;
   }, []);
 
@@ -892,81 +929,110 @@ export default function Home() {
     dataUrl: string;
   }
 
-  // Handle queue message processing
+  // Handle queue message processing - use in-memory queue
   const handleProcessNextQueueItem = async () => {
-    if (!currentSessionId || queueProcessing) return;
-
-    setQueueProcessing(true);
-    try {
-      // Get the next pending message
-      const res = await fetch('/api/queue/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: currentSessionId })
-      });
-      const data = await res.json();
-
-      if (data.hasNext && data.message) {
-        // Process the queued message
-        await handleSendMessage(data.message.content, {
-          approvalMode: approvalMode,
-          images: data.message.images ? JSON.parse(data.message.images) : undefined
-        });
-
-        // Mark as completed (fire and forget)
-        fetch('/api/queue/process', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            queueItemId: data.processedId,
-            status: 'completed'
-          })
-        });
-      }
-    } catch (error) {
-      console.error('Failed to process queue item:', error);
-    } finally {
-      setQueueProcessing(false);
+    // Check ref for current processing state to avoid stale closure
+    // But we CAN process if aiProcessingRef is false (which it should be when this is called)
+    if (aiProcessingRef.current) {
+      return;
     }
+
+    // Get the next message from ref (always current) and remove from queue
+    const currentMessages = pendingMessagesRef.current;
+    if (currentMessages.length === 0) return;
+
+    const [nextMsg, ...remaining] = currentMessages;
+    pendingMessagesRef.current = remaining;
+    setPendingMessages(remaining);
+
+    let effectiveHeadId = headIdRef.current;
+
+    // Switch to the correct session if needed
+    if (nextMsg.sessionId && nextMsg.sessionId !== currentSessionId) {
+      console.log(`[queue] Switching session from ${currentSessionId} to ${nextMsg.sessionId}`);
+      // Load the session first and get the latest headId synchronously
+      if (loadSessionTreeRef.current) {
+        const data = await loadSessionTreeRef.current(nextMsg.sessionId);
+        setCurrentSessionId(nextMsg.sessionId);
+        effectiveHeadId = data.nextHeadId;
+
+        // Update workspace if session has one
+        if (data.session?.workspace) {
+          setCurrentWorkspace(data.session.workspace || null);
+        }
+      }
+    }
+
+    // Send the message using current effectiveHeadId as parent (not the stored parentId which may be a tempId or stale)
+    // This ensures the message is properly attached to the conversation tree
+    await handleSendMessage(nextMsg.content, {
+      images: nextMsg.images,
+      reuseMessageId: nextMsg.tempId,
+      parentId: effectiveHeadId || undefined,
+      sessionId: nextMsg.sessionId
+    });
   };
 
-  // Add message to queue
+  // Add message to queue - show directly in chat as queued message
   const handleAddToQueue = async (text: string, images?: UploadedImage[]) => {
     if (!currentSessionId) return;
 
-    try {
-      await fetch('/api/queue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: currentSessionId,
-          content: text,
-          images: images?.map(img => img.dataUrl),
-          priority: 0
-        })
-      });
+    // Determine the parent ID: if there are already queued messages, use the last one's ID
+    // Otherwise use headIdRef.current (the synchronous latest message)
+    const lastQueuedMsg = pendingMessagesRef.current[pendingMessagesRef.current.length - 1];
+    const parentId = (lastQueuedMsg?.tempId || headIdRef.current) ?? undefined;
 
-      // Show notification
-      addToast('info', 'Message added to queue');
-    } catch (error) {
-      console.error('Failed to add to queue:', error);
+    // Add to pending messages array with a temp ID and session ID
+    const tempId = `queued-${Date.now()}`;
+    const newMsg: { content: string; images?: UploadedImage[]; tempId: string; parentId?: string; sessionId: string } = { content: text, images, tempId, sessionId: currentSessionId };
+    if (parentId) newMsg.parentId = parentId;
+    pendingMessagesRef.current = [...pendingMessagesRef.current, newMsg];
+    setPendingMessages(prev => [...prev, newMsg]);
+
+    // Add queued message bubble to chat with correct parent
+    addMessageToTree({
+      id: tempId, // Use the generated tempId as the primary ID
+      role: 'user',
+      content: text,
+      queued: true,
+      tempId,
+      sessionId: currentSessionId
+    }, parentId || null);
+
+    addToast('info', 'Message queued - will send when AI is free');
+  };
+
+  // Process queued messages
+  const processQueue = async () => {
+    if (pendingMessages.length === 0) {
+      return;
     }
+
+    const nextMsg = pendingMessages[0];
+
+    // Remove from queue
+    setPendingMessages(prev => prev.slice(1));
+
+    // Update the pending message to no longer be pending (it's now being sent)
+    // Actually we need to remove the pending message and re-send it
+
+    // First remove the pending message from UI
+    // Then send it properly
+    await handleSendMessage(nextMsg.content, { images: nextMsg.images });
   };
 
   const handleSendMessage = async (
     text: string,
-    options?: { parentId?: string; approvalMode?: 'safe' | 'auto'; images?: UploadedImage[] }
+    options?: { parentId?: string; approvalMode?: 'safe' | 'auto'; images?: UploadedImage[]; reuseMessageId?: string; sessionId?: string }
   ) => {
     // Allow sending if there's text OR images
     if (!text.trim() && (!options?.images || options.images.length === 0)) return;
     if (isSessionLoading) return;
-    if (activeChatAbortRef.current) return;
-    if (currentSessionId && (runningSessionCounts[currentSessionId] ?? 0) > 0) return;
 
-    // If queue mode is enabled and not processing, add to queue instead of sending directly
-    if (queueEnabled && currentSessionId && !queueProcessing) {
+    // If AI is currently processing, auto-queue the message
+    // BUT if we are reusing a message ID, it means we are processing the queue, so don't re-queue it!
+    if (aiProcessingRef.current && !options?.reuseMessageId) {
       await handleAddToQueue(text, options?.images);
-      setShowQueuePanel(true); // Show the queue panel
       return;
     }
 
@@ -1259,8 +1325,8 @@ export default function Home() {
       return;
     }
 
-    // Determine parent ID: passed option or current head
-    const parentIdToUseRaw = options?.parentId !== undefined ? options.parentId : headId;
+    // Determine parent ID: passed option or current head (via ref for sync consistency)
+    const parentIdToUseRaw = options?.parentId !== undefined ? options.parentId : headIdRef.current;
     const parentIdToUse = parentIdToUseRaw ? String(parentIdToUseRaw) : null;
     const resolvePersistedParentId = (candidateId: string | null): string | undefined => {
       if (!candidateId) return undefined;
@@ -1278,7 +1344,7 @@ export default function Home() {
     };
     const apiParentId = resolvePersistedParentId(parentIdToUse);
 
-    const generatedSessionId = currentSessionId || crypto.randomUUID();
+    const generatedSessionId = options?.sessionId || currentSessionId || crypto.randomUUID();
     const initialSessionIdAtSend = generatedSessionId;
     const selectedSessionIdAtSend = currentSessionIdRef.current;
     let trackedRunningSessionId: string | null = initialSessionIdAtSend;
@@ -1299,11 +1365,52 @@ export default function Home() {
       type: img.file.type,
       name: img.file.name,
     }));
-    const userMsgId = addMessageToTree({
-      role: 'user',
-      content: text,
-      images: messageImages
-    }, parentIdToUse);
+
+    // If reusing a message ID (from queue), we update the existing message instead of creating a new one
+    let userMsgId: string;
+
+    if (options?.reuseMessageId) {
+      userMsgId = options.reuseMessageId;
+
+      // Safety check: if message got wiped from tree (e.g. by a background refresh), re-add it
+      if (!messagesMap.has(userMsgId)) {
+        addMessageToTree({
+          id: userMsgId,
+          role: 'user',
+          content: text,
+          images: messageImages,
+          sessionId: generatedSessionId,
+          parentId: parentIdToUse
+        }, parentIdToUse);
+        if (headIdRef.current === userMsgId || !headIdRef.current) {
+          setHeadId(userMsgId);
+          headIdRef.current = userMsgId;
+        }
+      } else {
+        // Update the existing message to remove the queued flag and ensure it's firmly in the tree
+        updateMessageInTree(userMsgId, {
+          id: userMsgId, // Ensure ID matches
+          role: 'user',
+          content: text,
+          images: messageImages,
+          queued: false, // Clear queued status
+          parentId: parentIdToUse, // Update parent if needed (though usually same head)
+          sessionId: generatedSessionId
+        });
+        // Also set head to this message if it's at the end
+        if (headIdRef.current === userMsgId || !headIdRef.current) {
+          setHeadId(userMsgId);
+          headIdRef.current = userMsgId;
+        }
+      }
+    } else {
+      userMsgId = addMessageToTree({
+        role: 'user',
+        content: text,
+        images: messageImages,
+        sessionId: generatedSessionId
+      }, parentIdToUse);
+    }
     const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const decodeAttr = (value?: string) => {
       if (!value) return undefined;
@@ -1347,6 +1454,7 @@ export default function Home() {
 
     const requestAbortController = new AbortController();
     activeChatAbortRef.current = requestAbortController;
+    aiProcessingRef.current = true;
     setStreamingStatus("Initializing...");
 
     // Variables for tracking assistant message - declared here so they're accessible in catch
@@ -1362,6 +1470,13 @@ export default function Home() {
         type: img.file.type,
         name: img.file.name,
       }));
+
+      // 2. Initialize Assistant Message (Optimistic)
+      // The assistant message's parent is the user message we just created
+      // We do this BEFORE the fetch to ensure headId is updated immediately,
+      // preventing "transient branching" where queued messages attach to userMsgId because
+      // the model message hasn't been created yet during the fetch latency.
+      assistantMsgId = addMessageToTree({ role: 'model', content: '' }, userMsgId);
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -1396,10 +1511,6 @@ export default function Home() {
       if (!response.body) {
         throw new Error('No response body');
       }
-
-      // 2. Initialize Assistant Message
-      // The assistant message's parent is the user message we just created
-      assistantMsgId = addMessageToTree({ role: 'model', content: '' }, userMsgId);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -1704,16 +1815,25 @@ export default function Home() {
 
       if (trackedRunningSessionId) {
         updateRunningSessionCount(trackedRunningSessionId, -1);
+        aiProcessingRef.current = false;
 
-        // If this session is not the currently viewed session, mark as unread
-        const sessionIdToMark = trackedRunningSessionId;
-        if (sessionIdToMark && sessionIdToMark !== currentSessionId) {
-          setUnreadSessionIds(prev => {
-            const next = new Set(prev);
-            next.add(sessionIdToMark);
-            return next;
-          });
-        }
+        // Auto-process queue after AI finishes
+        setTimeout(() => {
+          // Check pendingMessagesRef at execution time, not closure time
+          if (pendingMessagesRef.current.length > 0) {
+            handleProcessNextQueueItem();
+          }
+        }, 100);
+      }
+
+      // If this session is not the currently viewed session, mark as unread
+      const sessionIdToMark = trackedRunningSessionId;
+      if (sessionIdToMark && sessionIdToMark !== currentSessionId) {
+        setUnreadSessionIds(prev => {
+          const next = new Set(prev);
+          next.add(sessionIdToMark);
+          return next;
+        });
       }
     }
   };
@@ -1855,9 +1975,11 @@ export default function Home() {
     // Rewind head to parent
     if (userMsg.parentId) {
       setHeadId(userMsg.parentId);
+      headIdRef.current = userMsg.parentId;
     } else {
       // Root
       setHeadId(null);
+      headIdRef.current = null;
     }
   };
 
@@ -1883,6 +2005,7 @@ export default function Home() {
 
     const parentId = messagesMap.get(rootMessageId)?.parentId ?? null;
     setHeadId(parentId);
+    headIdRef.current = parentId;
   }, [messagesMap]);
 
   const handleUndoTool = async (restoreId: string, sourceMessageId?: string) => {
@@ -2073,6 +2196,7 @@ export default function Home() {
 
   const handleNodeClick = (nodeId: string) => {
     setHeadId(nodeId);
+    headIdRef.current = nodeId;
   };
 
   return (
@@ -2139,9 +2263,7 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-background relative">
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-4 py-2">
-          <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} />
-        </div>
+        <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} />
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 flex overflow-hidden">
@@ -2171,6 +2293,7 @@ export default function Home() {
                         messages={graphMessages}
                         currentLeafId={headId}
                         onNodeClick={handleNodeClick}
+                        onCopyNotification={showInfoToast}
                         className="absolute inset-0"
                       />
                     </div>
@@ -2243,21 +2366,7 @@ export default function Home() {
                   setInputAreaHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
                 }}
                 streamingStatus={streamingStatus}
-                // Queue-related props
-                queueEnabled={queueEnabled}
-                onToggleQueue={() => setQueueEnabled(v => !v)}
               />
-
-              {/* Queue Panel */}
-              <div className={showQueuePanel ? '' : 'hidden'}>
-                <QueuePanel
-                  sessionId={currentSessionId}
-                  isOpen={showQueuePanel}
-                  onToggle={() => setShowQueuePanel(false)}
-                  onProcessNext={handleProcessNextQueueItem}
-                  isProcessing={queueProcessing}
-                />
-              </div>
 
               {/* Terminal Panel */}
               <div className={showTerminal ? '' : 'hidden'}>

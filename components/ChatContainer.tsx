@@ -1,9 +1,10 @@
 
 import { useRef, useEffect } from 'react';
 import { Bot } from 'lucide-react';
+import { GeminiIcon } from './icons/GeminiIcon';
 import { MessageBubble, LoadingBubble, Message } from './MessageBubble';
 import { ChatInput } from './ChatInput';
-import { FilePreview } from './FilePreview';
+import { FileViewer } from './FileViewer';
 import { cn } from '@/lib/utils';
 import { ChatSettings } from './SettingsDialog';
 import { TaskProgressDock, TodoItem } from './TaskProgressDock';
@@ -34,9 +35,6 @@ interface ChatContainerProps {
     onToggleTerminal?: () => void;
     onInputHeightChange?: (height: number) => void;
     streamingStatus?: string;
-    // Queue-related props
-    queueEnabled?: boolean;
-    onToggleQueue?: () => void;
 }
 
 export function ChatContainer({
@@ -64,9 +62,7 @@ export function ChatContainer({
     showTerminal,
     onToggleTerminal,
     onInputHeightChange,
-    streamingStatus,
-    queueEnabled,
-    onToggleQueue
+    streamingStatus
 }: ChatContainerProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -151,9 +147,9 @@ export function ChatContainer({
     const latestTodos = parseLatestTodos();
 
     return (
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
             {previewFile ? (
-                <FilePreview
+                <FileViewer
                     filePath={previewFile.path}
                     fileName={previewFile.name}
                     onClose={onClosePreview}
@@ -165,8 +161,8 @@ export function ChatContainer({
                         {messages.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center p-8 text-center opacity-0 animate-fade-in" style={{ animationDelay: '0.1s', opacity: 1 }}>
                                 <div className="text-center space-y-4 max-w-lg mx-auto">
-                                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto mb-6 shadow-xl ring-1 ring-white/20">
-                                        <Bot className="w-10 h-10 text-primary" />
+                                    <div className="mb-6 flex justify-center">
+                                        <GeminiIcon className="w-16 h-16" />
                                     </div>
                                     <h2 className="text-2xl font-semibold tracking-tight">
                                         How can I help you today?
@@ -183,6 +179,7 @@ export function ChatContainer({
                                     const next = messages[idx + 1];
                                     const isFirstInSequence = !prev || prev.role === 'user';
                                     const isLastInSequence = !next || next.role === 'user';
+                                    const isStreaming = isLoading && isLastInSequence && msg.role === 'model' && !!streamingStatus;
 
                                     return (
                                         <div key={msg.id || idx} data-message-index={idx} className={cn("flex flex-col gap-2", msg.role === 'user' && "items-end")}>
@@ -204,15 +201,18 @@ export function ChatContainer({
                                                 isFirst={isFirstInSequence}
                                                 isLast={isLastInSequence}
                                                 settings={settings}
+                                                index={idx}
                                                 onUndoTool={onUndoTool}
                                                 onUndoMessage={onUndoMessage}
-                                                onRetry={(mode) => onRetry(idx, mode)}
-                                                onCancel={() => onCancel(idx)}
+                                                onRetry={onRetry}
+                                                onCancel={onCancel}
+                                                isStreaming={isStreaming}
+                                                streamingStatus={streamingStatus}
                                             />
                                         </div>
                                     );
                                 })}
-                                {isLoading && messages[messages.length - 1]?.role !== 'model' && <LoadingBubble status={streamingStatus} />}
+                                {isLoading && messages[messages.length - 1]?.role !== 'model' && <LoadingBubble status="Thinking..." />}
                                 <div ref={messagesEndRef} className="h-4" />
                             </div>
                         )}
@@ -236,8 +236,6 @@ export function ChatContainer({
                         onToggleTerminal={onToggleTerminal}
                         onHeightChange={onInputHeightChange}
                         prefillRequest={inputPrefillRequest}
-                        queueEnabled={queueEnabled}
-                        onToggleQueue={onToggleQueue}
                     />
                 </>
             )}
