@@ -8,6 +8,7 @@ import { CreateAgentDialog } from './CreateAgentDialog';
 import { RunAgentDialog } from './RunAgentDialog';
 import { AgentRunsList } from './AgentRunsList';
 import { useAppStore } from '@/stores/useAppStore';
+import { PanelHeader } from './sidebar/PanelHeader';
 
 interface AgentDefinition {
     name: string;
@@ -199,42 +200,42 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
 
     return (
         <div className={cn("flex flex-col h-full bg-card/30", className)}>
-            {/* Header */}
-            <div className="p-3 border-b flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-2">
-                    <Layers className="w-3.5 h-3.5 text-primary" />
-                    Agents
-                </h4>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setShowCreateDialog(true)}
-                        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                        title="Create Agent"
-                    >
-                        <Plus size={12} />
-                        Create
-                    </button>
-                    <button
-                        onClick={() => setShowAdvanced((prev) => !prev)}
-                        className={cn(
-                            "inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors",
-                            showAdvanced
-                                ? "bg-primary text-primary-foreground border-primary/60"
-                                : "text-muted-foreground hover:text-foreground border-zinc-300 dark:border-zinc-700 hover:bg-muted/40"
-                        )}
-                    >
-                        <SlidersHorizontal size={12} />
-                    </button>
-                    <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-mono">
-                        {agents.length}
-                    </span>
-                    <button onClick={fetchAgents} className="p-1 text-zinc-500 hover:text-foreground transition-colors" title="Refresh">
-                        <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-                    </button>
-                </div>
-            </div>
+            <PanelHeader
+                title="Agents"
+                icon={Layers}
+                badge={agents.length}
+                actions={
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setShowCreateDialog(true)}
+                            className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+                            title="Create Agent"
+                        >
+                            <Plus size={14} />
+                        </button>
+                        <button
+                            onClick={() => setShowAdvanced((prev) => !prev)}
+                            className={cn(
+                                "p-1.5 rounded-lg transition-all",
+                                showAdvanced
+                                    ? "bg-primary text-primary-foreground"
+                                    : "text-muted-foreground hover:bg-muted"
+                            )}
+                            title="Advanced settings"
+                        >
+                            <SlidersHorizontal size={14} />
+                        </button>
+                        <button
+                            onClick={fetchAgents}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-all"
+                            title="Refresh"
+                        >
+                            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+                        </button>
+                    </div>
+                }
+            />
 
-            {/* Content */}
             <div className="flex-1 overflow-y-auto p-3 scrollbar-thin">
                 {loading ? (
                     <div className="flex items-center justify-center py-8">
@@ -242,31 +243,31 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {/* Stats */}
+                        {/* Status Cards */}
                         <div className="grid grid-cols-2 gap-2">
                             <div className="px-2.5 py-2 rounded-lg border border-emerald-200 dark:border-emerald-900/30 bg-emerald-50/60 dark:bg-emerald-900/10">
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">User</div>
-                                <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{userCount}</div>
+                                <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">User</div>
+                                <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 font-mono">{userCount}</div>
                             </div>
-                            <div className="px-2.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Built-in</div>
-                                <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">{builtInCount}</div>
+                            <div className="px-2.5 py-2 rounded-lg border border-primary/20 dark:border-primary/20 bg-primary/5 dark:bg-primary/5">
+                                <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">System</div>
+                                <div className="text-sm font-semibold text-primary/80 font-mono">{builtInCount}</div>
                             </div>
                         </div>
 
                         {/* Search */}
-                        <div className="relative">
-                            <Search size={13} className="absolute left-2.5 top-2.5 text-muted-foreground" />
+                        <div className="relative group">
+                            <Search size={13} className="absolute left-2.5 top-2.5 text-muted-foreground group-focus-within:text-primary transition-all" />
                             <input
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 placeholder="Search agents..."
-                                className="w-full pl-8 pr-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-transparent"
+                                className="w-full pl-8 pr-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary/40 transition-all font-mono"
                             />
                         </div>
 
                         {/* Filter */}
-                        <div className="flex gap-2">
+                        <div className="flex gap-1">
                             {[
                                 { key: 'all', label: 'All' },
                                 { key: 'user', label: 'User' },
@@ -276,10 +277,10 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                     key={item.key}
                                     onClick={() => setScopeFilter(item.key as 'all' | 'user' | 'built-in')}
                                     className={cn(
-                                        "px-2.5 py-1.5 text-xs rounded-md border transition-colors",
+                                        "px-2 py-1 text-[10px] rounded-md border uppercase font-bold tracking-tighter transition-all flex-1",
                                         scopeFilter === item.key
-                                            ? "bg-primary text-primary-foreground border-primary/50"
-                                            : "bg-transparent border-zinc-200 dark:border-zinc-700 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                            ? "bg-primary text-primary-foreground border-primary"
+                                            : "bg-transparent border-border/50 text-muted-foreground hover:bg-muted/40"
                                     )}
                                 >
                                     {item.label}
@@ -287,7 +288,6 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                             ))}
                         </div>
 
-                        {/* Advanced Panel */}
                         {showAdvanced && (
                             <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-muted/30 p-4 space-y-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
                                 <div className="flex items-center gap-2 pb-2 border-b border-border/50">
@@ -296,7 +296,6 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                 </div>
 
                                 <div className="space-y-3">
-                                    {/* Import from path */}
                                     <div className="space-y-2">
                                         <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
                                             <Link2 size={12} className="text-primary" />
@@ -321,7 +320,6 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                         </div>
                                     </div>
 
-                                    {/* Importable agents from scan */}
                                     {importableAgents.length > 0 && (
                                         <div className="space-y-2 pt-2 border-t border-border/40">
                                             <div className="flex items-center justify-between">
@@ -378,7 +376,6 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                         </div>
                                     )}
 
-                                    {/* Quick scan common locations */}
                                     <div className="pt-2 border-t border-border/40">
                                         <button
                                             onClick={scanForAgents}
@@ -386,7 +383,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                             className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
                                         >
                                             <RefreshCw size={12} className={scanning ? "animate-spin" : ""} />
-                                            Scan common locations (~/.claude/agents, ~/.gemini/agents)
+                                            Scan common locations
                                         </button>
                                     </div>
 
@@ -411,25 +408,24 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                             </div>
                         )}
 
-                        {/* Agent List */}
-                        <div className={cn("space-y-2", "h-[calc(100vh-420px)] overflow-y-auto pr-1")}>
+                        <div className={cn("space-y-2", "h-[calc(100vh-320px)] overflow-y-auto pr-1")}>
                             {filteredAgents.length === 0 ? (
-                                <div className="text-center py-6 text-sm text-muted-foreground">
-                                    No agents found
+                                <div className="text-center py-6 text-sm text-muted-foreground italic">
+                                    No agents found matching search
                                 </div>
                             ) : (
                                 filteredAgents.map((agent) => (
                                     <div
                                         key={agent.name}
                                         className={cn(
-                                            "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer group",
+                                            "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer group",
                                             selectedAgentName === agent.name && "bg-primary/5 border-primary ring-1 ring-primary/20"
                                         )}
                                         onClick={() => onSelectAgent(agent)}
                                     >
                                         <div className="flex items-start gap-3">
                                             <div className={cn(
-                                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-105",
                                                 agent.kind === 'remote' ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                                             )}>
                                                 {agent.kind === 'remote' ? (
@@ -444,21 +440,20 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                                 <div className="flex items-center gap-2 mb-0.5">
                                                     <span
                                                         className={cn(
-                                                            "inline-block w-2 h-2 rounded-full shrink-0",
-                                                            isUserAgent(agent.name) ? "bg-emerald-500" : "bg-blue-500"
+                                                            "inline-block w-1.5 h-1.5 rounded-full shrink-0",
+                                                            isUserAgent(agent.name) ? "bg-emerald-500" : "bg-primary"
                                                         )}
                                                     />
-                                                    <span className="font-medium text-sm text-foreground truncate">
+                                                    <span className="font-semibold text-[13px] text-foreground truncate">
                                                         {agent.displayName || agent.name}
                                                     </span>
                                                 </div>
-                                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                                <p className="text-[11px] text-muted-foreground line-clamp-2 leading-tight">
                                                     {agent.description}
                                                 </p>
                                             </div>
                                         </div>
 
-                                        {/* Actions */}
                                         <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                                             {isUserAgent(agent.name) && (
                                                 <button
@@ -466,7 +461,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                                         e.stopPropagation();
                                                         handleAction('delete', agent.name);
                                                     }}
-                                                    className="p-1 text-zinc-400 hover:text-red-500 rounded"
+                                                    className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-all"
                                                     title="Delete"
                                                     disabled={actionLoading === `delete:${agent.name}`}
                                                 >
@@ -482,7 +477,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                                     setRunAgentPreselectedAgent(agent.name);
                                                     setShowRunAgentDialog(true);
                                                 }}
-                                                className="p-1 text-zinc-400 hover:text-primary rounded"
+                                                className="p-1 text-zinc-400 hover:text-primary hover:bg-primary/10 rounded-md transition-all"
                                                 title="Run Agent"
                                             >
                                                 <Play size={12} />
@@ -511,7 +506,10 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                 preselectedAgent={runAgentPreselectedAgent}
             />
 
-            <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">
+            <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800 bg-card/10">
+                <div className="px-3 mb-2 flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">Execution History</span>
+                </div>
                 <AgentRunsList />
             </div>
         </div>
