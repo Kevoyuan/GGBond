@@ -94,6 +94,7 @@ export async function GET(req: Request) {
   const query = searchParams.get('q')?.trim().toLowerCase() || null;
   const indexMode = searchParams.get('index') === '1';
   const mentionsMode = searchParams.get('mentions') === '1';
+  const ignoreGitignore = searchParams.get('ignore') !== '0' && searchParams.get('ignore') !== 'false';
   const limit = Math.max(1, Math.min(500, Number(searchParams.get('limit') || 120)));
 
   // Default to current working directory if no path provided
@@ -120,12 +121,14 @@ export async function GET(req: Request) {
     }));
 
     let shouldIgnoreFile = (_filePath: string) => false;
-    try {
-      const fileDiscovery = core.getFileDiscoveryService();
-      shouldIgnoreFile = (filePath: string) => fileDiscovery.shouldIgnoreFile(filePath);
-      files = files.filter(f => !fileDiscovery.shouldIgnoreFile(f.path));
-    } catch (e) {
-      console.warn('[FileAPI] FileDiscoveryService failed, falling back to all files', e);
+    if (ignoreGitignore) {
+      try {
+        const fileDiscovery = core.getFileDiscoveryService();
+        shouldIgnoreFile = (filePath: string) => fileDiscovery.shouldIgnoreFile(filePath);
+        files = files.filter(f => !fileDiscovery.shouldIgnoreFile(f.path));
+      } catch (e) {
+        console.warn('[FileAPI] FileDiscoveryService failed, falling back to all files', e);
+      }
     }
 
     if (indexMode || query) {

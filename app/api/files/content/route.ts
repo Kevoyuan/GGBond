@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 
-const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 const BINARY_EXTENSIONS = new Set([
     '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.webp', '.svg',
@@ -34,9 +34,39 @@ function getLanguage(ext: string): string {
         '.txt': 'plaintext',
         '.env': 'plaintext',
         '.gitignore': 'plaintext',
+        '.ref': 'plaintext',
+        '.sref': 'plaintext',
         '.mjs': 'javascript', '.cjs': 'javascript',
     };
     return map[ext] || 'plaintext';
+}
+
+export async function PUT(req: Request) {
+    try {
+        const body = await req.json();
+        const { path: filePath, content } = body;
+
+        if (!filePath) {
+            return NextResponse.json({ error: 'path parameter is required' }, { status: 400 });
+        }
+
+        if (content === undefined) {
+            return NextResponse.json({ error: 'content parameter is required' }, { status: 400 });
+        }
+
+        const ext = path.extname(filePath).toLowerCase();
+
+        if (BINARY_EXTENSIONS.has(ext)) {
+            return NextResponse.json({ error: 'Cannot edit binary files' }, { status: 400 });
+        }
+
+        await fs.writeFile(filePath, content, 'utf-8');
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error('File save API Error:', error);
+        return NextResponse.json({ error: 'Failed to save file' }, { status: 500 });
+    }
 }
 
 export async function GET(req: Request) {
