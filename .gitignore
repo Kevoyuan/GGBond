@@ -57,6 +57,8 @@ gemini-home/
 .npm-cache/
 .codex/environments/environment.toml
 
+.pnpm-store/
+
 # TypeScript
 *.tsbuildinfo
 
@@ -64,3 +66,4 @@ gemini-home/
 *.md
 !README.md
 !README.zh-CN.md
+*.html
