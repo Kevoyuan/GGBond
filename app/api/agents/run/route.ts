@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import db from '@/lib/db';
 import { CoreService } from '@/lib/core-service';
-import { GeminiEventType, ServerGeminiContentEvent } from '@google/gemini-cli-core';
+import { GeminiEventType, ServerGeminiContentEvent, Storage } from '@google/gemini-cli-core';
+import path from 'path';
+import fs from 'fs';
 
 /**
  * Minimal type definition for agent definition from AgentRegistry
@@ -19,7 +21,77 @@ type AgentDefinitionLike = {
   modelConfig?: {
     model?: string;
   };
+  content?: string;
 };
+
+// Read agent definition from a markdown file in user agents directory
+function getUserAgentDefinition(name: string): AgentDefinitionLike | null {
+  try {
+    const userAgentsDir = Storage.getUserAgentsDir();
+    if (!fs.existsSync(userAgentsDir)) {
+      return null;
+    }
+
+    // Try both .md extension and without
+    const filePath = path.join(userAgentsDir, `${name}.md`);
+    if (!fs.existsSync(filePath)) {
+      return null;
+    }
+
+    const fullContent = fs.readFileSync(filePath, 'utf-8');
+    const lines = fullContent.split('\n');
+
+    // Parse frontmatter
+    let inFrontmatter = false;
+    const frontmatter: Record<string, string> = {};
+
+    for (const line of lines) {
+      if (line.trim() === '---') {
+        if (!inFrontmatter) {
+          inFrontmatter = true;
+          continue;
+        } else {
+          break;
+        }
+      }
+      if (inFrontmatter && line.includes(':')) {
+        const colonIndex = line.indexOf(':');
+        const key = line.substring(0, colonIndex).trim();
+        const value = line.substring(colonIndex + 1).trim();
+        frontmatter[key] = value;
+      }
+    }
+
+    if (!frontmatter.name) return null;
+
+    // Extract content after frontmatter
+    let content = '';
+    let dashCount = 0;
+    const contentLines: string[] = [];
+    for (const line of lines) {
+      if (line.trim() === '---') {
+        dashCount++;
+        continue;
+      }
+      if (dashCount >= 2) {
+        contentLines.push(line);
+      }
+    }
+    content = contentLines.join('\n').trim();
+
+    return {
+      name: frontmatter.name,
+      displayName: frontmatter.displayName || undefined,
+      description: frontmatter.description || '',
+      kind: (frontmatter.kind as 'local' | 'remote') || 'local',
+      promptConfig: {
+        systemPrompt: content || undefined,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Database row type for agent_runs table
@@ -69,9 +141,13 @@ export async function POST(request: NextRequest) {
       VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?)
     `).run(runId, agentName, task.substring(0, 100), task, workspace || null, effectiveModel || null, now, now);
 
-    // Get agent definition
-    const coreService = CoreService.getInstance();
-    const agentDefinition = coreService.getAgentDefinition(agentName) as AgentDefinitionLike | null | undefined;
+    // Get agent definition - first check user agents on disk, then fall back to AgentRegistry
+    let agentDefinition: AgentDefinitionLike | null = getUserAgentDefinition(agentName);
+
+    if (!agentDefinition) {
+      const coreService = CoreService.getInstance();
+      agentDefinition = coreService.getAgentDefinition(agentName) as AgentDefinitionLike | null ?? null;
+    }
 
     if (!agentDefinition) {
       db.prepare(`
@@ -180,4 +256,37 @@ export async function GET(request: NextRequest) {
   `).all();
 
   return NextResponse.json({ runs });
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const runId = searchParams.get('id');
+
+    if (runId) {
+      // Delete single run
+      const result = db.prepare(`
+        DELETE FROM agent_runs WHERE id = ?
+      `).run(runId);
+
+      if (result.changes === 0) {
+        return NextResponse.json({ error: 'Run not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Run deleted' });
+    } else {
+      // Clear all runs (that are not running)
+      db.prepare(`
+        DELETE FROM agent_runs WHERE status != 'running' AND status != 'pending'
+      `).run();
+
+      return NextResponse.json({ success: true, message: 'History cleared' });
+    }
+  } catch (error) {
+    console.error('[agent-run] Delete error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 }
