@@ -133,7 +133,7 @@ export function QueuePanel({ sessionId, isOpen, onToggle, onProcessNext, isProce
 
   return (
     <div className-t border-gray="border-700 bg-gray-900">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700">
+      <div className="p-3 border-b border-gray-700 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <ListOrdered className="w-4 h-4 text-gray-400" />
           <span className="text-sm font-medium text-gray-200">Message Queue</span>

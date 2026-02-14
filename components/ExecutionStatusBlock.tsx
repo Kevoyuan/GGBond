@@ -52,7 +52,8 @@ export function ExecutionStatusBlock({ hooks, defaultExpanded = false }: Executi
         hooks.forEach(event => {
             const key = `${event.name}-${event.id}`;
             const existing = groups.get(key) || {};
-            if (event.type === 'start') {
+            // Support both legacy 'start' type and new 'tool_call' type
+            if (event.type === 'start' || event.type === 'tool_call') {
                 existing.start = event;
             } else {
                 existing.end = event;
@@ -209,7 +210,7 @@ export function ExecutionStatusBlock({ hooks, defaultExpanded = false }: Executi
                                             {/* Error Message */}
                                             {isFailed && step.end?.outcome && (
                                                 <div className="mt-1 text-xs text-red-500 bg-red-500/10 p-2 rounded border border-red-500/20">
-                                                    {step.end.outcome.error?.message || 'Unknown error occurred'}
+                                                    {(step.end.outcome.error as any)?.message || String(step.end.outcome.error) || 'Unknown error occurred'}
                                                 </div>
                                             )}
                                         </div>

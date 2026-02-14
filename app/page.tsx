@@ -1487,26 +1487,33 @@ export default function Home() {
 
             if (data.type === 'hook' || data.type === 'hook_event') {
               const hookName = data.hookName || data.name || 'unknown';
-              if (data.type === 'hook' ? data.value?.type === 'start' : data.hook_type === 'start') {
+              const isStart = data.type === 'hook' ? data.value?.type === 'start' : data.hook_type === 'start';
+
+              if (isStart) {
                 setStreamingStatus(`Executing hook: ${hookName}...`);
               }
 
+              // Map legacy hook types to new HookEventType
+              const mapHookType = (type: string): HookEvent['type'] => {
+                if (type === 'start') return 'tool_call';
+                if (type === 'end') return 'tool_result';
+                return type as HookEvent['type'];
+              };
+
               const hookEvent: HookEvent = {
                 id: data.id || Math.random().toString(36).substr(2, 9),
-                name: data.hookName || data.name,
-                type: data.type === 'hook' ? data.value?.type : data.hook_type || data.type,
+                name: hookName,
+                type: mapHookType(data.type === 'hook' ? (data.value?.type || 'start') : (data.hook_type || 'start')),
                 timestamp: Date.now(),
                 data: data.value?.input || data.input,
                 outcome: data.value?.output || data.output,
-                duration: data.value?.duration || data.duration
+                duration: data.value?.duration || data.duration,
+                toolName: data.hookName,
+                serverName: (data.input as { serverName?: string })?.serverName,
+                correlationId: data.correlationId
               };
 
-              // Map some values if type is hook
-              if (data.type === 'hook') {
-                hookEvent.type = data.value?.type; // 'start' | 'end'
-              }
-
-              setHookEvents(prev => [hookEvent, ...prev.slice(0, 49)]);
+              setHookEvents(prev => [hookEvent, ...prev.slice(0, 199)]);
             }
 
             if (data.type === 'tool_use') {
@@ -1600,20 +1607,27 @@ export default function Home() {
             }
 
             if (data.type === 'hook_event') {
-              const hookEvent = {
+              // Map legacy hook types to new HookEventType
+              const mapHookType = (type: string): HookEvent['type'] => {
+                if (type === 'start') return 'tool_call';
+                if (type === 'end') return 'tool_result';
+                return type as HookEvent['type'];
+              };
+
+              const hookEvent: HookEvent = {
                 id: data.id,
                 name: data.name,
-                type: data.hook_type,
-                timestamp: Date.now(), // Approximate as stream time
+                type: mapHookType(data.hook_type || 'start'),
+                timestamp: Date.now(),
                 data: data.input,
                 outcome: data.output,
-                duration: data.duration
-              } as HookEvent;
+                duration: data.duration,
+                toolName: data.hookName,
+                serverName: (data.input as { serverName?: string })?.serverName,
+                correlationId: data.correlationId
+              };
 
               assistantHooks.push(hookEvent);
-              // Also update the hooks panel state if needed by the callback
-              // layout context already receives raw hookEvents via callback in Sidebar props, 
-              // but we need to update the message itself.
               updateMessageInTree(assistantMsgId, { hooks: [...assistantHooks] });
             }
 
@@ -2096,6 +2110,7 @@ export default function Home() {
           onShowStats={() => setShowUsageStats(true)}
           onFileSelect={(file) => setPreviewFile(file)}
           hookEvents={hookEvents}
+          onClearHooks={() => setHookEvents([])}
           onSelectAgent={(agent) => setSelectedAgent(agent)}
           selectedAgentName={selectedAgent?.name}
           sidePanelType={sidePanelType}
