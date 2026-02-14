@@ -34,6 +34,9 @@ interface ChatContainerProps {
     onToggleTerminal?: () => void;
     onInputHeightChange?: (height: number) => void;
     streamingStatus?: string;
+    // Queue-related props
+    queueEnabled?: boolean;
+    onToggleQueue?: () => void;
 }
 
 export function ChatContainer({
@@ -61,7 +64,9 @@ export function ChatContainer({
     showTerminal,
     onToggleTerminal,
     onInputHeightChange,
-    streamingStatus
+    streamingStatus,
+    queueEnabled,
+    onToggleQueue
 }: ChatContainerProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -231,6 +236,8 @@ export function ChatContainer({
                         onToggleTerminal={onToggleTerminal}
                         onHeightChange={onInputHeightChange}
                         prefillRequest={inputPrefillRequest}
+                        queueEnabled={queueEnabled}
+                        onToggleQueue={onToggleQueue}
                     />
                 </>
             )}

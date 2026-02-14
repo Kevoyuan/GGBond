@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X } from 'lucide-react';
+import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, Queue, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -31,6 +31,8 @@ interface ChatInputProps {
   onToggleTerminal?: () => void;
   onHeightChange?: (height: number) => void;
   prefillRequest?: { id: number; text: string } | null;
+  queueEnabled?: boolean;
+  onToggleQueue?: () => void;
 }
 
 interface CommandItem {
@@ -125,7 +127,7 @@ const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
   'uninstall',
 ]);
 
-export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange, prefillRequest }: ChatInputProps) {
+export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange, prefillRequest, queueEnabled, onToggleQueue }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | 'skill' | null>(null);
@@ -1434,6 +1436,32 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
               )}
             </AnimatePresence>
           </div>
+
+              {/* Queue Mode Toggle */}
+              {onToggleQueue && (
+                <button
+                  onClick={onToggleQueue}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-all duration-300 relative z-20 w-[60px] h-[26px]",
+                    queueEnabled
+                      ? "text-blue-500 bg-blue-500/10 hover:bg-blue-500/20 ring-1 ring-blue-500/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  )}
+                  title={queueEnabled ? "Queue Mode: Messages will be queued" : "Queue Mode: Disabled"}
+                >
+                  {queueEnabled ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 fill-current animate-spin shrink-0" />
+                      <span>Queue</span>
+                    </>
+                  ) : (
+                    <>
+                      <Queue className="w-3.5 h-3.5 opacity-70 shrink-0" />
+                      <span>Queue</span>
+                    </>
+                  )}
+                </button>
+              )}
 
               {/* Approval Mode Toggle */}
               <button
