@@ -42,6 +42,7 @@ import { SkillsManager } from './modules/SkillsManager';
 import { UsageStatsDialog } from './UsageStatsDialog';
 import { ModulesDialog } from './ModulesDialog';
 import { RunAgentDialog } from './RunAgentDialog';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface Session {
   id: string;
@@ -377,18 +378,16 @@ export function Sidebar({
           <Box className="w-5 h-5 text-primary" />
         </div>
 
-        <div className="flex flex-col gap-3 w-full px-2 items-center">
-          <button
-            onClick={onNewChat}
-            className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200 hover:scale-105 relative group"
-            aria-label="New Chat"
-            title="New Chat"
-          >
-            <Plus className="w-5 h-5" />
-            <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
-              New Chat
-            </div>
-          </button>
+        <div className="flex flex-col gap-3 w-full px-2 items-center flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden">
+          <Tooltip content="New Chat" side="right" sideOffset={18}>
+            <button
+              onClick={onNewChat}
+              className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200 hover:scale-105 relative group"
+              aria-label="New Chat"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </Tooltip>
 
           <div className="w-8 h-px bg-border/50 my-1" />
 
@@ -451,7 +450,7 @@ export function Sidebar({
           {onToggleSidePanel && (
             <>
               <div className="w-8 h-px bg-border/50 my-1" />
-              
+
               <NavButton
                 active={sidePanelType === 'graph'}
                 onClick={() => onToggleSidePanel('graph')}
@@ -469,56 +468,46 @@ export function Sidebar({
           )}
         </div>
 
-        <div className="mt-auto flex flex-col gap-3 w-full px-2 items-center">
-          <button
-            onClick={() => setShowModulesDialog(true)}
-            className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
-            aria-label="Deep Monitoring"
-            title="Deep Monitoring"
-          >
-            <LayoutGrid className="w-5 h-5" />
-            <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
-              Deep Monitoring
-            </div>
-          </button>
-          <button
-            onClick={toggleSidebar}
-            className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
-            aria-label={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          >
-            {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
-            <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
-              {isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-            </div>
-          </button>
-          <button
-            onClick={toggleTheme}
-            className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
-            aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            title={isDark ? "Light Mode" : "Dark Mode"}
-          >
-            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
-              {isDark ? "Light Mode" : "Dark Mode"}
-            </div>
-          </button>
+        <div className="mt-auto flex flex-col gap-3 w-full px-2 items-center shrink-0">
+          <Tooltip content="Deep Monitoring" side="right" sideOffset={18}>
+            <button
+              onClick={() => setShowModulesDialog(true)}
+              className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
+              aria-label="Deep Monitoring"
+            >
+              <LayoutGrid className="w-5 h-5" />
+            </button>
+          </Tooltip>
+          <Tooltip content={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"} side="right" sideOffset={18}>
+            <button
+              onClick={toggleSidebar}
+              className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
+              aria-label={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+            </button>
+          </Tooltip>
+          <Tooltip content={isDark ? "Light Mode" : "Dark Mode"} side="right" sideOffset={18}>
+            <button
+              onClick={toggleTheme}
+              className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
+              aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+          </Tooltip>
 
-          <button
-            onClick={onOpenSettings}
-            className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
-            aria-label="Settings"
-            title="Settings"
-          >
-            <Settings className="w-5 h-5" />
-            <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
-              Settings
-            </div>
-          </button>
+          <Tooltip content="Settings" side="right" sideOffset={18}>
+            <button
+              onClick={onOpenSettings}
+              className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors relative group"
+              aria-label="Settings"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+          </Tooltip>
 
-          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium text-secondary-foreground border border-border">
-            U
-          </div>
+
         </div>
       </div>
 
@@ -775,22 +764,18 @@ interface NavButtonProps {
 
 function NavButton({ active, onClick, icon: Icon, label }: NavButtonProps) {
   return (
-    <div
-      onClick={onClick}
-      title={label}
-      className={cn(
-        "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200 relative group cursor-pointer border",
-        active
-          ? "bg-primary text-primary-foreground shadow-md border-primary/20"
-          : "bg-muted border-border text-muted-foreground hover:bg-accent hover:text-foreground"
-      )}
-    >
-      <Icon className="w-5 h-5" />
-
-      {/* Tooltip */}
-      <div className="absolute left-full ml-3 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-border">
-        {label}
+    <Tooltip content={label} side="right" sideOffset={18}>
+      <div
+        onClick={onClick}
+        className={cn(
+          "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200 relative group cursor-pointer border",
+          active
+            ? "bg-primary text-primary-foreground shadow-md border-primary/20"
+            : "bg-muted border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+        )}
+      >
+        <Icon className="w-5 h-5" />
       </div>
-    </div>
+    </Tooltip>
   );
 }
