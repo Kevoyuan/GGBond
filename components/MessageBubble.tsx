@@ -20,9 +20,11 @@ export interface Message {
   thought?: string;
   citations?: string[];
   images?: Array<{ dataUrl: string; type: string; name: string }>;
+  hooks?: import('./HooksPanel').HookEvent[];
 }
 
 import { ThinkingBlock } from './ThinkingBlock';
+import { ExecutionStatusBlock } from './ExecutionStatusBlock';
 
 import { ChatSettings } from './SettingsDialog';
 import { StateSnapshotDisplay } from './StateSnapshotDisplay';
@@ -668,6 +670,9 @@ export function MessageBubble({
           >
             {!isUser ? (
               <div className="flex flex-col gap-2">
+                {message.hooks && message.hooks.length > 0 && (
+                  <ExecutionStatusBlock hooks={message.hooks} defaultExpanded={!message.content && !message.thought} />
+                )}
                 {message.thought && <ThinkingBlock content={message.thought} />}
                 <ContentRenderer
                   content={message.content}

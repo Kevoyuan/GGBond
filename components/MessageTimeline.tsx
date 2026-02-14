@@ -48,6 +48,23 @@ const getContentPreview = (content: string, maxLength: number = 80): string => {
     return textOnly.slice(0, maxLength) + '...';
 };
 
+function GeminiIcon({ className }: { className?: string }) {
+    return (
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className}>
+            <defs>
+                <linearGradient id="gemini-gradient-timeline" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style={{ stopColor: '#4E79F5', stopOpacity: 1 }} />
+                    <stop offset="100%" style={{ stopColor: '#D36767', stopOpacity: 1 }} />
+                </linearGradient>
+            </defs>
+            <path
+                d="M12 2C12.5 7.5 16.5 11.5 22 12C16.5 12.5 12.5 16.5 12 22C11.5 16.5 7.5 12.5 2 12C7.5 11.5 11.5 7.5 12 2Z"
+                fill="url(#gemini-gradient-timeline)"
+            />
+        </svg>
+    );
+}
+
 // Get role styles
 const getRoleStyle = (role: 'user' | 'model', isThinking: boolean) => {
     if (role === 'user') {
@@ -71,8 +88,8 @@ const getRoleStyle = (role: 'user' | 'model', isThinking: boolean) => {
         };
     }
     return {
-        icon: Bot,
-        iconColor: 'text-purple-500 dark:text-purple-400',
+        icon: GeminiIcon, // Use Gemini Icon
+        iconColor: '', // Gradient handled by SVG
         dotColor: 'bg-purple-500',
         ringColor: 'ring-purple-500/20',
         activeRing: 'ring-purple-500/40',
@@ -92,10 +109,10 @@ export function MessageTimeline({
         return messages.map((msg, index) => {
             const { count: toolCount, tools } = extractToolCalls(msg.content);
             const preview = getContentPreview(msg.content);
-            
+
             // Determine if thinking
             const isThinking = msg.role === 'model' && msg.thought && !msg.content;
-            
+
             const roleStyle = getRoleStyle(msg.role, !!isThinking);
 
             return {
@@ -154,92 +171,105 @@ export function MessageTimeline({
                             <div
                                 key={item.id || item.index}
                                 className={cn(
-                                    'group relative pl-8 py-2 transition-all duration-300 ease-out',
-                                    isActive ? 'opacity-100 scale-[1.02] z-10' : 'opacity-80 hover:opacity-100'
+                                    'group relative pl-8 transition-all duration-300 ease-out',
+                                    isActive ? 'opacity-100 z-10' : 'opacity-80 hover:opacity-100',
+                                    item.role === 'user' ? 'py-1' : 'py-2'
                                 )}
                                 onClick={() => onMessageClick?.(item.index)}
                             >
                                 {/* Connector Dot */}
                                 <div className={cn(
-                                    'absolute left-[7px] top-[1.3rem] w-2.5 h-2.5 rounded-full border-2 transition-all duration-300 z-20',
+                                    'absolute left-[7px] w-2.5 h-2.5 rounded-full border-2 transition-all duration-300 z-20',
                                     'bg-background shadow-sm',
-                                    isActive 
-                                        ? cn('border-transparent scale-125', item.dotColor) 
+                                    item.role === 'user' ? 'top-[0.6rem]' : 'top-[1.3rem]',
+                                    isActive
+                                        ? cn('border-transparent scale-110', item.dotColor)
                                         : 'border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110'
                                 )}>
                                     {isActive && (
                                         <div className={cn(
-                                            'absolute inset-0 rounded-full animate-ping opacity-75', 
+                                            'absolute inset-0 rounded-full animate-ping opacity-75',
                                             item.dotColor
                                         )} />
                                     )}
                                 </div>
 
-                                {/* Card */}
-                                <div className={cn(
-                                    'relative rounded-xl border p-3 cursor-pointer transition-all duration-200',
-                                    'hover:shadow-md hover:-translate-y-0.5',
-                                    isActive 
-                                        ? 'bg-background border-primary/20 shadow-md ring-1 ring-primary/5' 
-                                        : 'bg-card/40 border-transparent hover:bg-card hover:border-border/50'
-                                )}>
-                                    {/* Header */}
-                                    <div className="flex items-center gap-2 mb-1.5">
-                                        <item.icon className={cn('w-3.5 h-3.5', item.iconColor, item.isThinking && 'animate-spin')} />
-                                        <span className={cn('text-xs font-medium', isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground')}>
-                                            {item.label}
-                                        </span>
-                                        
-                                        {/* Timestamp placeholder (could be real if data available) */}
-                                        {/* <span className="text-[10px] text-muted-foreground/40 ml-auto font-mono">
-                                            {item.index + 1}
-                                        </span> */}
-                                    </div>
-
-                                    {/* Content Preview */}
-                                    <p className={cn(
-                                        'text-xs leading-relaxed line-clamp-2 font-normal',
-                                        isActive ? 'text-foreground/90' : 'text-muted-foreground group-hover:text-foreground/80'
+                                {/* Card / Item */}
+                                {item.role === 'user' ? (
+                                    // Compact User Row
+                                    <div className={cn(
+                                        'relative rounded-lg px-0 py-0.5 cursor-pointer transition-all duration-200 border border-transparent', // Reduced padding
+                                        isActive
+                                            ? 'text-primary font-medium'
+                                            : 'text-muted-foreground hover:text-foreground'
                                     )}>
-                                        {item.preview || (item.isThinking ? 'Processing...' : '')}
-                                    </p>
-
-                                    {/* Footer: Tool Badges & Stats */}
-                                    {(item.toolCount > 0 || item.stats) && (
-                                        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/20">
-                                            {item.toolCount > 0 && (
-                                                <div className="flex gap-1 flex-wrap">
-                                                    {item.tools.slice(0, 2).map((tool, i) => (
-                                                        <span
-                                                            key={i}
-                                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-accent/50 text-[10px] font-medium text-accent-foreground border border-border/30"
-                                                        >
-                                                            <Terminal className="w-2.5 h-2.5 opacity-60" />
-                                                            {tool}
-                                                        </span>
-                                                    ))}
-                                                    {item.tools.length > 2 && (
-                                                        <span className="text-[10px] text-muted-foreground px-1 py-0.5">
-                                                            +{item.tools.length - 2}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {item.stats && (
-                                                <div className={cn(
-                                                    "flex items-center gap-1 text-[10px] text-muted-foreground/60 ml-auto font-mono",
-                                                    item.toolCount === 0 && "ml-0"
-                                                )}>
-                                                    <Zap className="w-2.5 h-2.5" />
-                                                    <span>
-                                                        {((item.stats.totalTokenCount || 0) / 1000).toFixed(1)}k
-                                                    </span>
-                                                </div>
-                                            )}
+                                        <div className="flex items-center gap-2 max-w-full">
+                                            {/* Render User Icon */}
+                                            <item.icon className={cn('w-3.5 h-3.5 shrink-0', item.iconColor)} />
+                                            <span className="truncate text-xs opacity-90">{item.preview}</span>
                                         </div>
-                                    )}
-                                </div>
+                                    </div>
+                                ) : (
+                                    // Full Card for AI / System
+                                    <div className={cn(
+                                        'relative rounded-xl border p-3 cursor-pointer transition-all duration-200',
+                                        isActive
+                                            ? 'bg-background border-primary/40 shadow-sm'
+                                            : 'bg-card/40 border-transparent hover:bg-card hover:border-border/50 hover:shadow-md hover:-translate-y-0.5'
+                                    )}>
+                                        {/* Header */}
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <item.icon className={cn('w-3.5 h-3.5', item.iconColor, item.isThinking && 'animate-spin')} />
+                                            <span className={cn('text-xs font-medium', isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground')}>
+                                                {item.label}
+                                            </span>
+                                        </div>
+
+                                        {/* Content Preview */}
+                                        <p className={cn(
+                                            'text-xs leading-relaxed line-clamp-2 font-normal',
+                                            isActive ? 'text-foreground/90' : 'text-muted-foreground group-hover:text-foreground/80'
+                                        )}>
+                                            {item.preview || (item.isThinking ? 'Processing...' : '')}
+                                        </p>
+
+                                        {/* Footer: Tool Badges & Stats */}
+                                        {(item.toolCount > 0 || item.stats) && (
+                                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/20">
+                                                {item.toolCount > 0 && (
+                                                    <div className="flex gap-1 flex-wrap">
+                                                        {item.tools.slice(0, 2).map((tool, i) => (
+                                                            <span
+                                                                key={i}
+                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-accent/50 text-[10px] font-medium text-accent-foreground border border-border/30"
+                                                            >
+                                                                <Terminal className="w-2.5 h-2.5 opacity-60" />
+                                                                {tool}
+                                                            </span>
+                                                        ))}
+                                                        {item.tools.length > 2 && (
+                                                            <span className="text-[10px] text-muted-foreground px-1 py-0.5">
+                                                                +{item.tools.length - 2}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {item.stats && (
+                                                    <div className={cn(
+                                                        "flex items-center gap-1 text-[10px] text-muted-foreground/60 ml-auto font-mono",
+                                                        item.toolCount === 0 && "ml-0"
+                                                    )}>
+                                                        <Zap className="w-2.5 h-2.5" />
+                                                        <span>
+                                                            {((item.stats.totalTokenCount || 0) / 1000).toFixed(1)}k
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         );
                     })}

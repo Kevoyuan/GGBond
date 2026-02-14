@@ -19,11 +19,18 @@ export async function POST(request: NextRequest) {
     const runId = uuidv4();
     const now = Date.now();
 
+    // Get current model from settings if "inherit"
+    let effectiveModel = model;
+    if (!model || model === 'inherit') {
+      const coreService = CoreService.getInstance();
+      effectiveModel = coreService.config?.getModel() || 'gemini-2.5-pro';
+    }
+
     // Insert agent run record
     db.prepare(`
       INSERT INTO agent_runs (id, agent_name, description, task, status, workspace, model, created_at, updated_at)
       VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?)
-    `).run(runId, agentName, task.substring(0, 100), task, workspace || null, model || null, now, now);
+    `).run(runId, agentName, task.substring(0, 100), task, workspace || null, effectiveModel || null, now, now);
 
     // Get agent definition
     const coreService = CoreService.getInstance();

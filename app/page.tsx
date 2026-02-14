@@ -8,6 +8,7 @@ import { Message } from '../components/MessageBubble';
 import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
 import { cn } from '@/lib/utils';
 import { ConversationGraph, GraphMessage } from '../components/ConversationGraph';
+import { BranchInsights } from '../components/BranchInsights';
 import { MessageTimeline } from '../components/MessageTimeline';
 
 import { ChatContainer } from '../components/ChatContainer';
@@ -293,25 +294,57 @@ export default function Home() {
     currentSessionIdRef.current = currentSessionId;
   }, [currentSessionId]);
 
-  // Handle Resizing
+  // Handle Resizing with Performance Optimization
+  const isResizingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+  const animationFrameRef = useRef<number | null>(null);
+
   const startResizing = useCallback((e: React.MouseEvent) => {
-    setIsResizing(true);
     e.preventDefault();
-  }, []);
+    isResizingRef.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = sidePanelWidth;
+    setIsResizing(true); // Keep state for UI feedback (blue handle), but don't rely on it for drag logic
+  }, [sidePanelWidth]);
 
   const stopResizing = useCallback(() => {
+    if (!isResizingRef.current) return;
+    isResizingRef.current = false;
     setIsResizing(false);
+
+    // Sync final width to state
+    if (sidePanelRef.current) {
+      const finalWidth = parseInt(sidePanelRef.current.style.width, 10);
+      if (!isNaN(finalWidth)) {
+        setSidePanelWidth(finalWidth);
+      }
+    }
+
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
   }, []);
 
   const resize = useCallback((e: MouseEvent) => {
-    if (isResizing && sidePanelRef.current) {
-      // Panel is on the right, so width is window width - mouse X
-      const newWidth = window.innerWidth - e.clientX;
-      if (newWidth > 280 && newWidth < 800) {
-        setSidePanelWidth(newWidth);
-      }
+    if (!isResizingRef.current || !sidePanelRef.current) return;
+
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
     }
-  }, [isResizing]);
+
+    animationFrameRef.current = requestAnimationFrame(() => {
+      // Panel is on the left, so width increases as mouse moves right (positive delta)
+      const delta = e.clientX - startXRef.current;
+      const newWidth = startWidthRef.current + delta;
+
+      if (newWidth > 280 && newWidth < 800) {
+        if (sidePanelRef.current) {
+          sidePanelRef.current.style.width = `${newWidth}px`;
+        }
+      }
+    });
+  }, []);
 
   useEffect(() => {
     window.addEventListener('mousemove', resize);
@@ -319,6 +352,9 @@ export default function Home() {
     return () => {
       window.removeEventListener('mousemove', resize);
       window.removeEventListener('mouseup', stopResizing);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
     };
   }, [resize, stopResizing]);
 
@@ -841,68 +877,68 @@ export default function Home() {
       }
 
       if (trimmedInput.startsWith('/doctor')) {
-      const runHealthCheck = async (name: string, url: string) => {
-        const startedAt = Date.now();
-        try {
-          const res = await fetch(url);
-          return {
-            name,
-            ok: res.ok,
-            status: res.status,
-            latency: Date.now() - startedAt,
-          };
-        } catch (error) {
-          return {
-            name,
-            ok: false,
-            status: null as number | null,
-            latency: Date.now() - startedAt,
-            error: error instanceof Error ? error.message : String(error),
-          };
-        }
-      };
+        const runHealthCheck = async (name: string, url: string) => {
+          const startedAt = Date.now();
+          try {
+            const res = await fetch(url);
+            return {
+              name,
+              ok: res.ok,
+              status: res.status,
+              latency: Date.now() - startedAt,
+            };
+          } catch (error) {
+            return {
+              name,
+              ok: false,
+              status: null as number | null,
+              latency: Date.now() - startedAt,
+              error: error instanceof Error ? error.message : String(error),
+            };
+          }
+        };
 
-      const [modelsHealth, statsHealth, sessionsHealth] = await Promise.all([
-        runHealthCheck('models', '/api/models'),
-        runHealthCheck('stats', '/api/stats'),
-        runHealthCheck('sessions', '/api/sessions'),
-      ]);
+        const [modelsHealth, statsHealth, sessionsHealth] = await Promise.all([
+          runHealthCheck('models', '/api/models'),
+          runHealthCheck('stats', '/api/stats'),
+          runHealthCheck('sessions', '/api/sessions'),
+        ]);
 
-      const workspaceLabel = currentWorkspace || 'Default workspace';
-      const healthRows = [modelsHealth, statsHealth, sessionsHealth]
-        .map((item) => {
-          const status = item.ok
-            ? `OK (${item.status})`
-            : `FAIL${item.status ? ` (${item.status})` : ''}`;
-          const detail = item.error ? ` · ${item.error}` : '';
-          return `- ${item.name}: ${status} · ${item.latency}ms${detail}`;
-        })
-        .join('\n');
+        const workspaceLabel = currentWorkspace || 'Default workspace';
+        const healthRows = [modelsHealth, statsHealth, sessionsHealth]
+          .map((item) => {
+            const status = item.ok
+              ? `OK (${item.status})`
+              : `FAIL${item.status ? ` (${item.status})` : ''}`;
+            const detail = item.error ? ` · ${item.error}` : '';
+            return `- ${item.name}: ${status} · ${item.latency}ms${detail}`;
+          })
+          .join('\n');
 
-      const report = [
-        '## Doctor Report',
-        '',
-        `- Time: ${new Date().toLocaleString()}`,
-        `- Session ID: \`${currentSessionId || 'none'}\``,
-        `- Workspace: \`${workspaceLabel}\``,
-        `- Model: \`${settings.model}\``,
-        `- Mode: \`${mode}\``,
-        `- Permission Strategy: \`${approvalMode}\``,
-        '',
-        '### Runtime Snapshot',
-        `- Messages in current branch: **${messages.length}**`,
-        `- Graph nodes: **${branchInsights.nodeCount}**`,
-        `- Branch points: **${branchInsights.branchPointIds.length}**`,
-        `- Active hooks tracked: **${hookEvents.length}**`,
-        `- Running session tasks: **${runningSessionIds.length}**`,
-        '',
-        '### API Health',
-        healthRows,
-      ].join('\n');
+        const report = [
+          '## Doctor Report',
+          '',
+          `- Time: ${new Date().toLocaleString()}`,
+          `- Session ID: \`${currentSessionId || 'none'}\``,
+          `- Workspace: \`${workspaceLabel}\``,
+          `- Model: \`${settings.model}\``,
+          `- Mode: \`${mode}\``,
+          `- Permission Strategy: \`${approvalMode}\``,
+          '',
+          '### Runtime Snapshot',
+          `- Messages in current branch: **${messages.length}**`,
+          `- Graph nodes: **${branchInsights.nodeCount}**`,
+          `- Branch points: **${branchInsights.branchPointIds.length}**`,
+          `- Active hooks tracked: **${hookEvents.length}**`,
+          `- Running session tasks: **${runningSessionIds.length}**`,
+          '',
+          '### API Health',
+          healthRows,
+        ].join('\n');
 
-      addMessageToTree({ role: 'model', content: report }, headId);
-      return;
-    }
+        addMessageToTree({ role: 'model', content: report }, headId);
+        return;
+      }
     }
 
     if (trimmedInput.startsWith('/cost')) {
@@ -1260,6 +1296,7 @@ export default function Home() {
       let buffer = '';
       let assistantContent = '';
       let assistantThought = '';
+      const assistantHooks: HookEvent[] = [];
       const assistantCitations: string[] = [];
 
       while (true) {
@@ -1455,14 +1492,32 @@ export default function Home() {
               updateMessageInTree(assistantMsgId, { content: assistantContent, error: true });
             }
 
+            if (data.type === 'hook_event') {
+              const hookEvent = {
+                id: data.id,
+                name: data.name,
+                type: data.hook_type,
+                timestamp: Date.now(), // Approximate as stream time
+                data: data.input,
+                outcome: data.output,
+                duration: data.duration
+              } as HookEvent;
+
+              assistantHooks.push(hookEvent);
+              // Also update the hooks panel state if needed by the callback
+              // layout context already receives raw hookEvents via callback in Sidebar props, 
+              // but we need to update the message itself.
+              updateMessageInTree(assistantMsgId, { hooks: [...assistantHooks] });
+            }
+
             if (data.type === 'result') {
               if (data.status === 'error' && data.error) {
                 const errorMsg = data.error.message || data.error.type || 'Unknown API error';
                 assistantContent += `\n\n> ⚠️ **Error**: ${errorMsg}`;
-                updateMessageInTree(assistantMsgId, { content: assistantContent, error: true });
+                updateMessageInTree(assistantMsgId, { content: assistantContent, error: true, hooks: [...assistantHooks] });
               }
               if (data.stats) {
-                updateMessageInTree(assistantMsgId, { stats: data.stats });
+                updateMessageInTree(assistantMsgId, { stats: data.stats, hooks: [...assistantHooks] });
               }
             }
           } catch (e) {
@@ -1470,7 +1525,6 @@ export default function Home() {
           }
         }
       }
-
     } catch (error) {
       const isAbortError =
         (error instanceof DOMException && error.name === 'AbortError') ||
@@ -1951,7 +2005,10 @@ export default function Home() {
             {sidePanelType && (
               <div
                 ref={sidePanelRef}
-                className="flex-none border-r bg-muted/5 relative flex flex-col overflow-hidden transition-[width] duration-75 ease-out"
+                className={cn(
+                  "flex-none border-r bg-muted/5 relative flex flex-col overflow-hidden",
+                  !isResizing && "transition-[width] duration-75 ease-out"
+                )}
                 style={{ width: sidePanelWidth }}
               >
                 {/* Resize Handle (Right edge) */}
@@ -1964,11 +2021,27 @@ export default function Home() {
                 />
 
                 {sidePanelType === 'graph' && (
-                  <ConversationGraph
-                    messages={graphMessages}
-                    currentLeafId={headId}
-                    onNodeClick={handleNodeClick}
-                  />
+                  <>
+                    <div className="flex-1 min-h-0 relative">
+                      <ConversationGraph
+                        messages={graphMessages}
+                        currentLeafId={headId}
+                        onNodeClick={handleNodeClick}
+                        className="absolute inset-0"
+                      />
+                    </div>
+                    <BranchInsights
+                      nodeCount={branchInsights.nodeCount}
+                      leafCount={branchInsights.leafCount}
+                      maxDepth={branchInsights.maxDepth}
+                      branchPointCount={branchInsights.branchPointIds.length}
+                      onBranchPointClick={handleNodeClick}
+                      branchPoints={branchJumpMessages.map((m) => ({
+                        id: m.id,
+                        content: summarizeBranchContent(m.message.content),
+                      }))}
+                    />
+                  </>
                 )}
 
                 {sidePanelType === 'timeline' && (
@@ -2027,34 +2100,35 @@ export default function Home() {
             />
 
 
-          <div className={showTerminal ? '' : 'hidden'}>
-            <TerminalPanel
-              workspacePath={currentWorkspace || undefined}
-              sessionId={currentSessionId}
-              onSessionRunStateChange={updateTerminalRunningSessionCount}
-              onClose={() => setShowTerminal(false)}
-              onHeightChange={(height) => {
-                setTerminalPanelHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
-              }}
-            />
+            <div className={showTerminal ? '' : 'hidden'}>
+              <TerminalPanel
+                workspacePath={currentWorkspace || undefined}
+                sessionId={currentSessionId}
+                onSessionRunStateChange={updateTerminalRunningSessionCount}
+                onClose={() => setShowTerminal(false)}
+                onHeightChange={(height) => {
+                  setTerminalPanelHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
+                }}
+              />
+            </div>
           </div>
-        </div>
-        {confirmation && (
-          <ConfirmationDialog
-            details={confirmation.details}
-            onConfirm={(mode) => handleConfirm(true, mode ?? 'once')}
-            onCancel={() => handleConfirm(false, 'once')}
-            bottomOffset={inputAreaHeight + (showTerminal ? terminalPanelHeight : 0)}
+          {confirmation && (
+            <ConfirmationDialog
+              details={confirmation.details}
+              onConfirm={(mode) => handleConfirm(true, mode ?? 'once')}
+              onCancel={() => handleConfirm(false, 'once')}
+              bottomOffset={inputAreaHeight + (showTerminal ? terminalPanelHeight : 0)}
+            />
+          )}
+          <UndoMessageConfirmDialog
+            open={Boolean(undoConfirm)}
+            fileChanges={undoConfirm?.fileChanges || []}
+            hasCheckpoint={undoConfirm?.hasCheckpoint || false}
+            onCancel={handleCancelUndoMessage}
+            onConfirm={() => void handleConfirmUndoMessage()}
+            isConfirming={isApplyingUndoMessage}
           />
-        )}
-        <UndoMessageConfirmDialog
-          open={Boolean(undoConfirm)}
-          fileChanges={undoConfirm?.fileChanges || []}
-          hasCheckpoint={undoConfirm?.hasCheckpoint || false}
-          onCancel={handleCancelUndoMessage}
-          onConfirm={() => void handleConfirmUndoMessage()}
-          isConfirming={isApplyingUndoMessage}
-        />
+        </div>
       </div>
 
       {activeQuestion && (

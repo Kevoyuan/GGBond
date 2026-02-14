@@ -20,6 +20,7 @@ export interface HookEvent {
     data?: any;
     outcome?: any;
     duration?: number;
+    hookName?: string;
 }
 
 interface HooksPanelProps {
