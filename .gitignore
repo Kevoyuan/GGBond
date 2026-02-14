@@ -63,3 +63,4 @@ gemini-home/
 # Documentation (should not be committed)
 *.md
 !README.md
+!README.zh-CN.md
