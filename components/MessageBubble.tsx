@@ -1,21 +1,33 @@
-import { User, Info, Copy, Check, RefreshCw, Undo2, Loader2 } from 'lucide-react';
+import { Info, RefreshCw, Undo2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import ReactMarkdown from 'react-markdown';
-import React, { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { TokenUsageDisplay } from './TokenUsageDisplay';
-import { DiffBlock } from './DiffBlock';
-import { CodeBlock } from './CodeBlock';
-import { ToolCallCard } from './ToolCallCard';
-import { PlanBlock } from './PlanBlock';
 import { StreamingIndicator } from './StreamingIndicator';
+import { ThinkingBlock } from './ThinkingBlock';
+import { ExecutionStatusBlock } from './ExecutionStatusBlock';
+import { ChatSettings } from './SettingsDialog';
+import { StateSnapshotDisplay } from './StateSnapshotDisplay';
+
+// New separated components
+import { ContentRenderer } from './message/ContentRenderer';
+import { CitationsDisplay } from './message/CitationsDisplay';
+import { CopyButton } from './message/CopyButtons';
 
 export interface Message {
   id?: string;
   role: 'user' | 'model';
   content: string;
   error?: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  stats?: Record<string, any>;
+  stats?: {
+    inputTokenCount?: number;
+    input_tokens?: number;
+    outputTokenCount?: number;
+    output_tokens?: number;
+    totalTokenCount?: number;
+    total_tokens?: number;
+    totalCost?: number;
+  };
   sessionId?: string;
   parentId?: string | null;
   thought?: string;
@@ -25,12 +37,6 @@ export interface Message {
   queued?: boolean;
   tempId?: string;
 }
-
-import { ThinkingBlock } from './ThinkingBlock';
-import { ExecutionStatusBlock } from './ExecutionStatusBlock';
-
-import { ChatSettings } from './SettingsDialog';
-import { StateSnapshotDisplay } from './StateSnapshotDisplay';
 
 interface MessageBubbleProps {
   message: Message;
@@ -46,590 +52,6 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
   streamingStatus?: string;
 }
-
-type SkillMeta = {
-  id: string;
-  name: string;
-  description: string;
-};
-
-type SkillMetaMap = Record<string, SkillMeta>;
-
-type SkillSpan = {
-  start: number;
-  end: number;
-  skillId: string;
-  source: 'path' | 'token';
-  path?: string;
-};
-
-// Skill utilities moved out and optimized
-const SKILL_REGEX = {
-  PATH: /(?:~?\/[^\s`'"]*\/([A-Za-z0-9._-]+)\/SKILL\.md)/g,
-  DOLLAR: /\$([A-Za-z0-9._-]+)/g,
-  CMD: /\/skills\s+([A-Za-z0-9._-]+)/gi,
-  USE: /\buse skill\s+([A-Za-z0-9._-]+)\b/gi,
-  ACTIVATE: /\bactivate_skill\s+([A-Za-z0-9._-]+)\b/gi,
-  TOKEN: /\b([A-Za-z0-9._-]+)\b/g
-};
-
-let skillMetaCache: SkillMetaMap | null = null;
-let skillMetaPromise: Promise<SkillMetaMap> | null = null;
-
-function toTitleCaseSkill(skillId: string): string {
-  return skillId
-    .split(/[-_]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-async function loadSkillMetaMap(): Promise<SkillMetaMap> {
-  if (skillMetaCache) return skillMetaCache;
-  if (skillMetaPromise) return skillMetaPromise;
-
-  skillMetaPromise = fetch('/api/skills')
-    .then(async (res) => {
-      if (!res.ok) return {} as SkillMetaMap;
-      const skills = await res.json() as Array<{ id: string; name?: string; description?: string }>;
-      const map: SkillMetaMap = {};
-      for (const skill of skills) {
-        const id = String(skill.id || '').trim();
-        if (!id) continue;
-        map[id] = {
-          id,
-          name: String(skill.name || id),
-          description: String(skill.description || '').trim(),
-        };
-      }
-      skillMetaCache = map;
-      return map;
-    })
-    .catch(() => ({} as SkillMetaMap))
-    .finally(() => {
-      skillMetaPromise = null;
-    });
-
-  return skillMetaPromise;
-}
-
-// Memoized helper to avoid recreating regexes or maps on every call
-function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): SkillSpan[] {
-  if (!text || !skillMetaMap) return [];
-
-  const spans: SkillSpan[] = [];
-  const knownSkillIds = Object.keys(skillMetaMap);
-  if (knownSkillIds.length === 0) return [];
-
-  // Create lookup map only if needed - result could be cached if skillMetaMap changes rarely
-  // For now we rebuild it as it's relatively cheap compared to regex
-  const knownSkillIdByLower = new Map<string, string>();
-  for (const skillId of knownSkillIds) {
-    knownSkillIdByLower.set(skillId.toLowerCase(), skillId);
-  }
-
-  const resolveKnownSkillId = (rawSkillId: string) => {
-    const normalized = String(rawSkillId || '').trim().toLowerCase();
-    if (!normalized) return null;
-    return knownSkillIdByLower.get(normalized) || null;
-  };
-
-  let match: RegExpExecArray | null;
-
-  // Reset lastIndex for global regexes
-  SKILL_REGEX.PATH.lastIndex = 0;
-  SKILL_REGEX.DOLLAR.lastIndex = 0;
-  SKILL_REGEX.CMD.lastIndex = 0;
-  SKILL_REGEX.USE.lastIndex = 0;
-  SKILL_REGEX.ACTIVATE.lastIndex = 0;
-
-  // Use shared regex objects
-  while ((match = SKILL_REGEX.PATH.exec(text)) !== null) {
-    const full = match[0];
-    const skillId = resolveKnownSkillId(match[1]);
-    if (!skillId) continue;
-    spans.push({
-      start: match.index,
-      end: match.index + full.length,
-      skillId,
-      source: 'path',
-      path: full,
-    });
-  }
-
-  while ((match = SKILL_REGEX.DOLLAR.exec(text)) !== null) {
-    const full = match[0];
-    const skillId = resolveKnownSkillId(match[1]);
-    if (!skillId) continue;
-    spans.push({
-      start: match.index,
-      end: match.index + full.length,
-      skillId,
-      source: 'token',
-    });
-  }
-
-  while ((match = SKILL_REGEX.CMD.exec(text)) !== null) {
-    const full = match[0];
-    const skillId = resolveKnownSkillId(match[1]);
-    if (!skillId) continue;
-    const localIndex = full.lastIndexOf(skillId);
-    const start = match.index + (localIndex >= 0 ? localIndex : 0);
-    spans.push({
-      start,
-      end: start + skillId.length,
-      skillId,
-      source: 'token',
-    });
-  }
-
-  while ((match = SKILL_REGEX.USE.exec(text)) !== null) {
-    const full = match[0];
-    const skillId = resolveKnownSkillId(match[1]);
-    if (!skillId) continue;
-    const localIndex = full.lastIndexOf(skillId);
-    const start = match.index + (localIndex >= 0 ? localIndex : 0);
-    spans.push({
-      start,
-      end: start + skillId.length,
-      skillId,
-      source: 'token',
-    });
-  }
-
-  while ((match = SKILL_REGEX.ACTIVATE.exec(text)) !== null) {
-    const full = match[0];
-    const skillId = resolveKnownSkillId(match[1]);
-    if (!skillId) continue;
-    const localIndex = full.lastIndexOf(skillId);
-    const start = match.index + (localIndex >= 0 ? localIndex : 0);
-    spans.push({
-      start,
-      end: start + skillId.length,
-      skillId,
-      source: 'token',
-    });
-  }
-
-  if (knownSkillIds.length > 0) {
-    SKILL_REGEX.TOKEN.lastIndex = 0;
-    while ((match = SKILL_REGEX.TOKEN.exec(text)) !== null) {
-      const skillId = resolveKnownSkillId(match[1]);
-      if (!skillId) continue;
-      if (!skillId.includes('-') && !skillId.includes('_') && !skillId.includes('.')) continue;
-      spans.push({
-        start: match.index,
-        end: match.index + skillId.length,
-        skillId,
-        source: 'token',
-      });
-    }
-  }
-
-  if (spans.length === 0) return spans;
-
-  spans.sort((a, b) => a.start - b.start);
-  const nonOverlapping: SkillSpan[] = [];
-  for (const span of spans) {
-    const prev = nonOverlapping[nonOverlapping.length - 1];
-    if (!prev || span.start >= prev.end) {
-      nonOverlapping.push(span);
-    }
-  }
-  return nonOverlapping;
-}
-
-function parseSkillFrontmatter(content: string): { name?: string; description?: string } {
-  const frontmatterMatch = content.match(/^---\s*[\r\n]+([\s\S]*?)[\r\n]+---/);
-  if (!frontmatterMatch) return {};
-
-  const frontmatter = frontmatterMatch[1];
-  const nameMatch = frontmatter.match(/name:\s*(.+)/);
-  const descriptionMatch = frontmatter.match(/description:\s*(.+)/);
-
-  return {
-    name: nameMatch?.[1]?.trim(),
-    description: descriptionMatch?.[1]?.trim(),
-  };
-}
-
-// Memoized to prevent re-renders when parent re-renders
-const SkillBadge = React.memo(function SkillBadge({
-  skillId,
-  source,
-  meta,
-}: {
-  skillId: string;
-  source: 'path' | 'token';
-  meta?: SkillMeta;
-}) {
-  const label = source === 'path'
-    ? 'SKILL.md'
-    : (meta?.name || toTitleCaseSkill(skillId));
-  const description = meta?.description || `Skill: ${skillId}`;
-
-  return (
-    <span className="group/skillref relative inline-flex align-baseline">
-      <span className="inline-flex items-center rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-0.5 text-[11px] font-medium text-violet-200 dark:text-violet-300">
-        {label}
-      </span>
-      <span className="pointer-events-none absolute left-0 top-full z-30 mt-1 w-72 rounded-md border border-border/60 bg-card px-2.5 py-2 text-[11px] leading-snug text-card-foreground opacity-0 shadow-xl transition-opacity duration-150 group-hover/skillref:opacity-100">
-        {description}
-      </span>
-    </span>
-  );
-});
-
-function renderTextWithSkillRefs(text: string, skillMetaMap: SkillMetaMap): ReactNode {
-  const spans = collectSkillSpans(text, skillMetaMap);
-  if (spans.length === 0) return text;
-
-  const nodes: ReactNode[] = [];
-  let cursor = 0;
-
-  spans.forEach((span, index) => {
-    if (span.start > cursor) {
-      nodes.push(text.slice(cursor, span.start));
-    }
-    nodes.push(
-      <SkillBadge
-        key={`skill-ref-${span.skillId}-${span.start}-${index}`}
-        skillId={span.skillId}
-        source={span.source}
-        meta={skillMetaMap[span.skillId]}
-      />
-    );
-    cursor = span.end;
-  });
-
-  if (cursor < text.length) {
-    nodes.push(text.slice(cursor));
-  }
-
-  return nodes;
-}
-
-function injectSkillRefs(children: ReactNode, skillMetaMap: SkillMetaMap): ReactNode {
-  return React.Children.map(children, (child) => {
-    if (typeof child === 'string') {
-      return renderTextWithSkillRefs(child, skillMetaMap);
-    }
-
-    if (React.isValidElement<{ children?: ReactNode }>(child) && child.props.children) {
-      const element = child as ReactElement<{ children?: ReactNode }>;
-      return React.cloneElement(element, {
-        children: injectSkillRefs(element.props.children, skillMetaMap),
-      });
-    }
-
-    return child;
-  });
-}
-
-/**
- * ContentRenderer: Splits AI content into timeline items.
- * Each segment (text paragraph or tool-call) becomes a `.timeline-item` sibling
- * inside a `.timeline-group` container so CSS handles dots & connector lines.
- */
-function ContentRenderer({
-  content,
-  sourceMessageId,
-  onUndoTool,
-  onRetry,
-  onCancel,
-  hideTodoToolCalls = false
-}: {
-  content: string;
-  sourceMessageId?: string;
-  onUndoTool?: (restoreId: string, sourceMessageId?: string) => Promise<void> | void;
-  onRetry?: (mode: 'once' | 'session') => void;
-  onCancel?: () => void;
-  hideTodoToolCalls?: boolean;
-}) {
-  const [skillMetaMap, setSkillMetaMap] = useState<SkillMetaMap>(skillMetaCache || {});
-  const skillSpans = useMemo(() => collectSkillSpans(content, skillMetaMap), [content, skillMetaMap]);
-  const attemptedSkillPathRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    let disposed = false;
-    loadSkillMetaMap().then((map) => {
-      if (!disposed) {
-        setSkillMetaMap(map);
-      }
-    });
-    return () => {
-      disposed = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let disposed = false;
-
-    const unresolvedPathSpans = skillSpans.filter(
-      (span) =>
-        span.source === 'path' &&
-        !!span.path &&
-        !attemptedSkillPathRef.current.has(span.path) &&
-        !skillMetaMap[span.skillId]?.description
-    );
-
-    if (unresolvedPathSpans.length === 0) {
-      return;
-    }
-
-    const fetchPathDescriptions = async () => {
-      const nextMeta: SkillMetaMap = { ...skillMetaMap };
-      let changed = false;
-
-      for (const span of unresolvedPathSpans) {
-        if (!span.path) continue;
-        attemptedSkillPathRef.current.add(span.path);
-
-        try {
-          const response = await fetch(`/api/files/content?path=${encodeURIComponent(span.path)}`);
-          if (!response.ok) continue;
-
-          const data = await response.json() as { content?: string };
-          if (typeof data.content !== 'string' || !data.content) continue;
-
-          const parsed = parseSkillFrontmatter(data.content);
-          const previous = nextMeta[span.skillId];
-          const nextEntry: SkillMeta = {
-            id: span.skillId,
-            name: parsed.name || previous?.name || span.skillId,
-            description: parsed.description || previous?.description || '',
-          };
-
-          if (
-            !previous ||
-            previous.name !== nextEntry.name ||
-            previous.description !== nextEntry.description
-          ) {
-            nextMeta[span.skillId] = nextEntry;
-            changed = true;
-          }
-        } catch {
-          // Ignore unresolved path metadata; badge falls back to id-based tooltip.
-        }
-      }
-
-      if (!disposed && changed) {
-        skillMetaCache = { ...(skillMetaCache || {}), ...nextMeta };
-        setSkillMetaMap(nextMeta);
-      }
-    };
-
-    void fetchPathDescriptions();
-
-    return () => {
-      disposed = true;
-    };
-  }, [skillMetaMap, skillSpans]);
-
-  // Split content by <tool-call .../> tags AND <thinking> blocks AND "Updated Plan" sections
-  // Regex:
-  // 1. <tool-call ... />
-  // 2. <thinking> ... </thinking>
-  // 3. # Updated Plan ... (until next # or end)
-  const parts = content.split(/(<tool-call[^>]*\/>|<thinking>[\s\S]*?<\/thinking>|#\s*Updated\s*Plan[\s\S]*?(?=\n#|\n<|$))/g);
-  const lastTodoToolPartIndex = parts.reduce((lastIndex, part, partIndex) => {
-    if (!part || !part.startsWith('<tool-call')) return lastIndex;
-    const nameMatch = part.match(/name="([^"]+)"/);
-    if (!nameMatch?.[1]?.toLowerCase().includes('todo')) return lastIndex;
-    return partIndex;
-  }, -1);
-  const handleUndoFromTool = onUndoTool
-    ? (restoreId: string) => onUndoTool(restoreId, sourceMessageId)
-    : undefined;
-
-  // Memoize markdown components to avoid re-creation on every render
-  const markdownComponents = useMemo(() => ({
-    p({ children, ...props }: any) {
-      return <p {...props}>{injectSkillRefs(children, skillMetaMap)}</p>;
-    },
-    li({ children, ...props }: any) {
-      return <li {...props}>{injectSkillRefs(children, skillMetaMap)}</li>;
-    },
-    code({ className, children, ...props }: any) {
-      const match = /language-(\w+)/.exec(className || '')
-      const lang = match?.[1];
-      const codeStr = String(children).replace(/\n$/, '');
-      const inlineSpans = !match ? collectSkillSpans(codeStr, skillMetaMap) : [];
-
-      if (lang === 'diff') {
-        return <DiffBlock code={codeStr} />;
-      }
-
-      if (match && lang) {
-        return (
-          <div className="relative group">
-            <CodeBlock language={lang} code={codeStr} />
-            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <CodeCopyButton content={codeStr} />
-            </div>
-          </div>
-        );
-      }
-
-      if (inlineSpans.length > 0) {
-        return <>{renderTextWithSkillRefs(codeStr, skillMetaMap)}</>;
-      }
-
-      return (
-        <code {...props} className={cn(className, "text-xs font-mono")}>
-          {children}
-        </code>
-      )
-    }
-  }), [skillMetaMap]); // Only re-create when skillMetaMap changes
-
-  return (
-    <div className="timeline-group">
-      {parts.map((part, index) => {
-        if (!part || !part.trim()) return null;
-
-        // ── Tool Call ──
-        if (part.startsWith('<tool-call')) {
-          const idMatch = part.match(/id="([^"]*)"/);
-          const nameMatch = part.match(/name="([^"]+)"/);
-          const argsMatch = part.match(/args="([^"]+)"/);
-          const checkpointMatch = part.match(/checkpoint="([^"]+)"/);
-          const statusMatch = part.match(/status="([^"]+)"/);
-          const resultMatch = part.match(/result="([^"]+)"/);
-          const resultDataMatch = part.match(/result_data="([^"]+)"/);
-          const safeDecode = (value?: string) => {
-            if (!value) return undefined;
-            try {
-              return decodeURIComponent(value);
-            } catch {
-              return value;
-            }
-          };
-
-          const toolId = idMatch ? idMatch[1] : undefined;
-          const name = nameMatch ? nameMatch[1] : 'Unknown Tool';
-          const isTodoTool = name.toLowerCase().includes('todo');
-          if (isTodoTool && index !== lastTodoToolPartIndex) {
-            return null;
-          }
-          if (hideTodoToolCalls && isTodoTool) {
-            return null;
-          }
-          const argsStr = safeDecode(argsMatch?.[1]) ?? '{}';
-          const checkpoint = safeDecode(checkpointMatch?.[1]);
-          const status = statusMatch ? statusMatch[1] as 'running' | 'completed' | 'failed' : 'completed';
-          const result = safeDecode(resultMatch?.[1]);
-          const resultDataStr = safeDecode(resultDataMatch?.[1]);
-          let resultData: unknown = undefined;
-          if (resultDataStr) {
-            try {
-              resultData = JSON.parse(resultDataStr);
-            } catch {
-              resultData = resultDataStr;
-            }
-          }
-
-          let args = {};
-          try { args = JSON.parse(argsStr); } catch { args = { raw: argsStr }; }
-
-          return (
-            <ToolCallCard
-              key={index}
-              toolId={toolId}
-              checkpointId={checkpoint}
-              toolName={name}
-              args={args}
-              status={status}
-              result={result}
-              resultData={resultData}
-              onUndo={handleUndoFromTool}
-              onRetry={onRetry}
-              onCancel={onCancel}
-            />
-          );
-        }
-
-        // ── Skip <thinking> blocks entirely ──
-        if (part.startsWith('<thinking>')) {
-          return null;
-        }
-
-        // ── Plan Block ──
-        if (part.trim().startsWith('# Updated Plan')) {
-          return <PlanBlock key={index} content={part} />;
-        }
-
-        // ── Markdown text segment ──
-        return (
-          <div key={index} className="timeline-item">
-            <div className="prose dark:prose-invert prose-sm max-w-none break-words prose-p:leading-relaxed prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-code:bg-muted/30 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none opacity-90">
-              <ReactMarkdown
-                components={markdownComponents}
-              >
-                {part}
-              </ReactMarkdown>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Memoize pure display components
-const CitationsDisplay = React.memo(function CitationsDisplay({ citations }: { citations: string[] }) {
-  if (!citations || citations.length === 0) return null;
-
-  // Deduplicate and clean
-  const uniqueCitations = Array.from(new Set(citations.filter(c => c && c.trim())));
-
-  return (
-    <div className="mt-4 pt-4 border-t border-border/40">
-      <div className="flex items-center gap-1.5 mb-2.5">
-        <div className="w-1 h-3.5 bg-primary/40 rounded-full" />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">Sources & Citations</span>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {uniqueCitations.map((citation, i) => {
-          const isUrl = citation.startsWith('http');
-          let label = citation;
-          let icon = <Info className="w-3 h-3" />;
-
-          if (isUrl) {
-            try {
-              const url = new URL(citation);
-              label = url.hostname.replace('www.', '');
-              // Simple domain icons
-              if (url.hostname.includes('github.com')) icon = <span className="text-[10px] font-bold text-blue-500">GH</span>;
-              else if (url.hostname.includes('google.com')) icon = <span className="text-[10px] font-bold text-blue-400">G</span>;
-              else if (url.hostname.includes('wikipedia.org')) icon = <span className="text-[10px] font-bold text-slate-500">W</span>;
-            } catch {
-              label = citation;
-            }
-          }
-
-          return (
-            <a
-              key={i}
-              href={isUrl ? citation : undefined}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(
-                "flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-all text-[11px] font-medium",
-                isUrl ? "text-primary hover:border-primary/30" : "text-muted-foreground cursor-default"
-              )}
-            >
-              <div className="w-4 h-4 rounded-md bg-background flex items-center justify-center shrink-0 border border-border/50 shadow-sm">
-                {icon}
-              </div>
-              <span className="truncate max-w-[150px]">{label}</span>
-            </a>
-          );
-        })}
-      </div>
-    </div>
-  );
-});
 
 const GeminiIcon = React.memo(function GeminiIcon({ className }: { className?: string }) {
   return (
@@ -684,13 +106,13 @@ export function MessageBubble({
     }
   };
 
-  const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(message.content);
-  };
-
   return (
-    <div className={cn("flex gap-4 w-full animate-fade-in group", isUser ? "justify-end" : "justify-start")}>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      className={cn("flex gap-4 w-full group", isUser ? "justify-end" : "justify-start")}
+    >
       {!isUser && (
         <div className="w-8 h-8 flex items-center justify-center shrink-0 mt-0.5">
           <GeminiIcon className="w-6 h-6" />
@@ -772,7 +194,6 @@ export function MessageBubble({
 
         {!isUser && message.stats && !isSnapshot && (
           <div className="mt-1 pl-[30px]">
-            {/* Stats ... */}
             <TokenUsageDisplay
               stats={message.stats}
               hideModelInfo={settings?.ui?.footer?.hideModelInfo}
@@ -806,50 +227,7 @@ export function MessageBubble({
       </div>
 
       {isUser && null}
-    </div>
-  );
-}
-
-const CodeCopyButton = React.memo(function CodeCopyButton({ content }: { content: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="p-1.5 bg-muted/80 backdrop-blur-sm hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-all"
-      title="Copy code"
-    >
-      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-    </button>
-  );
-});
-
-function CopyButton({ content }: { content: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 dark:hover:bg-muted/30 transition-all"
-      title="Copy message text"
-    >
-      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-      <span>{copied ? 'Copied' : 'Copy'}</span>
-    </button>
+    </motion.div>
   );
 }
 
@@ -860,4 +238,3 @@ export function LoadingBubble({ status }: { status?: string }) {
     </div>
   );
 }
-
