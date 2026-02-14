@@ -9,10 +9,10 @@ import fs from 'fs';
 const BUILT_IN_AGENTS = ['codebase-investigator', 'cli-help-agent', 'generalist-agent'];
 
 // Read agent definition from a markdown file
-function readAgentFromFile(filePath: string): { name: string; displayName?: string; description: string; kind: 'local' | 'remote'; experimental?: boolean } | null {
+function readAgentFromFile(filePath: string): { name: string; displayName?: string; description: string; kind: 'local' | 'remote'; experimental?: boolean; content?: string } | null {
     try {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        const lines = content.split('\n');
+        const fullContent = fs.readFileSync(filePath, 'utf-8');
+        const lines = fullContent.split('\n');
 
         let inFrontmatter = false;
         const frontmatter: Record<string, string> = {};
@@ -36,12 +36,28 @@ function readAgentFromFile(filePath: string): { name: string; displayName?: stri
 
         if (!frontmatter.name) return null;
 
+        // Extract content after frontmatter
+        let content = '';
+        let dashCount = 0;
+        let contentLines = [];
+        for (const line of lines) {
+            if (line.trim() === '---') {
+                dashCount++;
+                continue;
+            }
+            if (dashCount >= 2) {
+                contentLines.push(line);
+            }
+        }
+        content = contentLines.join('\n').trim();
+
         return {
             name: frontmatter.name,
             displayName: frontmatter.displayName || undefined,
             description: frontmatter.description || '',
             kind: (frontmatter.kind as 'local' | 'remote') || 'local',
             experimental: frontmatter.experimental === 'true',
+            content: content || undefined,
         };
     } catch {
         return null;
@@ -49,7 +65,7 @@ function readAgentFromFile(filePath: string): { name: string; displayName?: stri
 }
 
 // Read all agents from user agents directory
-function getUserAgents(): { name: string; displayName?: string; description: string; kind: 'local' | 'remote'; experimental?: boolean }[] {
+function getUserAgents(): { name: string; displayName?: string; description: string; kind: 'local' | 'remote'; experimental?: boolean; content?: string }[] {
     try {
         const userAgentsDir = Storage.getUserAgentsDir();
         if (!fs.existsSync(userAgentsDir)) {
@@ -96,7 +112,7 @@ export async function GET() {
         const userAgents = getUserAgents();
 
         // Try to get built-in agents from CoreService
-        let builtInAgents: { name: string; displayName?: string; description: string; kind: 'local' | 'remote'; experimental?: boolean }[] = [];
+        let builtInAgents: { name: string; displayName?: string; description: string; kind: 'local' | 'remote'; experimental?: boolean; content?: string }[] = [];
 
         try {
             const core = CoreService.getInstance();
