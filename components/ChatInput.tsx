@@ -3,6 +3,7 @@ import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, C
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
+import { ModelSelector } from './ModelSelector';
 
 interface UploadedImage {
   id: string;
@@ -104,13 +105,6 @@ const MODE_OPTIONS: ModeOption[] = [
   { value: 'ask', label: 'Ask', icon: HelpCircle, description: 'Answer questions only' },
 ];
 
-const MODELS = [
-  { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', icon: Code2 },
-  { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', icon: Zap },
-  { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro', icon: Code2 },
-  { id: 'gemini-2.5-flash', name: 'gemini-2.5-flash', icon: Zap },
-  { id: 'gemini-2.5-flash-lite', name: 'gemini-2.5-flash-lite', icon: Zap },
-];
 
 const INLINE_SKILL_TOKEN_MARKER = '\u200B';
 const INLINE_SKILL_TOKEN_SOURCE = `([A-Za-z0-9._/\\-\u2011]+)${INLINE_SKILL_TOKEN_MARKER}`;
@@ -129,7 +123,6 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | 'skill' | null>(null);
-  const [showModelMenu, setShowModelMenu] = useState(false);
   const [showModeMenu, setShowModeMenu] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filteredCommands, setFilteredCommands] = useState<CommandItem[]>(BASE_COMMANDS);
@@ -929,10 +922,6 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
     }
   };
 
-  const getModelName = (id: string) => {
-    const m = MODELS.find(m => m.id === id);
-    return m ? m.name : id;
-  };
 
   const getSkillDisplayName = (skillId: string) => {
     const found = skillRecords.find((s) => s.id === skillId);
@@ -1187,44 +1176,11 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-1 relative">
               {/* Model Selector */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowModelMenu(!showModelMenu)}
-                  className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors mr-1 cursor-pointer z-20 relative"
-                  title="Select Model"
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>{getModelName(currentModel)}</span>
-                  <ChevronDown className="w-3 h-3 opacity-50" />
-                </button>
-
-                {showModelMenu && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowModelMenu(false)} />
-                    <div className="absolute bottom-full left-0 mb-2 w-48 bg-background border rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50 py-1">
-                      {MODELS.map(model => (
-                        <button
-                          key={model.id}
-                          onClick={() => {
-                            onModelChange(model.id);
-                            setShowModelMenu(false);
-                          }}
-                          className={cn(
-                            "w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors",
-                            currentModel === model.id
-                              ? "bg-accent text-accent-foreground"
-                              : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                          )}
-                        >
-                          <model.icon className="w-3.5 h-3.5" />
-                          <span>{model.name}</span>
-                          {currentModel === model.id && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
+              <ModelSelector
+                value={currentModel}
+                onChange={onModelChange}
+                variant="inline"
+              />
 
               <div className="w-px h-4 bg-border mx-1" />
 

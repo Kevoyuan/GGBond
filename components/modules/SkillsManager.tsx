@@ -147,31 +147,31 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
     }, [sources]);
 
     const body = (
-        <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-                <div className="px-2.5 py-2 rounded-lg border border-emerald-200 dark:border-emerald-900/30 bg-emerald-50/60 dark:bg-emerald-900/10">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Enabled</div>
-                    <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{enabledCount}</div>
+        <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+                <div className="px-3 py-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10">
+                    <div className="text-[10px] text-emerald-600/70 dark:text-emerald-400/60 font-bold uppercase tracking-widest">Enabled</div>
+                    <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 font-mono tracking-tighter">{enabledCount}</div>
                 </div>
-                <div className="px-2.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Disabled</div>
-                    <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">{disabledCount}</div>
+                <div className="px-3 py-2.5 rounded-xl border border-border/50 bg-card/40">
+                    <div className="text-[10px] text-muted-foreground/60 font-bold uppercase tracking-widest">Disabled</div>
+                    <div className="text-lg font-bold text-muted-foreground font-mono tracking-tighter">{disabledCount}</div>
                 </div>
             </div>
 
             <div className="flex gap-2">
-                <div className="relative flex-1">
-                    <Search size={13} className="absolute left-2.5 top-2.5 text-muted-foreground" />
+                <div className="relative flex-1 group">
+                    <Search size={13} className="absolute left-2.5 top-2.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search skills..."
-                        className="w-full pl-8 pr-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-transparent"
+                        className="w-full pl-8 pr-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/40 focus:border-primary/40 outline-none transition-all"
                     />
                 </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-1.5">
                 {[
                     { key: 'all', label: 'All' },
                     { key: 'project', label: 'Project' },
@@ -181,10 +181,10 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                         key={item.key}
                         onClick={() => setScopeFilter(item.key as 'all' | 'project' | 'global')}
                         className={cn(
-                            "px-2.5 py-1.5 text-xs rounded-md border transition-colors",
+                            "px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-all",
                             scopeFilter === item.key
-                                ? "bg-primary text-primary-foreground border-primary/50"
-                                : "bg-transparent border-zinc-200 dark:border-zinc-700 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                : "bg-transparent border-border/50 text-muted-foreground hover:text-foreground hover:bg-primary/5 hover:border-primary/20"
                         )}
                     >
                         {item.label}
@@ -193,30 +193,29 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
             </div>
 
             {showAdvanced && (
-                <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-muted/30 p-4 space-y-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="flex items-center gap-2 pb-2 border-b border-border/50">
-                        <SlidersHorizontal size={14} className="text-muted-foreground" />
-                        <h3 className="text-sm font-medium text-foreground">Advanced Management</h3>
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center gap-2 pb-2 border-b border-border/40">
+                        <SlidersHorizontal size={14} className="text-primary/60" />
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-foreground">Advanced Console</h3>
                     </div>
 
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80 flex items-center gap-2">
                                 <Plus size={12} className="text-primary" />
                                 Install Skill
                             </label>
-                            <p className="text-[10px] text-muted-foreground">Install a skill from a URL (GitHub) or local file path.</p>
                             <div className="flex flex-col gap-2">
                                 <input
                                     value={installSource}
                                     onChange={(e) => setInstallSource(e.target.value)}
-                                    placeholder="https://github.com/user/repo or /path/to/skill"
-                                    className="w-full px-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-background focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm"
+                                    placeholder="GitHub URL or local path"
+                                    className="w-full px-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/30 outline-none transition-all font-mono"
                                 />
                                 <button
                                     onClick={() => handleAction('install')}
                                     disabled={!installSource.trim() || actionLoading === `install:${installSource}`}
-                                    className="w-full px-4 py-2 text-xs rounded-md bg-primary text-primary-foreground font-medium disabled:opacity-50 hover:bg-primary/90 transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                                    className="w-full px-4 py-2 text-[10px] rounded-lg bg-primary text-primary-foreground font-bold uppercase tracking-widest hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg"
                                 >
                                     {actionLoading?.startsWith('install:') ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
                                     Install
@@ -224,33 +223,30 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                             </div>
                         </div>
 
-                        <div className="space-y-2 pt-2 border-t border-border/40">
-                            <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                                <BookOpen size={12} className="text-emerald-500" />
-                                External Skills Directory
+                        <div className="space-y-2 pt-2 border-t border-border/20">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80 flex items-center gap-2">
+                                <Sparkles size={12} className="text-amber-500" />
+                                External Directory
                             </label>
-                            <p className="text-[10px] text-muted-foreground">Link a local directory containing multiple skill definitions.</p>
                             <div className="flex flex-col gap-2">
                                 <input
                                     value={linkSource}
                                     onChange={(e) => setLinkSource(e.target.value)}
-                                    placeholder="e.g.: ~/.agents/skills; ~/.claude/skills"
-                                    className="w-full px-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-background focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all shadow-sm"
+                                    placeholder="~/.claude/skills"
+                                    className="w-full px-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/30 outline-none transition-all font-mono"
                                 />
                                 <div className="grid grid-cols-2 gap-2">
                                     <button
                                         onClick={() => handleAction('link_dir')}
                                         disabled={!linkSource.trim() || actionLoading === `link_dir:${linkSource.trim()}`}
-                                        className="px-3 py-2 text-xs rounded-md bg-emerald-600 text-white font-medium disabled:opacity-50 hover:bg-emerald-700 transition-colors shadow-sm w-full flex justify-center"
-                                        title="Create symlinks"
+                                        className="px-3 py-2 text-[10px] rounded-lg bg-secondary/80 text-secondary-foreground font-bold uppercase tracking-widest hover:bg-secondary disabled:opacity-50 transition-all border border-border/50"
                                     >
                                         Link
                                     </button>
                                     <button
                                         onClick={() => handleAction('unlink_dir')}
                                         disabled={!linkSource.trim() || actionLoading === `unlink_dir:${linkSource.trim()}`}
-                                        className="px-3 py-2 text-xs rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground font-medium disabled:opacity-50 transition-colors shadow-sm w-full flex justify-center"
-                                        title="Remove symlinks"
+                                        className="px-3 py-2 text-[10px] rounded-lg border border-border/50 bg-background/50 hover:bg-muted font-bold uppercase tracking-widest disabled:opacity-50 transition-all"
                                     >
                                         Unlink
                                     </button>
@@ -259,101 +255,111 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                         </div>
 
                         {displaySources.length > 0 && (
-                            <div className="space-y-2 pt-2 border-t border-border/40">
-                                <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                                    <BookOpen size={12} className="text-muted-foreground" />
-                                    Active Skills Sources
+                            <div className="space-y-2 pt-2 border-t border-border/20">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 flex items-center gap-2">
+                                    <BookOpen size={12} />
+                                    Active Sources
                                 </label>
-                                <div className="space-y-1.5">
+                                <div className="space-y-1.5 px-1">
                                     {displaySources.map((source) => (
                                         <div key={source.key} className="flex items-start gap-1 justify-between">
-                                            <div className="font-mono text-[10px] text-muted-foreground break-all leading-tight">
+                                            <div className="font-mono text-[9px] text-muted-foreground/60 break-all leading-tight">
                                                 {source.key}
                                             </div>
                                             {!source.exists && (
-                                                <span className="text-[10px] text-amber-500 whitespace-nowrap shrink-0">(missing)</span>
+                                                <span className="text-[9px] text-red-500 font-bold uppercase tracking-tighter shrink-0">(missing)</span>
                                             )}
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
-
                     </div>
 
                     {actionMessage && (
                         <div
                             className={cn(
-                                "text-xs rounded-md border px-3 py-2.5 flex items-start gap-2 shadow-sm animate-in fade-in zoom-in-95 duration-200",
+                                "text-[10px] font-bold uppercase tracking-tight rounded-lg border px-3 py-2 flex items-start gap-2 animate-in zoom-in-95 duration-200",
                                 actionMessageIsError
-                                    ? "border-red-500/30 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20"
-                                    : "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20"
+                                    ? "border-red-500/30 text-red-500 bg-red-500/5"
+                                    : "border-emerald-500/30 text-emerald-500 bg-emerald-500/5"
                             )}
                         >
-                            {actionMessageIsError ? (
-                                <Ban size={14} className="mt-0.5 shrink-0" />
-                            ) : (
-                                <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
-                            )}
-                            <span className="flex-1 leading-relaxed">{actionMessage}</span>
+                            {actionMessageIsError ? <Ban size={12} className="mt-0.5" /> : <CheckCircle2 size={12} className="mt-0.5" />}
+                            <span className="flex-1 leading-normal">{actionMessage}</span>
                         </div>
                     )}
                 </div>
             )}
 
-            <div className={cn("space-y-2", compact ? "h-[calc(100vh-280px)] overflow-y-auto pr-1" : "max-h-[350px] overflow-y-auto")}>
+            <div className={cn("space-y-2.5", compact ? "h-[calc(100vh-320px)] overflow-y-auto pr-1" : "max-h-[400px] overflow-y-auto")}>
                 {filteredSkills.length === 0 ? (
-                    <div className="text-center py-6 text-sm text-muted-foreground">
-                        {scopeFilteredSkills.length === 0 ? 'No skills in this scope' : 'No matching skills'}
+                    <div className="text-center py-10 opacity-20 grayscale">
+                        <Sparkles size={32} className="mx-auto mb-3" />
+                        <p className="text-[10px] font-bold uppercase tracking-widest">No matching skills</p>
                     </div>
                 ) : (
                     filteredSkills.map(skill => (
-                        <div key={skill.id} className="relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors group">
-                            <div className="min-w-0 pr-1">
-                                <div className="flex items-center gap-2 mb-0.5">
-                                    <BookOpen size={14} className="text-purple-500 shrink-0" />
-                                    <span
-                                        className={cn(
-                                            "inline-block w-2 h-2 rounded-full shrink-0",
-                                            skill.status === 'Enabled' ? "bg-emerald-500" : "bg-zinc-500"
-                                        )}
-                                        title={skill.status}
-                                    />
-                                    <span className="font-medium text-sm text-foreground truncate">{skill.name}</span>
+                        <div key={skill.id} className="relative p-3.5 border border-border/50 rounded-xl bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-all duration-200 group cursor-default">
+                            <div className="min-w-0 pr-16">
+                                <div className="flex items-center gap-2.5 mb-1">
+                                    <div className={cn(
+                                        "p-1.5 rounded-lg border transition-colors",
+                                        skill.status === 'Enabled'
+                                            ? "bg-primary/5 text-primary border-primary/10 group-hover:bg-primary/10"
+                                            : "bg-muted text-muted-foreground/40 border-border/50"
+                                    )}>
+                                        <Sparkles size={13} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h5 className="font-semibold text-sm text-foreground truncate group-hover:text-primary transition-colors">{skill.name}</h5>
+                                        <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                                            <span className={cn(
+                                                "w-1.5 h-1.5 rounded-full",
+                                                skill.status === 'Enabled' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "bg-zinc-500"
+                                            )} />
+                                            {skill.status}
+                                            {skill.isBuiltIn && <span>• Built-in</span>}
+                                        </div>
+                                    </div>
                                 </div>
                                 {skill.description && (
-                                    <p className="text-xs text-muted-foreground line-clamp-2 ml-5 mt-1">{skill.description}</p>
+                                    <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2 pl-9 pr-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                                        {skill.description}
+                                    </p>
                                 )}
                             </div>
 
-                            <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
                                 {skill.status === 'Enabled' ? (
                                     <button
                                         onClick={() => handleAction('disable', skill.id)}
-                                        className="p-1 text-zinc-400 hover:text-amber-500 rounded"
+                                        className="p-1.5 text-muted-foreground hover:bg-amber-500/10 hover:text-amber-500 rounded-lg transition-all"
                                         title="Disable"
                                         disabled={actionLoading === `disable:${skill.id}`}
                                     >
-                                        {actionLoading === `disable:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
+                                        {actionLoading === `disable:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <Ban size={13} />}
                                     </button>
                                 ) : (
                                     <button
                                         onClick={() => handleAction('enable', skill.id)}
-                                        className="p-1 text-zinc-400 hover:text-emerald-500 rounded"
+                                        className="p-1.5 text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-500 rounded-lg transition-all"
                                         title="Enable"
                                         disabled={actionLoading === `enable:${skill.id}`}
                                     >
-                                        {actionLoading === `enable:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                                        {actionLoading === `enable:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={13} />}
                                     </button>
                                 )}
-                                <button
-                                    onClick={() => handleAction('uninstall', skill.id)}
-                                    className="p-1 text-zinc-400 hover:text-red-500 rounded"
-                                    title="Uninstall"
-                                    disabled={actionLoading === `uninstall:${skill.id}`}
-                                >
-                                    {actionLoading === `uninstall:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                                </button>
+                                {!skill.isBuiltIn && (
+                                    <button
+                                        onClick={() => handleAction('uninstall', skill.id)}
+                                        className="p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-all"
+                                        title="Uninstall"
+                                        disabled={actionLoading === `uninstall:${skill.id}`}
+                                    >
+                                        {actionLoading === `uninstall:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={13} />}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))
@@ -367,19 +373,19 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
             <button
                 onClick={() => setShowAdvanced((prev) => !prev)}
                 className={cn(
-                    "p-1.5 rounded-lg transition-all",
+                    "p-1.5 rounded-lg transition-all border",
                     showAdvanced
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                        ? "bg-primary text-primary-foreground border-primary shadow-inner"
+                        : "text-muted-foreground border-transparent hover:bg-primary/10 hover:text-primary"
                 )}
-                title="Advanced settings"
+                title="Advanced Console"
             >
                 <SlidersHorizontal size={14} />
             </button>
             <button
                 onClick={fetchSkills}
                 className="p-1.5 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary transition-all"
-                title="Refresh"
+                title="Sync Registry"
             >
                 <RefreshCw size={14} className={cn(loading && "animate-spin")} />
             </button>
@@ -390,15 +396,16 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
         return (
             <div className={cn("flex flex-col h-full bg-card/30", className)}>
                 <PanelHeader
-                    title="Skills"
+                    title="Skills Registry"
                     icon={Sparkles}
                     badge={skills.length}
                     actions={headerActions}
                 />
-                <div className="flex-1 overflow-y-auto p-3 scrollbar-thin">
+                <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
                     {loading && skills.length === 0 ? (
-                        <div className="flex items-center justify-center py-8">
-                            <Loader2 size={18} className="animate-spin text-muted-foreground" />
+                        <div className="flex flex-col items-center justify-center py-20 opacity-20">
+                            <Loader2 size={24} className="animate-spin mb-3" />
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-center">Syncing Registry...</p>
                         </div>
                     ) : (
                         body
@@ -410,13 +417,16 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
 
     return (
         <ModuleCard
-            title="Skills"
-            description={loading ? "Loading..." : `${skills.length} installed · ${enabledCount} enabled`}
+            title="Skills Registry"
+            description={loading ? "Syncing..." : `${skills.length} modules · ${enabledCount} active`}
             icon={Sparkles}
             actions={headerActions}
         >
             {loading && skills.length === 0 ? (
-                <div className="flex items-center justify-center py-8"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
+                <div className="flex flex-col items-center justify-center py-20 opacity-20">
+                    <Loader2 size={24} className="animate-spin mb-3" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest">Syncing Modules...</p>
+                </div>
             ) : (
                 body
             )}
