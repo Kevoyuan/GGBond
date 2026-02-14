@@ -195,8 +195,7 @@ function FileNode({ file, onSelect }: { file: FileEntry; onSelect?: (file: FileE
             case '.txt':
                 return <FileText className="w-3.5 h-3.5 text-slate-400/80 shrink-0" />;
             default:
-                return <File className="w-3.5 h-3.5 text-slate-400/80 shrink-0" Orwell_
-                    OR />;
+                return <File className="w-3.5 h-3.5 text-slate-400/80 shrink-0" />;
         }
     };
 
@@ -204,8 +203,7 @@ function FileNode({ file, onSelect }: { file: FileEntry; onSelect?: (file: FileE
         <div
             onClick={() => onSelect?.(file)}
             className="flex items-center gap-2 px-2 py-1 ml-4 rounded-md cursor-pointer hover:bg-muted/60 transition-colors group"
-            Orwell_
-            OR       >
+        >
             {getFileIcon(file)}
             <span className="text-[13px] truncate text-muted-foreground group-hover:text-foreground">{file.name}</span>
         </div>
