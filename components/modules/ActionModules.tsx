@@ -221,7 +221,7 @@ export function FileManager() {
 
   const fetchFiles = (p?: string) => {
     setLoading(true);
-    const url = p ? `/api/files?path=${encodeURIComponent(p)}` : '/api/files';
+    const url = p ? `/api/files?path=${encodeURIComponent(p)}&ignore=0` : '/api/files?ignore=0';
     fetch(url)
       .then(r => r.json())
       .then(data => {

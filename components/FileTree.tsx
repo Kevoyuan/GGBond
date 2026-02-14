@@ -97,7 +97,7 @@ function DirectoryNode({ path, name, onFileSelect, depth = 0, defaultExpanded = 
     const loadFiles = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`);
+            const res = await fetch(`/api/files?path=${encodeURIComponent(path)}&ignore=0`);
             if (res.ok) {
                 const data = await res.json();
                 setFiles(data.files);
