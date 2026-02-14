@@ -664,7 +664,7 @@ export function MessageBubble({
             className={cn(
               "text-sm leading-relaxed max-w-full overflow-x-hidden",
               isUser
-                ? "relative bg-primary text-primary-foreground rounded-xl px-5 py-3.5 pr-10 pb-5 shadow-sm font-medium"
+                ? "relative bg-primary text-primary-foreground rounded-2xl px-4 py-2.5 shadow-sm font-medium"
                 : "w-full"
             )}
           >
@@ -689,22 +689,25 @@ export function MessageBubble({
             ) : (
               <div className="whitespace-pre-wrap">{message.content}</div>
             )}
+          </div>
+        )}
 
-            {isUndoableUserMessage && (
-              <button
-                type="button"
-                onClick={() => void handleUndoMessage()}
-                disabled={isUndoingMessage}
-                className="absolute bottom-1.5 right-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-primary-foreground/75 hover:text-primary-foreground hover:bg-primary-foreground/15 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
-                title="Undo this message and restore files"
-              >
-                {isUndoingMessage ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Undo2 className="w-3.5 h-3.5" />
-                )}
-              </button>
-            )}
+        {isUndoableUserMessage && (
+          <div className="flex justify-end mt-1 w-full px-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button
+              type="button"
+              onClick={() => void handleUndoMessage()}
+              disabled={isUndoingMessage}
+              className="inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 dark:hover:bg-muted/30 transition-all disabled:cursor-not-allowed disabled:opacity-50"
+              title="Undo this message"
+            >
+              {isUndoingMessage ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Undo2 className="w-3 h-3" />
+              )}
+              <span>Undo</span>
+            </button>
           </div>
         )}
 
