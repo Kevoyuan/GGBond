@@ -150,10 +150,11 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
   const [cursorPosition, setCursorPosition] = useState(0);
   const [showContextTooltip, setShowContextTooltip] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
-  const inlineSkillTokenPattern = new RegExp(INLINE_SKILL_TOKEN_SOURCE, 'g');
-  const AGENT_TOKEN_SOURCE = `#([A-Za-z0-9._/\\-\u2011]+)${INLINE_SKILL_TOKEN_MARKER}`;
-  const inlineAgentTokenPattern = new RegExp(AGENT_TOKEN_SOURCE, 'g');
-  const anyTokenPattern = new RegExp(`(#?[A-Za-z0-9._/\\-\u2011]+)${INLINE_SKILL_TOKEN_MARKER}`, 'g');
+
+  // Use explicit escape sequences for markers to prevent matching issues across environments
+  const anyTokenPattern = new RegExp("(#?[A-Za-z0-9._/\\\\-\\u2011]+)\\u200B", "g");
+  const inlineSkillTokenPattern = new RegExp("([A-Za-z0-9._/\\\\-\\u2011]+)\\u200B", "g");
+
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -339,6 +340,11 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
     return `${atomicId}${INLINE_SKILL_TOKEN_MARKER}`;
   };
 
+  const createAgentToken = (agentName: string) => {
+    const atomicName = agentName.replace(/-/g, '\u2011');
+    return `#${atomicName}${INLINE_SKILL_TOKEN_MARKER}`;
+  };
+
   const getCurrentCursor = () => {
     return textareaRef.current?.selectionStart ?? cursorRef.current.start;
   };
@@ -389,8 +395,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
     return range ? range.end : cursor;
   };
 
-  const insertSkillCommand = (before: string, after: string, skillId: string) => {
-    const token = createSkillToken(skillId);
+  const insertTokenCommand = (before: string, after: string, token: string) => {
     const normalizedBefore = before.replace(/[ \t]+$/, '');
     const normalizedAfter = after.replace(/^[ \t]+/, '');
     const needLeadingSpace = normalizedBefore.length > 0 && !/\s$/.test(normalizedBefore);
@@ -402,6 +407,10 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
     const value = `${left}${token}${right}`;
     const cursor = (left + token + (needTrailingSpace ? ' ' : '')).length;
     return { value, cursor };
+  };
+
+  const insertSkillCommand = (before: string, after: string, skillId: string) => {
+    return insertTokenCommand(before, after, createSkillToken(skillId));
   };
 
   const removeSkillTokenRange = (start: number, end: number) => {
@@ -556,10 +565,19 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
         : prev.length;
 
       const safeStart = Math.max(0, Math.min(start, prev.length));
-      // Insert #AgentName (matches autocomplete convention and handleSend extraction)
-      const textToInsert = `#${agentName} `;
-      const nextValue = prev.slice(0, safeStart) + textToInsert + prev.slice(end);
-      const nextCursorPos = safeStart + textToInsert.length;
+      const safeEnd = Math.max(safeStart, Math.min(end, prev.length));
+      const before = prev.slice(0, safeStart);
+      const after = prev.slice(safeEnd);
+
+      const token = createAgentToken(agentName);
+      const { value: nextValue, cursor: nextCursorPos } = insertTokenCommand(before, after, token);
+
+      // DEBUG: trace token chars
+      console.log('[agent-token DEBUG]', {
+        agentName,
+        tokenCodePoints: [...token].map(c => 'U+' + c.charCodeAt(0).toString(16).padStart(4, '0')),
+        valueCodePoints: [...nextValue].map(c => 'U+' + c.charCodeAt(0).toString(16).padStart(4, '0')),
+      });
 
       inputRef.current = nextValue;
       setInput(nextValue);
@@ -969,22 +987,11 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
     }
     const suffix = textAfter.slice(end);
 
-    // Use # for agent mention (matching gemini-cli convention)
-    const atomicName = agentName.replace(/-/g, '\u2011');
-    const token = `#${atomicName}${INLINE_SKILL_TOKEN_MARKER}`;
-    const normalizedBefore = textBefore.replace(/[ \t]+$/, '');
-    const normalizedAfter = textAfter.replace(/^[ \t]+/, '');
-    const needLeadingSpace = normalizedBefore.length > 0 && !/\s$/.test(normalizedBefore);
-    const needTrailingSpace = normalizedAfter.length === 0 || !/^\s/.test(normalizedAfter);
-
-    const left = `${normalizedBefore}${needLeadingSpace ? ' ' : ''}`;
-    const right = `${needTrailingSpace ? ' ' : ''}${normalizedAfter}`;
-    const newValue = `${left}${token}${right}`;
+    const { value: newValue, cursor: newCursorPos } = insertTokenCommand(textBefore, suffix, createAgentToken(agentName));
     setInput(newValue);
     setShowCommands(false);
     setActiveTrigger(null);
 
-    const newCursorPos = (left + token + (needTrailingSpace ? ' ' : '')).length;
     setCursorPosition(newCursorPos);
     cursorRef.current = { start: newCursorPos, end: newCursorPos };
     setTimeout(() => {
