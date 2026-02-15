@@ -125,12 +125,37 @@ export async function POST(req: Request) {
     const core = CoreService.getInstance();
 
     if (body.action === 'restart') {
-      if (body.name && body.name.trim()) {
-        await core.restartMcpServer(body.name.trim());
-      } else {
-        await core.restartAllMcpServers();
+      try {
+        const name = (body.name || '').trim();
+
+        // Read settings to get server config
+        const settings = await readSettings();
+        const mcpServers = ((settings.mcpServers ?? {}) as Record<string, JsonRecord>) || {};
+
+        if (name && name.trim()) {
+          // Get the server config from settings
+          const serverConfig = mcpServers[name];
+          if (serverConfig) {
+            // Manually register the server config with the manager before restarting
+            const coreInstance = CoreService.getInstance();
+            const config = (coreInstance as any).config;
+            const manager = config?.getMcpClientManager?.();
+            if (manager) {
+              const allServerConfigs = (manager as any).allServerConfigs;
+              if (allServerConfigs) {
+                allServerConfigs.set(name, normalizeServerConfig(serverConfig));
+              }
+            }
+          }
+          await core.restartMcpServer(name);
+        } else {
+          await core.restartAllMcpServers();
+        }
+        return NextResponse.json({ success: true });
+      } catch (error) {
+        console.error('[mcp] Restart error:', error);
+        return NextResponse.json({ error: String(error) }, { status: 500 });
       }
-      return NextResponse.json({ success: true });
     }
 
     if (body.action === 'details') {
