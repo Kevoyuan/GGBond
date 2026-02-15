@@ -2,6 +2,9 @@
  * Unified Gemini CLI Service Layer
  * Provides real data from: ~/.gemini/settings.json, CLI process, filesystem, telemetry logs
  */
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
