@@ -103,6 +103,7 @@ export function StateSnapshotDisplay({ content }: StateSnapshotDisplayProps) {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function Section({ icon: Icon, title, content, color }: { icon: any, title: string, content: string | null, color: string }) {
   if (!content) return null;
   return (

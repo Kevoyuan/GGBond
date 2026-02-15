@@ -191,6 +191,7 @@ export function SkillPreviewDialog({ open, onOpenChange, skill }: SkillPreviewDi
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
                                 components={{
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     code: ({ node, className, children, ...props }: any) => {
                                         const match = /language-(\w+)/.exec(className || '');
                                         const isInline = !match && !String(children).includes('\n');

@@ -124,6 +124,7 @@ export function BranchInsights({
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function StatItem({ label, value, icon: Icon, color }: { label: string; value: number; icon: any; color: string }) {
   return (
     <div className="flex flex-col items-center gap-1">

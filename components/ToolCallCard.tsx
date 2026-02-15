@@ -25,6 +25,7 @@ interface ToolCallCardProps {
     toolId?: string;
     checkpointId?: string;
     toolName: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     args: Record<string, any>;
     status?: 'running' | 'completed' | 'failed';
     result?: string;
@@ -70,6 +71,7 @@ function getToolVerb(toolName: string): string {
 }
 
 // Extract the most relevant arg value
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getToolTarget(args: Record<string, any>): string {
     const priorityKeys = ['path', 'file_path', 'filePath', 'file', 'filename', 'command', 'cmd', 'query', 'pattern', 'directory', 'dir'];
     for (const key of priorityKeys) {

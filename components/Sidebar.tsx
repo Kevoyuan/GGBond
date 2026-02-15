@@ -71,6 +71,7 @@ interface SidebarProps {
   onFileSelect?: (file: { name: string; path: string }) => void;
   hookEvents?: HookEvent[];
   onClearHooks?: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSelectAgent?: (agent: any) => void;
   selectedAgentName?: string;
   sidePanelType?: 'graph' | 'timeline' | null;

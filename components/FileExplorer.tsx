@@ -57,8 +57,7 @@ export function FileExplorer({ initialPath, onFileSelect, className }: FileExplo
 
   useEffect(() => {
     loadFiles(initialPath || undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialPath]);
+  }, [initialPath, loadFiles]);
 
   const handleEntryClick = (entry: FileEntry) => {
     if (entry.type === 'directory') {

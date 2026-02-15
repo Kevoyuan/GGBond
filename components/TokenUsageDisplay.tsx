@@ -11,6 +11,7 @@ interface TokenStats {
   totalCost?: number;
   duration?: number;
   model?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
 

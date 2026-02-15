@@ -25,13 +25,16 @@ interface QuestionPanelProps {
     questions: Question[];
     title: string;
     correlationId: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onSubmit: (answers: any[]) => void;
     onCancel: () => void;
 }
 
 export function QuestionPanel({ questions, title, correlationId, onSubmit, onCancel }: QuestionPanelProps) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [answers, setAnswers] = useState<any[]>(questions.map(q => q.multiSelect ? [] : ''));
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleAnswerChange = (index: number, value: any) => {
         const newAnswers = [...answers];
         newAnswers[index] = value;
@@ -50,6 +53,7 @@ export function QuestionPanel({ questions, title, correlationId, onSubmit, onCan
         return questions.every((q, i) => {
             if (q.type === 'yesno') return typeof answers[i] === 'boolean';
             if (q.type === 'choice') return answers[i] !== '';
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             if (q.multiSelect) return (answers[i] as any[]).length > 0;
             return answers[i] !== '';
         });

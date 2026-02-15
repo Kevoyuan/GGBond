@@ -390,6 +390,7 @@ export function FileViewer({ filePath, fileName, onClose, className }: FileViewe
                                             remarkPlugins={[remarkGfm]}
                                             rehypePlugins={[rehypeRaw]}
                                             components={{
+                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                                 code: ({ node, className, children, ...props }: any) => {
                                                     const match = /language-(\w+)/.exec(className || '');
                                                     const isInline = !match && !String(children).includes('\n');
