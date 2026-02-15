@@ -530,8 +530,9 @@ export function RunAgentDialog({ agentName, agentDisplayName, open, onOpenChange
       onRun?.(data.id);
       onOpenChange(false);
       setTask('');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An error occurred';
+      setError(message);
     } finally {
       setLoading(false);
     }
