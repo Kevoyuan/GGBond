@@ -13,7 +13,8 @@ import {
     FileText,
     Search,
     RefreshCw,
-    Layout
+    Layout,
+    FolderOpen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './sidebar/PanelHeader';
@@ -39,7 +40,7 @@ export function FileTree({ initialPath, onFileSelect, className }: FileTreeProps
         <div className={cn("flex flex-col h-full bg-card/30", className)}>
             <PanelHeader
                 title="Workspace"
-                icon={Layout}
+                icon={FolderOpen}
                 actions={
                     <button
                         onClick={() => setRootPath(initialPath || '')}
