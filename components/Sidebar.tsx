@@ -8,7 +8,6 @@ import {
   Moon,
   Sun,
   FolderOpen,
-  Box,
   Plug,
   BarChart2,
   LayoutGrid,
@@ -33,6 +32,7 @@ import { AgentPanel } from './AgentPanel';
 import { QuotaPanel } from './QuotaPanel';
 import { ModulesDialog } from './ModulesDialog';
 import { AgentIcon } from './icons/AgentIcon';
+import { GeminiIcon } from './icons/GeminiIcon';
 import { Tooltip } from '@/components/ui/Tooltip';
 
 // New separated components & hooks
@@ -271,7 +271,7 @@ export function Sidebar({
       {/* Navigation Rail */}
       <div className="w-14 border-r flex flex-col items-center py-4 gap-4 bg-card z-20 shrink-0">
         <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
-          <Box className="w-5 h-5 text-primary" />
+          <GeminiIcon className="w-6 h-6" />
         </div>
 
         <div className="flex flex-col gap-3 w-full px-2 items-center flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden">
