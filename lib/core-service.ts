@@ -929,7 +929,16 @@ export class CoreService {
 
         const manager = this.config.getMcpClientManager();
         if (manager) {
-            await manager.restartServer(trimmedName);
+            // Directly register the server config in allServerConfigs to ensure it's available
+            const serverConfigs = (manager as any).allServerConfigs;
+            if (serverConfigs) {
+                serverConfigs.set(trimmedName, serverConfig);
+            }
+            try {
+                await manager.restartServer(trimmedName);
+            } catch (err) {
+                console.warn('[addMcpServer] restartServer error:', err);
+            }
         }
         await this.config.refreshMcpContext();
     }
