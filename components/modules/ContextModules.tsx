@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import React, { useEffect, useState } from 'react';
 import { ModuleCard } from './ModuleCard';
 import { Brain, FolderOpen, Webhook, Loader2, Plus, Trash2, RefreshCw, FolderPlus, Edit3, Save, CheckCircle } from 'lucide-react';
