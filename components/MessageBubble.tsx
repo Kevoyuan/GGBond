@@ -36,6 +36,7 @@ export interface Message {
   hooks?: import('./HooksPanel').HookEvent[];
   queued?: boolean;
   tempId?: string;
+  agentName?: string;
 }
 
 interface MessageBubbleProps {
@@ -153,6 +154,11 @@ export const MessageBubble = React.memo(function MessageBubble({
               </div>
             ) : (
               <div className="whitespace-pre-wrap">
+                {message.agentName && (
+                  <span className="inline-flex items-center gap-0.5 mr-1.5 px-1.5 py-0.5 rounded-md text-[11px] font-semibold tracking-tight bg-white/15 text-white/90 border border-white/20 align-baseline translate-y-[-1px]">
+                    {message.agentName}
+                  </span>
+                )}
                 {message.queued && (
                   <span className="inline-flex items-center gap-1 mr-1.5 opacity-70">
                     <Loader2 className="w-3 h-3 animate-spin" />
