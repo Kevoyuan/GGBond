@@ -403,9 +403,9 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
     const needTrailingSpace = normalizedAfter.length === 0 || !/^\s/.test(normalizedAfter);
 
     const left = `${normalizedBefore}${needLeadingSpace ? ' ' : ''}`;
-    const right = `${needTrailingSpace ? ' ' : ''}${normalizedAfter}`;
+    const right = ` ${normalizedAfter}`; // Force at least one trailing space for breathing room
     const value = `${left}${token}${right}`;
-    const cursor = (left + token + (needTrailingSpace ? ' ' : '')).length;
+    const cursor = (left + token + 1).length;
     return { value, cursor };
   };
 
@@ -571,13 +571,6 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
 
       const token = createAgentToken(agentName);
       const { value: nextValue, cursor: nextCursorPos } = insertTokenCommand(before, after, token);
-
-      // DEBUG: trace token chars
-      console.log('[agent-token DEBUG]', {
-        agentName,
-        tokenCodePoints: [...token].map(c => 'U+' + c.charCodeAt(0).toString(16).padStart(4, '0')),
-        valueCodePoints: [...nextValue].map(c => 'U+' + c.charCodeAt(0).toString(16).padStart(4, '0')),
-      });
 
       inputRef.current = nextValue;
       setInput(nextValue);
@@ -1151,25 +1144,25 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
             isAgent ? "group/agent" : "group/skill"
           )}
         >
-          {/* Layout Anchor - Matches textarea content exactly (including hidden marker) */}
+          {/* Layout Anchor - MUST MATCH TEXTAREA EXACTLY FOR CURSOR ALIGNMENT */}
           <span className="invisible select-none">{fullToken}</span>
 
-          {/* Visual Badge - Optimized for line-height and minimizing overlap */}
+          {/* Visual Badge - Option B: Modern Minimalist (Standardized Layout) */}
           <span className={cn(
-            "absolute -left-[3px] -right-[3px] top-1/2 -translate-y-[55%] h-[20px] rounded-[6px] border flex items-center justify-center transition-all duration-200 select-none z-0 hover:z-10 shadow-sm",
+            "absolute left-[0.5px] right-[0.5px] top-1/2 -translate-y-[55%] h-[20px] rounded-full border flex items-center transition-all duration-200 select-none z-0 hover:z-10 shadow-sm",
             isAgent
-              ? "bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400 hover:from-blue-500/20 hover:to-purple-500/20 hover:border-blue-500/40"
-              : "border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/15 hover:border-blue-500/40"
+              ? "bg-slate-100 border-slate-300 text-slate-900 dark:bg-slate-200 dark:border-slate-400 dark:text-slate-950"
+              : "bg-white border-slate-200 text-slate-800 dark:bg-slate-100 dark:border-slate-300 dark:text-slate-900"
           )}>
-            <span className="truncate max-w-full px-1.5 text-[10px] leading-none font-semibold font-mono tracking-tight">
-              {isAgent ? id : getSkillDisplayName(id)}
+            <span className="max-w-full text-[12px] leading-none font-medium font-sans tracking-tight pl-2 pr-6 whitespace-nowrap">
+              {id}
             </span>
 
-            {/* Close Button - Appearing on hover with enhanced visibility */}
+            {/* Close Button - Refined for Minimalist style */}
             <button
               type="button"
               className={cn(
-                "absolute -right-1.5 -top-1.5 h-4 w-4 rounded-full bg-background border shadow-sm opacity-0 flex items-center justify-center hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-200 z-20 scale-90 hover:scale-100",
+                "absolute right-0 -top-1 h-3.5 w-3.5 rounded-full bg-slate-800 text-white border-none shadow-sm opacity-0 flex items-center justify-center hover:bg-slate-950 transition-all duration-200 z-20",
                 isAgent ? "group-hover/agent:opacity-100" : "group-hover/skill:opacity-100"
               )}
               onMouseDown={(e) => {
@@ -1179,7 +1172,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
               }}
               aria-label={`Remove ${isAgent ? 'agent' : 'skill'} ${id}`}
             >
-              <span className="text-[10px] font-bold leading-none mb-px">×</span>
+              <X className="w-2.5 h-2.5 stroke-[3px]" />
             </button>
           </span>
         </span>
@@ -1392,7 +1385,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder=""
-              className="absolute inset-0 w-full h-full bg-transparent border-none focus:outline-none resize-none text-transparent caret-foreground selection:bg-primary/20 text-sm leading-relaxed px-2 py-1 z-0"
+              className="absolute inset-0 w-full h-full bg-transparent border-none focus:outline-none resize-none text-transparent caret-foreground selection:bg-primary/20 font-sans text-sm leading-relaxed px-2 py-1 z-0"
               rows={1}
               style={{ minHeight: '40px' }}
             />
@@ -1401,7 +1394,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
             <div
               ref={inputOverlayRef}
               aria-hidden
-              className="relative z-10 pointer-events-none whitespace-pre-wrap break-words px-2 py-1 text-sm leading-relaxed min-h-[40px] max-h-[200px] overflow-y-auto"
+              className="relative z-10 pointer-events-none whitespace-pre-wrap break-words font-sans px-2 py-1 text-sm leading-relaxed min-h-[40px] max-h-[200px] overflow-y-auto"
             >
               {renderInlineTokens()}
             </div>

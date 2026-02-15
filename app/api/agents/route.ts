@@ -108,45 +108,58 @@ function getUserAgents(): { name: string; displayName?: string; description: str
 
 export async function GET() {
     try {
-        // Get user agents from disk (always fresh)
+        // 1. Get user agents from disk (always fresh)
         const userAgents = getUserAgents();
+        const agentsMap = new Map<string, any>();
 
-        // Try to get built-in agents from CoreService
-        let builtInAgents: { name: string; displayName?: string; description: string; kind: 'local' | 'remote'; experimental?: boolean; content?: string }[] = [];
+        // Add user agents to map
+        userAgents.forEach(agent => agentsMap.set(agent.name, agent));
 
+        // 2. Try to get agents from CoreService
         try {
             const core = CoreService.getInstance();
             if (core.config) {
-                builtInAgents = core.config.getAgentRegistry().getAllDefinitions() || [];
+                const coreAgents = core.config.getAgentRegistry().getAllDefinitions() || [];
+                coreAgents.forEach(agent => agentsMap.set(agent.name, agent));
             }
         } catch (e) {
-            console.warn('[agents] Failed to get agents from CoreService, using fallback:', e);
-            // Use fallback built-in agents
-            builtInAgents = BUILT_IN_AGENTS.map(name => ({
-                name,
-                description: `Built-in agent: ${name}`,
-                kind: 'local' as const,
-            }));
+            console.warn('[agents] Failed to get agents from CoreService:', e);
         }
 
-        // Combine user agents and built-in agents
-        const allAgents = [...userAgents, ...builtInAgents];
+        // 3. Ensure built-in agents are present
+        // If they were not in userAgents OR CoreService, add the fallback definition
+        BUILT_IN_AGENTS.forEach(name => {
+            if (!agentsMap.has(name)) {
+                agentsMap.set(name, {
+                    name,
+                    description: `Built-in agent: ${name}`,
+                    kind: 'local' as const,
+                });
+            }
+        });
+
+        const allAgents = Array.from(agentsMap.values());
 
         return NextResponse.json({ agents: allAgents });
     } catch (error) {
         console.error('Error fetching agents:', error);
-        // Fallback: read directly from disk
+        // Fallback: read directly from disk and add built-ins
         try {
             const userAgents = getUserAgents();
-            const agents = [
-                ...userAgents,
-                ...BUILT_IN_AGENTS.map(name => ({
-                    name,
-                    description: `Built-in agent: ${name}`,
-                    kind: 'local' as const,
-                })),
-            ];
-            return NextResponse.json({ agents });
+            const agentsMap = new Map<string, any>();
+            userAgents.forEach(agent => agentsMap.set(agent.name, agent));
+            
+            BUILT_IN_AGENTS.forEach(name => {
+                if (!agentsMap.has(name)) {
+                    agentsMap.set(name, {
+                        name,
+                        description: `Built-in agent: ${name}`,
+                        kind: 'local' as const,
+                    });
+                }
+            });
+
+            return NextResponse.json({ agents: Array.from(agentsMap.values()) });
         } catch (fallbackError) {
             return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
         }

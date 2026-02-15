@@ -241,8 +241,8 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
     const isUserAgent = (agentName: string) => !builtInAgents.includes(agentName);
 
     const filteredAgents = agents.filter((agent) => {
-        if (scopeFilter === 'built-in' && !isUserAgent(agent.name)) return false;
-        if (scopeFilter === 'user' && isUserAgent(agent.name)) return false;
+        if (scopeFilter === 'built-in' && isUserAgent(agent.name)) return false;
+        if (scopeFilter === 'user' && !isUserAgent(agent.name)) return false;
         const q = search.trim().toLowerCase();
         if (!q) return true;
         return (
