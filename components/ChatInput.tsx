@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X } from 'lucide-react';
+import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -13,7 +13,7 @@ interface UploadedImage {
 }
 
 interface ChatInputProps {
-  onSend: (message: string, options?: { approvalMode?: 'safe' | 'auto'; images?: UploadedImage[] }) => void;
+  onSend: (message: string, options?: { approvalMode?: 'safe' | 'auto'; images?: UploadedImage[]; agentName?: string }) => void;
   onStop?: () => void;
   isLoading: boolean;
   currentModel: string;
@@ -52,6 +52,13 @@ interface MentionItem {
   path: string;
   displayPath: string;
   type: 'directory' | 'file';
+}
+
+interface AgentItem {
+  name: string;
+  displayName?: string;
+  description: string;
+  kind: 'local' | 'remote';
 }
 
 interface SkillSuggestionItem {
@@ -122,7 +129,7 @@ const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
 export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange, prefillRequest }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
-  const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | 'skill' | null>(null);
+  const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | '#' | 'skill' | null>(null);
   const [showModeMenu, setShowModeMenu] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filteredCommands, setFilteredCommands] = useState<CommandItem[]>(BASE_COMMANDS);
@@ -130,6 +137,8 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
   const [skillRecords, setSkillRecords] = useState<SkillRecord[]>([]);
   const [filteredSkills, setFilteredSkills] = useState<SkillSuggestionItem[]>([]);
   const [installedSkills, setInstalledSkills] = useState<CommandItem[]>([]);
+  const [agentRecords, setAgentRecords] = useState<AgentItem[]>([]);
+  const [filteredAgents, setFilteredAgents] = useState<AgentItem[]>([]);
   const inputRef = useRef('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputOverlayRef = useRef<HTMLDivElement>(null);
@@ -289,6 +298,21 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
     return { start: lastAt, query: token };
   };
 
+  // Agent mention bounds (triggered by #)
+  const getAgentBounds = (text: string, index: number) => {
+    const textBefore = text.slice(0, index);
+    const lastHash = textBefore.lastIndexOf('#');
+
+    if (lastHash === -1) return null;
+    // Must be at start of line or preceded by whitespace
+    if (lastHash > 0 && /\S/.test(text[lastHash - 1])) return null;
+
+    const token = textBefore.slice(lastHash + 1);
+    if (token.includes('\n')) return null;
+
+    return { start: lastHash, query: token };
+  };
+
   const getSkillBounds = (text: string, index: number) => {
     const textBefore = text.slice(0, index);
     const commandMatch = textBefore.match(/(^|\s)\/skills?\s+([^\s\n]*)$/);
@@ -428,6 +452,20 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
       }
     };
     fetchSkills();
+
+    // Fetch agents
+    const fetchAgents = async () => {
+      try {
+        const res = await fetch('/api/agents');
+        if (res.ok) {
+          const data = await res.json();
+          setAgentRecords(data.agents || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch agents for autocomplete', error);
+      }
+    };
+    fetchAgents();
   }, []);
 
   const adjustHeight = () => {
@@ -514,8 +552,8 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
         : prev.length;
 
       const safeStart = Math.max(0, Math.min(start, prev.length));
-      // Just insert plain text for now: @AgentName
-      const textToInsert = `@${agentName} `;
+      // Insert #AgentName (matches autocomplete convention and handleSend extraction)
+      const textToInsert = `#${agentName} `;
       const nextValue = prev.slice(0, safeStart) + textToInsert + prev.slice(end);
       const nextCursorPos = safeStart + textToInsert.length;
 
@@ -657,10 +695,39 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
         setActiveTrigger(null);
         setShowCommands(false);
       }
-    } else {
-      setActiveTrigger(null);
-      setShowCommands(false);
+      return;
     }
+
+    // Handle # for agent mentions
+    const agentBounds = getAgentBounds(value, cursorIndex);
+    console.log('[autocomplete] agent check:', { value: value.slice(0, 30), cursorIndex, agentBounds, agentRecordsCount: agentRecords.length });
+    if (agentBounds) {
+      const query = agentBounds.query.toLowerCase();
+      const candidates = agentRecords.filter((agent) => {
+        if (!query) return true;
+        return (
+          agent.name.toLowerCase().includes(query) ||
+          (agent.displayName || '').toLowerCase().includes(query) ||
+          agent.description.toLowerCase().includes(query)
+        );
+      }).slice(0, 50);
+
+      console.log('[autocomplete] agent candidates:', { query, candidateCount: candidates.length });
+      if (candidates.length > 0) {
+        setFilteredAgents(candidates);
+        setActiveTrigger('#');
+        setShowCommands(true);
+        setSelectedIndex(0);
+      } else {
+        setFilteredAgents([]);
+        setActiveTrigger(null);
+        setShowCommands(false);
+      }
+      return;
+    }
+
+    setActiveTrigger(null);
+    setShowCommands(false);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -749,7 +816,9 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
         ? filteredCommands.length
         : activeTrigger === '@'
           ? filteredMentions.length
-          : filteredSkills.length;
+          : activeTrigger === '#'
+            ? filteredAgents.length
+            : filteredSkills.length;
 
     if (showCommands && finalSuggestionCount > 0) {
       if (e.key === 'ArrowDown') {
@@ -773,6 +842,9 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
         } else if (activeTrigger === 'skill') {
           const skill = filteredSkills[selectedIndex];
           if (skill) handleSkillSelect(skill.id);
+        } else if (activeTrigger === '#') {
+          const agent = filteredAgents[selectedIndex];
+          if (agent) handleAgentSelect(agent.name);
         }
         return;
       }
@@ -880,6 +952,40 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
     }, 0);
   };
 
+  const handleAgentSelect = (agentName: string) => {
+    const cursor = getCurrentCursor();
+    const bounds = getAgentBounds(input, cursor);
+    if (!bounds) return;
+
+    const { start } = bounds;
+    const textBefore = input.slice(0, start);
+    const textAfter = input.slice(cursor);
+
+    let end = 0;
+    while (end < textAfter.length && /\S/.test(textAfter[end])) {
+      end++;
+    }
+    const suffix = textAfter.slice(end);
+
+    // Use # for agent mention (matching gemini-cli convention)
+    const mention = `#${agentName}`;
+    const newValue = textBefore + mention + ' ' + suffix;
+    setInput(newValue);
+    setShowCommands(false);
+    setActiveTrigger(null);
+
+    const newCursorPos = start + mention.length + 1;
+    setCursorPosition(newCursorPos);
+    cursorRef.current = { start: newCursorPos, end: newCursorPos };
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        cursorRef.current = { start: newCursorPos, end: newCursorPos };
+      }
+    }, 0);
+  };
+
   const handleSkillSelect = (skillId: string) => {
     const cursor = getCurrentCursor();
     const bounds = getSkillBounds(input, cursor);
@@ -910,11 +1016,45 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
 
   const handleSend = () => {
     // Always allow sending - parent component will handle queue logic if AI is busy
+
+    // Extract agent mention (#agent-name or @agent-name) before any other processing
+    // #agent-name is always treated as an agent reference.
+    // @agent-name is treated as an agent reference ONLY if it matches a known agent name
+    // (to avoid conflicts with @file-path mentions).
+    const hashAgentPattern = /(^|\s)#([A-Za-z0-9_-]+)(\s|$)/;
+    const atAgentPattern = /(^|\s)@([A-Za-z0-9_-]+)(\s|$)/;
+    const hashMatch = input.match(hashAgentPattern);
+    let inlineAgentName: string | undefined;
+    let agentRemovePattern: RegExp | undefined;
+
+    if (hashMatch) {
+      inlineAgentName = hashMatch[2];
+      agentRemovePattern = hashAgentPattern;
+    } else {
+      const atMatch = input.match(atAgentPattern);
+      if (atMatch) {
+        const candidateName = atMatch[2];
+        // Only treat as agent if it matches a known agent name
+        const isKnownAgent = agentRecords.some(
+          (a) => a.name.toLowerCase() === candidateName.toLowerCase()
+        );
+        if (isKnownAgent) {
+          inlineAgentName = candidateName;
+          agentRemovePattern = atAgentPattern;
+        }
+      }
+    }
+
+    // Remove agent mention from input for further processing
+    const inputWithoutAgent = (inlineAgentName && agentRemovePattern)
+      ? input.replace(agentRemovePattern, '$1$3').replace(/[ \t]{2,}/g, ' ').trim()
+      : input;
+
     const typedSkillPattern = /(\/skills?)\s+([A-Za-z0-9._/-]+)(?=\s|$)/g;
     const inlineTokenRegex = new RegExp(inlineSkillTokenPattern.source, 'g');
-    const typedSkillMatches = Array.from(input.matchAll(typedSkillPattern));
+    const typedSkillMatches = Array.from(inputWithoutAgent.matchAll(typedSkillPattern));
     const tokenSkillIds = Array.from(
-      input.matchAll(inlineTokenRegex)
+      inputWithoutAgent.matchAll(inlineTokenRegex)
     ).map((m) => m[1]);
     const typedSkillIds = typedSkillMatches
       .map((m) => m[2])
@@ -923,7 +1063,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
 
     // Keep inline skill ids in the sentence when the user wrote surrounding text
     // (e.g. "你会不会用 <skillA> 和 <skillB>"), but keep old behavior for skill-only sends.
-    const hasNonSkillText = input
+    const hasNonSkillText = inputWithoutAgent
       .replace(inlineTokenRegex, '')
       .replace(typedSkillPattern, (full, _command, id) => (
         SKILLS_MANAGEMENT_SUBCOMMANDS.has(String(id).toLowerCase()) ? full : ''
@@ -933,7 +1073,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
       .replace(/\n{3,}/g, '\n\n')
       .trim().length > 0;
 
-    const cleanedInput = input
+    const cleanedInput = inputWithoutAgent
       .replace(inlineTokenRegex, (_full, id) => (hasNonSkillText ? String(id) : ''))
       .replace(typedSkillPattern, (full, _command, id) => (
         SKILLS_MANAGEMENT_SUBCOMMANDS.has(String(id).toLowerCase()) ? full : ''
@@ -950,7 +1090,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
       ? `${skillPrefix}${cleanedInput ? `\n${cleanedInput}` : ''}`
       : cleanedInput;
 
-    onSend(finalMessage.replace(/\u2011/g, '-'), { approvalMode: currentApprovalMode, images: uploadedImages });
+    onSend(finalMessage.replace(/\u2011/g, '-'), { approvalMode: currentApprovalMode, images: uploadedImages, agentName: inlineAgentName });
     setInput('');
     setUploadedImages([]);
     if (textareaRef.current) {
@@ -1169,6 +1309,28 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
                   </div>
                 </button>
               ))}
+              {activeTrigger === '#' && filteredAgents.map((agent, index) => (
+                <button
+                  key={agent.name}
+                  data-index={index}
+                  onClick={() => handleAgentSelect(agent.name)}
+                  className={cn(
+                    "w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors",
+                    index === selectedIndex
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                  )}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                >
+                  <div className="flex items-center justify-center w-5 h-5 rounded bg-background border shadow-sm">
+                    <User className="w-3 h-3" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-medium truncate">#{agent.name}</span>
+                    <span className="text-[10px] opacity-70 truncate">{agent.displayName || agent.description}</span>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -1180,7 +1342,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
           <div className="relative min-h-[40px] max-h-[200px]">
             {input.length === 0 && (
               <div className="pointer-events-none absolute inset-0 px-2 py-1 text-sm text-muted-foreground z-20">
-                Ask anything... (Type / for commands, @ for files, /skills id for inline skill)
+                Ask anything... (Type / for commands, @ for files, # for agents, /skills id for inline skill)
               </div>
             )}
 

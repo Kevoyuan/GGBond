@@ -1022,7 +1022,7 @@ export default function Home() {
 
   const handleSendMessage = async (
     text: string,
-    options?: { parentId?: string; approvalMode?: 'safe' | 'auto'; images?: UploadedImage[]; reuseMessageId?: string; sessionId?: string }
+    options?: { parentId?: string; approvalMode?: 'safe' | 'auto'; images?: UploadedImage[]; reuseMessageId?: string; sessionId?: string; agentName?: string }
   ) => {
     // Allow sending if there's text OR images
     if (!text.trim() && (!options?.images || options.images.length === 0)) return;
@@ -1490,7 +1490,7 @@ export default function Home() {
           mode,
           approvalMode: options?.approvalMode ?? approvalMode,
           modelSettings: settings.modelSettings,
-          selectedAgent: selectedAgent?.name,
+          selectedAgent: options?.agentName || selectedAgent?.name,
           // Only persisted numeric IDs are valid for backend parent linkage.
           parentId: apiParentId, // Pass tree context
           images,
