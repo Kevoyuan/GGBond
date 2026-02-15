@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     Zap,
     Clock,
@@ -637,55 +638,52 @@ export function HooksPanel({
     }, []);
 
     return (
-        <div className={cn("flex flex-col h-full bg-card/30 rounded-lg border border-primary/10", className)}>
-            {/* Tab Header */}
-            <div className="flex items-center justify-between px-3 pt-3 pb-2 border-b border-primary/10">
-                <div className="flex items-center gap-1">
-                    <button
-                        onClick={() => setActiveTab('events')}
-                        className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all",
-                            activeTab === 'events'
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                        )}
-                    >
-                        <Zap className="w-3.5 h-3.5" />
-                        Events
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('config')}
-                        className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all",
-                            activeTab === 'config'
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                        )}
-                    >
-                        <Settings className="w-3.5 h-3.5" />
-                        Config
-                    </button>
+        <div className={cn("flex flex-col h-full bg-card/30 rounded-lg border border-primary/10 overflow-hidden", className)}>
+            {/* Fixed Header Section */}
+            <div className="flex-none border-b border-primary/10 bg-muted/5">
+                {/* Main Tabs */}
+                <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10/50">
+                    <div className="flex p-1 bg-muted/30 rounded-lg relative overflow-hidden flex-1 max-w-[240px]">
+                        {[
+                            { key: 'events', label: 'Events', icon: Zap },
+                            { key: 'config', label: 'Config', icon: Settings },
+                        ].map((tab) => (
+                            <button
+                                key={tab.key}
+                                onClick={() => setActiveTab(tab.key as TabType)}
+                                className={cn(
+                                    "relative flex items-center justify-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md flex-1 z-10 transition-colors",
+                                    activeTab === tab.key
+                                        ? "text-primary-foreground"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {activeTab === tab.key && (
+                                    <motion.div
+                                        layoutId="hooksMainTab"
+                                        className="absolute inset-0 bg-primary rounded-md shadow-sm"
+                                        transition={{ type: "spring", bounce: 0.2, duration: 0.3 }}
+                                    />
+                                )}
+                                <tab.icon className="w-3.5 h-3.5 relative z-10" />
+                                <span className="relative z-10">{tab.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                    {activeTab === 'events' && onClear && events.length > 0 && (
+                        <button
+                            onClick={onClear}
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+                            title="Clear events"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    )}
                 </div>
-                {activeTab === 'events' && onClear && events.length > 0 && (
-                    <button
-                        onClick={onClear}
-                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
-                        title="Clear events"
-                    >
-                        <X className="w-3.5 h-3.5" />
-                    </button>
-                )}
-            </div>
 
-            {activeTab === 'config' ? (
-                // Config Tab
-                <div className="flex-1 overflow-y-auto p-4">
-                    <HooksConfigTab onRefresh={handleRefreshConfig} />
-                </div>
-            ) : (
-                // Events Tab
-                <>
-                    <div className="p-3 border-b border-primary/10 space-y-2">
+                {/* Sub-header for Events Tab */}
+                {activeTab === 'events' && (
+                    <div className="p-3 space-y-2 bg-background/20">
                         {/* Search bar */}
                         <div className="relative group">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-all" />
@@ -712,7 +710,7 @@ export function HooksPanel({
                                 onClick={() => setShowFilters(!showFilters)}
                                 className={cn(
                                     "flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md transition-all font-medium",
-                                    showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                                    showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground border border-transparent hover:border-primary/20"
                                 )}
                             >
                                 <Filter className="w-3 h-3" />
@@ -740,28 +738,48 @@ export function HooksPanel({
                         </div>
 
                         {/* Filter dropdown */}
-                        {showFilters && (
-                            <div className="pt-2 flex flex-wrap gap-1 border-t border-primary/5">
-                                {FILTER_OPTIONS.map(option => (
-                                    <button
-                                        key={option.value}
-                                        onClick={() => setTypeFilter(option.value)}
-                                        className={cn(
-                                            "text-[9px] px-2 py-0.5 rounded-full transition-all border uppercase tracking-tighter font-bold",
-                                            typeFilter === option.value
-                                                ? "bg-primary text-primary-foreground border-primary"
-                                                : "bg-muted/50 border-transparent text-muted-foreground hover:border-muted-foreground/30"
-                                        )}
-                                    >
-                                        {option.label}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
+                        <AnimatePresence>
+                            {showFilters && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="pt-2 overflow-hidden"
+                                >
+                                    <div className="flex flex-wrap gap-1 border-t border-primary/5 pt-2">
+                                        {FILTER_OPTIONS.map(option => (
+                                            <button
+                                                key={option.value}
+                                                onClick={() => setTypeFilter(option.value)}
+                                                className={cn(
+                                                    "text-[9px] px-2 py-0.5 rounded-full transition-all border uppercase tracking-tighter font-bold",
+                                                    typeFilter === option.value
+                                                        ? "bg-primary text-primary-foreground border-primary"
+                                                        : "bg-muted/50 border-transparent text-muted-foreground hover:border-muted-foreground/30"
+                                                )}
+                                            >
+                                                {option.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
+                )}
+            </div>
 
-                    {/* Events list */}
-                    <div className={cn("flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin", maxHeight)}>
+            <div className="flex-1 overflow-y-auto scrollbar-thin overflow-x-hidden">
+                {activeTab === 'config' ? (
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="p-4"
+                    >
+                        <HooksConfigTab onRefresh={handleRefreshConfig} />
+                    </motion.div>
+                ) : (
+                    <div className="p-3 space-y-2">
                         {filteredEvents.length > 0 ? (
                             filteredEvents.map(renderEventContent)
                         ) : (
@@ -783,8 +801,8 @@ export function HooksPanel({
                             </div>
                         )}
                     </div>
-                </>
-            )}
+                )}
+            </div>
         </div>
     );
 }
