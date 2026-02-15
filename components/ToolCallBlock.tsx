@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     ChevronRight,
     Check,
@@ -77,8 +77,12 @@ function getToolTarget(args: Record<string, any>): string {
     return '';
 }
 
-export function ToolCallBlock({ toolName, args, status = 'completed', result, duration, onRetry, onCancel }: ToolCallBlockProps) {
+export const ToolCallBlock = React.memo(function ToolCallBlock({ toolName, args, status = 'completed', result, duration, onRetry, onCancel }: ToolCallBlockProps) {
     const [expanded, setExpanded] = useState(false);
+
+    const toggleExpanded = useCallback(() => {
+        setExpanded(prev => !prev);
+    }, []);
 
     const toolIcon = getToolIconElement(toolName);
     const verb = getToolVerb(toolName);
@@ -107,8 +111,18 @@ export function ToolCallBlock({ toolName, args, status = 'completed', result, du
         )}>
             {/* Header / Summary Row */}
             <div
-                className="flex items-center gap-2 px-2 py-1.5 cursor-pointer text-[12px] font-mono select-none"
-                onClick={() => setExpanded(!expanded)}
+                role="button"
+                aria-expanded={expanded}
+                aria-label={`${verb} ${target || toolName}`}
+                tabIndex={0}
+                className="flex items-center gap-2 px-2 py-1.5 cursor-pointer text-[12px] font-mono select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-inset rounded"
+                onClick={toggleExpanded}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleExpanded();
+                    }
+                }}
             >
                 {/* Status Indicator */}
                 <div className={cn("flex items-center justify-center w-4 h-4 shrink-0", statusColor)}>
@@ -224,4 +238,4 @@ export function ToolCallBlock({ toolName, args, status = 'completed', result, du
             )}
         </div>
     );
-}
+});

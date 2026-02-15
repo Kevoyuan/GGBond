@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
     Search,
     FolderPlus,
@@ -42,7 +42,7 @@ interface ChatViewProps {
     formatSessionAge: (session: Session) => string;
 }
 
-export function ChatView({
+export const ChatView = React.memo(function ChatView({
     sessions,
     currentSessionId,
     runningSessionIds = [],
@@ -257,5 +257,5 @@ export function ChatView({
             </div>
         </div>
     );
-}
+});
 
