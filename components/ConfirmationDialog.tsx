@@ -28,6 +28,7 @@ export interface ConfirmationDetails {
     toolName?: string;
     toolDisplayName?: string;
     // Ask User
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     questions?: any[];
     // Exit plan mode
     planPath?: string;
