@@ -1,70 +1,60 @@
 # GGBond
 
 <p align="center">
-  <img src="./public/screenshot.png" alt="GGBond" width="100%" />
+  <img src="./public/screenshot.png" alt="GGBond - AI-Powered Intelligent Coding Assistant" width="100%" />
 </p>
 
 <p align="center">
   <a href="https://github.com/Kevoyuan/ggbond/releases">
-    <img src="https://img.shields.io/github/v/release/Kevoyuan/gem-ui?include_prereleases&label=latest" alt="Latest Release" />
+    <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?include_prereleases&label=latest" alt="Latest Release" />
   </a>
   <a href="https://github.com/Kevoyuan/ggbond/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/Kevoyuan/gem-ui" alt="License" />
+    <img src="https://img.shields.io/github/license/Kevoyuan/GGBond" alt="License" />
   </a>
   <a href="https://github.com/Kevoyuan/ggbond/actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/Kevoyuan/gem-ui?label=build" alt="Build Status" />
+    <img src="https://img.shields.io/github/actions/workflow/status/Kevoyuan/GGBond?label=build" alt="Build Status" />
   </a>
 </p>
 
-## Introduction
+## Overview
 
 GGBond is an AI-powered intelligent coding assistant desktop application built on top of Google Gemini CLI. It combines powerful AI coding capabilities with a modern desktop interface, providing developers with a seamless AI-assisted programming experience.
 
-## Features
+## Key Features
 
-### Intelligent Chat
+### Intelligent Chat Interface
 - Natural language interaction with AI
 - Markdown code highlighting with syntax support
 - Multi-turn conversation context preservation
-- Session history save and restore functionality
+- Session history save and restore
 
-### Agent Management
+### Agent System
 - Built-in agents (Think, Code, Review, etc.)
 - Custom agent creation and configuration
-- Real-time agent execution status monitoring
-- Visual conversation graph for session visualization
+- Real-time execution status monitoring
 
-### Tool System
+### Conversation Visualization
+- Visual conversation graph showing message branches
+- Message timeline for tracking conversation flow
+- Branch insights for exploring alternative paths
+- Message tree structure for complex conversations
+
+### Tool & MCP Integration
 - Complete CLI tool integration with Gemini CLI
 - File editing and preview capabilities
 - Terminal command execution
-- Tool call approval mechanism for security
-
-### MCP Support
 - MCP server management panel
 - MCP tool integration for extended capabilities
-- MCP resource access and management
 
-### Memory System
+### Memory & Context
 - Project context management
 - Global memory storage with SQLite
 - Automatic context loading for sessions
 
-### Hook System
-- Event listener configuration
-- Real-time event monitoring
-- Support for onToolStart, onToolComplete, and other events
-
-### Session Management
-- Session save and restore
-- Session archiving capabilities
-- Checkpoint management for undo/redo
-- Usage statistics and token tracking
-
-### Workspace Management
-- File browser with tree view
-- Project structure visualization
-- File preview and editing
+### Desktop Integration
+- System tray with toggle functionality
+- Global shortcut: `Ctrl+Shift+Space` to summon app
+- Native window controls
 
 ## Tech Stack
 
@@ -84,7 +74,7 @@ GGBond is an AI-powered intelligent coding assistant desktop application built o
 
 ### Download from Release
 
-Visit the [Releases](https://github.com/Kevoyuan/gem-ui/releases) page to download the latest macOS installer:
+Visit the [Releases](https://github.com/Kevoyuan/GGBond/releases) page to download the latest macOS installer:
 
 - **DMG Installer**: `GGBond-x.x.x-arm64.dmg`
 - **ZIP Portable**: `GGBond-x.x.x-arm64-mac.zip`
@@ -106,36 +96,13 @@ npm run desktop:dev
 npm run desktop:build
 ```
 
-## Getting Started
+## Quick Start
 
-### Launch the App
-
-After installation, double-click to open GGBond app, or launch from Launchpad.
-
-### Start a Conversation
-
-1. Select or create a new chat session in the left sidebar
-2. Enter your question or request in the input box at the bottom
-3. Press Enter or click the send button
-4. AI will analyze your request and provide assistance
-
-### Using Agents
-
-1. Click the Agent dropdown menu at the top
-2. Select the desired agent type (Think, Code, Review, etc.)
-3. Agents will handle specific tasks according to their expertise
-
-### Managing MCP Servers
-
-1. Click Tools > MCP Servers in the left sidebar
-2. Add or configure MCP servers
-3. Use MCP tools to extend AI capabilities
-
-### File Operations
-
-1. Browse project files in the Workspace section of the left sidebar
-2. Click on files to preview their content
-3. AI can help you edit, create, or delete files
+1. Launch the GGBond application
+2. Select or create a new chat session in the left sidebar
+3. Enter your question or request in the input box
+4. Press Enter or click the send button
+5. AI will analyze your request and provide assistance
 
 ## Keyboard Shortcuts
 
@@ -151,10 +118,9 @@ After installation, double-click to open GGBond app, or launch from Launchpad.
 ggbond/
 ├── app/                    # Next.js App Router
 │   ├── page.tsx           # Main application page
-│   ├── api/               # API routes for backend services
-│   └── ...
+│   └── api/               # API routes
 ├── components/            # React components
-│   ├── modules/          # Feature module components
+│   ├── modules/           # Feature module components
 │   ├── views/            # Tool view components
 │   ├── message/          # Message rendering components
 │   └── sidebar/          # Sidebar components
@@ -164,14 +130,14 @@ ggbond/
 │   └── db.ts             # SQLite database operations
 ├── stores/                # Zustand state management
 ├── electron/              # Electron desktop app
-│   ├── main.cjs         # Main process
-│   └── preload.cjs      # Preload script for IPC
+│   ├── main.cjs          # Main process
+│   └── preload.cjs       # Preload script for IPC
 └── public/                # Static assets
 ```
 
 ## Contributing
 
-Contributions are welcome. Please feel free to submit pull requests or create issues for bugs and feature requests.
+Contributions are welcome! Please feel free to submit pull requests or create issues for bugs and feature requests.
 
 ## License
 
