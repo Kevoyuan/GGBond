@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Shield, Info, RefreshCw, AlertCircle, Clock, Zap, BarChart3, HelpCircle } from 'lucide-react';
+import { Shield, Info, RefreshCw, AlertCircle, Clock, Zap, Activity, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './sidebar/PanelHeader';
 
@@ -59,7 +59,7 @@ export function QuotaPanel({ className }: QuotaPanelProps) {
         <div className={cn("flex flex-col h-full bg-card/30", className)}>
             <PanelHeader
                 title="Real-time Quota"
-                icon={BarChart3}
+                icon={Activity}
                 actions={
                     <button
                         onClick={fetchQuota}

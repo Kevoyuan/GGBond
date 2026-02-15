@@ -2,9 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { ModuleCard } from './ModuleCard';
-import { Sparkles, Loader2, RefreshCw, Trash2, BookOpen, Search, CheckCircle2, Ban, Plus, SlidersHorizontal } from 'lucide-react';
+import { Sparkles, Loader2, RefreshCw, Trash2, BookOpen, Search, CheckCircle2, Ban, Plus, SlidersHorizontal, Puzzle, ExternalLink, Edit, PlusCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from '../sidebar/PanelHeader';
+import { SkillPreviewDialog } from '../SkillPreviewDialog';
 
 interface Skill {
     id: string;
@@ -39,6 +40,8 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
     const [actionMessage, setActionMessage] = useState<string | null>(null);
     const [actionMessageIsError, setActionMessageIsError] = useState(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
     const fetchSkills = () => {
         setLoading(true);
@@ -81,7 +84,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
         if ((action === 'enable' || action === 'disable' || action === 'uninstall') && !name) return;
         if (action === 'install' && !installSource.trim()) return;
         if ((action === 'link_dir' || action === 'unlink_dir') && !linkSource.trim()) return;
-        if (action === 'uninstall' && name && !confirm(`Uninstall skill "${name}"?`)) return;
+        // if (action === 'uninstall' && name && !confirm(`Uninstall skill "${name}"?`)) return; // Logic handled by UI confirm now
         try {
             setActionMessage(null);
             setActionMessageIsError(false);
@@ -114,6 +117,28 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
             setActionMessageIsError(true);
         }
         finally { setActionLoading(null); }
+    };
+
+    const handleUseSkill = (e: React.MouseEvent, skillId: string) => {
+        e.stopPropagation();
+        const event = new CustomEvent('insert-skill-token', {
+            detail: { skillId }
+        });
+        window.dispatchEvent(event);
+    };
+
+    const handleEditSkill = async (e: React.MouseEvent, location: string) => {
+        e.stopPropagation();
+        if (!location) return;
+        try {
+            await fetch('/api/open', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: location })
+            });
+        } catch (error) {
+            console.error("Failed to open file", error);
+        }
     };
 
     const scopeFilteredSkills = skills.filter((skill) => {
@@ -300,65 +325,93 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                     </div>
                 ) : (
                     filteredSkills.map(skill => (
-                        <div key={skill.id} className="relative p-3.5 border border-border/50 rounded-xl bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-all duration-200 group cursor-default">
-                            <div className="min-w-0 pr-16">
-                                <div className="flex items-center gap-2.5 mb-1">
-                                    <div className={cn(
-                                        "p-1.5 rounded-lg border transition-colors",
-                                        skill.status === 'Enabled'
-                                            ? "bg-primary/5 text-primary border-primary/10 group-hover:bg-primary/10"
-                                            : "bg-muted text-muted-foreground/40 border-border/50"
-                                    )}>
-                                        <Sparkles size={13} />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <h5 className="font-semibold text-sm text-foreground truncate group-hover:text-primary transition-colors">{skill.name}</h5>
-                                        <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                                            <span className={cn(
-                                                "w-1.5 h-1.5 rounded-full",
+                        <div
+                            key={skill.id}
+                            className={cn(
+                                "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer group",
+                                selectedSkill?.id === skill.id && "bg-primary/5 border-primary ring-1 ring-primary/20 text-primary"
+                            )}
+                            onClick={() => setSelectedSkill(skill)}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                        <span
+                                            className={cn(
+                                                "inline-block w-1.5 h-1.5 rounded-full shrink-0",
                                                 skill.status === 'Enabled' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "bg-zinc-500"
-                                            )} />
-                                            {skill.status}
-                                            {skill.isBuiltIn && <span>• Built-in</span>}
-                                        </div>
+                                            )}
+                                        />
+                                        <span className="font-semibold text-[13px] text-foreground truncate">
+                                            {skill.name}
+                                        </span>
                                     </div>
-                                </div>
-                                {skill.description && (
-                                    <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2 pl-9 pr-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                                        {skill.description}
+                                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-tight">
+                                        {skill.description || 'No description provided'}
                                     </p>
+                                </div>
+                                {skill.status === 'Enabled' && (
+                                    <button
+                                        onClick={(e) => handleUseSkill(e, skill.id)}
+                                        className="p-1 px-[5px] text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-all shrink-0"
+                                        title="Add to chat"
+                                    >
+                                        <PlusCircle size={14} className="stroke-[2.5]" />
+                                    </button>
                                 )}
                             </div>
 
-                            <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                            <div
+                                className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all"
+                                onMouseLeave={() => setConfirmDeleteId(null)}
+                            >
+
+                                <div className="w-[1px] h-4 bg-border/50 mx-1" />
+
                                 {skill.status === 'Enabled' ? (
                                     <button
-                                        onClick={() => handleAction('disable', skill.id)}
-                                        className="p-1.5 text-muted-foreground hover:bg-amber-500/10 hover:text-amber-500 rounded-lg transition-all"
+                                        onClick={(e) => { e.stopPropagation(); handleAction('disable', skill.id); }}
+                                        className="p-1.5 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-md transition-all"
                                         title="Disable"
                                         disabled={actionLoading === `disable:${skill.id}`}
                                     >
-                                        {actionLoading === `disable:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <Ban size={13} />}
+                                        {actionLoading === `disable:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
                                     </button>
                                 ) : (
                                     <button
-                                        onClick={() => handleAction('enable', skill.id)}
-                                        className="p-1.5 text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-500 rounded-lg transition-all"
+                                        onClick={(e) => { e.stopPropagation(); handleAction('enable', skill.id); }}
+                                        className="p-1.5 text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 rounded-md transition-all"
                                         title="Enable"
                                         disabled={actionLoading === `enable:${skill.id}`}
                                     >
-                                        {actionLoading === `enable:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                                        {actionLoading === `enable:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
                                     </button>
                                 )}
                                 {!skill.isBuiltIn && (
-                                    <button
-                                        onClick={() => handleAction('uninstall', skill.id)}
-                                        className="p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-all"
-                                        title="Uninstall"
-                                        disabled={actionLoading === `uninstall:${skill.id}`}
-                                    >
-                                        {actionLoading === `uninstall:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={13} />}
-                                    </button>
+                                    confirmDeleteId === skill.id ? (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleAction('uninstall', skill.id);
+                                                setConfirmDeleteId(null);
+                                            }}
+                                            className="px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors animate-in fade-in slide-in-from-right-2 duration-200"
+                                        >
+                                            Confirm
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setConfirmDeleteId(skill.id);
+                                            }}
+                                            className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-all"
+                                            title="Uninstall"
+                                            disabled={actionLoading === `uninstall:${skill.id}`}
+                                        >
+                                            {actionLoading === `uninstall:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                        </button>
+                                    )
                                 )}
                             </div>
                         </div>
@@ -397,7 +450,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
             <div className={cn("flex flex-col h-full bg-card/30", className)}>
                 <PanelHeader
                     title="Skills Registry"
-                    icon={Sparkles}
+                    icon={Puzzle}
                     badge={skills.length}
                     actions={headerActions}
                 />
@@ -411,6 +464,11 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                         body
                     )}
                 </div>
+                <SkillPreviewDialog
+                    open={!!selectedSkill}
+                    onOpenChange={(open) => !open && setSelectedSkill(null)}
+                    skill={selectedSkill}
+                />
             </div>
         );
     }
@@ -419,7 +477,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
         <ModuleCard
             title="Skills Registry"
             description={loading ? "Syncing..." : `${skills.length} modules · ${enabledCount} active`}
-            icon={Sparkles}
+            icon={Puzzle}
             actions={headerActions}
         >
             {loading && skills.length === 0 ? (
@@ -430,6 +488,11 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
             ) : (
                 body
             )}
+            <SkillPreviewDialog
+                open={!!selectedSkill}
+                onOpenChange={(open) => !open && setSelectedSkill(null)}
+                skill={selectedSkill}
+            />
         </ModuleCard>
     );
 }
