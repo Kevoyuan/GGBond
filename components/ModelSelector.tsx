@@ -14,7 +14,7 @@ export const MODELS = [
 interface ModelSelectorProps {
     value: string;
     onChange: (value: string) => void;
-    variant?: 'inline' | 'form';
+    variant?: 'inline' | 'form' | 'dropdown';
     showInherit?: boolean;
     className?: string;
 }
@@ -45,13 +45,16 @@ export function ModelSelector({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    if (variant === 'form') {
+    if (variant === 'form' || variant === 'dropdown') {
         return (
             <div className={cn("relative", className)} ref={menuRef}>
                 <button
                     type="button"
                     onClick={() => setIsOpen(!isOpen)}
-                    className="w-full flex items-center justify-between px-4 py-3 text-sm rounded-lg border bg-background hover:border-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className={cn(
+                        "w-full flex items-center justify-between px-4 py-3 text-sm rounded-lg border bg-background hover:border-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary/20",
+                        isOpen && "border-primary/50 ring-2 ring-primary/20"
+                    )}
                 >
                     <div className="flex items-center gap-3">
                         <div className="flex items-center justify-center w-5 h-5 rounded bg-muted/50 border shadow-sm">
@@ -63,37 +66,40 @@ export function ModelSelector({
                 </button>
 
                 {isOpen && (
-                    <div className="absolute bottom-full left-0 right-0 mb-2 bg-background border rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 z-[100] py-2">
-                        {allModels.map((model) => (
-                            <button
-                                key={model.id}
-                                type="button"
-                                onClick={() => {
-                                    onChange(model.id);
-                                    setIsOpen(false);
-                                }}
-                                className={cn(
-                                    "w-full text-left px-4 py-2.5 text-sm flex items-center justify-between transition-colors",
-                                    value === model.id
-                                        ? "bg-primary/5 text-primary font-semibold"
-                                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                                )}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className={cn(
-                                        "flex items-center justify-center w-5 h-5 rounded bg-background border shadow-sm",
-                                        value === model.id && "border-primary/20 bg-primary/10"
-                                    )}>
-                                        <model.icon className="w-3.5 h-3.5" />
+                    <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-background border rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50 py-2 max-h-[300px] overflow-y-auto scrollbar-thin">
+                            {allModels.map((model) => (
+                                <button
+                                    key={model.id}
+                                    type="button"
+                                    onClick={() => {
+                                        onChange(model.id);
+                                        setIsOpen(false);
+                                    }}
+                                    className={cn(
+                                        "w-full text-left px-4 py-2.5 text-sm flex items-center justify-between transition-colors",
+                                        value === model.id
+                                            ? "bg-primary/5 text-primary font-semibold"
+                                            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                                    )}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={cn(
+                                            "flex items-center justify-center w-5 h-5 rounded bg-background border shadow-sm",
+                                            value === model.id && "border-primary/20 bg-primary/10"
+                                        )}>
+                                            <model.icon className="w-3.5 h-3.5" />
+                                        </div>
+                                        <span>{model.name}</span>
                                     </div>
-                                    <span>{model.name}</span>
-                                </div>
-                                {value === model.id && (
-                                    <div className="w-2 h-2 rounded-full bg-primary" />
-                                )}
-                            </button>
-                        ))}
-                    </div>
+                                    {value === model.id && (
+                                        <div className="w-2 h-2 rounded-full bg-primary" />
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </>
                 )}
             </div>
         );

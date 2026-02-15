@@ -499,8 +499,44 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
       });
     };
 
+    const agentHandler = (event: Event) => {
+      const customEvent = event as CustomEvent<{ agentName?: string }>;
+      const agentName = customEvent.detail?.agentName;
+      if (!agentName) return;
+
+      const prev = inputRef.current;
+      const isFocused = document.activeElement === textareaRef.current;
+      const start = isFocused
+        ? (textareaRef.current?.selectionStart ?? prev.length)
+        : prev.length;
+      const end = isFocused
+        ? (textareaRef.current?.selectionEnd ?? prev.length)
+        : prev.length;
+
+      const safeStart = Math.max(0, Math.min(start, prev.length));
+      // Just insert plain text for now: @AgentName
+      const textToInsert = `@${agentName} `;
+      const nextValue = prev.slice(0, safeStart) + textToInsert + prev.slice(end);
+      const nextCursorPos = safeStart + textToInsert.length;
+
+      inputRef.current = nextValue;
+      setInput(nextValue);
+      setCursorPosition(nextCursorPos);
+      cursorRef.current = { start: nextCursorPos, end: nextCursorPos };
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(nextCursorPos, nextCursorPos);
+        }
+      });
+    };
+
     window.addEventListener('insert-skill-token', handler as EventListener);
-    return () => window.removeEventListener('insert-skill-token', handler as EventListener);
+    window.addEventListener('insert-agent-token', agentHandler as EventListener);
+    return () => {
+      window.removeEventListener('insert-skill-token', handler as EventListener);
+      window.removeEventListener('insert-agent-token', agentHandler as EventListener);
+    };
   }, []);
 
   const updateSuggestions = async (value: string, cursorIndex: number) => {
