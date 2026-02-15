@@ -155,7 +155,7 @@ export const MessageBubble = React.memo(function MessageBubble({
             ) : (
               <div className="whitespace-pre-wrap">
                 {message.agentName && (
-                  <span className="inline-flex items-center gap-0.5 mr-1.5 px-1.5 py-0.5 rounded-md text-[11px] font-semibold tracking-tight bg-white/15 text-white/90 border border-white/20 align-baseline translate-y-[-1px]">
+                  <span className="inline-flex items-center px-1.5 py-0 rounded-full text-[11px] font-medium tracking-tight bg-white text-slate-900 shadow-sm border border-slate-200/50 align-middle translate-y-[-0.5px] mr-2">
                     {message.agentName}
                   </span>
                 )}
