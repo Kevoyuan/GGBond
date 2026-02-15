@@ -8,6 +8,7 @@ import { CreateAgentDialog } from './CreateAgentDialog';
 import { AgentPreviewDialog } from './AgentPreviewDialog';
 import { AgentRunsList } from './AgentRunsList';
 import { useAppStore } from '@/stores/useAppStore';
+import { AgentIcon } from './icons/AgentIcon';
 import { PanelHeader } from './sidebar/PanelHeader';
 
 interface AgentDefinition {
@@ -50,7 +51,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
     const [isDirectory, setIsDirectory] = useState(false);
 
     const [confirmDeleteName, setConfirmDeleteName] = useState<string | null>(null);
-    const [agentListHeight, setAgentListHeight] = useState(400);
+    const [agentListHeight, setAgentListHeight] = useState(550);
     const [isResizing, setIsResizing] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
 
@@ -64,7 +65,9 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
 
     const stopResizing = useCallback(() => {
         setIsResizing(false);
-    }, []);
+        // Persist height
+        localStorage.setItem('agent-panel-list-height', agentListHeight.toString());
+    }, [agentListHeight]);
 
     const resize = useCallback((e: MouseEvent) => {
         if (isResizing && panelRef.current) {
@@ -122,6 +125,12 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
 
     useEffect(() => {
         fetchAgents();
+        // Load persisted height
+        const savedHeight = localStorage.getItem('agent-panel-list-height');
+        if (savedHeight) {
+            const h = parseInt(savedHeight, 10);
+            if (!isNaN(h)) setAgentListHeight(h);
+        }
     }, []);
 
     const handleAction = async (action: string, name?: string) => {
@@ -244,7 +253,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
         >
             <PanelHeader
                 title="Agents"
-                icon={Layers}
+                icon={AgentIcon}
                 badge={agents.length}
                 actions={
                     <div className="flex items-center gap-1">
@@ -479,16 +488,9 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                         >
                                             <div className="flex items-start gap-3">
                                                 <div className={cn(
-                                                    "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-105",
-                                                    agent.kind === 'remote' ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                                                    "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all group-hover:scale-105 border border-primary/10 bg-primary/5 text-primary/70 group-hover:border-primary/30 group-hover:bg-primary/10",
                                                 )}>
-                                                    {agent.kind === 'remote' ? (
-                                                        <ExternalLink className="w-4 h-4" />
-                                                    ) : agent.experimental ? (
-                                                        <Shield className="w-4 h-4" />
-                                                    ) : (
-                                                        <Cpu className="w-4 h-4" />
-                                                    )}
+                                                    <Cpu className="w-4 h-4" />
                                                 </div>
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-2 mb-0.5">

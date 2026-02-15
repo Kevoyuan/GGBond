@@ -21,6 +21,7 @@ import {
   Activity,
   Cpu
 } from 'lucide-react';
+import { RunIcon } from './icons/RunIcon';
 import { cn } from '@/lib/utils';
 
 interface AgentRun {
@@ -154,7 +155,7 @@ export function AgentRunsList({ className, onNavigateToChat }: AgentRunsListProp
       <div className="flex items-center justify-between group">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-primary" />
+            <RunIcon className="w-4 h-4 text-primary" />
             <span className="text-sm font-medium">Agent Runs</span>
           </div>
           {runningCount > 0 && (
@@ -215,7 +216,7 @@ export function AgentRunsList({ className, onNavigateToChat }: AgentRunsListProp
       {runs.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mx-auto mb-4">
-            <Sparkles className="w-8 h-8 opacity-50" />
+            <RunIcon className="w-8 h-8 opacity-50" />
           </div>
           <p className="font-medium">No agent runs yet</p>
           <p className="text-sm mt-1">Run an agent from the panel above</p>

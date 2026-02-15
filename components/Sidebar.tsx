@@ -32,6 +32,7 @@ import { MemoryPanel } from './MemoryPanel';
 import { AgentPanel } from './AgentPanel';
 import { QuotaPanel } from './QuotaPanel';
 import { ModulesDialog } from './ModulesDialog';
+import { AgentIcon } from './icons/AgentIcon';
 import { Tooltip } from '@/components/ui/Tooltip';
 
 // New separated components & hooks
@@ -262,7 +263,7 @@ export function Sidebar({
           <NavButton active={activeView === 'skills'} onClick={() => setActiveView('skills')} icon={Puzzle} label="Skills" />
           <NavButton active={activeView === 'hooks'} onClick={() => setActiveView('hooks')} icon={Zap} label="Hooks" />
           <NavButton active={activeView === 'mcp'} onClick={() => setActiveView('mcp')} icon={Plug} label="MCP" />
-          <NavButton active={activeView === 'agents'} onClick={() => setActiveView('agents')} icon={Layers} label="Agents" />
+          <NavButton active={activeView === 'agents'} onClick={() => setActiveView('agents')} icon={AgentIcon} label="Agents" />
           <NavButton active={activeView === 'quota'} onClick={() => setActiveView('quota')} icon={Activity} label="Quota" />
           <NavButton active={activeView === 'memory'} onClick={() => setActiveView('memory')} icon={Database} label="Knowledge Base" />
 
