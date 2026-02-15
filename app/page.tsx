@@ -665,9 +665,36 @@ export default function Home() {
     scrollToBottom();
   }, [messages.length, isLoading]); // Scroll on new messages or loading state change
 
-  // Load Settings
+  // Load Settings & Migration
   useEffect(() => {
-    const saved = localStorage.getItem('ggbond-settings');
+    let saved = localStorage.getItem('ggbond-settings');
+
+    // Migration logic: gem-ui -> ggbond
+    if (!saved) {
+      const oldSaved = localStorage.getItem('gem-ui-settings');
+      if (oldSaved) {
+        console.log('Migrating settings from gem-ui to ggbond...');
+        localStorage.setItem('ggbond-settings', oldSaved);
+        saved = oldSaved;
+
+        // Migrate other potential keys
+        const keysToMigrate = [
+          'gem-ui-terminal-environment-v1',
+          'gem-ui-terminal-height-v1',
+          'gem-ui-app-store'
+        ];
+        keysToMigrate.forEach(oldKey => {
+          const val = localStorage.getItem(oldKey);
+          if (val) {
+            const newKey = oldKey.replace('gem-ui', 'ggbond');
+            if (!localStorage.getItem(newKey)) {
+              localStorage.setItem(newKey, val);
+            }
+          }
+        });
+      }
+    }
+
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as Partial<ChatSettings>;
