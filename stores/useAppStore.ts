@@ -52,7 +52,7 @@ export const useAppStore = create<AppState>()(
       }
     }),
     {
-      name: 'gem-ui-app-store'
+      name: 'ggbond-app-store'
     }
   )
 );

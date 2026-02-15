@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 
 // Ensure the directory exists
-const dbPath = path.join(process.cwd(), 'gemini-home', 'gem-ui.db');
+const dbPath = path.join(process.cwd(), 'gemini-home', 'ggbond.db');
 const dbDir = path.dirname(dbPath);
 
 if (!fs.existsSync(dbDir)) {

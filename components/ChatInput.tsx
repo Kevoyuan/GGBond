@@ -171,7 +171,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
       const reader = new FileReader();
       reader.onload = (e) => {
         const dataUrl = e.target?.result as string;
-        const img = new Image();
+        const img = new window.Image(0, 0);
         img.onload = () => {
           resolve({
             id: crypto.randomUUID(),

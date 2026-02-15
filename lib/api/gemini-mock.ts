@@ -11,7 +11,7 @@ export const mockCheckpoints: Checkpoint[] = [
 ];
 
 export const mockContext: ProjectContext = {
-  workingDirectory: '/Volumes/SSD/Projects/Code/gem-ui',
+  workingDirectory: process.cwd(),
   includedDirectories: ['../lib', '../docs'],
   memoryFiles: [
     { path: 'GEMINI.md', status: 'active', size: 1024 },

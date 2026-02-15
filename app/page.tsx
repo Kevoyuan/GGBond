@@ -667,7 +667,7 @@ export default function Home() {
 
   // Load Settings
   useEffect(() => {
-    const saved = localStorage.getItem('gem-ui-settings');
+    const saved = localStorage.getItem('ggbond-settings');
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as Partial<ChatSettings>;
@@ -682,7 +682,7 @@ export default function Home() {
     const normalized = normalizeChatSettings(newSettings);
     setSettings(normalized);
     setApprovalMode(normalized.toolPermissionStrategy);
-    localStorage.setItem('gem-ui-settings', JSON.stringify(normalized));
+    localStorage.setItem('ggbond-settings', JSON.stringify(normalized));
   };
 
   const handleApprovalModeChange = useCallback((mode: 'safe' | 'auto') => {
@@ -692,7 +692,7 @@ export default function Home() {
         return prev;
       }
       const next = { ...prev, toolPermissionStrategy: mode };
-      localStorage.setItem('gem-ui-settings', JSON.stringify(next));
+      localStorage.setItem('ggbond-settings', JSON.stringify(next));
       return next;
     });
   }, []);
