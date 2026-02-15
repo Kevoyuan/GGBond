@@ -1,24 +1,24 @@
-# GG-Bond
+# GGBond
 
 <p align="center">
-  <img src="./public/screenshot.png" alt="GG-Bond" width="100%" />
+  <img src="./public/screenshot.png" alt="GGBond" width="100%" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kevoyuan/gem-ui/releases">
+  <a href="https://github.com/Kevoyuan/ggbond/releases">
     <img src="https://img.shields.io/github/v/release/Kevoyuan/gem-ui?include_prereleases&label=latest" alt="Latest Release" />
   </a>
-  <a href="https://github.com/Kevoyuan/gem-ui/blob/main/LICENSE">
+  <a href="https://github.com/Kevoyuan/ggbond/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/Kevoyuan/gem-ui" alt="License" />
   </a>
-  <a href="https://github.com/Kevoyuan/gem-ui/actions">
+  <a href="https://github.com/Kevoyuan/ggbond/actions">
     <img src="https://img.shields.io/github/actions/workflow/status/Kevoyuan/gem-ui?label=build" alt="Build Status" />
   </a>
 </p>
 
 ## 简介
 
-GG-Bond 是一款由 AI 驱动的智能编程助手桌面应用，基于 Google Gemini CLI 构建。它将强大的 AI 编程能力与现代化的桌面界面相结合，为开发者提供流畅的 AI 辅助编程体验。
+GGBond 是一款由 AI 驱动的智能编程助手桌面应用，基于 Google Gemini CLI 构建。它将强大的 AI 编程能力与现代化的桌面界面相结合，为开发者提供流畅的 AI 辅助编程体验。
 
 ## 功能特性
 
@@ -86,15 +86,15 @@ GG-Bond 是一款由 AI 驱动的智能编程助手桌面应用，基于 Google 
 
 前往 [Releases](https://github.com/Kevoyuan/gem-ui/releases) 页面下载最新版本的 macOS 安装包：
 
-- **DMG 安装包**: `GG-Bond-x.x.x-arm64.dmg`
-- **ZIP 便携版**: `GG-Bond-x.x.x-arm64-mac.zip`
+- **DMG 安装包**: `GGBond-x.x.x-arm64.dmg`
+- **ZIP 便携版**: `GGBond-x.x.x-arm64-mac.zip`
 
 ### 自行构建
 
 ```bash
 # 克隆项目
-git clone https://github.com/Kevoyuan/gem-ui.git
-cd gem-ui
+git clone https://github.com/Kevoyuan/ggbond.git
+cd ggbond
 
 # 安装依赖
 npm install
@@ -110,7 +110,7 @@ npm run desktop:build
 
 ### 启动应用
 
-安装完成后，双击打开 `GG-Bond` 应用，或从 Launchpad 中启动。
+安装完成后，双击打开 `GGBond` 应用，或从 Launchpad 中启动。
 
 ### 开始对话
 
@@ -148,7 +148,7 @@ npm run desktop:build
 ## 项目结构
 
 ```
-gem-ui/
+ggbond/
 ├── app/                    # Next.js App Router
 │   ├── page.tsx           # 主页面
 │   ├── api/               # API 路由
@@ -183,7 +183,7 @@ MIT License
 
 # English | 英文
 
-GG-Bond is an AI-powered intelligent coding assistant desktop application, built on top of Google Gemini CLI. It combines powerful AI coding capabilities with a modern desktop interface, providing developers with a seamless AI-assisted programming experience.
+GGBond is an AI-powered intelligent coding assistant desktop application, built on top of Google Gemini CLI. It combines powerful AI coding capabilities with a modern desktop interface, providing developers with a seamless AI-assisted programming experience.
 
 ## Features
 
@@ -251,15 +251,15 @@ GG-Bond is an AI-powered intelligent coding assistant desktop application, built
 
 Visit the [Releases](https://github.com/Kevoyuan/gem-ui/releases) page to download the latest macOS installer:
 
-- **DMG Installer**: `GG-Bond-x.x.x-arm64.dmg`
-- **ZIP Portable**: `GG-Bond-x.x.x-arm64-mac.zip`
+- **DMG Installer**: `GGBond-x.x.x-arm64.dmg`
+- **ZIP Portable**: `GGBond-x.x.x-arm64-mac.zip`
 
 ### Build from Source
 
 ```bash
 # Clone the project
-git clone https://github.com/Kevoyuan/gem-ui.git
-cd gem-ui
+git clone https://github.com/Kevoyuan/ggbond.git
+cd ggbond
 
 # Install dependencies
 npm install
@@ -275,7 +275,7 @@ npm run desktop:build
 
 ### Launch the App
 
-After installation, double-click to open `GG-Bond` app, or launch from Launchpad.
+After installation, double-click to open `GGBond` app, or launch from Launchpad.
 
 ### Start a Conversation
 
@@ -313,7 +313,7 @@ After installation, double-click to open `GG-Bond` app, or launch from Launchpad
 ## Project Structure
 
 ```
-gem-ui/
+ggbond/
 ├── app/                    # Next.js App Router
 │   ├── page.tsx           # Main page
 │   ├── api/               # API routes

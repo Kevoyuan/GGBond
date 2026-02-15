@@ -70,8 +70,8 @@ interface TerminalStreamEvent {
   durationMs?: unknown;
 }
 
-const STORAGE_KEY = 'gem-ui-terminal-environment-v1';
-const HEIGHT_STORAGE_KEY = 'gem-ui-terminal-height-v1';
+const STORAGE_KEY = 'ggbond-terminal-environment-v1';
+const HEIGHT_STORAGE_KEY = 'ggbond-terminal-height-v1';
 const DEFAULT_ACTION_ID = 'run';
 const DEFAULT_HEIGHT = 360;
 const MIN_HEIGHT = 240;

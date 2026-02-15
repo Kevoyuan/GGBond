@@ -1,24 +1,24 @@
-# GG-Bond
+# GGBond
 
 <p align="center">
-  <img src="./public/screenshot.png" alt="GG-Bond" width="100%" />
+  <img src="./public/screenshot.png" alt="GGBond" width="100%" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kevoyuan/gem-ui/releases">
+  <a href="https://github.com/Kevoyuan/ggbond/releases">
     <img src="https://img.shields.io/github/v/release/Kevoyuan/gem-ui?include_prereleases&label=latest" alt="Latest Release" />
   </a>
-  <a href="https://github.com/Kevoyuan/gem-ui/blob/main/LICENSE">
+  <a href="https://github.com/Kevoyuan/ggbond/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/Kevoyuan/gem-ui" alt="License" />
   </a>
-  <a href="https://github.com/Kevoyuan/gem-ui/actions">
+  <a href="https://github.com/Kevoyuan/ggbond/actions">
     <img src="https://img.shields.io/github/actions/workflow/status/Kevoyuan/gem-ui?label=build" alt="Build Status" />
   </a>
 </p>
 
 ## Introduction
 
-GG-Bond is an AI-powered intelligent coding assistant desktop application built on top of Google Gemini CLI. It combines powerful AI coding capabilities with a modern desktop interface, providing developers with a seamless AI-assisted programming experience.
+GGBond is an AI-powered intelligent coding assistant desktop application built on top of Google Gemini CLI. It combines powerful AI coding capabilities with a modern desktop interface, providing developers with a seamless AI-assisted programming experience.
 
 ## Features
 
@@ -86,15 +86,15 @@ GG-Bond is an AI-powered intelligent coding assistant desktop application built 
 
 Visit the [Releases](https://github.com/Kevoyuan/gem-ui/releases) page to download the latest macOS installer:
 
-- **DMG Installer**: `GG-Bond-x.x.x-arm64.dmg`
-- **ZIP Portable**: `GG-Bond-x.x.x-arm64-mac.zip`
+- **DMG Installer**: `GGBond-x.x.x-arm64.dmg`
+- **ZIP Portable**: `GGBond-x.x.x-arm64-mac.zip`
 
 ### Build from Source
 
 ```bash
 # Clone the project
-git clone https://github.com/Kevoyuan/gem-ui.git
-cd gem-ui
+git clone https://github.com/Kevoyuan/ggbond.git
+cd ggbond
 
 # Install dependencies
 npm install
@@ -110,7 +110,7 @@ npm run desktop:build
 
 ### Launch the App
 
-After installation, double-click to open GG-Bond app, or launch from Launchpad.
+After installation, double-click to open GGBond app, or launch from Launchpad.
 
 ### Start a Conversation
 
@@ -148,7 +148,7 @@ After installation, double-click to open GG-Bond app, or launch from Launchpad.
 ## Project Structure
 
 ```
-gem-ui/
+ggbond/
 ├── app/                    # Next.js App Router
 │   ├── page.tsx           # Main application page
 │   ├── api/               # API routes for backend services

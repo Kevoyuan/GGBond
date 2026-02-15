@@ -1,9 +1,9 @@
 {
-  "name": "gg-bond",
+  "name": "ggbond",
   "version": "0.1.0",
   "private": true,
   "author": "Your Name",
-  "description": "GG-Bond - AI-powered coding assistant",
+  "description": "GGBond - AI-powered coding assistant",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -20,7 +20,7 @@
   },
   "build": {
     "appId": "com.ggbond",
-    "productName": "GG-Bond",
+    "productName": "GGBond",
     "directories": {
       "output": "dist"
     },

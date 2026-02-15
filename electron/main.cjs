@@ -14,7 +14,7 @@ const isDev = !app.isPackaged;
 let START_URL = isDev
   ? (process.env.ELECTRON_START_URL || 'http://localhost:3000')
   : `file://${path.join(__dirname, '../.next/start.html')}`;
-const WINDOW_TITLE = 'GG-Bond';
+const WINDOW_TITLE = 'GGBond';
 const TOGGLE_SHORTCUT = process.env.ELECTRON_TOGGLE_SHORTCUT || 'CommandOrControl+Shift+Space';
 
 let mainWindow = null;
