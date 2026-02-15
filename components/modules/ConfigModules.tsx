@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import React, { useEffect, useState } from 'react';
 import { ModuleCard } from './ModuleCard';
 import { Settings, Palette, Command, Info, Loader2, Cpu, Tag, ChevronRight, Check, RefreshCw } from 'lucide-react';

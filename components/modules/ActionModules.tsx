@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import React, { useEffect, useState } from 'react';
 import { ModuleCard } from './ModuleCard';
 import { Terminal, Lock, FileText, ShieldCheck, Key, Loader2, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
