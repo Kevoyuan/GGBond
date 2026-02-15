@@ -15,7 +15,7 @@ interface ChatContainerProps {
     previewFile: { name: string; path: string } | null;
     onClosePreview: () => void;
     settings: ChatSettings;
-    onSendMessage: (text: string, options?: { approvalMode?: 'safe' | 'auto' }) => void;
+    onSendMessage: (text: string, options?: { approvalMode?: 'safe' | 'auto'; agentName?: string }) => void;
     onStopMessage?: () => void;
     onUndoTool?: (restoreId: string, sourceMessageId?: string) => Promise<void> | void;
     onUndoMessage?: (messageId: string, messageContent: string) => Promise<void> | void;
