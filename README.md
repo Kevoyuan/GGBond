@@ -18,53 +18,53 @@
 
 ## Introduction
 
-GG-Bond is an AI-powered intelligent coding assistant desktop application, built on top of Google Gemini CLI. It combines powerful AI coding capabilities with a modern desktop interface, providing developers with a seamless AI-assisted programming experience.
+GG-Bond is an AI-powered intelligent coding assistant desktop application built on top of Google Gemini CLI. It combines powerful AI coding capabilities with a modern desktop interface, providing developers with a seamless AI-assisted programming experience.
 
 ## Features
 
-### 💬 Intelligent Chat
-- Natural language interaction
-- Markdown code highlighting
-- Multi-turn conversation context
-- Session history save and restore
+### Intelligent Chat
+- Natural language interaction with AI
+- Markdown code highlighting with syntax support
+- Multi-turn conversation context preservation
+- Session history save and restore functionality
 
-### 🤖 Agent Management
+### Agent Management
 - Built-in agents (Think, Code, Review, etc.)
-- Custom agent creation support
-- Real-time agent execution status
-- Visual conversation graph
+- Custom agent creation and configuration
+- Real-time agent execution status monitoring
+- Visual conversation graph for session visualization
 
-### 🔧 Tool System
-- Complete CLI tool integration
-- File editing and preview
+### Tool System
+- Complete CLI tool integration with Gemini CLI
+- File editing and preview capabilities
 - Terminal command execution
-- Tool call approval mechanism
+- Tool call approval mechanism for security
 
-### 🔌 MCP Support
+### MCP Support
 - MCP server management panel
-- MCP tool integration
-- MCP resource access
+- MCP tool integration for extended capabilities
+- MCP resource access and management
 
-### 🧠 Memory System
+### Memory System
 - Project context management
-- Global memory storage
-- Automatic context loading
+- Global memory storage with SQLite
+- Automatic context loading for sessions
 
-### 🪝 Hook System
+### Hook System
 - Event listener configuration
 - Real-time event monitoring
-- Support for onToolStart, onToolComplete events
+- Support for onToolStart, onToolComplete, and other events
 
-### 📊 Session Management
+### Session Management
 - Session save and restore
-- Session archiving
-- Checkpoint management
-- Usage statistics
+- Session archiving capabilities
+- Checkpoint management for undo/redo
+- Usage statistics and token tracking
 
-### 📁 Workspace
-- File browser
-- Project structure tree
-- File preview
+### Workspace Management
+- File browser with tree view
+- Project structure visualization
+- File preview and editing
 
 ## Tech Stack
 
@@ -110,7 +110,7 @@ npm run desktop:build
 
 ### Launch the App
 
-After installation, double-click to open `GG-Bond` app, or launch from Launchpad.
+After installation, double-click to open GG-Bond app, or launch from Launchpad.
 
 ### Start a Conversation
 
@@ -141,7 +141,7 @@ After installation, double-click to open `GG-Bond` app, or launch from Launchpad
 
 | Shortcut | Function |
 |----------|----------|
-| Ctrl+Shift+Space | Global app summon |
+| Ctrl+Shift+Space | Global app summon (toggle visibility) |
 | Cmd+N | New session |
 | Cmd+K | Open command palette |
 
@@ -150,26 +150,28 @@ After installation, double-click to open `GG-Bond` app, or launch from Launchpad
 ```
 gem-ui/
 ├── app/                    # Next.js App Router
-│   ├── page.tsx           # Main page
-│   ├── api/               # API routes
+│   ├── page.tsx           # Main application page
+│   ├── api/               # API routes for backend services
 │   └── ...
 ├── components/            # React components
 │   ├── modules/          # Feature module components
-│   └── views/            # View components
+│   ├── views/            # Tool view components
+│   ├── message/          # Message rendering components
+│   └── sidebar/          # Sidebar components
 ├── lib/                   # Core service library
-│   ├── core-service.ts   # Core service
-│   ├── gemini-service.ts # Gemini service
-│   └── ...
+│   ├── core-service.ts   # Core Gemini CLI integration
+│   ├── gemini-service.ts # Gemini API service wrapper
+│   └── db.ts             # SQLite database operations
 ├── stores/                # Zustand state management
 ├── electron/              # Electron desktop app
-│   ├── main.cjs          # Main process
-│   └── preload.cjs       # Preload script
+│   ├── main.cjs         # Main process
+│   └── preload.cjs      # Preload script for IPC
 └── public/                # Static assets
 ```
 
 ## Contributing
 
-Pull Requests and Issues are welcome!
+Contributions are welcome. Please feel free to submit pull requests or create issues for bugs and feature requests.
 
 ## License
 
@@ -177,4 +179,4 @@ MIT License
 
 ---
 
-<p align="center">Made with ❤️ by <a href="https://github.com/Kevoyuan">Kevoyuan</a></p>
+<p align="center">Made by <a href="https://github.com/Kevoyuan">Kevoyuan</a></p>
