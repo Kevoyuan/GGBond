@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Maximize2, Minimize2, Network, Clock, Sparkles, ListOrdered } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { Message } from '../components/MessageBubble';
@@ -17,7 +16,8 @@ import { UsageStatsDialog } from '../components/UsageStatsDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 import { TerminalPanel } from '../components/TerminalPanel';
 import { UndoMessageConfirmDialog, UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
-import { Toast, ToastContainer, ToastType } from '../components/Toast';
+import { Toast, ToastContainer } from '../components/Toast';
+import { useToast } from '@/hooks/useToast';
 
 
 interface Session {
@@ -139,24 +139,6 @@ const buildTreeFromApiMessages = (rawMessages: ApiMessageRecord[]) => {
   return { nextMap, nextHeadId };
 };
 
-function InsightCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border/70 bg-muted/20 px-2 py-1.5">
-      <div className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold text-foreground">{value}</div>
-    </div>
-  );
-}
-
-function MiniInsightBadge({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border/70 bg-muted/20 px-1.5 py-1 text-center">
-      <div className="text-[9px] uppercase tracking-[0.08em] text-muted-foreground">{label}</div>
-      <div className="text-xs font-semibold text-foreground">{value}</div>
-    </div>
-  );
-}
-
 const ALLOWED_MODELS = new Set([
   'gemini-3-pro-preview',
   'gemini-3-flash-preview',
@@ -250,34 +232,8 @@ export default function Home() {
   const [inputAreaHeight, setInputAreaHeight] = useState(120);
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
   const [streamingStatus, setStreamingStatus] = useState<string | undefined>(undefined);
-  // Toast notifications state
-  const [toasts, setToasts] = useState<Toast[]>([]);
-
-  // Toast helper functions
-  const addToast = useCallback((type: ToastType, message: string, duration = 5000) => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts(prev => [...prev, { id, type, message, duration }]);
-  }, []);
-
-  const dismissToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
-
-  const showErrorToast = useCallback((message: string, duration = 6000) => {
-    addToast('error', message, duration);
-  }, [addToast]);
-
-  const showWarningToast = useCallback((message: string, duration = 5000) => {
-    addToast('warning', message, duration);
-  }, [addToast]);
-
-  const showSuccessToast = useCallback((message: string, duration = 4000) => {
-    addToast('success', message, duration);
-  }, [addToast]);
-
-  const showInfoToast = useCallback((message: string, duration = 4000) => {
-    addToast('info', message, duration);
-  }, [addToast]);
+  // Toast notifications state (via hook)
+  const { toasts, dismissToast, showErrorToast, showWarningToast, showInfoToast } = useToast();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentSessionIdRef = useRef<string | null>(currentSessionId);
@@ -435,7 +391,6 @@ export default function Home() {
   // Queue message states - in-memory queue for pending messages
   const [pendingMessages, setPendingMessages] = useState<{ content: string; images?: UploadedImage[]; tempId?: string }[]>([]);
   const pendingMessagesRef = useRef<{ content: string; images?: UploadedImage[]; tempId?: string; parentId?: string; sessionId: string }[]>([]);
-  const [showQueueIndicator, setShowQueueIndicator] = useState(false);
 
   const sessionStats = useMemo(() => {
     return messages.reduce((acc, msg) => {
@@ -860,25 +815,6 @@ export default function Home() {
       sessionId: currentSessionId
     }, parentId || null);
 
-  };
-
-  // Process queued messages
-  const processQueue = async () => {
-    if (pendingMessages.length === 0) {
-      return;
-    }
-
-    const nextMsg = pendingMessages[0];
-
-    // Remove from queue
-    setPendingMessages(prev => prev.slice(1));
-
-    // Update the pending message to no longer be pending (it's now being sent)
-    // Actually we need to remove the pending message and re-send it
-
-    // First remove the pending message from UI
-    // Then send it properly
-    await handleSendMessage(nextMsg.content, { images: nextMsg.images });
   };
 
   const handleSendMessage = async (
