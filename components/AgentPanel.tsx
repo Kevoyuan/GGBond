@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { User, Sparkles, Shield, Cpu, ExternalLink, Play, RefreshCw, Layers, Plus, Trash, Link2, Search, SlidersHorizontal, Loader2, Ban, CheckCircle2, BookOpen, AlertCircle, FolderSearch, PlusCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -304,6 +305,57 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                 )}
                 style={{ height: `${agentListHeight}px` }}
             >
+                {/* Fixed controls - kept out of scroll area for stability */}
+                <div className="px-3 pt-3 pb-2 space-y-3 bg-card/10 border-b border-border/10">
+                    {/* Search */}
+                    <div className="relative group">
+                        <Search size={13} className="absolute left-2.5 top-2.5 text-muted-foreground group-focus-within:text-primary transition-all" />
+                        <input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search agents..."
+                            className="w-full pl-8 pr-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary/40 transition-all font-mono"
+                        />
+                    </div>
+
+                    {/* Filter Tabs (Segmented Control style) */}
+                    <div className="flex p-1 bg-muted/30 rounded-lg relative overflow-hidden">
+                        {[
+                            { key: 'all', label: 'All', count: agents.length },
+                            { key: 'user', label: 'User', count: userCount },
+                            { key: 'built-in', label: 'Built-in', count: builtInCount },
+                        ].map((item) => (
+                            <button
+                                key={item.key}
+                                onClick={() => setScopeFilter(item.key as 'all' | 'user' | 'built-in')}
+                                className={cn(
+                                    "relative px-2 py-1.5 text-[10px] rounded-md uppercase font-bold tracking-tighter transition-all flex flex-1 items-center justify-center gap-1.5 z-10",
+                                    scopeFilter === item.key
+                                        ? "text-primary-foreground"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {scopeFilter === item.key && (
+                                    <motion.div
+                                        layoutId="activeTab"
+                                        className="absolute inset-0 bg-primary rounded-md shadow-sm"
+                                        transition={{ type: "spring", bounce: 0.2, duration: 0.3 }}
+                                    />
+                                )}
+                                <span className="relative z-10">{item.label}</span>
+                                <span className={cn(
+                                    "relative z-10 px-1 py-0.5 rounded text-[9px] min-w-[18px] text-center font-mono leading-none transition-colors",
+                                    scopeFilter === item.key
+                                        ? "bg-primary-foreground/20 text-primary-foreground"
+                                        : "bg-muted text-muted-foreground"
+                                )}>
+                                    {item.count}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 <div className="flex-1 overflow-y-auto p-3 scrollbar-thin space-y-3">
                     {loading ? (
                         <div className="flex items-center justify-center py-8">
@@ -311,51 +363,6 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                         </div>
                     ) : (
                         <>
-                            {/* Status Cards */}
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="px-2.5 py-2 rounded-lg border border-emerald-200 dark:border-emerald-900/30 bg-emerald-50/60 dark:bg-emerald-900/10">
-                                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">User</div>
-                                    <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 font-mono">{userCount}</div>
-                                </div>
-                                <div className="px-2.5 py-2 rounded-lg border border-primary/20 dark:border-primary/20 bg-primary/5 dark:bg-primary/5">
-                                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">System</div>
-                                    <div className="text-sm font-semibold text-primary/80 font-mono">{builtInCount}</div>
-                                </div>
-                            </div>
-
-                            {/* Search */}
-                            <div className="relative group">
-                                <Search size={13} className="absolute left-2.5 top-2.5 text-muted-foreground group-focus-within:text-primary transition-all" />
-                                <input
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    placeholder="Search agents..."
-                                    className="w-full pl-8 pr-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary/40 transition-all font-mono"
-                                />
-                            </div>
-
-                            {/* Filter */}
-                            <div className="flex gap-1">
-                                {[
-                                    { key: 'all', label: 'All' },
-                                    { key: 'user', label: 'User' },
-                                    { key: 'built-in', label: 'Built-in' },
-                                ].map((item) => (
-                                    <button
-                                        key={item.key}
-                                        onClick={() => setScopeFilter(item.key as 'all' | 'user' | 'built-in')}
-                                        className={cn(
-                                            "px-2 py-1 text-[10px] rounded-md border uppercase font-bold tracking-tighter transition-all flex-1",
-                                            scopeFilter === item.key
-                                                ? "bg-primary text-primary-foreground border-primary"
-                                                : "bg-transparent border-border/50 text-muted-foreground hover:bg-muted/40"
-                                        )}
-                                    >
-                                        {item.label}
-                                    </button>
-                                ))}
-                            </div>
-
                             {showAdvanced && (
                                 <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-muted/30 p-4 space-y-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
                                     <div className="flex items-center gap-2 pb-2 border-b border-border/50">
