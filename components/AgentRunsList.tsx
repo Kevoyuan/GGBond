@@ -44,9 +44,10 @@ interface AgentRun {
 interface AgentRunsListProps {
   className?: string;
   onNavigateToChat?: () => void;
+  refreshTrigger?: number;
 }
 
-export function AgentRunsList({ className, onNavigateToChat }: AgentRunsListProps) {
+export function AgentRunsList({ className, onNavigateToChat, refreshTrigger = 0 }: AgentRunsListProps) {
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(false);
@@ -68,7 +69,7 @@ export function AgentRunsList({ className, onNavigateToChat }: AgentRunsListProp
 
   useEffect(() => {
     fetchRuns();
-  }, [fetchRuns]);
+  }, [fetchRuns, refreshTrigger]);
 
   // Poll for running jobs
   useEffect(() => {

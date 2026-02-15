@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { User, Sparkles, Shield, Cpu, ExternalLink, Play, RefreshCw, Layers, Plus, Trash, Link2, Search, SlidersHorizontal, Loader2, Ban, CheckCircle2, BookOpen, AlertCircle, FolderSearch } from 'lucide-react';
+import { User, Sparkles, Shield, Cpu, ExternalLink, Play, RefreshCw, Layers, Plus, Trash, Link2, Search, SlidersHorizontal, Loader2, Ban, CheckCircle2, BookOpen, AlertCircle, FolderSearch, PlusCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CreateAgentDialog } from './CreateAgentDialog';
 import { AgentPreviewDialog } from './AgentPreviewDialog';
@@ -54,6 +54,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
     const [agentListHeight, setAgentListHeight] = useState(550);
     const [isResizing, setIsResizing] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
+    const [refreshRunsTrigger, setRefreshRunsTrigger] = useState(0);
 
     // Run agent state (kept for compatibility)
     const { getAgents, setAgents: saveAgents } = useAppStore();
@@ -189,6 +190,14 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
         } finally {
             setActionLoading(null);
         }
+    };
+
+    const handleUseAgent = (e: React.MouseEvent, agentName: string) => {
+        e.stopPropagation();
+        const event = new CustomEvent('insert-agent-token', {
+            detail: { agentName }
+        });
+        window.dispatchEvent(event);
     };
 
     const scanForAgents = async () => {
@@ -486,12 +495,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                                 onSelectAgent(agent);
                                             }}
                                         >
-                                            <div className="flex items-start gap-3">
-                                                <div className={cn(
-                                                    "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all group-hover:scale-105 border border-primary/10 bg-primary/5 text-primary/70 group-hover:border-primary/30 group-hover:bg-primary/10",
-                                                )}>
-                                                    <Cpu className="w-4 h-4" />
-                                                </div>
+                                            <div className="flex items-center gap-3">
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-2 mb-0.5">
                                                         <span
@@ -508,9 +512,16 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                                         {agent.description}
                                                     </p>
                                                 </div>
+                                                <button
+                                                    onClick={(e) => handleUseAgent(e, agent.name)}
+                                                    className="p-1 px-[5px] text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-all shrink-0"
+                                                    title="Add to chat"
+                                                >
+                                                    <PlusCircle size={14} className="stroke-[2.5]" />
+                                                </button>
                                             </div>
 
-                                            <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                            <div className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                                                 {isUserAgent(agent.name) && (
                                                     <div
                                                         className="flex items-center"
@@ -574,7 +585,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">Execution History</span>
                 </div>
                 <div className="flex-1 overflow-y-auto px-1 scrollbar-thin">
-                    <AgentRunsList />
+                    <AgentRunsList refreshTrigger={refreshRunsTrigger} />
                 </div>
             </div>
 
@@ -588,6 +599,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                 open={showPreviewDialog}
                 onOpenChange={setShowPreviewDialog}
                 agent={previewAgent}
+                onSuccess={() => setRefreshRunsTrigger(prev => prev + 1)}
             />
         </div>
     );
