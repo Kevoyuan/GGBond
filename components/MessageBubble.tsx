@@ -70,7 +70,7 @@ const GeminiIcon = React.memo(function GeminiIcon({ className }: { className?: s
   );
 });
 
-export function MessageBubble({
+export const MessageBubble = React.memo(function MessageBubble({
   message,
   isFirst,
   isLast,
@@ -229,12 +229,12 @@ export function MessageBubble({
       {isUser && null}
     </motion.div>
   );
-}
+});
 
-export function LoadingBubble({ status }: { status?: string }) {
+export const LoadingBubble = React.memo(function LoadingBubble({ status }: { status?: string }) {
   return (
     <div className="flex gap-4 w-full animate-fade-in pl-[54px] mt-2">
       <StreamingIndicator status={status || 'Thinking...'} />
     </div>
   );
-}
+});

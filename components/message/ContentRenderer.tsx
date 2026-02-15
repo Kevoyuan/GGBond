@@ -24,7 +24,7 @@ interface ContentRendererProps {
     hideTodoToolCalls?: boolean;
 }
 
-export function ContentRenderer({
+export const ContentRenderer = React.memo(function ContentRenderer({
     content,
     sourceMessageId,
     onUndoTool,
@@ -250,4 +250,4 @@ export function ContentRenderer({
             })}
         </div>
     );
-}
+});
