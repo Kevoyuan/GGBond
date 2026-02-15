@@ -824,6 +824,7 @@ export async function POST(req: Request) {
             }
 
             else if (event.type === GeminiEventType.Thought) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const thought = event.value as any;
               const text = typeof thought === 'string' ? thought : thought.text || JSON.stringify(thought);
               persistedAssistantThought += text;
@@ -848,6 +849,7 @@ export async function POST(req: Request) {
 
             else if (event.type === GeminiEventType.Finished) {
               // model usage metadata
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const val = event.value as any;
               const usage = val.usageMetadata;
               const inputTokenCount = usage?.promptTokenCount || 0;

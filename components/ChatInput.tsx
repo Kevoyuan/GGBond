@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
@@ -150,6 +151,9 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
   const [showContextTooltip, setShowContextTooltip] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const inlineSkillTokenPattern = new RegExp(INLINE_SKILL_TOKEN_SOURCE, 'g');
+  const AGENT_TOKEN_SOURCE = `#([A-Za-z0-9._/\\-\u2011]+)${INLINE_SKILL_TOKEN_MARKER}`;
+  const inlineAgentTokenPattern = new RegExp(AGENT_TOKEN_SOURCE, 'g');
+  const anyTokenPattern = new RegExp(`(#?[A-Za-z0-9._/\\-\u2011]+)${INLINE_SKILL_TOKEN_MARKER}`, 'g');
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -340,7 +344,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
   };
 
   const getSkillTokenRangeAt = (text: string, cursor: number) => {
-    const regex = new RegExp(inlineSkillTokenPattern.source, 'g');
+    const regex = new RegExp(anyTokenPattern.source, 'g');
     let match: RegExpExecArray | null;
 
     while ((match = regex.exec(text)) !== null) {
@@ -354,7 +358,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
   };
 
   const getSkillTokenRangeEndingAt = (text: string, cursor: number) => {
-    const regex = new RegExp(inlineSkillTokenPattern.source, 'g');
+    const regex = new RegExp(anyTokenPattern.source, 'g');
     let match: RegExpExecArray | null;
 
     while ((match = regex.exec(text)) !== null) {
@@ -367,7 +371,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
   };
 
   const getSkillTokenRangeStartingAt = (text: string, cursor: number) => {
-    const regex = new RegExp(inlineSkillTokenPattern.source, 'g');
+    const regex = new RegExp(anyTokenPattern.source, 'g');
     let match: RegExpExecArray | null;
 
     while ((match = regex.exec(text)) !== null) {
@@ -700,7 +704,6 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
 
     // Handle # for agent mentions
     const agentBounds = getAgentBounds(value, cursorIndex);
-    console.log('[autocomplete] agent check:', { value: value.slice(0, 30), cursorIndex, agentBounds, agentRecordsCount: agentRecords.length });
     if (agentBounds) {
       const query = agentBounds.query.toLowerCase();
       const candidates = agentRecords.filter((agent) => {
@@ -712,7 +715,6 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
         );
       }).slice(0, 50);
 
-      console.log('[autocomplete] agent candidates:', { query, candidateCount: candidates.length });
       if (candidates.length > 0) {
         setFilteredAgents(candidates);
         setActiveTrigger('#');
@@ -968,13 +970,21 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
     const suffix = textAfter.slice(end);
 
     // Use # for agent mention (matching gemini-cli convention)
-    const mention = `#${agentName}`;
-    const newValue = textBefore + mention + ' ' + suffix;
+    const atomicName = agentName.replace(/-/g, '\u2011');
+    const token = `#${atomicName}${INLINE_SKILL_TOKEN_MARKER}`;
+    const normalizedBefore = textBefore.replace(/[ \t]+$/, '');
+    const normalizedAfter = textAfter.replace(/^[ \t]+/, '');
+    const needLeadingSpace = normalizedBefore.length > 0 && !/\s$/.test(normalizedBefore);
+    const needTrailingSpace = normalizedAfter.length === 0 || !/^\s/.test(normalizedAfter);
+
+    const left = `${normalizedBefore}${needLeadingSpace ? ' ' : ''}`;
+    const right = `${needTrailingSpace ? ' ' : ''}${normalizedAfter}`;
+    const newValue = `${left}${token}${right}`;
     setInput(newValue);
     setShowCommands(false);
     setActiveTrigger(null);
 
-    const newCursorPos = start + mention.length + 1;
+    const newCursorPos = (left + token + (needTrailingSpace ? ' ' : '')).length;
     setCursorPosition(newCursorPos);
     cursorRef.current = { start: newCursorPos, end: newCursorPos };
     setTimeout(() => {
@@ -1021,7 +1031,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
     // #agent-name is always treated as an agent reference.
     // @agent-name is treated as an agent reference ONLY if it matches a known agent name
     // (to avoid conflicts with @file-path mentions).
-    const hashAgentPattern = /(^|\s)#([A-Za-z0-9_-]+)(\s|$)/;
+    const hashAgentPattern = /(^|\s)#([A-Za-z0-9_-]+)(?:\u200B)?(\s|$)/;
     const atAgentPattern = /(^|\s)@([A-Za-z0-9_-]+)(\s|$)/;
     const hashMatch = input.match(hashAgentPattern);
     let inlineAgentName: string | undefined;
@@ -1047,8 +1057,8 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
 
     // Remove agent mention from input for further processing
     const inputWithoutAgent = (inlineAgentName && agentRemovePattern)
-      ? input.replace(agentRemovePattern, '$1$3').replace(/[ \t]{2,}/g, ' ').trim()
-      : input;
+      ? input.replace(agentRemovePattern, '$1$3').replace(/\u200B/g, '').replace(/[ \t]{2,}/g, ' ').trim()
+      : input.replace(/\u200B/g, '');
 
     const typedSkillPattern = /(\/skills?)\s+([A-Za-z0-9._/-]+)(?=\s|$)/g;
     const inlineTokenRegex = new RegExp(inlineSkillTokenPattern.source, 'g');
@@ -1104,10 +1114,11 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
     return found?.name || skillId;
   };
 
-  const renderInlineSkillText = () => {
+  const renderInlineTokens = () => {
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
-    const regex = new RegExp(inlineSkillTokenPattern.source, 'g');
+    // Match both skills ([...] marker) and agents (#... marker)
+    const regex = new RegExp(anyTokenPattern.source, 'g');
     let match: RegExpExecArray | null;
 
     while ((match = regex.exec(input)) !== null) {
@@ -1116,34 +1127,50 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
           <span key={`text-${lastIndex}`} className="pointer-events-none">{input.slice(lastIndex, match.index)}</span>
         );
       }
-      const skillId = match[1].replace(/\u2011/g, '-');
+
+      const fullToken = match[0];
+      const content = match[1].replace(/\u2011/g, '-');
+      const isAgent = content.startsWith('#');
+      const id = isAgent ? content.slice(1) : content;
+
       const tokenStart = match.index;
       const tokenEnd = match.index + match[0].length;
+
       parts.push(
         <span
-          key={`skill-${match.index}-${skillId}`}
-          className="group/skill pointer-events-auto relative inline-flex align-baseline translate-y-[1px]"
+          key={`${isAgent ? 'agent' : 'skill'}-${match.index}-${id}`}
+          className={cn(
+            "pointer-events-auto relative inline-flex align-baseline translate-y-[1px]",
+            isAgent ? "group/agent" : "group/skill"
+          )}
         >
           {/* Layout Anchor - Matches textarea content exactly (including hidden marker) */}
-          <span className="invisible select-none">{match[0]}</span>
+          <span className="invisible select-none">{fullToken}</span>
 
           {/* Visual Badge - Optimized for line-height and minimizing overlap */}
-          <span className="absolute -left-[3px] -right-[3px] top-1/2 -translate-y-[55%] h-[20px] rounded-[6px] border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/15 hover:border-blue-500/40 hover:shadow-sm flex items-center justify-center transition-all duration-200 select-none z-0 hover:z-10">
-            <span className="truncate max-w-full px-1.5 text-[10px] leading-none font-semibold text-blue-600 dark:text-blue-400 font-mono tracking-tight">
-              {getSkillDisplayName(skillId)}
+          <span className={cn(
+            "absolute -left-[3px] -right-[3px] top-1/2 -translate-y-[55%] h-[20px] rounded-[6px] border flex items-center justify-center transition-all duration-200 select-none z-0 hover:z-10 shadow-sm",
+            isAgent
+              ? "bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400 hover:from-blue-500/20 hover:to-purple-500/20 hover:border-blue-500/40"
+              : "border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/15 hover:border-blue-500/40"
+          )}>
+            <span className="truncate max-w-full px-1.5 text-[10px] leading-none font-semibold font-mono tracking-tight">
+              {isAgent ? id : getSkillDisplayName(id)}
             </span>
 
             {/* Close Button - Appearing on hover with enhanced visibility */}
             <button
               type="button"
-              data-skill-remove="true"
-              className="absolute -right-1.5 -top-1.5 h-4 w-4 rounded-full bg-background border shadow-sm opacity-0 group-hover/skill:opacity-100 flex items-center justify-center hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-200 z-20 scale-90 hover:scale-100"
+              className={cn(
+                "absolute -right-1.5 -top-1.5 h-4 w-4 rounded-full bg-background border shadow-sm opacity-0 flex items-center justify-center hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-200 z-20 scale-90 hover:scale-100",
+                isAgent ? "group-hover/agent:opacity-100" : "group-hover/skill:opacity-100"
+              )}
               onMouseDown={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 removeSkillTokenRange(tokenStart, tokenEnd);
               }}
-              aria-label={`Remove skill ${skillId}`}
+              aria-label={`Remove ${isAgent ? 'agent' : 'skill'} ${id}`}
             >
               <span className="text-[10px] font-bold leading-none mb-px">×</span>
             </button>
@@ -1210,9 +1237,11 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
           <div className="flex gap-2 mb-2 flex-wrap">
             {uploadedImages.map((img) => (
               <div key={img.id} className="relative group">
-                <img
+                <Image
                   src={img.preview}
                   alt="Uploaded"
+                  width={64}
+                  height={64}
                   className="w-16 h-16 object-cover rounded-lg border"
                 />
                 <button
@@ -1367,7 +1396,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
               aria-hidden
               className="relative z-10 pointer-events-none whitespace-pre-wrap break-words px-2 py-1 text-sm leading-relaxed min-h-[40px] max-h-[200px] overflow-y-auto"
             >
-              {renderInlineSkillText()}
+              {renderInlineTokens()}
             </div>
           </div>
 

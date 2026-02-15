@@ -1,5 +1,6 @@
 
 import { useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { Bot } from 'lucide-react';
 import { GeminiIcon } from './icons/GeminiIcon';
 import { MessageBubble, LoadingBubble, Message } from './MessageBubble';
@@ -187,10 +188,12 @@ export function ChatContainer({
                                             {msg.role === 'user' && msg.images && msg.images.length > 0 && (
                                                 <div className="flex gap-2 flex-wrap">
                                                     {msg.images.map((img, imgIdx) => (
-                                                        <img
+                                                        <Image
                                                             key={imgIdx}
                                                             src={img.dataUrl}
                                                             alt={img.name}
+                                                            width={200}
+                                                            height={200}
                                                             className="max-w-[200px] max-h-[200px] object-contain rounded-lg border"
                                                         />
                                                     ))}

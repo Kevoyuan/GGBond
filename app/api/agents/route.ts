@@ -39,7 +39,7 @@ function readAgentFromFile(filePath: string): { name: string; displayName?: stri
         // Extract content after frontmatter
         let content = '';
         let dashCount = 0;
-        let contentLines = [];
+        const contentLines = [];
         for (const line of lines) {
             if (line.trim() === '---') {
                 dashCount++;
