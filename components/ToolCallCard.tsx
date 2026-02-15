@@ -137,7 +137,7 @@ function extractTodos(resultData: unknown, result?: string): TodoItem[] | null {
     return null;
 }
 
-export function ToolCallCard({
+export const ToolCallCard = React.memo(function ToolCallCard({
     toolId,
     checkpointId,
     toolName,
@@ -387,4 +387,4 @@ export function ToolCallCard({
             )}
         </div>
     );
-}
+});
