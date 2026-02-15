@@ -1,16 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Maximize2, Minimize2, Network, Clock, Sparkles, ListOrdered } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { Message } from '../components/MessageBubble';
 import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
 import { cn } from '@/lib/utils';
-import { ConversationGraph, GraphMessage } from '../components/ConversationGraph';
-import { BranchInsights } from '../components/BranchInsights';
-import { MessageTimeline } from '../components/MessageTimeline';
+import { SidePanel } from '../components/SidePanel';
 
 import { ChatContainer } from '../components/ChatContainer';
 import { ConfirmationDialog, ConfirmationDetails } from '../components/ConfirmationDialog';
@@ -82,13 +79,7 @@ const toStatsValue = (value: unknown): Message['stats'] | undefined => {
   return undefined;
 };
 
-const TOOL_CALL_TAG_REGEX = /<tool-call[^>]*\/>/g;
 const DEFAULT_TERMINAL_PANEL_HEIGHT = 360;
-
-const getToolCallAttribute = (tag: string, key: string) => {
-  const match = tag.match(new RegExp(`${key}="([^"]*)"`));
-  return match?.[1] || '';
-};
 
 const buildTreeFromApiMessages = (rawMessages: ApiMessageRecord[]) => {
   const normalized = rawMessages.map((rawMessage, index) => {
@@ -165,22 +156,6 @@ function MiniInsightBadge({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
-const summarizeBranchContent = (content: string) => {
-  if (!content) return '(empty)';
-
-  const textOnly = content.replace(TOOL_CALL_TAG_REGEX, ' ').replace(/\s+/g, ' ').trim();
-  if (textOnly) return textOnly;
-
-  const firstTag = content.match(/<tool-call[^>]*\/>/)?.[0];
-  if (!firstTag) return '(empty)';
-
-  const name = getToolCallAttribute(firstTag, 'name');
-  const status = getToolCallAttribute(firstTag, 'status');
-  if (name && status) return `Tool ${name} (${status})`;
-  if (name) return `Tool ${name}`;
-  return '[tool call]';
-};
 
 const ALLOWED_MODELS = new Set([
   'gemini-3-pro-preview',
@@ -271,9 +246,7 @@ export default function Home() {
   const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>(DEFAULT_CHAT_SETTINGS.toolPermissionStrategy);
   const [sidePanelType, setSidePanelType] = useState<'graph' | 'timeline' | null>(null);
   const [sidePanelWidth, setSidePanelWidth] = useState(400);
-  const [isResizing, setIsResizing] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
-  const [isBranchInsightsMinimized, setIsBranchInsightsMinimized] = useState(false);
   const [inputAreaHeight, setInputAreaHeight] = useState(120);
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
   const [streamingStatus, setStreamingStatus] = useState<string | undefined>(undefined);
@@ -307,7 +280,6 @@ export default function Home() {
   }, [addToast]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const sidePanelRef = useRef<HTMLDivElement>(null);
   const currentSessionIdRef = useRef<string | null>(currentSessionId);
   const activeChatAbortRef = useRef<AbortController | null>(null);
   const aiProcessingRef = useRef(false); // Track if AI is currently processing
@@ -331,70 +303,6 @@ export default function Home() {
   useEffect(() => {
     currentSessionIdRef.current = currentSessionId;
   }, [currentSessionId]);
-
-  // Handle Resizing with Performance Optimization
-  const isResizingRef = useRef(false);
-  const startXRef = useRef(0);
-  const startWidthRef = useRef(0);
-  const animationFrameRef = useRef<number | null>(null);
-
-  const startResizing = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isResizingRef.current = true;
-    startXRef.current = e.clientX;
-    startWidthRef.current = sidePanelWidth;
-    setIsResizing(true); // Keep state for UI feedback (blue handle), but don't rely on it for drag logic
-  }, [sidePanelWidth]);
-
-  const stopResizing = useCallback(() => {
-    if (!isResizingRef.current) return;
-    isResizingRef.current = false;
-    setIsResizing(false);
-
-    // Sync final width to state
-    if (sidePanelRef.current) {
-      const finalWidth = parseInt(sidePanelRef.current.style.width, 10);
-      if (!isNaN(finalWidth)) {
-        setSidePanelWidth(finalWidth);
-      }
-    }
-
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-  }, []);
-
-  const resize = useCallback((e: MouseEvent) => {
-    if (!isResizingRef.current || !sidePanelRef.current) return;
-
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-
-    animationFrameRef.current = requestAnimationFrame(() => {
-      // Panel is on the left, so width increases as mouse moves right (positive delta)
-      const delta = e.clientX - startXRef.current;
-      const newWidth = startWidthRef.current + delta;
-
-      if (newWidth > 280 && newWidth < 800) {
-        if (sidePanelRef.current) {
-          sidePanelRef.current.style.width = `${newWidth}px`;
-        }
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener('mousemove', resize);
-    window.addEventListener('mouseup', stopResizing);
-    return () => {
-      window.removeEventListener('mousemove', resize);
-      window.removeEventListener('mouseup', stopResizing);
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, [resize, stopResizing]);
 
   // Handle page visibility changes for background continuity
   useEffect(() => {
@@ -510,110 +418,6 @@ export default function Home() {
 
   const isLoading = isSessionLoading || isCurrentSessionRunning;
 
-  // -- Graph Data for Visualization --
-  const graphMessages: GraphMessage[] = useMemo(() => {
-    // Only generate graph data if graph is shown to save performance
-    if (sidePanelType !== 'graph') return [];
-
-    return Array.from(messagesMap.entries()).map(([mapId, msg]) => {
-      const stableId = msg.id || mapId;
-      return {
-        id: stableId,
-        parentId: msg.parentId || null,
-        role: msg.role,
-        content: msg.content,
-        isLeaf: stableId === headId
-      };
-    });
-  }, [messagesMap, headId, sidePanelType]);
-
-  const branchInsights = useMemo(() => {
-    if (!graphMessages.length) {
-      return {
-        nodeCount: 0,
-        leafCount: 0,
-        branchPointIds: [] as string[],
-        maxDepth: 0,
-        activeDepth: 0,
-      };
-    }
-
-    const parentById = new Map<string, string | null>();
-    const childrenById = new Map<string, string[]>();
-
-    for (const message of graphMessages) {
-      parentById.set(message.id, message.parentId);
-      childrenById.set(message.id, []);
-    }
-
-    for (const message of graphMessages) {
-      if (message.parentId && childrenById.has(message.parentId)) {
-        childrenById.get(message.parentId)?.push(message.id);
-      }
-    }
-
-    const roots = graphMessages
-      .filter((message) => !message.parentId || !childrenById.has(message.parentId))
-      .map((message) => message.id);
-
-    if (!roots.length) {
-      roots.push(graphMessages[0].id);
-    }
-
-    const depthById = new Map<string, number>();
-    const visited = new Set<string>();
-    const queue = roots.map((id) => ({ id, depth: 0 }));
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-      if (!current || visited.has(current.id)) continue;
-      visited.add(current.id);
-      depthById.set(current.id, current.depth);
-      const children = childrenById.get(current.id) || [];
-      for (const childId of children) {
-        queue.push({ id: childId, depth: current.depth + 1 });
-      }
-    }
-
-    const maxDepth = Array.from(depthById.values()).reduce((max, depth) => Math.max(max, depth), 0);
-    const branchPointIds = Array.from(childrenById.entries())
-      .filter(([, children]) => children.length > 1)
-      .sort((a, b) => (depthById.get(a[0]) || 0) - (depthById.get(b[0]) || 0))
-      .map(([id]) => id);
-    const leafCount = Array.from(childrenById.values()).filter((children) => children.length === 0).length;
-
-    let activeDepth = 0;
-    let cursor = headId;
-    const pathGuard = new Set<string>();
-    while (cursor && !pathGuard.has(cursor)) {
-      pathGuard.add(cursor);
-      const parent = parentById.get(cursor) || null;
-      if (!parent) break;
-      activeDepth += 1;
-      cursor = parent;
-    }
-
-    return {
-      nodeCount: graphMessages.length,
-      leafCount,
-      branchPointIds,
-      maxDepth,
-      activeDepth,
-    };
-  }, [graphMessages, headId]);
-
-  const selectedGraphMessage = useMemo(() => {
-    if (!headId) return null;
-    return messagesMap.get(headId) || null;
-  }, [messagesMap, headId]);
-
-  const branchJumpMessages = useMemo(() => {
-    return branchInsights.branchPointIds
-      .map((id) => ({ id, message: messagesMap.get(id) }))
-      .filter((entry): entry is { id: string; message: Message } => Boolean(entry.message))
-      .slice(0, 6);
-  }, [branchInsights.branchPointIds, messagesMap]);
-
   const [confirmation, setConfirmation] = useState<{ details: ConfirmationDetails, correlationId: string } | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<{
     questions: Question[];
@@ -644,6 +448,33 @@ export default function Home() {
       return acc;
     }, { inputTokens: 0, outputTokens: 0, totalTokens: 0, totalCost: 0 });
   }, [messages]);
+
+  // Branch insights for debug stats (lightweight computation)
+  const branchInsights = useMemo(() => {
+    const graphMessages = Array.from(messagesMap.entries()).map(([mapId, msg]) => ({
+      id: msg.id || mapId,
+      parentId: msg.parentId || null,
+    }));
+
+    const childrenById = new Map<string, string[]>();
+    for (const message of graphMessages) {
+      childrenById.set(message.id, []);
+    }
+    for (const message of graphMessages) {
+      if (message.parentId && childrenById.has(message.parentId)) {
+        childrenById.get(message.parentId)?.push(message.id);
+      }
+    }
+
+    const branchPointIds = Array.from(childrenById.entries())
+      .filter(([, children]) => children.length > 1)
+      .map(([id]) => id);
+
+    return {
+      nodeCount: graphMessages.length,
+      branchPointIds,
+    };
+  }, [messagesMap]);
 
   const currentContextUsage = useMemo(() => {
     if (messages.length === 0) return 0;
@@ -2227,26 +2058,6 @@ export default function Home() {
     }
   };
 
-  const handleNodeClick = (nodeId: string) => {
-    setHeadId(nodeId);
-    headIdRef.current = nodeId;
-  };
-
-  const highlightMessage = useCallback((id: string) => {
-    const el = document.getElementById(`message-${id}`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('message-highlight');
-      
-      // Wait for scroll (approx 450ms) before starting the 800ms removal timer
-      setTimeout(() => {
-        setTimeout(() => {
-          el.classList.remove('message-highlight');
-        }, 800);
-      }, 450);
-    }
-  }, []);
-
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans antialiased">
       <ToastContainer toasts={toasts} onDismiss={dismissToast} position="top-right" />
@@ -2316,80 +2127,19 @@ export default function Home() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 flex overflow-hidden">
             {/* Side Panel (Graph or Timeline) - Left Side */}
-            <div
-              ref={sidePanelRef}
-              className={cn(
-                "flex-none border-r bg-muted/5 relative flex flex-col overflow-hidden",
-                !isResizing && "transition-[width] duration-200 ease-in-out",
-                !sidePanelType && "w-0 border-none"
-              )}
-              style={{ width: sidePanelType ? sidePanelWidth : 0 }}
-            >
-              <AnimatePresence mode="wait">
-                {sidePanelType === 'graph' && (
-                  <motion.div
-                    key="graph"
-                    initial={{ opacity: 0, x: -5 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -5 }}
-                    transition={{ duration: 0.1 }}
-                    className="flex-1 flex flex-col min-h-0 relative h-full"
-                  >
-                    <div className="flex-1 min-h-0 relative">
-                      <ConversationGraph
-                        messages={graphMessages}
-                        currentLeafId={headId}
-                        onNodeClick={handleNodeClick}
-                        onCopyNotification={showInfoToast}
-                        className="absolute inset-0"
-                      />
-                    </div>
-                    <BranchInsights
-                      nodeCount={branchInsights.nodeCount}
-                      leafCount={branchInsights.leafCount}
-                      maxDepth={branchInsights.maxDepth}
-                      branchPointCount={branchInsights.branchPointIds.length}
-                      onBranchPointClick={handleNodeClick}
-                      branchPoints={branchJumpMessages.map((m) => ({
-                        id: m.id,
-                        content: summarizeBranchContent(m.message.content),
-                        role: m.message.role,
-                      }))}
-                    />
-                  </motion.div>
-                )}
-
-                {sidePanelType === 'timeline' && (
-                  <motion.div
-                    key="timeline"
-                    initial={{ opacity: 0, x: -5 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -5 }}
-                    transition={{ duration: 0.1 }}
-                    className="flex-1 flex flex-col min-h-0 relative h-full"
-                  >
-                                      <MessageTimeline
-                                        messages={messages}
-                                        currentIndex={messages.length - 1}
-                                        onMessageClick={(index) => {
-                                          const msg = messages[index];
-                                          if (msg && msg.id) {
-                                            highlightMessage(msg.id);
-                                          }
-                                        }}
-                                      />                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Resize Handle (Right edge) */}
-              <div
-                onMouseDown={startResizing}
-                className={cn(
-                  "absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-50 transition-colors hover:bg-primary/30",
-                  isResizing && "bg-primary/50"
-                )}
-              />
-            </div>
+            <SidePanel
+              sidePanelType={sidePanelType}
+              sidePanelWidth={sidePanelWidth}
+              setSidePanelWidth={setSidePanelWidth}
+              messages={messages}
+              messagesMap={messagesMap}
+              headId={headId}
+              setHeadId={(id) => {
+                setHeadId(id);
+                headIdRef.current = id;
+              }}
+              showInfoToast={showInfoToast}
+            />
 
             {/* Right Side: Chat + Queue + Terminal (vertical stack) */}
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
