@@ -20,12 +20,13 @@ interface AgentPreviewDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     agent: AgentDefinition | null;
+    onSuccess?: () => void;
 }
 
-export function AgentPreviewDialog({ open, onOpenChange, agent }: AgentPreviewDialogProps) {
+export function AgentPreviewDialog({ open, onOpenChange, agent, onSuccess }: AgentPreviewDialogProps) {
     const [task, setTask] = useState('');
     const [workspace, setWorkspace] = useState('');
-    const [model, setModel] = useState('inherit');
+    const [model, setModel] = useState('gemini-2.0-flash');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<{ id: string; task: string } | null>(null);
@@ -40,7 +41,7 @@ export function AgentPreviewDialog({ open, onOpenChange, agent }: AgentPreviewDi
         if (!open) {
             setTask('');
             setWorkspace('');
-            setModel('inherit');
+            setModel('gemini-2.0-flash');
             setError(null);
             setSuccess(null);
         }
@@ -64,7 +65,7 @@ export function AgentPreviewDialog({ open, onOpenChange, agent }: AgentPreviewDi
                     agentName: agent.name,
                     task: task.trim(),
                     workspace: workspace.trim() || undefined,
-                    model: model === 'inherit' ? undefined : model,
+                    model: model,
                 })
             });
 
@@ -75,6 +76,7 @@ export function AgentPreviewDialog({ open, onOpenChange, agent }: AgentPreviewDi
             }
 
             setSuccess({ id: data.id, task: task.trim() });
+            onSuccess?.();
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -234,8 +236,8 @@ export function AgentPreviewDialog({ open, onOpenChange, agent }: AgentPreviewDi
                                     <ModelSelector
                                         value={model}
                                         onChange={setModel}
-                                        variant="form"
-                                        showInherit={true}
+                                        variant="dropdown"
+                                        showInherit={false}
                                         className="w-full"
                                     />
                                 </div>
