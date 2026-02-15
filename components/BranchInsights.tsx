@@ -11,7 +11,7 @@ interface BranchInsightsProps {
   maxDepth: number;
   branchPointCount: number;
   onBranchPointClick?: (id: string) => void;
-  branchPoints?: Array<{ id: string; content: string }>;
+  branchPoints?: Array<{ id: string; content: string; role?: 'user' | 'model' }>;
   className?: string;
 }
 
@@ -39,8 +39,8 @@ export function BranchInsights({
           borderRadius: isMinimized ? 20 : 16
         }}
         transition={{
-          duration: 0.2,
-          ease: "easeOut"
+          duration: 0.15,
+          ease: "easeInOut"
         }}
         className={cn(
           "flex flex-col items-end overflow-hidden origin-top-right",
@@ -86,9 +86,9 @@ export function BranchInsights({
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="w-full px-4 pb-5 space-y-4 overflow-hidden"
+              exit={{ height: 0, opacity: 0, transition: { duration: 0.1, ease: "easeInOut" } }}
+              transition={{ duration: 0.15, ease: "easeInOut" }}
+              className="w-64 px-4 pb-5 space-y-4 overflow-hidden"
             >
               {/* Stats - Maximum Contrast */}
               <div className="grid grid-cols-3 gap-3 pt-2">
@@ -103,16 +103,27 @@ export function BranchInsights({
                   <div className="text-[10px] uppercase font-black text-zinc-900 dark:text-zinc-100 tracking-widest px-1">
                     Branches
                   </div>
-                  <div className="space-y-1 max-h-48 overflow-y-auto pr-1 scrollbar-none">
-                    {branchPoints.slice(0, 8).map((bp) => (
-                      <button
-                        key={bp.id}
-                        onClick={() => onBranchPointClick?.(bp.id)}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-white/10 transition-colors text-[11px] text-zinc-900 dark:text-zinc-100 hover:text-primary dark:hover:text-primary truncate font-bold"
-                      >
-                        {bp.content || 'Untitled'}
-                      </button>
-                    ))}
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 scrollbar-none">
+                    {branchPoints.slice(0, 12).map((bp) => {
+                      const isUser = bp.role === 'user';
+                      return (
+                        <button
+                          key={bp.id}
+                          onClick={() => onBranchPointClick?.(bp.id)}
+                          className={cn(
+                            "w-full text-left pl-3 pr-2 py-2 rounded-r-lg rounded-bl-lg transition-colors border-l-2 text-[11px] hover:bg-zinc-100 dark:hover:bg-white/5",
+                            isUser 
+                              ? "border-emerald-500/70 hover:border-emerald-500 text-zinc-700 dark:text-zinc-300"
+                              : "border-blue-500/70 hover:border-blue-500 text-zinc-600 dark:text-zinc-400"
+                          )}
+                        >
+                          <div className={cn("font-medium line-clamp-2 leading-relaxed", isUser ? "text-zinc-900 dark:text-zinc-100" : "")}>
+                            {bp.content || 'Untitled'}
+                          </div>
+                          <div className="text-[9px] font-mono opacity-40 mt-1">#{bp.id.slice(-4)}</div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}

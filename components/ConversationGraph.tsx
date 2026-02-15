@@ -273,7 +273,7 @@ const buildTreeLayout = (messages: GraphMessage[], currentLeafId: string | null)
       source: parentId,
       target: message.id,
       type: 'smoothstep',
-      animated: isActiveEdge,
+      animated: false,
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color,

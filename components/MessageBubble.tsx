@@ -125,6 +125,7 @@ export const MessageBubble = React.memo(function MessageBubble({
           <StateSnapshotDisplay content={message.content} />
         ) : (
           <div
+            id={message.id ? `message-${message.id}` : undefined}
             className={cn(
               "text-sm leading-relaxed max-w-full overflow-x-hidden",
               isUser

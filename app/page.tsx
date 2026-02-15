@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Maximize2, Minimize2, Network, Clock, Sparkles, ListOrdered } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
@@ -2231,6 +2232,21 @@ export default function Home() {
     headIdRef.current = nodeId;
   };
 
+  const highlightMessage = useCallback((id: string) => {
+    const el = document.getElementById(`message-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('message-highlight');
+      
+      // Wait for scroll (approx 450ms) before starting the 800ms removal timer
+      setTimeout(() => {
+        setTimeout(() => {
+          el.classList.remove('message-highlight');
+        }, 800);
+      }, 450);
+    }
+  }, []);
+
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans antialiased">
       <ToastContainer toasts={toasts} onDismiss={dismissToast} position="top-right" />
@@ -2244,7 +2260,7 @@ export default function Home() {
 
       {/* Sidebar */}
       <div className={cn(
-        "fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 md:relative md:translate-x-0",
+        "fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 md:relative md:translate-x-0",
         sidebarOpen ? "translate-x-0" : "-translate-x-full",
         "flex h-full"
       )}>
@@ -2300,26 +2316,25 @@ export default function Home() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 flex overflow-hidden">
             {/* Side Panel (Graph or Timeline) - Left Side */}
-            {sidePanelType && (
-              <div
-                ref={sidePanelRef}
-                className={cn(
-                  "flex-none border-r bg-muted/5 relative flex flex-col overflow-hidden",
-                  !isResizing && "transition-[width] duration-75 ease-out"
-                )}
-                style={{ width: sidePanelWidth }}
-              >
-                {/* Resize Handle (Right edge) */}
-                <div
-                  onMouseDown={startResizing}
-                  className={cn(
-                    "absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-50 transition-colors hover:bg-primary/30",
-                    isResizing && "bg-primary/50"
-                  )}
-                />
-
+            <div
+              ref={sidePanelRef}
+              className={cn(
+                "flex-none border-r bg-muted/5 relative flex flex-col overflow-hidden",
+                !isResizing && "transition-[width] duration-200 ease-in-out",
+                !sidePanelType && "w-0 border-none"
+              )}
+              style={{ width: sidePanelType ? sidePanelWidth : 0 }}
+            >
+              <AnimatePresence mode="wait">
                 {sidePanelType === 'graph' && (
-                  <>
+                  <motion.div
+                    key="graph"
+                    initial={{ opacity: 0, x: -5 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -5 }}
+                    transition={{ duration: 0.1 }}
+                    className="flex-1 flex flex-col min-h-0 relative h-full"
+                  >
                     <div className="flex-1 min-h-0 relative">
                       <ConversationGraph
                         messages={graphMessages}
@@ -2338,34 +2353,43 @@ export default function Home() {
                       branchPoints={branchJumpMessages.map((m) => ({
                         id: m.id,
                         content: summarizeBranchContent(m.message.content),
+                        role: m.message.role,
                       }))}
                     />
-                  </>
+                  </motion.div>
                 )}
 
                 {sidePanelType === 'timeline' && (
-                  <MessageTimeline
-                    messages={messages}
-                    currentIndex={messages.length - 1}
-                    onMessageClick={(index) => {
-                      setTimeout(() => {
-                        const messageElements = document.querySelectorAll('[data-message-index]');
-                        const targetElement = messageElements[index] as HTMLElement;
-                        if (targetElement) {
-                          targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          targetElement.classList.remove('message-highlight');
-                          void targetElement.offsetWidth;
-                          targetElement.classList.add('message-highlight');
-                          setTimeout(() => {
-                            targetElement.classList.remove('message-highlight');
-                          }, 800);
-                        }
-                      }, 50);
-                    }}
-                  />
+                  <motion.div
+                    key="timeline"
+                    initial={{ opacity: 0, x: -5 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -5 }}
+                    transition={{ duration: 0.1 }}
+                    className="flex-1 flex flex-col min-h-0 relative h-full"
+                  >
+                                      <MessageTimeline
+                                        messages={messages}
+                                        currentIndex={messages.length - 1}
+                                        onMessageClick={(index) => {
+                                          const msg = messages[index];
+                                          if (msg && msg.id) {
+                                            highlightMessage(msg.id);
+                                          }
+                                        }}
+                                      />                  </motion.div>
                 )}
-              </div>
-            )}
+              </AnimatePresence>
+
+              {/* Resize Handle (Right edge) */}
+              <div
+                onMouseDown={startResizing}
+                className={cn(
+                  "absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-50 transition-colors hover:bg-primary/30",
+                  isResizing && "bg-primary/50"
+                )}
+              />
+            </div>
 
             {/* Right Side: Chat + Queue + Terminal (vertical stack) */}
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">

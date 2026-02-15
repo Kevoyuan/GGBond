@@ -199,11 +199,9 @@ export function Sidebar({
     }
   }, []);
 
-  const toggleSidebar = () => {
-    const newState = !isCollapsed;
-    setIsCollapsed(newState);
-    localStorage.setItem('sidebar-collapsed', String(newState));
-  };
+  useEffect(() => {
+    localStorage.setItem('sidebar-collapsed', String(isCollapsed));
+  }, [isCollapsed]);
 
   const startResizing = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -240,6 +238,34 @@ export function Sidebar({
     };
   }, [isResizing, resize, stopResizing]);
 
+  const handleViewClick = (view: SidebarView) => {
+    if (activeView === view) {
+      setIsCollapsed(!isCollapsed);
+    } else {
+      setActiveView(view);
+      setIsCollapsed(false);
+    }
+  };
+
+  const handleSidePanelClick = (type: 'graph' | 'timeline') => {
+    if (sidePanelType === type) {
+      onToggleSidePanel?.(null);
+    } else {
+      onToggleSidePanel?.(type);
+    }
+  };
+
+  const isAnyOpen = !isCollapsed || (sidePanelType !== null && sidePanelType !== undefined);
+
+  const handleToggleAll = () => {
+    if (isAnyOpen) {
+      setIsCollapsed(true);
+      onToggleSidePanel?.(null);
+    } else {
+      setIsCollapsed(false);
+    }
+  };
+
   return (
     <div className="flex h-full border-r bg-muted/10 relative">
       {/* Navigation Rail */}
@@ -259,20 +285,20 @@ export function Sidebar({
           </Tooltip>
           <div className="w-8 h-px bg-border/50 my-1" />
 
-          <NavButton active={activeView === 'chat'} onClick={() => setActiveView('chat')} icon={MessageSquare} label="Chats" />
-          <NavButton active={activeView === 'files'} onClick={() => setActiveView('files')} icon={FolderOpen} label="Files" />
-          <NavButton active={activeView === 'skills'} onClick={() => setActiveView('skills')} icon={Puzzle} label="Skills" />
-          <NavButton active={activeView === 'hooks'} onClick={() => setActiveView('hooks')} icon={Zap} label="Hooks" />
-          <NavButton active={activeView === 'mcp'} onClick={() => setActiveView('mcp')} icon={Plug} label="MCP" />
-          <NavButton active={activeView === 'agents'} onClick={() => setActiveView('agents')} icon={AgentIcon} label="Agents" />
-          <NavButton active={activeView === 'quota'} onClick={() => setActiveView('quota')} icon={Activity} label="Quota" />
-          <NavButton active={activeView === 'memory'} onClick={() => setActiveView('memory')} icon={Database} label="Knowledge Base" />
+          <NavButton active={!isCollapsed && activeView === 'chat'} onClick={() => handleViewClick('chat')} icon={MessageSquare} label="Chats" />
+          <NavButton active={!isCollapsed && activeView === 'files'} onClick={() => handleViewClick('files')} icon={FolderOpen} label="Files" />
+          <NavButton active={!isCollapsed && activeView === 'skills'} onClick={() => handleViewClick('skills')} icon={Puzzle} label="Skills" />
+          <NavButton active={!isCollapsed && activeView === 'hooks'} onClick={() => handleViewClick('hooks')} icon={Zap} label="Hooks" />
+          <NavButton active={!isCollapsed && activeView === 'mcp'} onClick={() => handleViewClick('mcp')} icon={Plug} label="MCP" />
+          <NavButton active={!isCollapsed && activeView === 'agents'} onClick={() => handleViewClick('agents')} icon={AgentIcon} label="Agents" />
+          <NavButton active={!isCollapsed && activeView === 'quota'} onClick={() => handleViewClick('quota')} icon={Activity} label="Quota" />
+          <NavButton active={!isCollapsed && activeView === 'memory'} onClick={() => handleViewClick('memory')} icon={Database} label="Knowledge Base" />
 
           {onToggleSidePanel && (
             <>
               <div className="w-8 h-px bg-border/50 my-1" />
-              <NavButton active={sidePanelType === 'graph'} onClick={() => onToggleSidePanel('graph')} icon={Network} label="Conversation Graph" />
-              <NavButton active={sidePanelType === 'timeline'} onClick={() => onToggleSidePanel('timeline')} icon={Clock} label="Timeline" />
+              <NavButton active={sidePanelType === 'graph'} onClick={() => handleSidePanelClick('graph')} icon={Network} label="Conversation Graph" />
+              <NavButton active={sidePanelType === 'timeline'} onClick={() => handleSidePanelClick('timeline')} icon={Clock} label="Timeline" />
             </>
           )}
         </div>
@@ -283,9 +309,9 @@ export function Sidebar({
               <LayoutGrid className="w-5 h-5" />
             </button>
           </Tooltip>
-          <Tooltip content={isCollapsed ? "Expand" : "Collapse"} side="right" sideOffset={18}>
-            <button onClick={toggleSidebar} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-              {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+          <Tooltip content={isAnyOpen ? "Collapse All" : "Expand Sidebar"} side="right" sideOffset={18}>
+            <button onClick={handleToggleAll} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+              {!isAnyOpen ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
             </button>
           </Tooltip>
           <Tooltip content={isDark ? "Light" : "Dark"} side="right" sideOffset={18}>
@@ -303,16 +329,16 @@ export function Sidebar({
 
       {/* Side Panel Content */}
       <div
-        className={cn("flex flex-col bg-muted/5 z-10 relative shrink-0", !isResizing && "transition-all duration-300 ease-in-out", isCollapsed && "w-0 opacity-0 overflow-hidden")}
+        className={cn("flex flex-col bg-muted/5 z-10 relative shrink-0", !isResizing && "transition-all duration-200 ease-in-out", isCollapsed && "w-0 opacity-0 overflow-hidden")}
         style={{ width: isCollapsed ? 0 : sidePanelWidth }}
       >
         <AnimatePresence mode="wait">
           <motion.div
             key={activeView}
-            initial={{ opacity: 0, x: -10 }}
+            initial={{ opacity: 0, x: -5 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 10 }}
-            transition={{ duration: 0.2 }}
+            exit={{ opacity: 0, x: 5 }}
+            transition={{ duration: 0.1 }}
             className="flex-1 overflow-hidden flex flex-col"
           >
             {activeView === 'chat' ? (
