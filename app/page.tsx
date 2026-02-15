@@ -624,6 +624,7 @@ export default function Home() {
   const [isApplyingUndoMessage, setIsApplyingUndoMessage] = useState(false);
   const [inputPrefillRequest, setInputPrefillRequest] = useState<{ id: number; text: string } | null>(null);
   const [hookEvents, setHookEvents] = useState<HookEvent[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedAgent, setSelectedAgent] = useState<any | null>(null);
 
   // Queue message states - in-memory queue for pending messages
@@ -730,6 +731,7 @@ export default function Home() {
       if (coreRes.ok) {
         const coreSessions = await coreRes.json();
         // Avoid duplicates if IDs match, though they shouldn't usually
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const coreFiltered = coreSessions.filter((cs: any) => !allSessions.some(s => s.id === cs.id));
         allSessions = [...allSessions, ...coreFiltered];
       }
@@ -1379,7 +1381,8 @@ export default function Home() {
           content: text,
           images: messageImages,
           sessionId: generatedSessionId,
-          parentId: parentIdToUse
+          parentId: parentIdToUse,
+          agentName: options?.agentName,
         }, parentIdToUse);
         if (headIdRef.current === userMsgId || !headIdRef.current) {
           setHeadId(userMsgId);
@@ -1394,7 +1397,8 @@ export default function Home() {
           images: messageImages,
           queued: false, // Clear queued status
           parentId: parentIdToUse, // Update parent if needed (though usually same head)
-          sessionId: generatedSessionId
+          sessionId: generatedSessionId,
+          agentName: options?.agentName,
         });
         // Also set head to this message if it's at the end
         if (headIdRef.current === userMsgId || !headIdRef.current) {
@@ -1407,7 +1411,8 @@ export default function Home() {
         role: 'user',
         content: text,
         images: messageImages,
-        sessionId: generatedSessionId
+        sessionId: generatedSessionId,
+        agentName: options?.agentName,
       }, parentIdToUse);
     }
     const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1896,6 +1901,7 @@ export default function Home() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleQuestionSubmit = async (answers: any[]) => {
     if (!activeQuestion) return;
     const pendingQuestion = activeQuestion;

@@ -95,8 +95,9 @@ function RunAgentContent() {
       }
 
       setSuccess({ id: data.id, task: task.trim() });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An error occurred';
+      setError(message);
     } finally {
       setSubmitting(false);
     }
