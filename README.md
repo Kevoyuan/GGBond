@@ -1,5 +1,7 @@
 # GGBond
 
+[English](./README.md) | [简体中文](./README.zh-CN.md)
+
 <p align="center">
   <img src="./public/screenshot.png" alt="GGBond - AI-Powered Intelligent Coding Assistant" width="100%" />
 </p>
