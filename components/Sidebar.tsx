@@ -269,7 +269,13 @@ export function Sidebar({
   return (
     <div className="flex flex-col h-full bg-card border-r">
       {/* Global Title Bar - Safe Area for Traffic Lights */}
-      <div className="h-[54px] w-full shrink-0 drag-region" />
+      <div className="h-[54px] w-full shrink-0 drag-region flex items-center justify-end px-3">
+        <Tooltip content={isAnyOpen ? "Collapse All" : "Expand Sidebar"} side="right" sideOffset={18}>
+          <button onClick={handleToggleAll} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors no-drag">
+            {!isAnyOpen ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+          </button>
+        </Tooltip>
+      </div>
 
       <div className="flex flex-1 min-h-0 relative">
 
@@ -317,11 +323,7 @@ export function Sidebar({
                 <LayoutGrid className="w-5 h-5" />
               </button>
             </Tooltip>
-            <Tooltip content={isAnyOpen ? "Collapse All" : "Expand Sidebar"} side="right" sideOffset={18}>
-              <button onClick={handleToggleAll} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-                {!isAnyOpen ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
-              </button>
-            </Tooltip>
+
             <Tooltip content={isDark ? "Light" : "Dark"} side="right" sideOffset={18}>
               <button onClick={toggleTheme} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                 {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
