@@ -33,6 +33,7 @@ interface ChatInputProps {
   onToggleTerminal?: () => void;
   onHeightChange?: (height: number) => void;
   prefillRequest?: { id: number; text: string } | null;
+  compressionThreshold?: number;
 }
 
 interface CommandItem {
@@ -127,7 +128,7 @@ const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
   'uninstall',
 ]);
 
-export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange, prefillRequest }: ChatInputProps) {
+export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange, prefillRequest, compressionThreshold = 0.5 }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | '#' | 'skill' | null>(null);
@@ -1659,7 +1660,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
 
                       {/* Tiny info */}
                       <div className="text-[9px] text-center text-muted-foreground/50">
-                        Auto-compression triggers at 90%
+                        Auto-compression at {Math.round(compressionThreshold * 100)}%
                       </div>
                     </div>
                   </motion.div>

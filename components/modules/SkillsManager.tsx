@@ -3,10 +3,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ModuleCard } from './ModuleCard';
-import { Sparkles, Loader2, RefreshCw, Trash2, BookOpen, Search, CheckCircle2, Ban, Plus, SlidersHorizontal, Puzzle, ExternalLink, Edit, PlusCircle } from 'lucide-react';
+import { Sparkles, Loader2, RefreshCw, Trash2, BookOpen, Search, CheckCircle2, Ban, Plus, SlidersHorizontal, Puzzle, ExternalLink, Edit, PlusCircle, Layers, Globe, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from '../sidebar/PanelHeader';
 import { SkillPreviewDialog } from '../SkillPreviewDialog';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface Skill {
     id: string;
@@ -227,37 +228,39 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
 
                 <div className="flex p-1 bg-muted/30 rounded-lg relative overflow-hidden">
                     {[
-                        { key: 'all', label: 'All', count: skills.length },
-                        { key: 'project', label: 'Project', count: skills.filter(s => s.scope === 'project').length },
-                        { key: 'global', label: 'Global', count: skills.filter(s => s.scope === 'global').length },
+                        { key: 'all', label: 'All', count: skills.length, icon: Layers },
+                        { key: 'project', label: 'Project', count: skills.filter(s => s.scope === 'project').length, icon: FolderOpen },
+                        { key: 'global', label: 'Global', count: skills.filter(s => s.scope === 'global').length, icon: Globe },
                     ].map((item) => (
-                        <button
-                            key={item.key}
-                            onClick={() => setScopeFilter(item.key as 'all' | 'project' | 'global')}
-                            className={cn(
-                                "relative px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md flex flex-1 items-center justify-center gap-2 z-10 transition-colors",
-                                scopeFilter === item.key
-                                    ? "text-primary-foreground"
-                                    : "text-muted-foreground hover:text-foreground"
-                            )}
-                        >
-                            {scopeFilter === item.key && (
-                                <motion.div
-                                    layoutId="skillScopeTab"
-                                    className="absolute inset-0 bg-primary rounded-md shadow-sm"
-                                    transition={{ type: "spring", bounce: 0.2, duration: 0.3 }}
-                                />
-                            )}
-                            <span className="relative z-10">{item.label}</span>
-                            <span className={cn(
-                                "relative z-10 px-1 py-0.5 rounded text-[9px] min-w-[16px] text-center font-mono leading-none transition-colors",
-                                scopeFilter === item.key
-                                    ? "bg-primary-foreground/20 text-primary-foreground"
-                                    : "bg-muted text-muted-foreground"
-                            )}>
-                                {item.count}
-                            </span>
-                        </button>
+                        <Tooltip key={item.key} content={item.label} delay={0} triggerClassName="flex-1 w-full" side="top">
+                            <button
+                                onClick={() => setScopeFilter(item.key as 'all' | 'project' | 'global')}
+                                className={cn(
+                                    "relative px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md flex items-center justify-center gap-1.5 z-10 transition-colors w-full",
+                                    scopeFilter === item.key
+                                        ? "text-primary-foreground"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {scopeFilter === item.key && (
+                                    <motion.div
+                                        layoutId="skillScopeTab"
+                                        className="absolute inset-0 bg-primary rounded-md shadow-sm"
+                                        transition={{ type: "spring", bounce: 0.2, duration: 0.3 }}
+                                    />
+                                )}
+                                <item.icon size={16} className="relative z-10" />
+                                {!compact && <span className="relative z-10">{item.label}</span>}
+                                <span className={cn(
+                                    "relative z-10 px-1 py-0.5 rounded text-[9px] min-w-[16px] text-center font-mono leading-none transition-colors",
+                                    scopeFilter === item.key
+                                        ? "bg-primary-foreground/20 text-primary-foreground"
+                                        : "bg-muted text-muted-foreground"
+                                )}>
+                                    {item.count}
+                                </span>
+                            </button>
+                        </Tooltip>
                     ))}
                 </div>
             </div>

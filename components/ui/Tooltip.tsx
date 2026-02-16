@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface TooltipProps {
     children: React.ReactNode;
@@ -18,10 +17,11 @@ export function Tooltip({
     side = 'right',
     className,
     delay = 200,
-    sideOffset = 18 // Default to 18 for sidebar clearance
-}: TooltipProps) {
+    sideOffset = 5,
+    triggerClassName
+}: TooltipProps & { triggerClassName?: string }) {
     const [isVisible, setIsVisible] = useState(false);
-    const [isMeasured, setIsMeasured] = useState(false);
+    const [isPositioned, setIsPositioned] = useState(false);
     const [coords, setCoords] = useState<{ top: number, left: number }>({ top: 0, left: 0 });
     const triggerRef = useRef<HTMLDivElement>(null);
     const tooltipRef = useRef<HTMLDivElement>(null);
@@ -67,19 +67,19 @@ export function Tooltip({
         }
 
         setCoords({ top, left });
+        setIsPositioned(true);
     };
 
     useLayoutEffect(() => {
         if (isVisible) {
             updatePosition();
-            setIsMeasured(true);
         } else {
-            setIsMeasured(false);
+            setIsPositioned(false);
         }
     }, [isVisible]);
 
     useEffect(() => {
-        if (isVisible && isMeasured) {
+        if (isVisible) {
             window.addEventListener('scroll', updatePosition, true);
             window.addEventListener('resize', updatePosition);
 
@@ -91,7 +91,7 @@ export function Tooltip({
                 cancelAnimationFrame(id);
             };
         }
-    }, [isVisible, isMeasured]);
+    }, [isVisible]);
 
     const handleMouseEnter = () => {
         timeoutRef.current = setTimeout(() => {
@@ -104,7 +104,7 @@ export function Tooltip({
             clearTimeout(timeoutRef.current);
         }
         setIsVisible(false);
-        setIsMeasured(false);
+        setIsPositioned(false);
     };
 
     return (
@@ -113,56 +113,31 @@ export function Tooltip({
                 ref={triggerRef}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
-                className="flex items-center justify-center"
+                className={cn("flex items-center justify-center", triggerClassName)}
             >
                 {children}
             </div>
 
-            {/* Measurement Phase: Render invisible div to calculate position */}
-            {isVisible && !isMeasured && createPortal(
+            {isVisible && createPortal(
                 <div
                     ref={tooltipRef}
                     style={{
                         position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        opacity: 0,
-                        pointerEvents: 'none',
-                        visibility: 'hidden'
+                        top: coords.top,
+                        left: coords.left,
+                        zIndex: 9999,
+                        visibility: isPositioned ? 'visible' : 'hidden',
                     }}
                     className={cn(
-                        "px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md border border-border whitespace-nowrap",
+                        "px-2.5 py-1.5 rounded-md bg-zinc-800 text-zinc-50 border border-zinc-700 shadow-[0_4px_12px_rgba(0,0,0,0.5)]",
+                        "dark:bg-zinc-800 dark:text-zinc-50 dark:border-zinc-700", // Force dark mode aesthetic for "Pro" feel usually
+                        "text-[10px] font-semibold tracking-wide leading-none whitespace-nowrap",
+                        "pointer-events-none select-none",
                         className
                     )}
                 >
                     {content}
                 </div>,
-                document.body
-            )}
-
-            {/* Presentation Phase: Render animated motion.div at calculated position */}
-            {isVisible && isMeasured && createPortal(
-                <AnimatePresence>
-                    <motion.div
-                        ref={tooltipRef}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.15, ease: "easeOut" }}
-                        style={{
-                            position: 'fixed',
-                            top: coords.top,
-                            left: coords.left,
-                            zIndex: 9999,
-                        }}
-                        className={cn(
-                            "px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md border border-border whitespace-nowrap",
-                            className
-                        )}
-                    >
-                        {content}
-                    </motion.div>
-                </AnimatePresence>,
                 document.body
             )}
         </>

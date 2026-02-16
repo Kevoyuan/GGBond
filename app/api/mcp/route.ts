@@ -138,9 +138,11 @@ export async function POST(req: Request) {
           if (serverConfig) {
             // Manually register the server config with the manager before restarting
             const coreInstance = CoreService.getInstance();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const config = (coreInstance as any).config;
             const manager = config?.getMcpClientManager?.();
             if (manager) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const allServerConfigs = (manager as any).allServerConfigs;
               if (allServerConfigs) {
                 allServerConfigs.set(name, normalizeServerConfig(serverConfig));

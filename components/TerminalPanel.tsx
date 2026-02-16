@@ -13,6 +13,7 @@ import {
   TerminalSquare,
   Trash2,
   X,
+  SplitSquareHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -70,11 +71,29 @@ interface TerminalStreamEvent {
   durationMs?: unknown;
 }
 
+interface TerminalSession {
+  id: string;
+  name: string;
+  entries: TerminalEntry[];
+  command: string;
+  commandHistory: string[];
+  commandHistoryIndex: number | null;
+  historyDraft: string;
+  sessionCwd: string;
+  isRunning: boolean;
+  isStopping: boolean;
+  currentRunId: string | null;
+}
+
 const STORAGE_KEY = 'ggbond-terminal-environment-v1';
 const HEIGHT_STORAGE_KEY = 'ggbond-terminal-height-v1';
+const SIDEBAR_WIDTH_STORAGE_KEY = 'ggbond-terminal-sidebar-width-v1';
 const DEFAULT_ACTION_ID = 'run';
 const DEFAULT_HEIGHT = 360;
 const MIN_HEIGHT = 240;
+const DEFAULT_SIDEBAR_WIDTH = 160;
+const MIN_SIDEBAR_WIDTH = 100;
+const MAX_SIDEBAR_WIDTH = 400;
 
 const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
 
@@ -338,6 +357,10 @@ const clampHeight = (height: number) => {
   return Math.min(maxHeight, Math.max(MIN_HEIGHT, Math.floor(height)));
 };
 
+const clampSidebarWidth = (width: number) => {
+  return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.floor(width)));
+};
+
 const parseEnvironmentVariables = (envText: string) => {
   const vars: Record<string, string> = {};
   const lines = envText.split(/\r?\n/);
@@ -415,30 +438,54 @@ export function TerminalPanel({
   onClose,
   onHeightChange,
 }: TerminalPanelProps) {
-  const [command, setCommand] = useState('');
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
-  const [commandHistoryIndex, setCommandHistoryIndex] = useState<number | null>(null);
-  const [historyDraft, setHistoryDraft] = useState('');
-  const [sessionCwd, setSessionCwd] = useState('');
+  // Multi-tab state
+  const [sessions, setSessions] = useState<TerminalSession[]>(() => [{
+    id: 'default',
+    name: 'Terminal 1',
+    entries: [],
+    command: '',
+    commandHistory: [],
+    commandHistoryIndex: null,
+    historyDraft: '',
+    sessionCwd: '',
+    isRunning: false,
+    isStopping: false,
+    currentRunId: null,
+  }]);
+  const [activeSessionId, setActiveSessionId] = useState('default');
+
   const [environment, setEnvironment] = useState<TerminalEnvironmentConfig>(() =>
     createDefaultEnvironment(workspacePath)
   );
   const [showEnvironmentSettings, setShowEnvironmentSettings] = useState(false);
-  const [entries, setEntries] = useState<TerminalEntry[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [isStopping, setIsStopping] = useState(false);
-  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [panelHeight, setPanelHeight] = useState(DEFAULT_HEIGHT);
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
+  const [isSidebarResizing, setIsSidebarResizing] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState(false);
 
   const outputRef = useRef<HTMLDivElement>(null);
   const commandTextareaRef = useRef<HTMLTextAreaElement>(null);
   const actionMenuRef = useRef<HTMLDivElement>(null);
-  const activeEntryIdRef = useRef<string | null>(null);
-  const activeRunSessionIdRef = useRef<string | null>(null);
-  const activeRequestAbortRef = useRef<AbortController | null>(null);
-  const resizeStartRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const resizeStartRef = useRef<{ startY: number; startHeight: number; startX: number; startWidth: number } | null>(null);
+
+  // Ref to hold AbortControllers for all sessions
+  const abortControllersRef = useRef<Record<string, AbortController | null>>({});
+  // Ref to hold refs for entries/sessions for async operations
+  const activeEntryIdRef = useRef<Record<string, string | null>>({});
+  const activeRunSessionIdRef = useRef<Record<string, string | null>>({});
+
+  const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId) || sessions[0], [sessions, activeSessionId]);
+
+  // Update specific session state
+  const updateSession = useCallback((sessionId: string, updates: Partial<TerminalSession>) => {
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, ...updates } : s));
+  }, []);
+
+  // Update active session state
+  const updateActiveSession = useCallback((updates: Partial<TerminalSession>) => {
+    updateSession(activeSessionId, updates);
+  }, [activeSessionId, updateSession]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -459,6 +506,14 @@ export function TerminalPanel({
         setPanelHeight(clampHeight(parsed));
       }
     }
+
+    const rawSidebarWidth = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+    if (rawSidebarWidth) {
+      const parsed = Number(rawSidebarWidth);
+      if (Number.isFinite(parsed)) {
+        setSidebarWidth(clampSidebarWidth(parsed));
+      }
+    }
   }, [workspacePath]);
 
   useEffect(() => {
@@ -472,6 +527,11 @@ export function TerminalPanel({
   }, [panelHeight]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth));
+  }, [sidebarWidth]);
+
+  useEffect(() => {
     onHeightChange?.(panelHeight);
   }, [onHeightChange, panelHeight]);
 
@@ -482,23 +542,26 @@ export function TerminalPanel({
   }, [workspacePath, environment.defaultCwd]);
 
   useEffect(() => {
-    if (sessionCwd.trim()) return;
-    if (environment.defaultCwd.trim()) {
-      setSessionCwd(environment.defaultCwd.trim());
-      return;
-    }
-    if (workspacePath?.trim()) {
-      setSessionCwd(workspacePath.trim());
-    }
-  }, [environment.defaultCwd, sessionCwd, workspacePath]);
+    // Initialize session CWD if empty
+    sessions.forEach(s => {
+      if (s.sessionCwd.trim()) return;
+      if (environment.defaultCwd.trim()) {
+        updateSession(s.id, { sessionCwd: environment.defaultCwd.trim() });
+        return;
+      }
+      if (workspacePath?.trim()) {
+        updateSession(s.id, { sessionCwd: workspacePath.trim() });
+      }
+    });
+  }, [environment.defaultCwd, workspacePath, sessions, updateSession]);
 
   useEffect(() => {
     outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight, behavior: 'smooth' });
-  }, [entries, isRunning]);
+  }, [activeSession.entries, activeSession.isRunning]);
 
   useEffect(() => {
     commandTextareaRef.current?.focus();
-  }, []);
+  }, [activeSessionId]);
 
   useEffect(() => {
     const textarea = commandTextareaRef.current;
@@ -506,7 +569,7 @@ export function TerminalPanel({
     textarea.style.height = '0px';
     const nextHeight = Math.min(180, Math.max(30, textarea.scrollHeight));
     textarea.style.height = `${nextHeight}px`;
-  }, [command]);
+  }, [activeSession.command]);
 
   useEffect(() => {
     if (!showActionMenu) return;
@@ -533,17 +596,26 @@ export function TerminalPanel({
   }, [showActionMenu]);
 
   useEffect(() => {
-    if (!isResizing) return;
+    if (!isResizing && !isSidebarResizing) return;
 
     const onMouseMove = (event: MouseEvent) => {
       const resizeState = resizeStartRef.current;
       if (!resizeState) return;
-      const delta = resizeState.startY - event.clientY;
-      setPanelHeight(clampHeight(resizeState.startHeight + delta));
+
+      if (isResizing) {
+        const delta = resizeState.startY - event.clientY;
+        setPanelHeight(clampHeight(resizeState.startHeight + delta));
+      }
+
+      if (isSidebarResizing) {
+        const delta = resizeState.startX - event.clientX;
+        setSidebarWidth(clampSidebarWidth(resizeState.startWidth + delta));
+      }
     };
 
     const onMouseUp = () => {
       setIsResizing(false);
+      setIsSidebarResizing(false);
       resizeStartRef.current = null;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
@@ -558,16 +630,20 @@ export function TerminalPanel({
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isResizing]);
+  }, [isResizing, isSidebarResizing]);
 
   useEffect(() => {
     return () => {
-      activeRequestAbortRef.current?.abort();
-      const activeRunSessionId = activeRunSessionIdRef.current;
-      if (activeRunSessionId) {
-        onSessionRunStateChange?.(activeRunSessionId, -1);
-        activeRunSessionIdRef.current = null;
-      }
+      // Cleanup on unmount
+      Object.keys(abortControllersRef.current).forEach(sid => {
+        abortControllersRef.current[sid]?.abort();
+      });
+      Object.keys(activeRunSessionIdRef.current).forEach(sid => {
+        const runId = activeRunSessionIdRef.current[sid];
+        if (runId) {
+          onSessionRunStateChange?.(runId, -1);
+        }
+      });
     };
   }, [onSessionRunStateChange]);
 
@@ -579,96 +655,119 @@ export function TerminalPanel({
     [environment.actions, environment.selectedActionId]
   );
 
-  const currentWorkingDirectory = useMemo(() => {
-    if (sessionCwd.trim()) return sessionCwd.trim();
+  const getCurrentWorkingDirectory = useCallback((session: TerminalSession) => {
+    if (session.sessionCwd.trim()) return session.sessionCwd.trim();
     if (environment.defaultCwd.trim()) return environment.defaultCwd.trim();
     if (workspacePath?.trim()) return workspacePath;
     return '';
-  }, [environment.defaultCwd, sessionCwd, workspacePath]);
+  }, [environment.defaultCwd, workspacePath]);
 
   const terminalPrompt = useMemo(() => {
-    const location = currentWorkingDirectory || '~';
+    const location = getCurrentWorkingDirectory(activeSession) || '~';
     return `${location} $`;
-  }, [currentWorkingDirectory]);
+  }, [activeSession, getCurrentWorkingDirectory]);
 
-  const updateEntry = useCallback((entryId: string, updater: (entry: TerminalEntry) => TerminalEntry) => {
-    setEntries((prev) => prev.map((entry) => (entry.id === entryId ? updater(entry) : entry)));
+  const updateEntry = useCallback((sessionId: string, entryId: string, updater: (entry: TerminalEntry) => TerminalEntry) => {
+    setSessions(prev => prev.map(s => {
+      if (s.id !== sessionId) return s;
+      return {
+        ...s,
+        entries: s.entries.map(e => e.id === entryId ? updater(e) : e)
+      };
+    }));
   }, []);
 
   const appendEntryText = useCallback(
-    (entryId: string, key: 'stdout' | 'stderr', chunk: string) => {
+    (sessionId: string, entryId: string, key: 'stdout' | 'stderr', chunk: string) => {
       if (!chunk) return;
-      updateEntry(entryId, (entry) => ({ ...entry, [key]: entry[key] + chunk }));
+      updateEntry(sessionId, entryId, (entry) => ({ ...entry, [key]: entry[key] + chunk }));
     },
     [updateEntry]
   );
 
   const finalizeActiveRun = useCallback(
-    (entryId: string, updates: Partial<TerminalEntry>) => {
-      updateEntry(entryId, (entry) => ({
+    (sessionId: string, entryId: string, updates: Partial<TerminalEntry>) => {
+      updateEntry(sessionId, entryId, (entry) => ({
         ...entry,
         ...updates,
         status: updates.status ?? (entry.status === 'running' ? 'failed' : entry.status),
       }));
 
-      setIsRunning(false);
-      setIsStopping(false);
-      setCurrentRunId(null);
-      activeEntryIdRef.current = null;
-      activeRequestAbortRef.current = null;
-      const activeRunSessionId = activeRunSessionIdRef.current;
+      updateSession(sessionId, {
+        isRunning: false,
+        isStopping: false,
+        currentRunId: null
+      });
+
+      activeEntryIdRef.current[sessionId] = null;
+      abortControllersRef.current[sessionId] = null;
+      const activeRunSessionId = activeRunSessionIdRef.current[sessionId];
       if (activeRunSessionId) {
         onSessionRunStateChange?.(activeRunSessionId, -1);
-        activeRunSessionIdRef.current = null;
+        activeRunSessionIdRef.current[sessionId] = null;
       }
     },
-    [onSessionRunStateChange, updateEntry]
+    [onSessionRunStateChange, updateEntry, updateSession]
   );
 
   const handleRunCommand = useCallback(
-    async (commandOverride?: string) => {
-      const normalizedCommand = (commandOverride ?? command).trim();
-      if (!normalizedCommand || isRunning) return;
+    async (sessionId: string, commandOverride?: string) => {
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session) return;
+
+      const normalizedCommand = (commandOverride ?? session.command).trim();
+      if (!normalizedCommand || session.isRunning) return;
+
+      // Auto-rename session based on command
+      const commandName = normalizedCommand.split(' ')[0];
+      if (session.name.startsWith('Terminal ')) {
+        updateSession(sessionId, { name: commandName || session.name });
+      }
 
       const startedAt = Date.now();
       const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const runSessionId = typeof sessionId === 'string' && sessionId.trim() ? sessionId : null;
-      activeRunSessionIdRef.current = runSessionId;
-      if (runSessionId) {
-        onSessionRunStateChange?.(runSessionId, 1);
-      }
-      activeEntryIdRef.current = entryId;
-      setIsRunning(true);
-      setIsStopping(false);
-      setCurrentRunId(null);
+      const runSessionId = typeof sessionId === 'string' && sessionId.trim() ? sessionId : null; // Using internal terminal sessionId as key if external one not mapped? Actually props.sessionId is for chat session.
+      // We should use props.sessionId if available for tracking, but maybe we should scope it? 
+      // For simplicity, reusing prop sessionId for all tabs run state tracking if present.
+      const externalSessionId = typeof sessionId === 'string' && sessionId.trim() ? sessionId : null;
 
-      if (!commandOverride) {
-        setCommand('');
-        setCommandHistory((prev) => {
-          const next = [...prev, normalizedCommand];
-          return next.length > 200 ? next.slice(next.length - 200) : next;
-        });
-        setCommandHistoryIndex(null);
-        setHistoryDraft('');
+      activeRunSessionIdRef.current[sessionId] = externalSessionId;
+      if (externalSessionId) {
+        onSessionRunStateChange?.(externalSessionId, 1);
       }
+      activeEntryIdRef.current[sessionId] = entryId;
 
-      setEntries((prev) => [
-        ...prev,
+      const newEntries = [
+        ...session.entries,
         {
           id: entryId,
           command: normalizedCommand,
-          cwd: currentWorkingDirectory || '',
+          cwd: getCurrentWorkingDirectory(session) || '',
           stdout: '',
           stderr: '',
           exitCode: 0,
           durationMs: 0,
           createdAt: startedAt,
-          status: 'running',
+          status: 'running' as TerminalEntryStatus,
         },
-      ]);
+      ];
+
+      updateSession(sessionId, {
+        isRunning: true,
+        isStopping: false,
+        currentRunId: null,
+        entries: newEntries,
+        ...(!commandOverride ? {
+          command: '',
+          commandHistory: [...session.commandHistory, normalizedCommand].slice(-200),
+          commandHistoryIndex: null,
+          historyDraft: ''
+        } : {})
+      });
 
       const abortController = new AbortController();
-      activeRequestAbortRef.current = abortController;
+      abortControllersRef.current[sessionId] = abortController;
+
       let receivedExitEvent = false;
       const envVariables = parseEnvironmentVariables(environment.envText);
       const shellOverride = environment.shell.trim();
@@ -685,7 +784,7 @@ export function TerminalPanel({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             command: executedCommand,
-            cwd: currentWorkingDirectory || undefined,
+            cwd: getCurrentWorkingDirectory(session) || undefined,
             shell: shellOverride || undefined,
             env: Object.keys(envVariables).length > 0 ? envVariables : undefined,
           }),
@@ -695,7 +794,7 @@ export function TerminalPanel({
         if (!response.ok) {
           const data = (await response.json().catch(() => ({}))) as TerminalStreamErrorResponse;
           const responseError = toStringOrEmpty(data.error) || 'Command request failed';
-          finalizeActiveRun(entryId, {
+          finalizeActiveRun(sessionId, entryId, {
             stderr: responseError,
             exitCode: 1,
             durationMs: Date.now() - startedAt,
@@ -705,7 +804,7 @@ export function TerminalPanel({
         }
 
         if (!response.body) {
-          finalizeActiveRun(entryId, {
+          finalizeActiveRun(sessionId, entryId, {
             stderr: 'No stream body returned from server',
             exitCode: 1,
             durationMs: Date.now() - startedAt,
@@ -733,7 +832,7 @@ export function TerminalPanel({
             try {
               event = JSON.parse(line) as TerminalStreamEvent;
             } catch {
-              appendEntryText(entryId, 'stderr', `\n[stream parse error] ${line}`);
+              appendEntryText(sessionId, entryId, 'stderr', `\n[stream parse error] ${line}`);
               continue;
             }
 
@@ -745,12 +844,12 @@ export function TerminalPanel({
               const streamCwd = toStringOrEmpty(event.cwd);
 
               if (runId) {
-                setCurrentRunId(runId);
-                updateEntry(entryId, (entry) => ({ ...entry, runId }));
+                updateSession(sessionId, { currentRunId: runId });
+                updateEntry(sessionId, entryId, (entry) => ({ ...entry, runId }));
               }
 
               if (streamCwd) {
-                updateEntry(entryId, (entry) => ({ ...entry, cwd: streamCwd }));
+                updateEntry(sessionId, entryId, (entry) => ({ ...entry, cwd: streamCwd }));
               }
               continue;
             }
@@ -760,19 +859,19 @@ export function TerminalPanel({
               if (isSimpleCd) {
                 cdProbeStdout += stdoutChunk;
               } else {
-                appendEntryText(entryId, 'stdout', stdoutChunk);
+                appendEntryText(sessionId, entryId, 'stdout', stdoutChunk);
               }
               continue;
             }
 
             if (eventType === 'stderr') {
-              appendEntryText(entryId, 'stderr', toStringOrEmpty(event.chunk));
+              appendEntryText(sessionId, entryId, 'stderr', toStringOrEmpty(event.chunk));
               continue;
             }
 
             if (eventType === 'error') {
               const message = toStringOrEmpty(event.message) || 'Unknown terminal error';
-              appendEntryText(entryId, 'stderr', `\n${message}`);
+              appendEntryText(sessionId, entryId, 'stderr', `\n${message}`);
               continue;
             }
 
@@ -786,12 +885,12 @@ export function TerminalPanel({
               if (isSimpleCd && exitCode === 0) {
                 const resolvedCwd = parseResolvedCwdFromStdout(cdProbeStdout);
                 if (resolvedCwd) {
-                  setSessionCwd(resolvedCwd);
-                  updateEntry(entryId, (entry) => ({ ...entry, cwd: resolvedCwd }));
+                  updateSession(sessionId, { sessionCwd: resolvedCwd });
+                  updateEntry(sessionId, entryId, (entry) => ({ ...entry, cwd: resolvedCwd }));
                 }
               }
 
-              finalizeActiveRun(entryId, {
+              finalizeActiveRun(sessionId, entryId, {
                 exitCode,
                 durationMs,
                 status: toStatus(exitCode, timedOut, stopped),
@@ -801,11 +900,11 @@ export function TerminalPanel({
         }
 
         if (!receivedExitEvent) {
-          const wasStopped = abortController.signal.aborted || isStopping;
+          const wasStopped = abortController.signal.aborted || session.isStopping; // session.isStopping might be stale closure, but we handle via finalize logic typically.
           if (!wasStopped) {
-            appendEntryText(entryId, 'stderr', '\n[stream closed unexpectedly]');
+            appendEntryText(sessionId, entryId, 'stderr', '\n[stream closed unexpectedly]');
           }
-          finalizeActiveRun(entryId, {
+          finalizeActiveRun(sessionId, entryId, {
             exitCode: wasStopped ? 130 : 1,
             durationMs: Date.now() - startedAt,
             status: wasStopped ? 'stopped' : 'failed',
@@ -815,12 +914,13 @@ export function TerminalPanel({
         const isAbort = error instanceof DOMException && error.name === 'AbortError';
         if (!isAbort) {
           appendEntryText(
+            sessionId,
             entryId,
             'stderr',
             `\n${error instanceof Error ? error.message : 'Failed to run command'}`
           );
         }
-        finalizeActiveRun(entryId, {
+        finalizeActiveRun(sessionId, entryId, {
           exitCode: isAbort ? 130 : 1,
           durationMs: Date.now() - startedAt,
           status: isAbort ? 'stopped' : 'failed',
@@ -829,64 +929,76 @@ export function TerminalPanel({
     },
     [
       appendEntryText,
-      command,
-      currentWorkingDirectory,
       environment.envText,
       environment.shell,
       finalizeActiveRun,
-      isRunning,
-      isStopping,
+      getCurrentWorkingDirectory,
       onSessionRunStateChange,
-      sessionId,
+      sessionId, // props sessionId
+      sessions,
       updateEntry,
+      updateSession
     ]
   );
 
+  // Use alias for prop sessionId to avoid confusion
+  const propsSessionId = sessionId;
+
   const navigateCommandHistory = useCallback((direction: 'up' | 'down') => {
-    if (commandHistory.length === 0) return;
+    const session = activeSession;
+    if (session.commandHistory.length === 0) return;
 
     if (direction === 'up') {
-      if (commandHistoryIndex === null) {
-        setHistoryDraft(command);
-        const nextIndex = commandHistory.length - 1;
-        setCommandHistoryIndex(nextIndex);
-        setCommand(commandHistory[nextIndex] ?? '');
+      if (session.commandHistoryIndex === null) {
+        updateActiveSession({
+          historyDraft: session.command,
+          commandHistoryIndex: session.commandHistory.length - 1,
+          command: session.commandHistory[session.commandHistory.length - 1] ?? ''
+        });
         return;
       }
 
-      const nextIndex = Math.max(0, commandHistoryIndex - 1);
-      setCommandHistoryIndex(nextIndex);
-      setCommand(commandHistory[nextIndex] ?? '');
+      const nextIndex = Math.max(0, session.commandHistoryIndex - 1);
+      updateActiveSession({
+        commandHistoryIndex: nextIndex,
+        command: session.commandHistory[nextIndex] ?? ''
+      });
       return;
     }
 
-    if (commandHistoryIndex === null) return;
-    if (commandHistoryIndex >= commandHistory.length - 1) {
-      setCommandHistoryIndex(null);
-      setCommand(historyDraft);
+    if (session.commandHistoryIndex === null) return;
+    if (session.commandHistoryIndex >= session.commandHistory.length - 1) {
+      updateActiveSession({
+        commandHistoryIndex: null,
+        command: session.historyDraft
+      });
       return;
     }
 
-    const nextIndex = commandHistoryIndex + 1;
-    setCommandHistoryIndex(nextIndex);
-    setCommand(commandHistory[nextIndex] ?? '');
-  }, [command, commandHistory, commandHistoryIndex, historyDraft]);
+    const nextIndex = session.commandHistoryIndex + 1;
+    updateActiveSession({
+      commandHistoryIndex: nextIndex,
+      command: session.commandHistory[nextIndex] ?? ''
+    });
+  }, [activeSession, updateActiveSession]);
 
   const sendStopSignal = useCallback(async (signal: 'SIGINT' | 'SIGTERM') => {
-    if (!isRunning) return;
-    setIsStopping(true);
+    const session = activeSession;
+    if (!session.isRunning) return;
+    updateActiveSession({ isStopping: true });
 
-    if (currentRunId) {
+    if (session.currentRunId) {
       try {
         await fetch('/api/terminal/stop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ runId: currentRunId, signal }),
+          body: JSON.stringify({ runId: session.currentRunId, signal }),
         });
       } catch (error) {
-        const activeEntryId = activeEntryIdRef.current;
+        const activeEntryId = activeEntryIdRef.current[activeSessionId];
         if (activeEntryId) {
           appendEntryText(
+            activeSessionId,
             activeEntryId,
             'stderr',
             `\n[${signal} request failed] ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -896,8 +1008,8 @@ export function TerminalPanel({
       return;
     }
 
-    activeRequestAbortRef.current?.abort();
-  }, [appendEntryText, currentRunId, isRunning]);
+    abortControllersRef.current[activeSessionId]?.abort();
+  }, [activeSession, activeSessionId, appendEntryText, updateActiveSession]);
 
   const handleStopCommand = useCallback(async () => {
     await sendStopSignal('SIGTERM');
@@ -910,8 +1022,8 @@ export function TerminalPanel({
   const handleRunSelectedAction = useCallback(() => {
     if (!selectedAction?.script.trim()) return;
     setShowActionMenu(false);
-    void handleRunCommand(selectedAction.script);
-  }, [handleRunCommand, selectedAction]);
+    void handleRunCommand(activeSessionId, selectedAction.script);
+  }, [handleRunCommand, activeSessionId, selectedAction]);
 
   const updateAction = useCallback((actionId: string, updates: Partial<TerminalAction>) => {
     setEnvironment((prev) => ({
@@ -961,11 +1073,65 @@ export function TerminalPanel({
     resizeStartRef.current = {
       startY: event.clientY,
       startHeight: panelHeight,
+      startX: event.clientX,
+      startWidth: sidebarWidth,
     };
     setIsResizing(true);
     document.body.style.cursor = 'ns-resize';
     document.body.style.userSelect = 'none';
   };
+
+  const handleSidebarResizeStart = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    resizeStartRef.current = {
+      startY: event.clientY,
+      startHeight: panelHeight,
+      startX: event.clientX,
+      startWidth: sidebarWidth,
+    };
+    setIsSidebarResizing(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleAddTab = useCallback(() => {
+    const newId = generateActionId(); // Reuse simple ID gen
+    setSessions(prev => [
+      ...prev,
+      {
+        id: newId,
+        name: `Terminal ${prev.length + 1}`,
+        entries: [],
+        command: '',
+        commandHistory: [],
+        commandHistoryIndex: null,
+        historyDraft: '',
+        sessionCwd: environment.defaultCwd || workspacePath || '',
+        isRunning: false,
+        isStopping: false,
+        currentRunId: null,
+      }
+    ]);
+    setActiveSessionId(newId);
+  }, [environment.defaultCwd, workspacePath]);
+
+  const handleCloseTab = useCallback((idToClose: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSessions(prev => {
+      if (prev.length <= 1) return prev; // Don't close last tab
+      const newSessions = prev.filter(s => s.id !== idToClose);
+      return newSessions;
+    });
+    if (activeSessionId === idToClose) {
+      setSessions(prev => { // Get new list locally to find next active
+        const newSessions = prev.filter(s => s.id !== idToClose);
+        const index = prev.findIndex(s => s.id === idToClose);
+        const nextSession = newSessions[Math.max(0, index - 1)];
+        if (nextSession) setActiveSessionId(nextSession.id);
+        return newSessions; // Actual update done in first setSessions, this is just logic flow sync
+      });
+    }
+  }, [activeSessionId]);
 
   const formatTerminalTranscript = (entry: TerminalEntry) => {
     const status = statusMeta[entry.status];
@@ -999,65 +1165,68 @@ export function TerminalPanel({
           title="Drag to resize terminal"
         />
 
-        <div className="p-3 border-b border-border flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <TerminalSquare size={15} className="text-primary shrink-0" />
-            <span className="text-sm font-semibold text-foreground">Terminal</span>
-            {(entries.length > 0 || isRunning) && (
-              <span className="text-[11px] text-muted-foreground rounded-full border border-border/70 px-2 py-0.5">
-                {entries.length} runs
+        <div className="h-10 px-3 border-b border-border/40 bg-muted/5 flex items-center justify-between gap-3 select-none">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="p-1 rounded-md bg-primary/10 text-primary">
+              <TerminalSquare size={14} className="shrink-0" />
+            </div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">Terminal</span>
+            {(activeSession.entries.length > 0 || activeSession.isRunning) && (
+              <span className="text-[10px] font-medium text-muted-foreground/60 bg-muted/50 rounded-full border border-border/50 px-2 py-0.5">
+                {activeSession.entries.length} runs
               </span>
             )}
-            {isRunning && (
-              <span className="text-[11px] text-sky-600 dark:text-sky-300 rounded-full border border-sky-500/30 px-2 py-0.5">
-                running
+            {activeSession.isRunning && (
+              <span className="text-[10px] font-bold text-sky-500 dark:text-sky-400 bg-sky-500/10 rounded-full border border-sky-500/20 px-2 py-0.5 animate-pulse">
+                active
               </span>
             )}
           </div>
 
           <div className="flex items-center gap-1">
             <div ref={actionMenuRef} className="relative">
-              <div className="inline-flex overflow-hidden rounded-md border border-border/80 bg-background/70">
+              <div className="inline-flex items-center rounded-lg border border-border/60 bg-background/50 p-0.5 shadow-sm">
                 <button
                   type="button"
                   onClick={() => {
-                    if (isRunning) {
+                    if (activeSession.isRunning) {
                       void handleStopCommand();
                       return;
                     }
                     void handleRunSelectedAction();
                   }}
-                  disabled={!isRunning && !selectedAction?.script.trim()}
+                  disabled={!activeSession.isRunning && !selectedAction?.script.trim()}
                   className={cn(
-                    'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors',
-                    !isRunning && !selectedAction?.script.trim()
-                      ? 'text-muted-foreground bg-muted/40 cursor-not-allowed'
-                      : isRunning
-                        ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20'
-                        : 'text-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20'
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all',
+                    !activeSession.isRunning && !selectedAction?.script.trim()
+                      ? 'text-muted-foreground bg-transparent cursor-not-allowed'
+                      : activeSession.isRunning
+                        ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20'
+                        : 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'
                   )}
                   title={selectedAction?.script || 'No action script set'}
                 >
-                  {isRunning ? (
-                    isStopping ? <Loader2 size={13} className="animate-spin" /> : <Square size={13} />
+                  {activeSession.isRunning ? (
+                    activeSession.isStopping ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} fill="currentColor" />
                   ) : (
-                    <Play size={13} />
+                    <Play size={12} fill="currentColor" />
                   )}
-                  {isRunning ? (isStopping ? 'Stopping...' : 'Stop') : 'Run'}
+                  {activeSession.isRunning ? (activeSession.isStopping ? 'Stopping' : 'Stop') : 'Run'}
                 </button>
+                <div className="w-[1px] h-4 bg-border/60 mx-0.5" />
                 <button
                   type="button"
                   onClick={() => setShowActionMenu((prev) => !prev)}
-                  className="inline-flex items-center justify-center px-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border-l border-border/80"
+                  className="inline-flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
                   title="Open run menu"
                 >
-                  <ChevronDown size={13} className={cn('transition-transform', showActionMenu && 'rotate-180')} />
+                  <ChevronDown size={12} className={cn('transition-transform duration-200', showActionMenu && 'rotate-180')} />
                 </button>
               </div>
 
               {showActionMenu && (
-                <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-56 rounded-lg border border-border/80 bg-popover shadow-xl p-1.5">
-                  <div className="px-2 py-1 text-[11px] text-muted-foreground">
+                <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-60 rounded-xl border border-border/50 bg-zinc-950 shadow-2xl p-1.5 animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/5 dark:ring-white/5">
+                  <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
                     {environment.name || 'workspace'} actions
                   </div>
                   <div className="space-y-0.5">
@@ -1069,21 +1238,23 @@ export function TerminalPanel({
                           type="button"
                           onClick={() => handleSelectAction(action.id)}
                           className={cn(
-                            'w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left transition-colors',
+                            'w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-left transition-all',
                             selected
-                              ? 'bg-muted/80 text-foreground'
-                              : 'text-foreground/90 hover:bg-muted/60'
+                              ? 'bg-zinc-800 text-zinc-100'
+                              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
                           )}
                           title={action.script || 'No script set'}
                         >
-                          <Play size={12} className="text-muted-foreground shrink-0" />
+                          <div className={cn("p-1 rounded-md bg-zinc-900 border border-zinc-800", selected && "border-zinc-700 bg-zinc-800")}>
+                            <Play size={10} className={cn(selected ? "text-emerald-400" : "text-zinc-500")} fill="currentColor" />
+                          </div>
                           <span className="flex-1 truncate">{action.name}</span>
                           {selected && <Check size={12} className="text-emerald-500 shrink-0" />}
                         </button>
                       );
                     })}
                   </div>
-                  <div className="my-1 h-px bg-border/70" />
+                  <div className="my-1.5 h-px bg-border/30" />
                   <button
                     type="button"
                     onClick={() => {
@@ -1091,7 +1262,7 @@ export function TerminalPanel({
                       setShowActionMenu(false);
                       setShowEnvironmentSettings(true);
                     }}
-                    className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left text-foreground/90 hover:bg-muted/60 transition-colors"
+                    className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-left text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 transition-colors"
                   >
                     <Plus size={12} className="text-muted-foreground shrink-0" />
                     Add action
@@ -1102,7 +1273,7 @@ export function TerminalPanel({
                       setShowActionMenu(false);
                       setShowEnvironmentSettings(true);
                     }}
-                    className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left text-foreground/90 hover:bg-muted/60 transition-colors"
+                    className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-left text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 transition-colors"
                   >
                     <Settings2 size={12} className="text-muted-foreground shrink-0" />
                     Change environment
@@ -1113,94 +1284,163 @@ export function TerminalPanel({
 
             <button
               type="button"
-              onClick={() => setEntries([])}
-              disabled={entries.length === 0}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              onClick={() => updateActiveSession({ entries: [] })}
+              disabled={activeSession.entries.length === 0}
+              className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
               title="Clear terminal output"
             >
-              <Trash2 size={14} />
+              <Trash2 size={13} />
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
               title="Minimize terminal panel"
             >
-              <Minimize2 size={14} />
+              <Minimize2 size={13} />
             </button>
           </div>
         </div>
 
-        <div
-          ref={outputRef}
-          className="flex-1 overflow-y-auto bg-zinc-950 text-zinc-100 font-mono text-[13px] px-3 py-3 space-y-3"
-          onClick={() => commandTextareaRef.current?.focus()}
-        >
-          {entries.map((entry) => (
-            <pre
-              key={entry.id}
-              className="whitespace-pre-wrap break-words leading-relaxed"
-            >
-              {renderAnsiText(formatTerminalTranscript(entry))}
-            </pre>
-          ))}
+        <div className="flex-1 flex min-h-0 relative">
+          <div
+            ref={outputRef}
+            className="flex-1 overflow-y-auto bg-zinc-950 text-zinc-100 font-mono text-[13px] px-3 py-3 space-y-3"
+            onClick={() => commandTextareaRef.current?.focus()}
+          >
+            {activeSession.entries.map((entry) => (
+              <pre
+                key={entry.id}
+                className="whitespace-pre-wrap break-words leading-relaxed"
+              >
+                {renderAnsiText(formatTerminalTranscript(entry))}
+              </pre>
+            ))}
 
-          <div>
-            <div className="flex items-start gap-2">
-              <span className="font-mono text-[13px] text-zinc-400 shrink-0 pt-1">{terminalPrompt}</span>
-              <textarea
-                ref={commandTextareaRef}
-                value={command}
-                onChange={(event) => setCommand(event.target.value)}
-                onKeyDown={(event) => {
-                  if (
-                    isRunning &&
-                    !event.altKey &&
-                    (event.ctrlKey || event.metaKey) &&
-                    event.key.toLowerCase() === 'c'
-                  ) {
-                    event.preventDefault();
-                    void handleInterruptCommand();
-                    return;
-                  }
-
-                  const isPlainArrow =
-                    !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey;
-
-                  if (event.key === 'ArrowUp' && isPlainArrow) {
-                    const isCursorAtStart =
-                      event.currentTarget.selectionStart === 0 &&
-                      event.currentTarget.selectionEnd === 0;
-                    if (isCursorAtStart) {
+            <div>
+              <div className="flex items-start gap-2">
+                <span className="font-mono text-[13px] text-zinc-400 shrink-0 pt-1">{terminalPrompt}</span>
+                <textarea
+                  ref={commandTextareaRef}
+                  value={activeSession.command}
+                  onChange={(event) => updateActiveSession({ command: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (
+                      activeSession.isRunning &&
+                      !event.altKey &&
+                      (event.ctrlKey || event.metaKey) &&
+                      event.key.toLowerCase() === 'c'
+                    ) {
                       event.preventDefault();
-                      navigateCommandHistory('up');
+                      void handleInterruptCommand();
                       return;
                     }
-                  }
 
-                  if (event.key === 'ArrowDown' && isPlainArrow) {
-                    const cursorPosition = event.currentTarget.selectionStart;
-                    const isCursorAtEnd =
-                      cursorPosition === event.currentTarget.selectionEnd &&
-                      cursorPosition === event.currentTarget.value.length;
-                    if (isCursorAtEnd) {
-                      event.preventDefault();
-                      navigateCommandHistory('down');
-                      return;
+                    const isPlainArrow =
+                      !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey;
+
+                    if (event.key === 'ArrowUp' && isPlainArrow) {
+                      const isCursorAtStart =
+                        event.currentTarget.selectionStart === 0 &&
+                        event.currentTarget.selectionEnd === 0;
+                      if (isCursorAtStart) {
+                        event.preventDefault();
+                        navigateCommandHistory('up');
+                        return;
+                      }
                     }
-                  }
 
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault();
-                    void handleRunCommand();
-                  }
-                }}
-                className="flex-1 min-w-0 bg-transparent font-mono text-[15px] leading-relaxed text-zinc-100 placeholder:text-zinc-500 border-none rounded-none px-0 py-0.5 focus:outline-none resize-none"
-                placeholder="Type command. Enter run, Shift+Enter newline, Up/Down history, Ctrl+C interrupt."
-                spellCheck={false}
-                autoComplete="off"
-                rows={1}
-              />
+                    if (event.key === 'ArrowDown' && isPlainArrow) {
+                      const cursorPosition = event.currentTarget.selectionStart;
+                      const isCursorAtEnd =
+                        cursorPosition === event.currentTarget.selectionEnd &&
+                        cursorPosition === event.currentTarget.value.length;
+                      if (isCursorAtEnd) {
+                        event.preventDefault();
+                        navigateCommandHistory('down');
+                        return;
+                      }
+                    }
+
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      void handleRunCommand(activeSessionId);
+                    }
+                  }}
+                  className="flex-1 min-w-0 bg-transparent font-mono text-[15px] leading-relaxed text-zinc-100 placeholder:text-zinc-500 border-none rounded-none px-0 py-0.5 focus:outline-none resize-none"
+                  placeholder="Type command. Enter run, Shift+Enter newline, Up/Down history, Ctrl+C interrupt."
+                  spellCheck={false}
+                  autoComplete="off"
+                  rows={1}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Resizer Handle */}
+          <div
+            className={cn(
+              "w-1 cursor-col-resize hover:bg-primary/50 transition-colors z-20 flex items-center justify-center group/resize",
+              isSidebarResizing && "bg-primary/50"
+            )}
+            onMouseDown={handleSidebarResizeStart}
+          />
+
+          {/* Right Sidebar Tabs */}
+          <div
+            className="border-l border-border/40 bg-muted/5 flex flex-col shrink-0"
+            style={{ width: sidebarWidth }}
+          >
+            <div className="px-2 py-1.5 flex items-center justify-between border-b border-border/20">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">Sessions</span>
+              <button
+                onClick={handleAddTab}
+                className="p-1 rounded hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                title="New Terminal"
+              >
+                <Plus size={12} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-1 py-1 space-y-0.5 scrollbar-thin">
+              {sessions.map((session) => (
+                <div
+                  key={session.id}
+                  onClick={() => setActiveSessionId(session.id)}
+                  className={cn(
+                    "group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-xs cursor-pointer transition-all border border-transparent select-none overflow-hidden",
+                    activeSessionId === session.id
+                      ? "bg-background shadow-sm border-border/50 text-foreground font-medium"
+                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground/80"
+                  )}
+                >
+                  <TerminalSquare size={13} className={cn("shrink-0", activeSessionId === session.id ? "text-primary" : "opacity-70")} />
+                  <span className="truncate flex-1 min-w-0 pr-12">{session.name}</span>
+                  {session.isRunning && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse shrink-0" />
+                  )}
+                  <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 z-10">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddTab();
+                      }}
+                      className="p-1 hover:bg-muted-foreground/20 rounded transition-all text-muted-foreground bg-background/80 backdrop-blur-sm"
+                      title="Split (New Tab)"
+                    >
+                      <SplitSquareHorizontal size={12} />
+                    </button>
+                    {sessions.length > 1 && (
+                      <button
+                        onClick={(e) => handleCloseTab(session.id, e)}
+                        className="p-1 hover:bg-red-500/10 hover:text-red-500 rounded transition-all text-muted-foreground bg-background/80 backdrop-blur-sm"
+                        title="Close"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1208,6 +1448,7 @@ export function TerminalPanel({
 
       {showEnvironmentSettings && (
         <div className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          {/* ... Environment Settings Modal Content ... */}
           <div className="w-[min(980px,96vw)] h-[min(760px,88vh)] rounded-xl border border-border bg-background shadow-2xl flex flex-col overflow-hidden">
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
               <div>
@@ -1253,7 +1494,7 @@ export function TerminalPanel({
                     onChange={(event) => {
                       const nextValue = event.target.value;
                       setEnvironment((prev) => ({ ...prev, defaultCwd: nextValue }));
-                      setSessionCwd(nextValue);
+                      setSessions(prev => prev.map(s => ({ ...s, sessionCwd: nextValue }))); // Update all sessions? or just active? Updating all for consistency with env change
                     }}
                     className="w-full bg-background text-sm text-foreground border border-border/70 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring"
                   />

@@ -24,6 +24,55 @@ type AgentDefinitionLike = {
   content?: string;
 };
 
+// Fallback for built-in agents
+function getBuiltInAgentDefinition(name: string): AgentDefinitionLike | null {
+  if (name === 'cli-help-agent') {
+    return {
+      name: 'cli-help-agent',
+      displayName: 'CLI Help Agent',
+      description: 'Specialized in answering questions about how users use you, (Gemini CLI): features, documentation, and current runtime configuration.',
+      kind: 'local',
+      promptConfig: {
+        systemPrompt: `You are the Gemini CLI Help Agent. Your purpose is to assist users with understanding and using the Gemini CLI.
+You have access to the \`cli_help\` tool which provides detailed information about CLI commands and features.
+Always use the \`cli_help\` tool to find accurate information before answering questions about commands, configuration, or features.
+Provide clear, concise, and helpful answers based on the documentation provided by the tool.`,
+      },
+    };
+  }
+
+  if (name === 'codebase-investigator') {
+    return {
+      name: 'codebase-investigator',
+      displayName: 'Codebase Investigator',
+      description: 'Investigates the codebase to answer questions about architecture, dependencies, and implementation details.',
+      kind: 'local',
+      promptConfig: {
+        systemPrompt: `You are an expert codebase investigator. You have access to the \`codebase_investigator\` tool to analyze the project structure and code.
+Use the \`codebase_investigator\` tool to explore the file system, read files, and understand the project's architecture and dependencies.
+When asked about the codebase, always start by investigating using the available tools before providing an answer.
+Focus on providing accurate and actionable insights based on the actual code.`,
+      },
+    };
+  }
+
+  if (name === 'generalist-agent') {
+    return {
+      name: 'generalist-agent',
+      displayName: 'Generalist Agent',
+      description: 'A helpful general-purpose AI assistant.',
+      kind: 'local',
+      promptConfig: {
+        systemPrompt: `You are a helpful general-purpose AI assistant.
+You can help with a wide range of tasks including coding, writing, analysis, and more.
+Use your knowledge and available tools to assist the user to the best of your ability.`,
+      },
+    };
+  }
+
+  return null;
+}
+
 // Read agent definition from a markdown file in user agents directory
 function getUserAgentDefinition(name: string): AgentDefinitionLike | null {
   try {
@@ -147,6 +196,11 @@ export async function POST(request: NextRequest) {
     if (!agentDefinition) {
       const coreService = CoreService.getInstance();
       agentDefinition = coreService.getAgentDefinition(agentName) as AgentDefinitionLike | null ?? null;
+    }
+
+    // Fallback for built-in agents if not found in registry
+    if (!agentDefinition) {
+      agentDefinition = getBuiltInAgentDefinition(agentName);
     }
 
     if (!agentDefinition) {
