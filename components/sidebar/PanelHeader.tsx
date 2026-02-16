@@ -34,7 +34,7 @@ export function PanelHeader({
 }: PanelHeaderProps) {
     return (
         <div className={cn(
-            "h-14 flex items-center justify-between px-4 border-b bg-card/80 backdrop-blur-md z-20 transition-all",
+            "h-14 flex items-center justify-between px-4 bg-card z-20 transition-all drag-region",
             sticky && "sticky top-0",
             className
         )}>
@@ -45,7 +45,7 @@ export function PanelHeader({
                     </div>
                 )}
                 <div className="flex items-center gap-1.5 overflow-hidden">
-                    <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70 truncate select-none">
+                    <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground truncate select-none">
                         {title}
                     </h2>
                     {badge !== undefined && badge !== null && (
