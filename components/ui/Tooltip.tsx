@@ -16,7 +16,7 @@ export function Tooltip({
     content,
     side = 'right',
     className,
-    delay = 200,
+    delay = 0,
     sideOffset = 5,
     triggerClassName
 }: TooltipProps & { triggerClassName?: string }) {
@@ -94,6 +94,10 @@ export function Tooltip({
     }, [isVisible]);
 
     const handleMouseEnter = () => {
+        if (delay === 0) {
+            setIsVisible(true);
+            return;
+        }
         timeoutRef.current = setTimeout(() => {
             setIsVisible(true);
         }, delay);
