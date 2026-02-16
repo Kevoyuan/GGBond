@@ -19,6 +19,7 @@ import { UndoMessageConfirmDialog, UndoPreviewFileChange } from '../components/U
 import { Toast, ToastContainer } from '../components/Toast';
 import { useToast } from '@/hooks/useToast';
 import { useGitBranches } from '@/hooks/useGitBranches';
+import { PanelLeftClose, PanelLeftOpen, SquarePen } from 'lucide-react';
 
 
 interface Session {
@@ -249,6 +250,10 @@ export default function Home() {
   const [inputAreaHeight, setInputAreaHeight] = useState(120);
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
   const [streamingStatus, setStreamingStatus] = useState<string | undefined>(undefined);
+  // Sidebar state
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showSidebarToggle, setShowSidebarToggle] = useState(true);
+
   // Toast notifications state (via hook)
   const { toasts, dismissToast, showErrorToast, showWarningToast, showInfoToast } = useToast();
 
@@ -560,6 +565,10 @@ export default function Home() {
       setTheme('dark');
       document.documentElement.classList.add('dark');
     }
+
+    // Load sidebar state
+    const savedCollapsed = localStorage.getItem('sidebar-collapsed');
+    if (savedCollapsed) setIsSidebarCollapsed(savedCollapsed === 'true');
   }, []);
 
   const toggleTheme = () => {
@@ -1977,6 +1986,31 @@ export default function Home() {
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans antialiased">
       <ToastContainer toasts={toasts} onDismiss={dismissToast} position="top-right" />
+
+      {/* Fixed buttons next to traffic lights - no-drag since body has drag-region */}
+      <div className="fixed top-[18px] left-[90px] z-[60] flex items-center gap-1 no-drag">
+        <button
+          onClick={() => {
+            const newState = !isSidebarCollapsed;
+            setIsSidebarCollapsed(newState);
+            localStorage.setItem('sidebar-collapsed', String(newState));
+            if (newState) setSidePanelType(null);
+          }}
+          className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+          title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+        >
+          {isSidebarCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+        </button>
+
+        <button
+          onClick={handleNewChat}
+          className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+          title="New Chat"
+        >
+          <SquarePen className="w-5 h-5" />
+        </button>
+      </div>
+
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
@@ -2014,6 +2048,13 @@ export default function Home() {
           selectedAgentName={selectedAgent?.name}
           sidePanelType={sidePanelType}
           onToggleSidePanel={(type) => setSidePanelType(current => current === type ? null : type)}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => {
+            const newState = !isSidebarCollapsed;
+            setIsSidebarCollapsed(newState);
+            localStorage.setItem('sidebar-collapsed', String(newState));
+            if (newState) setSidePanelType(null); // Close side panels when collapsing sidebar
+          }}
         />
       </div>
 
@@ -2038,7 +2079,11 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-card relative">
         {/* Header */}
-        <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} currentBranch={currentBranch} />
+        <Header
+          stats={sessionStats}
+          onShowStats={() => setShowUsageStats(true)}
+          currentBranch={currentBranch}
+        />
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 flex overflow-hidden">
