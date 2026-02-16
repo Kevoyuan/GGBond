@@ -468,7 +468,7 @@ export function TerminalPanel({
   const commandTextareaRef = useRef<HTMLTextAreaElement>(null);
   const actionMenuRef = useRef<HTMLDivElement>(null);
   const resizeStartRef = useRef<{ startY: number; startHeight: number; startX: number; startWidth: number } | null>(null);
-  
+
   // Ref to hold AbortControllers for all sessions
   const abortControllersRef = useRef<Record<string, AbortController | null>>({});
   // Ref to hold refs for entries/sessions for async operations
@@ -698,7 +698,7 @@ export function TerminalPanel({
         isStopping: false,
         currentRunId: null
       });
-      
+
       activeEntryIdRef.current[sessionId] = null;
       abortControllersRef.current[sessionId] = null;
       const activeRunSessionId = activeRunSessionIdRef.current[sessionId];
@@ -729,14 +729,14 @@ export function TerminalPanel({
       const runSessionId = typeof sessionId === 'string' && sessionId.trim() ? sessionId : null; // Using internal terminal sessionId as key if external one not mapped? Actually props.sessionId is for chat session.
       // We should use props.sessionId if available for tracking, but maybe we should scope it? 
       // For simplicity, reusing prop sessionId for all tabs run state tracking if present.
-      const externalSessionId = typeof propsSessionId === 'string' && propsSessionId.trim() ? propsSessionId : null;
-      
+      const externalSessionId = typeof sessionId === 'string' && sessionId.trim() ? sessionId : null;
+
       activeRunSessionIdRef.current[sessionId] = externalSessionId;
       if (externalSessionId) {
         onSessionRunStateChange?.(externalSessionId, 1);
       }
       activeEntryIdRef.current[sessionId] = entryId;
-      
+
       const newEntries = [
         ...session.entries,
         {
@@ -767,7 +767,7 @@ export function TerminalPanel({
 
       const abortController = new AbortController();
       abortControllersRef.current[sessionId] = abortController;
-      
+
       let receivedExitEvent = false;
       const envVariables = parseEnvironmentVariables(environment.envText);
       const shellOverride = environment.shell.trim();
@@ -1084,10 +1084,10 @@ export function TerminalPanel({
   const handleSidebarResizeStart = (event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault();
     resizeStartRef.current = {
-        startY: event.clientY,
-        startHeight: panelHeight,
-        startX: event.clientX,
-        startWidth: sidebarWidth,
+      startY: event.clientY,
+      startHeight: panelHeight,
+      startX: event.clientX,
+      startWidth: sidebarWidth,
     };
     setIsSidebarResizing(true);
     document.body.style.cursor = 'col-resize';
@@ -1124,11 +1124,11 @@ export function TerminalPanel({
     });
     if (activeSessionId === idToClose) {
       setSessions(prev => { // Get new list locally to find next active
-         const newSessions = prev.filter(s => s.id !== idToClose);
-         const index = prev.findIndex(s => s.id === idToClose);
-         const nextSession = newSessions[Math.max(0, index - 1)];
-         if(nextSession) setActiveSessionId(nextSession.id);
-         return newSessions; // Actual update done in first setSessions, this is just logic flow sync
+        const newSessions = prev.filter(s => s.id !== idToClose);
+        const index = prev.findIndex(s => s.id === idToClose);
+        const nextSession = newSessions[Math.max(0, index - 1)];
+        if (nextSession) setActiveSessionId(nextSession.id);
+        return newSessions; // Actual update done in first setSessions, this is just logic flow sync
       });
     }
   }, [activeSessionId]);
@@ -1246,7 +1246,7 @@ export function TerminalPanel({
                           title={action.script || 'No script set'}
                         >
                           <div className={cn("p-1 rounded-md bg-zinc-900 border border-zinc-800", selected && "border-zinc-700 bg-zinc-800")}>
-                             <Play size={10} className={cn(selected ? "text-emerald-400" : "text-zinc-500")} fill="currentColor" />
+                            <Play size={10} className={cn(selected ? "text-emerald-400" : "text-zinc-500")} fill="currentColor" />
                           </div>
                           <span className="flex-1 truncate">{action.name}</span>
                           {selected && <Check size={12} className="text-emerald-500 shrink-0" />}
@@ -1380,8 +1380,8 @@ export function TerminalPanel({
           {/* Resizer Handle */}
           <div
             className={cn(
-                "w-1 cursor-col-resize hover:bg-primary/50 transition-colors z-20 flex items-center justify-center group/resize",
-                isSidebarResizing && "bg-primary/50"
+              "w-1 cursor-col-resize hover:bg-primary/50 transition-colors z-20 flex items-center justify-center group/resize",
+              isSidebarResizing && "bg-primary/50"
             )}
             onMouseDown={handleSidebarResizeStart}
           />
