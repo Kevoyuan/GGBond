@@ -31,6 +31,7 @@ import {
     Plug
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PanelHeader } from './sidebar/PanelHeader';
 
 // Available hook events from gemini-cli-core
 export const HOOK_EVENT_TYPES = [
@@ -639,6 +640,23 @@ export function HooksPanel({
 
     return (
         <div className={cn("flex flex-col h-full bg-card/30 rounded-lg border border-primary/10 overflow-hidden", className)}>
+            <PanelHeader
+                title="Hooks Manager"
+                icon={Zap}
+                badge={events.length > 0 ? events.length : undefined}
+                actions={
+                    onClear && events.length > 0 ? (
+                        <button
+                            onClick={onClear}
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+                            title="Clear all events"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    ) : undefined
+                }
+            />
+
             {/* Fixed Header Section */}
             <div className="flex-none border-b border-primary/10 bg-muted/5">
                 {/* Main Tabs */}
@@ -670,15 +688,6 @@ export function HooksPanel({
                             </button>
                         ))}
                     </div>
-                    {activeTab === 'events' && onClear && events.length > 0 && (
-                        <button
-                            onClick={onClear}
-                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
-                            title="Clear events"
-                        >
-                            <X className="w-3.5 h-3.5" />
-                        </button>
-                    )}
                 </div>
 
                 {/* Sub-header for Events Tab */}

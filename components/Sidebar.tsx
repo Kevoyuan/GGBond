@@ -269,12 +269,12 @@ export function Sidebar({
   return (
     <div className="flex h-full border-r bg-muted/10 relative">
       {/* Navigation Rail */}
-      <div className="w-14 border-r flex flex-col items-center py-4 gap-4 bg-card z-20 shrink-0">
-        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
+      <div className="w-14 border-r flex flex-col items-center pt-[32px] pb-4 gap-4 bg-card z-20 shrink-0 drag-region">
+        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-2 no-drag">
           <GeminiIcon className="w-6 h-6" />
         </div>
 
-        <div className="flex flex-col gap-3 w-full px-2 items-center flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden">
+        <div className="flex flex-col gap-3 w-full px-2 items-center flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden no-drag">
           <Tooltip content="New Chat" side="right" sideOffset={18}>
             <button
               onClick={onNewChat}
@@ -341,6 +341,9 @@ export function Sidebar({
             transition={{ duration: 0.1 }}
             className="flex-1 overflow-hidden flex flex-col"
           >
+            {/* Sidebar Content Top Drag Area */}
+            <div className="h-10 shrink-0 drag-region" />
+
             {activeView === 'chat' ? (
               <ChatView
                 sessions={dedupedSessions}

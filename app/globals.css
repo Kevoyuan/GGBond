@@ -2,6 +2,23 @@
 @plugin "@tailwindcss/typography";
 @import "./timeline.css";
 
+/* Electron 无边框窗口拖拽区域 */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+/* 允许交互元素不参与拖拽 */
+.drag-region button,
+.drag-region input,
+.drag-region textarea,
+.drag-region select,
+.drag-region a,
+.drag-region [role="button"],
+.drag-region label,
+.drag-region .no-drag {
+  -webkit-app-region: no-drag;
+}
+
 @theme {
   /* Semantic color tokens - IDE/Zinc Theme */
   --color-background: oklch(100% 0 0);
