@@ -201,7 +201,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
 
             <div className="space-y-2">
               <div className="flex justify-between">
-                <label className="text-sm font-medium">Compression Threshold</label>
+                <label className="text-sm font-medium">Compression Threshold <span className="text-muted-foreground font-normal">(default: 50%)</span></label>
                 <span className="text-sm text-muted-foreground">{localSettings.modelSettings.compressionThreshold}</span>
               </div>
               <input 
