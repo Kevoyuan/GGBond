@@ -9,8 +9,8 @@ export function useGitBranches(workspaces: string[]) {
     useEffect(() => {
         const fetchBranches = async () => {
             const results: Record<string, string | null> = {};
-            // Only fetch for absolute paths (real filesystem workspaces)
-            const validWorkspaces = workspaces.filter(w => w !== 'Default' && w.startsWith('/'));
+            // Filter out empty, null, undefined, or "Default"
+            const validWorkspaces = workspaces.filter(w => w && w !== 'Default' && w.trim() !== '');
 
             if (validWorkspaces.length === 0) {
                 setBranches({});

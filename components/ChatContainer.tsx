@@ -1,5 +1,5 @@
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { Bot } from 'lucide-react';
 import { GeminiIcon } from './icons/GeminiIcon';
@@ -67,6 +67,9 @@ export function ChatContainer({
 }: ChatContainerProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const lastModelIdx = useMemo(() => {
+        return messages.findLastIndex(m => m.role === 'model');
+    }, [messages]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -180,7 +183,7 @@ export function ChatContainer({
                                     const next = messages[idx + 1];
                                     const isFirstInSequence = !prev || prev.role === 'user';
                                     const isLastInSequence = !next || next.role === 'user';
-                                    const isStreaming = isLoading && isLastInSequence && msg.role === 'model' && !!streamingStatus;
+                                    const isStreaming = isLoading && msg.role === 'model' && !!streamingStatus && idx === lastModelIdx;
 
                                     return (
                                         <div key={msg.id || idx} data-message-index={idx} className={cn("flex flex-col gap-2", msg.role === 'user' && "items-end")}>
@@ -215,7 +218,9 @@ export function ChatContainer({
                                         </div>
                                     );
                                 })}
-                                {isLoading && messages[messages.length - 1]?.role !== 'model' && <LoadingBubble status="Thinking..." />}
+                                {isLoading && (lastModelIdx === -1 || !streamingStatus) && (
+                                    <LoadingBubble status={streamingStatus || "Thinking..."} />
+                                )}
                                 <div ref={messagesEndRef} className="h-4" />
                             </div>
                         )}
@@ -239,6 +244,7 @@ export function ChatContainer({
                         onToggleTerminal={onToggleTerminal}
                         onHeightChange={onInputHeightChange}
                         prefillRequest={inputPrefillRequest}
+                        compressionThreshold={settings.modelSettings?.compressionThreshold ?? 0.5}
                     />
                 </>
             )}

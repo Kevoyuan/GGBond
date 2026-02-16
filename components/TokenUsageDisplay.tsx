@@ -25,6 +25,14 @@ interface TokenUsageDisplayProps {
   floating?: boolean;
 }
 
+// Helper to format tokens in k units (e.g., 1500 -> 1.5k)
+function formatTokensK(count: number): string {
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  }
+  return count.toString();
+}
+
 export function TokenUsageDisplay({ stats, compact = true, className, hideModelInfo = false, hideContextPercentage = false, showMemoryUsage = true, floating = false }: TokenUsageDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(!compact);
 
@@ -32,7 +40,7 @@ export function TokenUsageDisplay({ stats, compact = true, className, hideModelI
   const inputTokens = stats.inputTokenCount || stats.input_tokens || stats.inputTokens || 0;
   const outputTokens = stats.outputTokenCount || stats.output_tokens || stats.outputTokens || 0;
   const totalTokens = stats.totalTokenCount || stats.total_tokens || stats.totalTokens || (inputTokens + outputTokens);
-  const cost = stats.totalCost !== undefined ? `$${stats.totalCost.toFixed(6)}` : null;
+  const cost = stats.totalCost !== undefined ? `$${stats.totalCost.toFixed(4)}` : null;
   const durationMs = stats.duration || stats.duration_ms;
   const duration = durationMs ? `${(durationMs / 1000).toFixed(2)}s` : null;
   const cachedTokens = stats.cachedContentTokenCount || stats.cached || 0;
@@ -56,7 +64,7 @@ export function TokenUsageDisplay({ stats, compact = true, className, hideModelI
       >
         <div className="flex items-center gap-1.5">
           <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-          <span className="font-medium">{totalTokens.toLocaleString()} tokens</span>
+          <span className="font-medium">{formatTokensK(totalTokens)} tokens</span>
         </div>
 
         {cost && (
@@ -135,11 +143,11 @@ export function TokenUsageDisplay({ stats, compact = true, className, hideModelI
                 </div>
                 <div className="flex justify-between text-xs font-semibold text-foreground">
                   <span className="flex items-center gap-1">
-                    {inputTokens.toLocaleString()}
+                    {formatTokensK(inputTokens)}
                     <span className="text-[10px] text-muted-foreground font-normal">tokens</span>
                   </span>
                   <span className="flex items-center gap-1">
-                    {outputTokens.toLocaleString()}
+                    {formatTokensK(outputTokens)}
                     <span className="text-[10px] text-muted-foreground font-normal">tokens</span>
                   </span>
                 </div>
@@ -199,7 +207,7 @@ export function TokenUsageDisplay({ stats, compact = true, className, hideModelI
                       <Database className="w-3 h-3" /> Cached
                     </div>
                     <div className="text-sm font-bold text-foreground">
-                      {cachedTokens.toLocaleString()}
+                      {formatTokensK(cachedTokens)}
                     </div>
                   </div>
                 )}

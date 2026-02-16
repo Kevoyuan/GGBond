@@ -1,0 +1,23 @@
+import React from 'react';
+
+export const GeminiProIcon = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
+    <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={className}
+        {...props}
+    >
+        <defs>
+            <linearGradient id="gemini-pro-gradient" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#ff7ac6" />
+                <stop offset="50%" stopColor="#c56dfc" />
+                <stop offset="100%" stopColor="#6c5ce7" />
+            </linearGradient>
+        </defs>
+        <path
+            d="M12 24C12 17.3726 17.3726 12 24 12C17.3726 12 12 6.62742 12 0C12 6.62742 6.62742 12 0 12C6.62742 12 12 17.3726 12 24Z"
+            fill="url(#gemini-pro-gradient)"
+        />
+    </svg>
+);

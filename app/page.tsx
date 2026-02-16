@@ -18,6 +18,7 @@ import { TerminalPanel } from '../components/TerminalPanel';
 import { UndoMessageConfirmDialog, UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
 import { Toast, ToastContainer } from '../components/Toast';
 import { useToast } from '@/hooks/useToast';
+import { useGitBranches } from '@/hooks/useGitBranches';
 
 
 interface Session {
@@ -26,6 +27,7 @@ interface Session {
   created_at: string | number;
   updated_at: string | number;
   workspace?: string;
+  branch?: string | null;
   isCore?: boolean;
   lastUpdated?: string;
 }
@@ -147,6 +149,13 @@ const ALLOWED_MODELS = new Set([
   'gemini-2.5-flash-lite',
 ]);
 
+interface UploadedImage {
+  id: string;
+  file: File;
+  preview: string;
+  dataUrl: string;
+}
+
 const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   model: 'gemini-3-pro-preview',
   systemInstruction: '',
@@ -195,12 +204,20 @@ export default function Home() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [currentWorkspace, setCurrentWorkspace] = useState<string | null>(null);
 
+  // Get branch info for current workspace
+  const branchInfo = useGitBranches(currentWorkspace ? [currentWorkspace] : []);
+  const currentSession = sessions.find(s => s.id === currentSessionId);
+  // Prefer session's stored branch, fall back to API result
+  const currentBranch = currentSession?.branch || (currentWorkspace ? branchInfo[currentWorkspace] : null);
+
   // -- Tree State --
   // We use a Map to store all messages by ID
   const [messagesMap, setMessagesMap] = useState<Map<string, Message>>(new Map());
   // headId points to the current "tip" of the conversation
   const [headId, setHeadId] = useState<string | null>(null);
   const headIdRef = useRef<string | null>(null);
+  // Counter to trigger re-derivation of messages when queue changes
+  const [pendingQueueVersion, setPendingQueueVersion] = useState(0);
 
   // Sync state to ref (for parts of the app that only read headId state)
   // but we primarily update headIdRef manually for synchronous access.
@@ -241,20 +258,50 @@ export default function Home() {
   const aiProcessingRef = useRef(false); // Track if AI is currently processing
   const loadSessionTreeRef = useRef<typeof loadSessionTree | null>(null);
 
+  // Queue message states - in-memory queue for pending messages
+  const [pendingMessages, setPendingMessages] = useState<{ content: string; images?: UploadedImage[]; tempId?: string }[]>([]);
+  const pendingMessagesRef = useRef<{ content: string; images?: UploadedImage[]; tempId?: string; parentId?: string; sessionId: string }[]>([]);
+
   // -- Derived Linear Thread --
   const messages = useMemo(() => {
     const list: Message[] = [];
+    const visited = new Set<string>(); // Cycle detection
     let currentId = headId;
-    let depth = 0;
-    while (currentId && depth < 2000) { // Safety limit
+    while (currentId) {
+      if (visited.has(currentId)) {
+        console.warn('[messages] Cycle detected at', currentId, '- breaking walk-back');
+        break;
+      }
+      visited.add(currentId);
       const msg = messagesMap.get(currentId);
       if (!msg) break;
       list.unshift(msg);
       currentId = msg.parentId || null;
-      depth++;
     }
+
+    // Append pending (queued) messages that are NOT already in the tree
+    // This keeps them visible in the UI without polluting the messagesMap
+    const pendingMsgs = pendingMessagesRef.current;
+    for (const pm of pendingMsgs) {
+      if (pm.tempId && !visited.has(pm.tempId) && !messagesMap.has(pm.tempId)) {
+        list.push({
+          id: pm.tempId,
+          role: 'user',
+          content: pm.content,
+          queued: true,
+          parentId: null,
+          sessionId: pm.sessionId,
+          images: pm.images?.map(img => ({
+            dataUrl: img.dataUrl,
+            type: img.file.type,
+            name: img.file.name,
+          })),
+        });
+      }
+    }
+
     return list;
-  }, [headId, messagesMap]);
+  }, [headId, messagesMap, pendingQueueVersion]);
 
   useEffect(() => {
     currentSessionIdRef.current = currentSessionId;
@@ -387,10 +434,6 @@ export default function Home() {
   const [hookEvents, setHookEvents] = useState<HookEvent[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedAgent, setSelectedAgent] = useState<any | null>(null);
-
-  // Queue message states - in-memory queue for pending messages
-  const [pendingMessages, setPendingMessages] = useState<{ content: string; images?: UploadedImage[]; tempId?: string }[]>([]);
-  const pendingMessagesRef = useRef<{ content: string; images?: UploadedImage[]; tempId?: string; parentId?: string; sessionId: string }[]>([]);
 
   const sessionStats = useMemo(() => {
     return messages.reduce((acc, msg) => {
@@ -577,33 +620,6 @@ export default function Home() {
     const rawMessages = Array.isArray(data.messages) ? data.messages : [];
     const { nextMap, nextHeadId } = buildTreeFromApiMessages(rawMessages);
 
-    // Merge pending messages into the map to preserve them
-    // This handles the case where loadSessionTree is called while messages are queued locally
-    const pendingMessages = pendingMessagesRef.current;
-    if (pendingMessages.length > 0) {
-      pendingMessages.forEach(pm => {
-        // Only add if it belongs to this session
-        const queueId = pm.tempId || `queued-${Date.now()}-${Math.random()}`;
-        if (pm.sessionId === sessionId && !nextMap.has(queueId)) {
-          nextMap.set(queueId, {
-            id: queueId,
-            role: 'user',
-            content: pm.content,
-            queued: true,
-            parentId: (pm.parentId || nextHeadId) ?? null, // Ensure string | null
-            sessionId: pm.sessionId,
-            images: pm.images?.map(img => ({
-              dataUrl: img.dataUrl,
-              type: img.file.type,
-              name: img.file.name
-            }))
-          });
-        }
-      });
-      // We don't necessarily update headId here because the queue processor will pick them up
-      // and attach them properly. But we ensure they exist in the map.
-    }
-
     setMessagesMap(nextMap);
     setHeadId(nextHeadId);
     headIdRef.current = nextHeadId;
@@ -736,15 +752,6 @@ export default function Home() {
     if (!activeAbort || activeAbort.signal.aborted) return;
     activeAbort.abort();
   }, []);
-
-
-  interface UploadedImage {
-    id: string;
-    file: File;
-    preview: string;
-    dataUrl: string;
-  }
-
   // Handle queue message processing - use in-memory queue
   const handleProcessNextQueueItem = async () => {
     // Check ref for current processing state to avoid stale closure
@@ -755,11 +762,14 @@ export default function Home() {
 
     // Get the next message from ref (always current) and remove from queue
     const currentMessages = pendingMessagesRef.current;
-    if (currentMessages.length === 0) return;
+    if (currentMessages.length === 0) {
+      return;
+    }
 
     const [nextMsg, ...remaining] = currentMessages;
     pendingMessagesRef.current = remaining;
     setPendingMessages(remaining);
+    setPendingQueueVersion(v => v + 1);
 
     let effectiveHeadId = headIdRef.current;
 
@@ -779,8 +789,8 @@ export default function Home() {
       }
     }
 
-    // Send the message using current effectiveHeadId as parent (not the stored parentId which may be a tempId or stale)
-    // This ensures the message is properly attached to the conversation tree
+    // Always use the current head (effectiveHeadId) as parent - NOT the stored parentId
+    // The stored parentId may reference temp queue IDs that no longer exist in the tree
     await handleSendMessage(nextMsg.content, {
       images: nextMsg.images,
       reuseMessageId: nextMsg.tempId,
@@ -804,17 +814,10 @@ export default function Home() {
     if (parentId) newMsg.parentId = parentId;
     pendingMessagesRef.current = [...pendingMessagesRef.current, newMsg];
     setPendingMessages(prev => [...prev, newMsg]);
+    setPendingQueueVersion(v => v + 1);
 
-    // Add queued message bubble to chat with correct parent
-    addMessageToTree({
-      id: tempId, // Use the generated tempId as the primary ID
-      role: 'user',
-      content: text,
-      queued: true,
-      tempId,
-      sessionId: currentSessionId
-    }, parentId || null);
-
+    // Queued messages are displayed via the messages derivation
+    // They will be added to the tree when processed by handleSendMessage
   };
 
   const handleSendMessage = async (
@@ -1168,39 +1171,17 @@ export default function Home() {
     if (options?.reuseMessageId) {
       userMsgId = options.reuseMessageId;
 
-      // Safety check: if message got wiped from tree (e.g. by a background refresh), re-add it
-      if (!messagesMap.has(userMsgId)) {
-        addMessageToTree({
-          id: userMsgId,
-          role: 'user',
-          content: text,
-          images: messageImages,
-          sessionId: generatedSessionId,
-          parentId: parentIdToUse,
-          agentName: options?.agentName,
-        }, parentIdToUse);
-        if (headIdRef.current === userMsgId || !headIdRef.current) {
-          setHeadId(userMsgId);
-          headIdRef.current = userMsgId;
-        }
-      } else {
-        // Update the existing message to remove the queued flag and ensure it's firmly in the tree
-        updateMessageInTree(userMsgId, {
-          id: userMsgId, // Ensure ID matches
-          role: 'user',
-          content: text,
-          images: messageImages,
-          queued: false, // Clear queued status
-          parentId: parentIdToUse, // Update parent if needed (though usually same head)
-          sessionId: generatedSessionId,
-          agentName: options?.agentName,
-        });
-        // Also set head to this message if it's at the end
-        if (headIdRef.current === userMsgId || !headIdRef.current) {
-          setHeadId(userMsgId);
-          headIdRef.current = userMsgId;
-        }
-      }
+      // Queued messages are NOT in messagesMap (they're displayed via the derivation layer)
+      // Add them to the actual tree now that they're being processed
+      addMessageToTree({
+        id: userMsgId,
+        role: 'user',
+        content: text,
+        images: messageImages,
+        sessionId: generatedSessionId,
+        parentId: parentIdToUse,
+        agentName: options?.agentName,
+      }, parentIdToUse);
     } else {
       userMsgId = addMessageToTree({
         role: 'user',
@@ -1618,7 +1599,6 @@ export default function Home() {
 
         // Auto-process queue after AI finishes
         setTimeout(() => {
-          // Check pendingMessagesRef at execution time, not closure time
           if (pendingMessagesRef.current.length > 0) {
             handleProcessNextQueueItem();
           }
@@ -2007,9 +1987,9 @@ export default function Home() {
 
       {/* Sidebar */}
       <div className={cn(
-        "fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 md:relative md:translate-x-0",
+        "fixed top-0 left-0 z-50 transform transition-transform duration-200 md:relative md:translate-x-0 h-full",
         sidebarOpen ? "translate-x-0" : "-translate-x-full",
-        "flex h-full"
+        "flex"
       )}>
         <Sidebar
           sessions={sessions}
@@ -2058,7 +2038,7 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-background relative">
         {/* Header */}
-        <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} />
+        <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} currentBranch={currentBranch} />
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 flex overflow-hidden">

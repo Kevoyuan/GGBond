@@ -11,6 +11,7 @@ import { AgentRunsList } from './AgentRunsList';
 import { useAppStore } from '@/stores/useAppStore';
 import { AgentIcon } from './icons/AgentIcon';
 import { PanelHeader } from './sidebar/PanelHeader';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface AgentDefinition {
     name: string;
@@ -321,37 +322,38 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                     {/* Filter Tabs (Segmented Control style) */}
                     <div className="flex p-1 bg-muted/30 rounded-lg relative overflow-hidden">
                         {[
-                            { key: 'all', label: 'All', count: agents.length },
-                            { key: 'user', label: 'User', count: userCount },
-                            { key: 'built-in', label: 'Built-in', count: builtInCount },
+                            { key: 'all', label: 'All', count: agents.length, icon: Layers },
+                            { key: 'user', label: 'User', count: userCount, icon: User },
+                            { key: 'built-in', label: 'Built-in', count: builtInCount, icon: Cpu },
                         ].map((item) => (
-                            <button
-                                key={item.key}
-                                onClick={() => setScopeFilter(item.key as 'all' | 'user' | 'built-in')}
-                                className={cn(
-                                    "relative px-2 py-1.5 text-[10px] rounded-md uppercase font-bold tracking-tighter transition-all flex flex-1 items-center justify-center gap-1.5 z-10",
-                                    scopeFilter === item.key
-                                        ? "text-primary-foreground"
-                                        : "text-muted-foreground hover:text-foreground"
-                                )}
-                            >
-                                {scopeFilter === item.key && (
-                                    <motion.div
-                                        layoutId="activeTab"
-                                        className="absolute inset-0 bg-primary rounded-md shadow-sm"
-                                        transition={{ type: "spring", bounce: 0.2, duration: 0.3 }}
-                                    />
-                                )}
-                                <span className="relative z-10">{item.label}</span>
-                                <span className={cn(
-                                    "relative z-10 px-1 py-0.5 rounded text-[9px] min-w-[18px] text-center font-mono leading-none transition-colors",
-                                    scopeFilter === item.key
-                                        ? "bg-primary-foreground/20 text-primary-foreground"
-                                        : "bg-muted text-muted-foreground"
-                                )}>
-                                    {item.count}
-                                </span>
-                            </button>
+                            <Tooltip key={item.key} content={item.label} delay={0} triggerClassName="flex-1 w-full" side="top">
+                                <button
+                                    onClick={() => setScopeFilter(item.key as 'all' | 'user' | 'built-in')}
+                                    className={cn(
+                                        "relative px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md flex items-center justify-center gap-1.5 z-10 transition-colors w-full",
+                                        scopeFilter === item.key
+                                            ? "text-primary-foreground"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    {scopeFilter === item.key && (
+                                        <motion.div
+                                            layoutId="activeTab"
+                                            className="absolute inset-0 bg-primary rounded-md shadow-sm"
+                                            transition={{ type: "spring", bounce: 0.2, duration: 0.3 }}
+                                        />
+                                    )}
+                                    <item.icon size={16} className="relative z-10" />
+                                    <span className={cn(
+                                        "relative z-10 px-1 py-0.5 rounded text-[9px] min-w-[16px] text-center font-mono leading-none transition-colors",
+                                        scopeFilter === item.key
+                                            ? "bg-primary-foreground/20 text-primary-foreground"
+                                            : "bg-muted text-muted-foreground"
+                                    )}>
+                                        {item.count}
+                                    </span>
+                                </button>
+                            </Tooltip>
                         ))}
                     </div>
                 </div>
