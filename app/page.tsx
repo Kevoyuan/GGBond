@@ -293,10 +293,7 @@ export default function Home() {
     }
 
     return list;
-<<<<<<< HEAD
     // eslint-disable-next-line react-hooks/exhaustive-deps
-=======
->>>>>>> 0055980 (feat: add message queue system to prevent message loss)
   }, [headId, messagesMap, pendingQueueVersion]);
 
   useEffect(() => {
