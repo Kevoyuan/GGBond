@@ -16,25 +16,21 @@ interface HeaderProps {
 
 export function Header({ stats, onShowStats, currentBranch }: HeaderProps) {
   return (
-    <header className="h-14 border-b bg-card flex items-center justify-between px-4 shrink-0 z-20 relative w-full drag-region">
-      <div className="flex items-center gap-4">
-        {/* Title removed */}
+    <div className="flex flex-col w-full shrink-0 z-20 relative bg-card">
+      <div className="h-[54px] w-full flex items-center justify-end px-4 drag-region shrink-0">
+        <div className="flex items-center gap-4 no-drag">
+          <GitBranchTag branch={currentBranch ?? null} />
+
+          {stats && (
+            <TokenUsageDisplay
+              stats={stats}
+              compact={true}
+              floating={true}
+              className="mr-2"
+            />
+          )}
+        </div>
       </div>
-
-      <div className="flex items-center gap-4">
-        <GitBranchTag branch={currentBranch ?? null} />
-
-        {stats && (
-          <TokenUsageDisplay
-            stats={stats}
-            compact={true}
-            floating={true}
-            className="mr-2"
-          />
-        )}
-
-        {/* Mode control moved to ChatInput toolbar */}
-      </div>
-    </header>
+    </div>
   );
 }
