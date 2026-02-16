@@ -18,6 +18,7 @@ import { TerminalPanel } from '../components/TerminalPanel';
 import { UndoMessageConfirmDialog, UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
 import { Toast, ToastContainer } from '../components/Toast';
 import { useToast } from '@/hooks/useToast';
+import { useGitBranches } from '@/hooks/useGitBranches';
 
 
 interface Session {
@@ -26,6 +27,7 @@ interface Session {
   created_at: string | number;
   updated_at: string | number;
   workspace?: string;
+  branch?: string | null;
   isCore?: boolean;
   lastUpdated?: string;
 }
@@ -201,6 +203,12 @@ export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [currentWorkspace, setCurrentWorkspace] = useState<string | null>(null);
+
+  // Get branch info for current workspace
+  const branchInfo = useGitBranches(currentWorkspace ? [currentWorkspace] : []);
+  const currentSession = sessions.find(s => s.id === currentSessionId);
+  // Prefer session's stored branch, fall back to API result
+  const currentBranch = currentSession?.branch || (currentWorkspace ? branchInfo[currentWorkspace] : null);
 
   // -- Tree State --
   // We use a Map to store all messages by ID
@@ -2031,7 +2039,7 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-background relative">
         {/* Header */}
-        <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} />
+        <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} currentBranch={currentBranch} />
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 flex overflow-hidden">

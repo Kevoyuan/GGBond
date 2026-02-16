@@ -244,6 +244,7 @@ export function ChatContainer({
                         onToggleTerminal={onToggleTerminal}
                         onHeightChange={onInputHeightChange}
                         prefillRequest={inputPrefillRequest}
+                        compressionThreshold={settings.modelSettings?.compressionThreshold ?? 0.5}
                     />
                 </>
             )}
