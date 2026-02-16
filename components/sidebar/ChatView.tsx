@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './PanelHeader';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface Session {
     id: string;
@@ -98,13 +99,14 @@ export const ChatView = React.memo(function ChatView({
                 icon={MessageSquare}
                 actions={
                     onAddWorkspace && (
-                        <button
-                            onClick={onAddWorkspace}
-                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
-                            title="Add Workspace"
-                        >
-                            <FolderPlus className="w-4 h-4" />
-                        </button>
+                        <Tooltip content="Add Workspace" side="bottom">
+                            <button
+                                onClick={onAddWorkspace}
+                                className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+                            >
+                                <FolderPlus className="w-4 h-4" />
+                            </button>
+                        </Tooltip>
                     )
                 }
             />
@@ -124,7 +126,7 @@ export const ChatView = React.memo(function ChatView({
 
             <div className="flex-1 overflow-y-auto p-2 scrollbar-thin">
                 <div className="px-3 mb-2 mt-2 flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">Workspaces</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Workspaces</span>
                 </div>
 
                 {Object.entries(filteredGroups).map(([workspace, list]) => (
@@ -140,13 +142,13 @@ export const ChatView = React.memo(function ChatView({
                                 onClick={() => toggleWorkspace(workspace)}
                             >
                                 {collapsedWorkspaces.has(workspace) ? (
-                                    <ChevronRight className="w-4 h-4 shrink-0 opacity-70" />
+                                    <ChevronRight className="w-4 h-4 shrink-0 opacity-100" />
                                 ) : (
-                                    <ChevronDown className="w-4 h-4 shrink-0 opacity-70" />
+                                    <ChevronDown className="w-4 h-4 shrink-0 opacity-100" />
                                 )}
                                 <Folder className={cn(
                                     "w-4 h-4 shrink-0",
-                                    currentWorkspace === workspace ? "text-primary" : "text-muted-foreground/70"
+                                    currentWorkspace === workspace ? "text-primary" : "text-muted-foreground"
                                 )} />
                                 <span className="truncate font-medium flex-1 text-[13px]" title={workspace}>
                                     {workspace === 'Default' ? workspace : workspace.split('/').pop()}
@@ -221,7 +223,7 @@ export const ChatView = React.memo(function ChatView({
                                                         </button>
                                                     ) : (
                                                         <>
-                                                            <span className="absolute right-0 text-[10px] text-muted-foreground/80 tabular-nums transition-opacity group-hover:opacity-0">
+                                                            <span className="absolute right-0 text-[10px] text-muted-foreground tabular-nums transition-opacity group-hover:opacity-0">
                                                                 {formatSessionAge(session)}
                                                             </span>
                                                             <button

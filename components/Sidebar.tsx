@@ -267,125 +267,132 @@ export function Sidebar({
   };
 
   return (
-    <div className="flex h-full border-r bg-muted/10 relative">
-      {/* Navigation Rail */}
-      <div className="w-14 border-r flex flex-col items-center pt-[32px] pb-4 gap-4 bg-card z-20 shrink-0 drag-region">
-        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-2 no-drag">
-          <GeminiIcon className="w-6 h-6" />
+    <div className="flex flex-col h-full bg-card border-r">
+      {/* Global Title Bar - Safe Area for Traffic Lights */}
+      <div className="h-[54px] w-full shrink-0 drag-region" />
+
+      <div className="flex flex-1 min-h-0 relative">
+
+
+        {/* Navigation Rail */}
+        {/* Navigation Rail */}
+        {/* Navigation Rail */}
+        <div className="w-14 border-r relative flex flex-col items-center pt-4 pb-4 gap-4 bg-card z-20 shrink-0 drag-region">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-2 no-drag">
+            <GeminiIcon className="w-6 h-6" />
+          </div>
+
+          <div className="flex flex-col gap-3 w-full px-2 items-center flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden no-drag">
+            <Tooltip content="New Chat" side="right" sideOffset={18}>
+              <button
+                onClick={onNewChat}
+                className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200 hover:scale-105 relative group"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </Tooltip>
+            <div className="w-8 h-px bg-border/50 my-1" />
+
+            <NavButton active={!isCollapsed && activeView === 'chat'} onClick={() => handleViewClick('chat')} icon={MessageSquare} label="Chats" />
+            <NavButton active={!isCollapsed && activeView === 'files'} onClick={() => handleViewClick('files')} icon={FolderOpen} label="Files" />
+            <NavButton active={!isCollapsed && activeView === 'skills'} onClick={() => handleViewClick('skills')} icon={Puzzle} label="Skills" />
+            <NavButton active={!isCollapsed && activeView === 'hooks'} onClick={() => handleViewClick('hooks')} icon={Zap} label="Hooks" />
+            <NavButton active={!isCollapsed && activeView === 'mcp'} onClick={() => handleViewClick('mcp')} icon={Plug} label="MCP" />
+            <NavButton active={!isCollapsed && activeView === 'agents'} onClick={() => handleViewClick('agents')} icon={AgentIcon} label="Agents" />
+            <NavButton active={!isCollapsed && activeView === 'quota'} onClick={() => handleViewClick('quota')} icon={Activity} label="Quota" />
+            <NavButton active={!isCollapsed && activeView === 'memory'} onClick={() => handleViewClick('memory')} icon={Database} label="Knowledge Base" />
+
+            {onToggleSidePanel && (
+              <>
+                <div className="w-8 h-px bg-border/50 my-1" />
+                <NavButton active={sidePanelType === 'graph'} onClick={() => handleSidePanelClick('graph')} icon={Network} label="Conversation Graph" />
+                <NavButton active={sidePanelType === 'timeline'} onClick={() => handleSidePanelClick('timeline')} icon={Clock} label="Timeline" />
+              </>
+            )}
+          </div>
+
+          <div className="mt-auto flex flex-col gap-3 w-full px-2 items-center shrink-0">
+            <Tooltip content="Deep Monitoring" side="right" sideOffset={18}>
+              <button onClick={() => setShowModulesDialog(true)} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                <LayoutGrid className="w-5 h-5" />
+              </button>
+            </Tooltip>
+            <Tooltip content={isAnyOpen ? "Collapse All" : "Expand Sidebar"} side="right" sideOffset={18}>
+              <button onClick={handleToggleAll} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                {!isAnyOpen ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+              </button>
+            </Tooltip>
+            <Tooltip content={isDark ? "Light" : "Dark"} side="right" sideOffset={18}>
+              <button onClick={toggleTheme} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
+            </Tooltip>
+            <Tooltip content="Settings" side="right" sideOffset={18}>
+              <button onClick={onOpenSettings} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                <Settings className="w-5 h-5" />
+              </button>
+            </Tooltip>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-3 w-full px-2 items-center flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden no-drag">
-          <Tooltip content="New Chat" side="right" sideOffset={18}>
-            <button
-              onClick={onNewChat}
-              className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200 hover:scale-105 relative group"
+        <div
+          className={cn("flex flex-col bg-card z-10 relative shrink-0", !isResizing && "transition-all duration-200 ease-in-out", isCollapsed && "w-0 opacity-0 overflow-hidden")}
+          style={{ width: isCollapsed ? 0 : sidePanelWidth }}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeView}
+              initial={{ opacity: 0, x: -5 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 5 }}
+              transition={{ duration: 0.1 }}
+              className="flex-1 overflow-hidden flex flex-col"
             >
-              <Plus className="w-5 h-5" />
-            </button>
-          </Tooltip>
-          <div className="w-8 h-px bg-border/50 my-1" />
+              {/* Content area */}
 
-          <NavButton active={!isCollapsed && activeView === 'chat'} onClick={() => handleViewClick('chat')} icon={MessageSquare} label="Chats" />
-          <NavButton active={!isCollapsed && activeView === 'files'} onClick={() => handleViewClick('files')} icon={FolderOpen} label="Files" />
-          <NavButton active={!isCollapsed && activeView === 'skills'} onClick={() => handleViewClick('skills')} icon={Puzzle} label="Skills" />
-          <NavButton active={!isCollapsed && activeView === 'hooks'} onClick={() => handleViewClick('hooks')} icon={Zap} label="Hooks" />
-          <NavButton active={!isCollapsed && activeView === 'mcp'} onClick={() => handleViewClick('mcp')} icon={Plug} label="MCP" />
-          <NavButton active={!isCollapsed && activeView === 'agents'} onClick={() => handleViewClick('agents')} icon={AgentIcon} label="Agents" />
-          <NavButton active={!isCollapsed && activeView === 'quota'} onClick={() => handleViewClick('quota')} icon={Activity} label="Quota" />
-          <NavButton active={!isCollapsed && activeView === 'memory'} onClick={() => handleViewClick('memory')} icon={Database} label="Knowledge Base" />
+              {activeView === 'chat' ? (
+                <ChatView
+                  sessions={dedupedSessions}
+                  currentSessionId={currentSessionId}
+                  runningSessionIds={runningSessionIds}
+                  terminalRunningSessionIds={terminalRunningSessionIds}
+                  unreadSessionIds={unreadSessionIds}
+                  onSelectSession={onSelectSession}
+                  onDeleteSession={onDeleteSession}
+                  onNewChatInWorkspace={onNewChatInWorkspace}
+                  onAddWorkspace={onAddWorkspace}
+                  onShowStats={onShowStats}
+                  currentWorkspace={currentWorkspace}
+                  workspaceBranchSummary={workspaceBranchSummary}
+                  formatSessionAge={formatSessionAge}
+                />
+              ) : activeView === 'files' ? (
+                <FileTree className="h-full" initialPath={currentWorkspace} onFileSelect={onFileSelect} />
+              ) : activeView === 'skills' ? (
+                <SkillsManager compact className="h-full" />
+              ) : activeView === 'hooks' ? (
+                <HooksPanel className="h-full" events={hookEvents} onClear={onClearHooks} />
+              ) : activeView === 'agents' ? (
+                <AgentPanel className="h-full" onSelectAgent={onSelectAgent!} selectedAgentName={selectedAgentName} />
+              ) : activeView === 'quota' ? (
+                <QuotaPanel className="h-full" />
+              ) : activeView === 'memory' ? (
+                <MemoryPanel className="h-full" onFileSelect={onFileSelect} workspacePath={currentWorkspace} />
+              ) : (
+                <MCPPanel className="h-full" />
+              )}
+            </motion.div>
+          </AnimatePresence>
 
-          {onToggleSidePanel && (
-            <>
-              <div className="w-8 h-px bg-border/50 my-1" />
-              <NavButton active={sidePanelType === 'graph'} onClick={() => handleSidePanelClick('graph')} icon={Network} label="Conversation Graph" />
-              <NavButton active={sidePanelType === 'timeline'} onClick={() => handleSidePanelClick('timeline')} icon={Clock} label="Timeline" />
-            </>
+          {!isCollapsed && (
+            <div onMouseDown={startResizing} className={cn("absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-50 transition-colors hover:bg-primary/30 group", isResizing && "bg-primary/50")}>
+              <div className={cn("absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[2px] h-8 bg-border/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity", isResizing && "opacity-100 bg-primary/40")} />
+            </div>
           )}
         </div>
 
-        <div className="mt-auto flex flex-col gap-3 w-full px-2 items-center shrink-0">
-          <Tooltip content="Deep Monitoring" side="right" sideOffset={18}>
-            <button onClick={() => setShowModulesDialog(true)} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-              <LayoutGrid className="w-5 h-5" />
-            </button>
-          </Tooltip>
-          <Tooltip content={isAnyOpen ? "Collapse All" : "Expand Sidebar"} side="right" sideOffset={18}>
-            <button onClick={handleToggleAll} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-              {!isAnyOpen ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
-            </button>
-          </Tooltip>
-          <Tooltip content={isDark ? "Light" : "Dark"} side="right" sideOffset={18}>
-            <button onClick={toggleTheme} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
-          </Tooltip>
-          <Tooltip content="Settings" side="right" sideOffset={18}>
-            <button onClick={onOpenSettings} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-              <Settings className="w-5 h-5" />
-            </button>
-          </Tooltip>
-        </div>
+        <ModulesDialog open={showModulesDialog} onOpenChange={setShowModulesDialog} />
       </div>
-
-      {/* Side Panel Content */}
-      <div
-        className={cn("flex flex-col bg-muted/5 z-10 relative shrink-0", !isResizing && "transition-all duration-200 ease-in-out", isCollapsed && "w-0 opacity-0 overflow-hidden")}
-        style={{ width: isCollapsed ? 0 : sidePanelWidth }}
-      >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeView}
-            initial={{ opacity: 0, x: -5 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 5 }}
-            transition={{ duration: 0.1 }}
-            className="flex-1 overflow-hidden flex flex-col"
-          >
-            {/* Sidebar Content Top Drag Area */}
-            <div className="h-10 shrink-0 drag-region" />
-
-            {activeView === 'chat' ? (
-              <ChatView
-                sessions={dedupedSessions}
-                currentSessionId={currentSessionId}
-                runningSessionIds={runningSessionIds}
-                terminalRunningSessionIds={terminalRunningSessionIds}
-                unreadSessionIds={unreadSessionIds}
-                onSelectSession={onSelectSession}
-                onDeleteSession={onDeleteSession}
-                onNewChatInWorkspace={onNewChatInWorkspace}
-                onAddWorkspace={onAddWorkspace}
-                onShowStats={onShowStats}
-                currentWorkspace={currentWorkspace}
-                workspaceBranchSummary={workspaceBranchSummary}
-                formatSessionAge={formatSessionAge}
-              />
-            ) : activeView === 'files' ? (
-              <FileTree className="h-full" initialPath={currentWorkspace} onFileSelect={onFileSelect} />
-            ) : activeView === 'skills' ? (
-              <SkillsManager compact className="h-full" />
-            ) : activeView === 'hooks' ? (
-              <HooksPanel className="h-full" events={hookEvents} onClear={onClearHooks} />
-            ) : activeView === 'agents' ? (
-              <AgentPanel className="h-full" onSelectAgent={onSelectAgent!} selectedAgentName={selectedAgentName} />
-            ) : activeView === 'quota' ? (
-              <QuotaPanel className="h-full" />
-            ) : activeView === 'memory' ? (
-              <MemoryPanel className="h-full" onFileSelect={onFileSelect} workspacePath={currentWorkspace} />
-            ) : (
-              <MCPPanel className="h-full" />
-            )}
-          </motion.div>
-        </AnimatePresence>
-
-        {!isCollapsed && (
-          <div onMouseDown={startResizing} className={cn("absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-50 transition-colors hover:bg-primary/30 group", isResizing && "bg-primary/50")}>
-            <div className={cn("absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[2px] h-8 bg-border/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity", isResizing && "opacity-100 bg-primary/40")} />
-          </div>
-        )}
-      </div>
-
-      <ModulesDialog open={showModulesDialog} onOpenChange={setShowModulesDialog} />
     </div>
   );
 }
