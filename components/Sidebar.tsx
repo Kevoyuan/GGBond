@@ -19,7 +19,8 @@ import {
   Database,
   Puzzle,
   Network,
-  Clock
+  Clock,
+  SquarePen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -269,10 +270,17 @@ export function Sidebar({
   return (
     <div className="flex flex-col h-full bg-card border-r">
       {/* Global Title Bar - Safe Area for Traffic Lights */}
-      <div className="h-[54px] w-full shrink-0 drag-region flex items-center justify-end px-3">
+      {/* Global Title Bar - Safe Area for Traffic Lights */}
+      <div className="h-[54px] w-full shrink-0 drag-region flex items-center pl-[80px] z-50">
         <Tooltip content={isAnyOpen ? "Collapse All" : "Expand Sidebar"} side="right" sideOffset={18}>
           <button onClick={handleToggleAll} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors no-drag">
             {!isAnyOpen ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+          </button>
+        </Tooltip>
+
+        <Tooltip content="New Chat" side="right" sideOffset={18}>
+          <button onClick={onNewChat} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors no-drag ml-1">
+            <SquarePen className="w-5 h-5" />
           </button>
         </Tooltip>
       </div>
@@ -289,14 +297,6 @@ export function Sidebar({
           </div>
 
           <div className="flex flex-col gap-3 w-full px-2 items-center flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden no-drag">
-            <Tooltip content="New Chat" side="right" sideOffset={18}>
-              <button
-                onClick={onNewChat}
-                className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200 hover:scale-105 relative group"
-              >
-                <Plus className="w-5 h-5" />
-              </button>
-            </Tooltip>
             <div className="w-8 h-px bg-border/50 my-1" />
 
             <NavButton active={!isCollapsed && activeView === 'chat'} onClick={() => handleViewClick('chat')} icon={MessageSquare} label="Chats" />
