@@ -38,6 +38,7 @@
     },
     "mac": {
       "category": "public.app-category.developer-tools",
+      "icon": "public/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "electron/entitlements.mac.plist",
@@ -45,12 +46,14 @@
     },
     "linux": {
       "category": "Development",
+      "icon": "public/icon.png",
       "target": [
         "AppImage",
         "deb"
       ]
     },
     "win": {
+      "icon": "public/icon.ico",
       "target": [
         "nsis"
       ]
