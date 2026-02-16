@@ -77,6 +77,8 @@ interface SidebarProps {
   selectedAgentName?: string;
   sidePanelType?: 'graph' | 'timeline' | null;
   onToggleSidePanel?: (type: 'graph' | 'timeline' | null) => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 type SidebarView = 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory';
@@ -107,10 +109,12 @@ export function Sidebar({
   onSelectAgent,
   selectedAgentName,
   sidePanelType,
-  onToggleSidePanel
+  onToggleSidePanel,
+  isCollapsed = false,
+  onToggleCollapse
 }: SidebarProps) {
   const [activeView, setActiveView] = useState<SidebarView>('chat');
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Internal collapse state removed in favor of prop
   const [sidePanelWidth, setSidePanelWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
 
@@ -189,10 +193,8 @@ export function Sidebar({
     return summaries;
   }, [dedupedSessions, branchInfo]);
 
-  // Collapsed / Width state
+  // Width state
   useEffect(() => {
-    const savedCollapsed = localStorage.getItem('sidebar-collapsed');
-    if (savedCollapsed) setIsCollapsed(savedCollapsed === 'true');
     const savedWidth = localStorage.getItem('side-panel-width');
     if (savedWidth) {
       const width = parseInt(savedWidth, 10);
@@ -200,9 +202,7 @@ export function Sidebar({
     }
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('sidebar-collapsed', String(isCollapsed));
-  }, [isCollapsed]);
+  // Removed internal persistence for collapsed state since it is now managed by parent
 
   const startResizing = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -241,10 +241,14 @@ export function Sidebar({
 
   const handleViewClick = (view: SidebarView) => {
     if (activeView === view) {
-      setIsCollapsed(!isCollapsed);
+      // Toggle collapse if clicking same view
+      onToggleCollapse?.();
     } else {
       setActiveView(view);
-      setIsCollapsed(false);
+      // Open if collapsed when switching views
+      if (isCollapsed && onToggleCollapse) {
+        onToggleCollapse();
+      }
     }
   };
 
@@ -259,33 +263,20 @@ export function Sidebar({
   const isAnyOpen = !isCollapsed || (sidePanelType !== null && sidePanelType !== undefined);
 
   const handleToggleAll = () => {
-    if (isAnyOpen) {
-      setIsCollapsed(true);
-      onToggleSidePanel?.(null);
-    } else {
-      setIsCollapsed(false);
+    if (onToggleCollapse) {
+      onToggleCollapse();
     }
   };
 
   return (
-    <div className="flex flex-col h-full bg-card border-r">
-      {/* Global Title Bar - Safe Area for Traffic Lights */}
-      {/* Global Title Bar - Safe Area for Traffic Lights */}
-      <div className="h-[54px] w-full shrink-0 drag-region flex items-center pl-[80px] z-50">
-        <Tooltip content={isAnyOpen ? "Collapse All" : "Expand Sidebar"} side="right" sideOffset={18}>
-          <button onClick={handleToggleAll} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors no-drag">
-            {!isAnyOpen ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
-          </button>
-        </Tooltip>
-
-        <Tooltip content="New Chat" side="right" sideOffset={18}>
-          <button onClick={onNewChat} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors no-drag ml-1">
-            <SquarePen className="w-5 h-5" />
-          </button>
-        </Tooltip>
-      </div>
-
-      <div className="flex flex-1 min-h-0 relative">
+    <div
+      className={cn(
+        "flex flex-col h-full bg-card border-r relative transition-all duration-200 ease-in-out overflow-visible",
+        isCollapsed ? "w-14" : ""
+      )}
+      style={{ width: isCollapsed ? undefined : sidePanelWidth }}
+    >
+      <div className="flex flex-1 min-h-0 relative mt-[54px]">
 
 
         {/* Navigation Rail */}
