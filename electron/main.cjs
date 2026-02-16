@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const path = require('path');
+const fs = require('fs');
 const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage, ipcMain, shell, dialog } = require('electron');
 // Performance: Enable hardware acceleration
 // app.commandLine.appendSwitch('enable-gpu-rasterization');
@@ -57,11 +58,15 @@ function createMainWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: WINDOW_TITLE,
+    frame: false,
+    titleBarStyle: 'hidden',
     autoHideMenuBar: true,
     show: false,
     // Performance optimizations
     backgroundColor: '#000000',
     transparent: false,
+    // Set window icon (Linux/Windows)
+    icon: path.join(__dirname, '..', 'public', 'gemini-pro.svg'),
     webPreferences: {
       contextIsolation: true,
       sandbox: true,
@@ -118,6 +123,8 @@ function toggleMainWindow() {
 
 function createTray() {
   const candidateIcons = [
+    path.join(__dirname, '..', 'public', 'gemini-pro.png'),
+    path.join(__dirname, '..', 'public', 'gemini-pro.svg'),
     path.join(__dirname, '..', 'public', 'next.svg'),
     path.join(__dirname, '..', 'public', 'window.svg'),
   ];
@@ -216,6 +223,15 @@ app.whenReady().then(async () => {
   }
 
   mainWindow = createMainWindow();
+
+  // Set macOS Dock Icon
+  if (process.platform === 'darwin') {
+    const iconPath = path.join(__dirname, '..', 'public', 'icon.png');
+    if (fs.existsSync(iconPath)) {
+      app.dock.setIcon(nativeImage.createFromPath(iconPath));
+    }
+  }
+
   setupMaximizeListener();
   createTray();
   globalShortcut.register(TOGGLE_SHORTCUT, () => toggleMainWindow());
