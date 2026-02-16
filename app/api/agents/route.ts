@@ -106,11 +106,25 @@ function getUserAgents(): { name: string; displayName?: string; description: str
     }
 }
 
+type AgentDefinitionLike = {
+  name: string;
+  displayName?: string;
+  description?: string;
+  kind?: 'local' | 'remote' | string;
+  promptConfig?: {
+    systemPrompt?: string;
+  };
+  modelConfig?: {
+    model?: string;
+  };
+  content?: string;
+};
+
 export async function GET() {
     try {
         // 1. Get user agents from disk (always fresh)
         const userAgents = getUserAgents();
-        const agentsMap = new Map<string, any>();
+        const agentsMap = new Map<string, AgentDefinitionLike>();
 
         // Add user agents to map
         userAgents.forEach(agent => agentsMap.set(agent.name, agent));
@@ -146,7 +160,7 @@ export async function GET() {
         // Fallback: read directly from disk and add built-ins
         try {
             const userAgents = getUserAgents();
-            const agentsMap = new Map<string, any>();
+            const agentsMap = new Map<string, AgentDefinitionLike>();
             userAgents.forEach(agent => agentsMap.set(agent.name, agent));
             
             BUILT_IN_AGENTS.forEach(name => {
