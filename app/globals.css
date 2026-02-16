@@ -92,36 +92,39 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 .dark {
-  /* Dark Zinc Theme - IDE Style */
-  --color-background: oklch(15% 0 0);
-  /* #18181b */
-  --color-foreground: oklch(98% 0 0);
+  /* Dark Zinc Theme - IDE Style (VS Code/Codex style) */
+  --color-background: oklch(22% 0 0);
+  /* #1e1e1e -柔和深灰 */
+  --color-foreground: oklch(95% 0 0);
+  /* 明亮清晰的白 */
 
   --color-primary: oklch(98% 0 0);
   --color-primary-foreground: oklch(15% 0 0);
 
-  --color-secondary: oklch(20% 0 0);
+  --color-secondary: oklch(28% 0 0);
   --color-secondary-foreground: oklch(98% 0 0);
 
-  --color-muted: oklch(20% 0 0);
+  --color-muted: oklch(28% 0 0);
   --color-muted-foreground: oklch(70% 0 0);
 
-  --color-accent: oklch(20% 0 0);
+  --color-accent: oklch(28% 0 0);
   --color-accent-foreground: oklch(98% 0 0);
 
   --color-destructive: oklch(45% 0.15 25);
   --color-destructive-foreground: oklch(98% 0 0);
 
-  --color-border: oklch(25% 0 0);
-  --color-ring: oklch(80% 0 0);
+  --color-border: oklch(32% 0 0);
+  /* #3c3c3c - 更可见 */
+  --color-ring: oklch(70% 0 0);
+  /* 降低对比度 */
 
-  --color-card: oklch(17% 0 0);
-  /* Slightly lighter than bg */
+  --color-card: oklch(24% 0 0);
+  /* #252526 - 略浅于背景 */
   --color-card-foreground: oklch(98% 0 0);
 
   /* Code Block Background */
-  --color-code-bg: oklch(13% 0 0);
-  /* Slightly darker than bg */
+  --color-code-bg: oklch(20% 0 0);
+  /* #1a1a1a - 微深于背景 */
 }
 
 @layer base {
@@ -155,11 +158,11 @@
   }
 
   .dark ::-webkit-scrollbar-thumb {
-    background: oklch(30% 0 0);
+    background: oklch(38% 0 0);
     border: 2px solid var(--color-background);
   }
 
   .dark ::-webkit-scrollbar-thumb:hover {
-    background: oklch(40% 0 0);
+    background: oklch(48% 0 0);
   }
 }
