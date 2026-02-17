@@ -29,9 +29,10 @@
   --border: #27272a;
   --border-subtle: #1e1e21;
 
-  --text-primary: #ededef;
-  --text-secondary: #8b8b8e;
-  --text-tertiary: #5c5c5f;
+  --text-active: #ffffff;
+  --text-primary: #ffffff;
+  --text-secondary: #babdc3;
+  --text-tertiary: #91949a;
 
   --accent: #7c5cfc;
   --accent-hover: #8b6ffd;

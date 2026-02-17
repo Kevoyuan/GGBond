@@ -84,6 +84,7 @@ interface HooksPanelProps {
     onEventClick?: (event: HookEvent) => void;
     onClear?: () => void;
     maxHeight?: string;
+    searchTerm?: string;
 }
 
 // Hooks configuration types
@@ -432,10 +433,10 @@ export function HooksPanel({
     className,
     onEventClick,
     onClear,
-    maxHeight = 'h-96'
+    maxHeight = 'h-96',
+    searchTerm
 }: HooksPanelProps) {
     const [activeTab, setActiveTab] = useState<TabType>('events');
-    const [searchQuery, setSearchQuery] = useState('');
     const [typeFilter, setTypeFilter] = useState<HookEventType | 'all'>('all');
     const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
     const [showFilters, setShowFilters] = useState(false);
@@ -446,8 +447,8 @@ export function HooksPanel({
                 if (typeFilter !== 'all' && event.type !== typeFilter) {
                     return false;
                 }
-                if (searchQuery) {
-                    const query = searchQuery.toLowerCase();
+                if (searchTerm) {
+                    const query = searchTerm.toLowerCase();
                     return (
                         event.name.toLowerCase().includes(query) ||
                         event.toolName?.toLowerCase().includes(query) ||
@@ -458,7 +459,7 @@ export function HooksPanel({
                 return true;
             })
             .sort((a, b) => b.timestamp - a.timestamp);
-    }, [events, typeFilter, searchQuery]);
+    }, [events, typeFilter, searchTerm]);
 
     const eventStats = useMemo(() => {
         const stats: Record<HookEventType, number> = {} as Record<HookEventType, number>;
@@ -693,26 +694,6 @@ export function HooksPanel({
                 {/* Sub-header for Events Tab */}
                 {activeTab === 'events' && (
                     <div className="p-3 space-y-2 bg-background/20">
-                        {/* Search bar */}
-                        <div className="relative group">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-all" />
-                            <input
-                                type="text"
-                                placeholder="Search hooks..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full h-8 pl-8 pr-8 text-xs bg-muted/30 border border-primary/10 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/50 transition-all font-mono"
-                            />
-                            {searchQuery && (
-                                <button
-                                    onClick={() => setSearchQuery('')}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted text-muted-foreground"
-                                >
-                                    <X className="w-3 h-3" />
-                                </button>
-                            )}
-                        </div>
-
                         {/* Filter toggle & stats */}
                         <div className="flex items-center justify-between">
                             <button
@@ -793,7 +774,7 @@ export function HooksPanel({
                             filteredEvents.map(renderEventContent)
                         ) : (
                             <div className="flex flex-col items-center justify-center h-40 opacity-30 grayscale">
-                                {searchQuery || typeFilter !== 'all' ? (
+                                {searchTerm || typeFilter !== 'all' ? (
                                     <>
                                         <Search className="w-10 h-10 mb-2" />
                                         <p className="text-xs uppercase tracking-widest font-bold">No matches</p>

@@ -52,18 +52,6 @@ export function Titlebar({
                         <div className="w-3 h-3 rounded-full bg-[#28c840] border-[0.5px] border-[#00000026] opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
 
-                    {/* Workspace Info - Fades out when collapsed */}
-                    <div className={cn(
-                        "flex items-center gap-2 transition-opacity duration-200",
-                        isCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"
-                    )}>
-                        <div className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-[var(--bg-hover)] cursor-pointer no-drag transition-colors">
-                            <div className="w-5 h-5 rounded bg-gradient-to-br from-[var(--accent)] to-[#a78bfa] flex items-center justify-center shrink-0">
-                                <span className="text-[10px] font-bold text-white">✦</span>
-                            </div>
-                            <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate">AI Chat</span>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Right Group: Actions - Fixed Position */}

@@ -320,21 +320,21 @@ export const ToolCallCard = React.memo(function ToolCallCard({
                     <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm text-foreground/90">{verb}</span>
                         {target && (
-                            <span className="text-xs font-mono text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded truncate max-w-[200px]" title={String(Object.values(args).find(v => typeof v === 'string' && (v as string).includes(target.replace('...', '')))) || target}>
+                            <span className="text-xs font-mono text-foreground/80 bg-muted/50 px-1.5 py-0.5 rounded truncate max-w-[200px]" title={String(Object.values(args).find(v => typeof v === 'string' && (v as string).includes(target.replace('...', '')))) || target}>
                                 {target}
                             </span>
                         )}
                     </div>
                     {/* Tiny arg preview if not expanded */}
                     {!expanded && !target && Object.keys(args).length > 0 && (
-                        <div className="text-[10px] text-muted-foreground truncate opacity-70">
+                        <div className="text-[10px] text-muted-foreground truncate">
                             {JSON.stringify(args).slice(0, 50)}
                         </div>
                     )}
                 </div>
 
                 {/* Right Meta */}
-                <div className="flex items-center gap-3 text-xs text-muted-foreground/60">
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     {canUndo && (
                         <button
                             onClick={handleUndo}
@@ -350,14 +350,14 @@ export const ToolCallCard = React.memo(function ToolCallCard({
                         </button>
                     )}
                     {!expanded && resultSummary && (
-                        <span className="font-medium font-mono">{resultSummary}</span>
+                        <span className="font-medium font-mono text-foreground/70">{resultSummary}</span>
                     )}
                     {duration && (
                         <span>{duration}</span>
                     )}
                     {!isReadTool && (
                         <ChevronRight className={cn(
-                            "w-4 h-4 opacity-50 group-hover/card:opacity-100",
+                            "w-4 h-4 text-foreground/50 group-hover/card:text-foreground",
                             expanded && "rotate-90"
                         )} />
                     )}

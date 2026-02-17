@@ -13,7 +13,12 @@ import {
   Puzzle,
   Search,
   Command,
-  User as UserIcon
+  Moon,
+  Sun,
+  Boxes,
+  Network,
+  Clock,
+  BarChart
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -112,6 +117,8 @@ export function Sidebar({
   onClearHooks,
   onSelectAgent,
   selectedAgentName,
+  sidePanelType,
+  onToggleSidePanel,
   isCollapsed = false,
   onToggleCollapse,
   workspaceBranchSummary = {},
@@ -212,8 +219,8 @@ export function Sidebar({
         </div>
       )}
 
-      {/* Divider & Search - hidden when collapsed */}
-      {!isCollapsed && (
+      {/* Divider & Search - hidden when collapsed or on views without search */}
+      {!isCollapsed && !['quota', 'memory'].includes(activeView) && (
         <>
           <div className="mx-4 h-px bg-[var(--border-subtle)] mb-1 shrink-0" />
 
@@ -257,13 +264,13 @@ export function Sidebar({
             searchTerm={searchTerm}
           />
         ) : activeView === 'files' ? (
-          <FileTree className="h-full" initialPath={currentWorkspace} onFileSelect={onFileSelect} />
+          <FileTree className="h-full" initialPath={currentWorkspace} onFileSelect={onFileSelect} searchTerm={searchTerm} />
         ) : activeView === 'skills' ? (
-          <SkillsManager compact className="h-full" />
+          <SkillsManager compact className="h-full" search={searchTerm} />
         ) : activeView === 'hooks' ? (
-          <HooksPanel className="h-full" events={hookEvents} onClear={onClearHooks} />
+          <HooksPanel className="h-full" events={hookEvents} onClear={onClearHooks} searchTerm={searchTerm} />
         ) : activeView === 'agents' ? (
-          <AgentPanel className="h-full" onSelectAgent={onSelectAgent!} selectedAgentName={selectedAgentName} />
+          <AgentPanel className="h-full" onSelectAgent={onSelectAgent!} selectedAgentName={selectedAgentName} search={searchTerm} />
         ) : activeView === 'quota' ? (
           <QuotaPanel className="h-full" />
         ) : activeView === 'memory' ? (
@@ -273,26 +280,100 @@ export function Sidebar({
         ) : null}
       </div>
 
-      {/* Footer */}
+      {/* Footer Toolbar */}
       <div className={cn(
         "p-2 border-t border-[var(--border-subtle)] shrink-0 flex flex-col gap-1",
-        isCollapsed && "p-2 items-center"
+        isCollapsed && "p-1 items-center"
       )}>
-        {/* Profile / Settings */}
-        <button
-          onClick={onOpenSettings}
-          className={cn(
-            "flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors w-full",
-            isCollapsed && "justify-center px-0"
-          )}
-        >
-          <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-400 flex items-center justify-center shrink-0">
-            <UserIcon className="w-3 h-3 text-white" />
-          </div>
-          {!isCollapsed && (
-            <span className="text-[13px] font-medium">Settings</span>
-          )}
-        </button>
+        {/* Feature Toolbar */}
+        <div className={cn(
+          "flex gap-1",
+          isCollapsed ? "flex-col" : "flex-wrap"
+        )}>
+          {/* My Usage */}
+          <button
+            onClick={onShowStats}
+            title="My Usage"
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors",
+              isCollapsed && "justify-center p-1.5"
+            )}
+          >
+            <BarChart className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span className="text-[12px] font-medium">Usage</span>}
+          </button>
+
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors",
+              isCollapsed && "justify-center p-1.5"
+            )}
+          >
+            {isDark ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
+            {!isCollapsed && <span className="text-[12px] font-medium">{isDark ? 'Light' : 'Dark'}</span>}
+          </button>
+
+          {/* Modules */}
+          <button
+            onClick={() => setShowModulesDialog(true)}
+            title="Modules"
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors",
+              isCollapsed && "justify-center p-1.5"
+            )}
+          >
+            <Boxes className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span className="text-[12px] font-medium">Modules</span>}
+          </button>
+
+          {/* Conversation Graph */}
+          <button
+            onClick={() => onToggleSidePanel?.('graph')}
+            title="Conversation Graph"
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors",
+              sidePanelType === 'graph'
+                ? "text-[var(--accent)] bg-[var(--accent)]/10"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+              isCollapsed && "justify-center p-1.5"
+            )}
+          >
+            <Network className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span className="text-[12px] font-medium">Graph</span>}
+          </button>
+
+          {/* Timeline */}
+          <button
+            onClick={() => onToggleSidePanel?.('timeline')}
+            title="Timeline"
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors",
+              sidePanelType === 'timeline'
+                ? "text-[var(--accent)] bg-[var(--accent)]/10"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+              isCollapsed && "justify-center p-1.5"
+            )}
+          >
+            <Clock className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span className="text-[12px] font-medium">Timeline</span>}
+          </button>
+
+          {/* Settings */}
+          <button
+            onClick={onOpenSettings}
+            title="Settings"
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors",
+              isCollapsed && "justify-center p-1.5"
+            )}
+          >
+            <Settings className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span className="text-[12px] font-medium">Settings</span>}
+          </button>
+        </div>
 
         {!isCollapsed && (
           <div className="flex items-center justify-between px-2 py-1 text-[10px] text-[var(--text-tertiary)]">
