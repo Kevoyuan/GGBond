@@ -282,7 +282,7 @@ export function Sidebar({
         {/* Navigation Rail */}
         {/* Navigation Rail */}
         {/* Navigation Rail */}
-        <div className="w-14 border-r relative flex flex-col items-center pt-4 pb-4 gap-4 bg-card z-20 shrink-0 drag-region">
+        <div className="w-14 border-r relative flex flex-col items-center pt-4 pb-4 gap-4 bg-card z-20 shrink-0">
           <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-2 no-drag">
             <GeminiIcon className="w-6 h-6" />
           </div>

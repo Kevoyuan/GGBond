@@ -1988,7 +1988,8 @@ export default function Home() {
       <ToastContainer toasts={toasts} onDismiss={dismissToast} position="top-right" />
 
       {/* Fixed buttons next to traffic lights - no-drag since body has drag-region */}
-      <div className="fixed top-[18px] left-[90px] z-[60] flex items-center gap-1 no-drag">
+      {/* DEBUG: 红色边框 - Fixed Buttons 区域 */}
+      <div className="fixed top-[18px] left-[90px] z-[60] flex items-center gap-1 no-drag border-2 border-red-500">
         <button
           onClick={() => {
             const newState = !isSidebarCollapsed;
@@ -2020,8 +2021,9 @@ export default function Home() {
       )}
 
       {/* Sidebar */}
+      {/* DEBUG: 蓝色边框 - Sidebar 区域 */}
       <div className={cn(
-        "fixed top-0 left-0 z-50 transform transition-transform duration-200 md:relative md:translate-x-0 h-full",
+        "fixed top-0 left-0 z-50 transform transition-transform duration-200 md:relative md:translate-x-0 h-full border-2 border-blue-500",
         sidebarOpen ? "translate-x-0" : "-translate-x-full",
         "flex"
       )}>
@@ -2077,7 +2079,8 @@ export default function Home() {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 bg-card relative">
+      {/* DEBUG: 绿色边框 - Main Content 区域 */}
+      <div className="flex-1 flex flex-col min-w-0 bg-card relative border-2 border-green-500">
         {/* Header */}
         <Header
           stats={sessionStats}
@@ -2087,7 +2090,9 @@ export default function Home() {
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 flex overflow-hidden">
+            {/* DEBUG: 紫色边框 - SidePanel 区域 */}
             {/* Side Panel (Graph or Timeline) - Left Side */}
+            <div className="border-2 border-purple-500">
             <SidePanel
               sidePanelType={sidePanelType}
               sidePanelWidth={sidePanelWidth}
@@ -2101,6 +2106,7 @@ export default function Home() {
               }}
               showInfoToast={showInfoToast}
             />
+            </div>
 
             {/* Right Side: Chat + Queue + Terminal (vertical stack) */}
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
