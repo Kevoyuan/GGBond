@@ -26,20 +26,24 @@ interface AgentPanelProps {
     onSelectAgent: (agent: AgentDefinition) => void;
     selectedAgentName?: string;
     className?: string;
+    search?: string;
 }
 
 const builtInAgents = ['codebase-investigator', 'cli-help-agent', 'generalist-agent'];
 
-export function AgentPanel({ onSelectAgent, selectedAgentName, className }: AgentPanelProps) {
+export function AgentPanel({ onSelectAgent, selectedAgentName, className, search: externalSearch }: AgentPanelProps) {
     const [agents, setAgents] = useState<AgentDefinition[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [search, setSearch] = useState('');
+    const [internalSearch, setInternalSearch] = useState('');
     const [scopeFilter, setScopeFilter] = useState<'all' | 'built-in' | 'user'>('all');
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [actionMessage, setActionMessage] = useState<string | null>(null);
     const [actionMessageIsError, setActionMessageIsError] = useState(false);
+
+    // Use external search if provided, otherwise use internal state
+    const search = externalSearch !== undefined ? externalSearch : internalSearch;
 
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [previewAgent, setPreviewAgent] = useState<AgentDefinition | null>(null);
@@ -308,17 +312,6 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
             >
                 {/* Fixed controls - kept out of scroll area for stability */}
                 <div className="px-3 pt-3 pb-2 space-y-3 bg-card/10 border-b border-border/10">
-                    {/* Search */}
-                    <div className="relative group">
-                        <Search size={13} className="absolute left-2.5 top-2.5 text-muted-foreground group-focus-within:text-primary transition-all" />
-                        <input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search agents..."
-                            className="w-full pl-8 pr-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary/40 transition-all font-mono"
-                        />
-                    </div>
-
                     {/* Filter Tabs (Segmented Control style) */}
                     <div className="flex p-1 bg-muted/30 rounded-lg relative overflow-hidden">
                         {[

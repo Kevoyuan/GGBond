@@ -140,8 +140,8 @@ export function MessageTimeline({
                 <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center mb-3">
                     <Clock className="w-6 h-6 opacity-50" />
                 </div>
-                <p className="text-sm font-medium text-foreground/80">Timeline Empty</p>
-                <p className="text-xs mt-1 max-w-[180px]">Start a conversation to track message history and tool usage</p>
+                <p className="text-base font-medium text-foreground/80">Timeline Empty</p>
+                <p className="text-sm mt-1 max-w-[180px]">Start a conversation to track message history and tool usage</p>
             </div>
         );
     }
@@ -149,10 +149,10 @@ export function MessageTimeline({
     return (
         <div className={cn('flex flex-col h-full bg-muted/5', className)}>
             <div className="px-4 py-3 border-b border-border/40 bg-background/50 backdrop-blur-sm sticky top-0 z-10">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                     <NetworkIcon className="w-3.5 h-3.5" />
                     Timeline
-                    <span className="ml-auto px-1.5 py-0.5 rounded-full bg-primary/5 text-primary text-[10px] font-mono font-medium">
+                    <span className="ml-auto px-1.5 py-0.5 rounded-full bg-primary/5 text-primary text-xs font-mono font-medium">
                         {messages.length}
                     </span>
                 </h3>
@@ -181,7 +181,7 @@ export function MessageTimeline({
                                 <div className={cn(
                                     'absolute left-[7px] w-2.5 h-2.5 rounded-full border-2 transition-all duration-300 z-20',
                                     'bg-background shadow-sm',
-                                    item.role === 'user' ? 'top-[0.6rem]' : 'top-[1.3rem]',
+                                    item.role === 'user' ? 'top-[0.7rem]' : 'top-[1.5rem]',
                                     isActive
                                         ? cn('border-transparent scale-110', item.dotColor)
                                         : 'border-muted-foreground/30 group-hover:border-primary/50 group-hover:scale-110'
@@ -198,15 +198,15 @@ export function MessageTimeline({
                                 {item.role === 'user' ? (
                                     // Compact User Row
                                     <div className={cn(
-                                        'relative rounded-lg px-0 py-0.5 cursor-pointer transition-all duration-200 border border-transparent', // Reduced padding
+                                        'relative rounded-lg px-0 py-1 cursor-pointer transition-all duration-200 border border-transparent', // Reduced padding
                                         isActive
                                             ? 'text-primary font-medium'
                                             : 'text-muted-foreground hover:text-foreground'
                                     )}>
                                         <div className="flex items-center gap-2 max-w-full">
                                             {/* Render User Icon */}
-                                            <item.icon className={cn('w-3.5 h-3.5 shrink-0', item.iconColor)} />
-                                            <span className="truncate text-xs opacity-90">{item.preview}</span>
+                                            <item.icon className={cn('w-4 h-4 shrink-0', item.iconColor)} />
+                                            <span className="truncate text-sm opacity-90">{item.preview}</span>
                                         </div>
                                     </div>
                                 ) : (
@@ -219,15 +219,15 @@ export function MessageTimeline({
                                     )}>
                                         {/* Header */}
                                         <div className="flex items-center gap-2 mb-1.5">
-                                            <item.icon className={cn('w-3.5 h-3.5', item.iconColor, item.isThinking && 'animate-spin')} />
-                                            <span className={cn('text-xs font-medium', isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground')}>
+                                            <item.icon className={cn('w-4 h-4', item.iconColor, item.isThinking && 'animate-spin')} />
+                                            <span className={cn('text-sm font-medium', isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground')}>
                                                 {item.label}
                                             </span>
                                         </div>
 
                                         {/* Content Preview */}
                                         <p className={cn(
-                                            'text-xs leading-relaxed line-clamp-2 font-normal',
+                                            'text-sm leading-relaxed line-clamp-2 font-normal',
                                             isActive ? 'text-foreground/90' : 'text-muted-foreground group-hover:text-foreground/80'
                                         )}>
                                             {item.preview || (item.isThinking ? 'Processing...' : '')}
@@ -241,14 +241,14 @@ export function MessageTimeline({
                                                         {item.tools.slice(0, 2).map((tool, i) => (
                                                             <span
                                                                 key={i}
-                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-accent/50 text-[10px] font-medium text-accent-foreground border border-border/30"
+                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-accent/50 text-xs font-medium text-accent-foreground border border-border/30"
                                                             >
-                                                                <Terminal className="w-2.5 h-2.5 opacity-60" />
+                                                                <Terminal className="w-3 h-3 opacity-60" />
                                                                 {tool}
                                                             </span>
                                                         ))}
                                                         {item.tools.length > 2 && (
-                                                            <span className="text-[10px] text-muted-foreground px-1 py-0.5">
+                                                            <span className="text-xs text-muted-foreground px-1 py-0.5">
                                                                 +{item.tools.length - 2}
                                                             </span>
                                                         )}
@@ -257,10 +257,10 @@ export function MessageTimeline({
 
                                                 {item.stats && (
                                                     <div className={cn(
-                                                        "flex items-center gap-1 text-[10px] text-muted-foreground/60 ml-auto font-mono",
+                                                        "flex items-center gap-1 text-xs text-muted-foreground/60 ml-auto font-mono",
                                                         item.toolCount === 0 && "ml-0"
                                                     )}>
-                                                        <Zap className="w-2.5 h-2.5" />
+                                                        <Zap className="w-3 h-3" />
                                                         <span>
                                                             {((item.stats.totalTokenCount || 0) / 1000).toFixed(1)}k
                                                         </span>

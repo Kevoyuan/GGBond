@@ -2042,8 +2042,49 @@ export default function Home() {
         />
 
         {/* Chat Content */}
-        <main className="flex-1 flex flex-col min-w-0 bg-[var(--bg-primary)] relative">
-          {/* Side Panel (Graph or Timeline) - Inspection Overlay or Sidebar */}
+        <main className="flex-1 flex min-w-0 bg-[var(--bg-primary)] relative">
+          {/* Chat Area + Terminal (vertical stack) */}
+          <div className="flex-1 flex flex-col min-w-0">
+            <ChatContainer
+              messages={messages}
+              isLoading={isLoading}
+              previewFile={previewFile}
+              onClosePreview={() => setPreviewFile(null)}
+              settings={settings}
+              onSendMessage={handleSendMessage}
+              onStopMessage={handleStopMessage}
+              onUndoTool={handleUndoTool}
+              onUndoMessage={handleUndoMessage}
+              inputPrefillRequest={inputPrefillRequest}
+              onRetry={handleRetry}
+              onCancel={handleCancel}
+              onModelChange={(model) => setSettings(s => ({ ...s, model }))}
+              currentModel={settings.model}
+              sessionStats={sessionStats}
+              currentContextUsage={currentContextUsage}
+              mode={mode}
+              onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
+              approvalMode={approvalMode}
+              onApprovalModeChange={handleApprovalModeChange}
+              workspacePath={currentWorkspace || undefined}
+              showTerminal={showTerminal}
+              onToggleTerminal={() => setShowTerminal(!showTerminal)}
+            />
+
+            {/* Terminal Panel */}
+            {showTerminal && (
+              <TerminalPanel
+                workspacePath={currentWorkspace || undefined}
+                sessionId={currentSessionId}
+                onClose={() => setShowTerminal(false)}
+                onHeightChange={(height) => {
+                  setTerminalPanelHeight(height);
+                }}
+              />
+            )}
+          </div>
+
+          {/* Side Panel (Graph or Timeline) - to the right of chat */}
           <SidePanel
             sidePanelType={sidePanelType}
             sidePanelWidth={sidePanelWidth}
@@ -2057,48 +2098,6 @@ export default function Home() {
             }}
             showInfoToast={showInfoToast}
           />
-
-          {/* Chat Area */}
-          <ChatContainer
-            messages={messages}
-            isLoading={isLoading}
-            previewFile={previewFile}
-            onClosePreview={() => setPreviewFile(null)}
-            settings={settings}
-            onSendMessage={handleSendMessage}
-            onStopMessage={handleStopMessage}
-            onUndoTool={handleUndoTool}
-            onUndoMessage={handleUndoMessage}
-            inputPrefillRequest={inputPrefillRequest}
-            onRetry={handleRetry}
-            onCancel={handleCancel}
-            onModelChange={(model) => setSettings(s => ({ ...s, model }))}
-            currentModel={settings.model}
-            sessionStats={sessionStats}
-            currentContextUsage={currentContextUsage}
-            mode={mode}
-            onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
-            approvalMode={approvalMode}
-            onApprovalModeChange={handleApprovalModeChange}
-            workspacePath={currentWorkspace || undefined}
-            showTerminal={showTerminal}
-            onToggleTerminal={() => setShowTerminal(!showTerminal)}
-          />
-
-          {/* Terminal Panel Overlay? Or below chat? Assuming ChatContainer handles layout if showTerminal is false? 
-                Actually showTerminal logic was handled in ChatContainer props AND below it.
-                I need to re-add TerminalPanel if active.
-            */}
-          {showTerminal && (
-            <TerminalPanel
-              workspacePath={currentWorkspace || undefined}
-              sessionId={currentSessionId}
-              onClose={() => setShowTerminal(false)}
-              onHeightChange={(height) => {
-                setTerminalPanelHeight(height);
-              }}
-            />
-          )}
         </main>
       </div>
 

@@ -28,16 +28,20 @@ interface SkillSource {
 interface SkillsManagerProps {
     compact?: boolean;
     className?: string;
+    search?: string;
 }
 
-export function SkillsManager({ compact = false, className }: SkillsManagerProps = {}) {
+export function SkillsManager({ compact = false, className, search: externalSearch }: SkillsManagerProps = {}) {
     const [skills, setSkills] = useState<Skill[]>([]);
     const [sources, setSources] = useState<SkillSource[]>([]);
     const [loading, setLoading] = useState(true);
     const [scopeFilter, setScopeFilter] = useState<'all' | 'global' | 'project'>('all');
     const [showAdvanced, setShowAdvanced] = useState(false);
-    const [search, setSearch] = useState('');
+    const [internalSearch, setInternalSearch] = useState('');
     const [installSource, setInstallSource] = useState('');
+
+    // Use external search if provided, otherwise use internal state
+    const search = externalSearch !== undefined ? externalSearch : internalSearch;
     const [linkSource, setLinkSource] = useState('');
     const [actionMessage, setActionMessage] = useState<string | null>(null);
     const [actionMessageIsError, setActionMessageIsError] = useState(false);
@@ -214,18 +218,6 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                     </button>
                 </div>
 
-                <div className="flex gap-2">
-                    <div className="relative flex-1 group">
-                        <Search size={13} className="absolute left-2.5 top-2.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                        <input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search skills..."
-                            className="w-full h-9 pl-8 pr-3 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/40 focus:border-primary/40 outline-none transition-all font-mono"
-                        />
-                    </div>
-                </div>
-
                 <div className="flex p-1 bg-muted/30 rounded-lg relative overflow-hidden">
                     {[
                         { key: 'all', label: 'All', count: skills.length, icon: Layers },
@@ -387,7 +379,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                             <div
                                 key={skill.id}
                                 className={cn(
-                                    "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer group",
+                                    "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-muted/40 dark:hover:bg-muted/40 transition-all cursor-pointer group",
                                     selectedSkill?.id === skill.id && "bg-primary/5 border-primary ring-1 ring-primary/20 text-primary"
                                 )}
                                 onClick={() => setSelectedSkill(skill)}
