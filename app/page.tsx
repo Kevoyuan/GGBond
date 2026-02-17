@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Sidebar } from '../components/Sidebar';
-import { Header } from '../components/Header';
+import { Titlebar } from '../components/Titlebar';
 import { Message } from '../components/MessageBubble';
 import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
 import { cn } from '@/lib/utils';
@@ -1984,49 +1984,31 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans antialiased">
+    <div className="flex flex-col h-screen w-full bg-[var(--bg-primary)] overflow-hidden font-sans antialiased text-[var(--text-primary)]">
       <ToastContainer toasts={toasts} onDismiss={dismissToast} position="top-right" />
 
-      {/* Fixed buttons next to traffic lights - no-drag since body has drag-region */}
-      {/* DEBUG: 红色边框 - Fixed Buttons 区域 */}
-      <div className="fixed top-[18px] left-[90px] z-[60] flex items-center gap-1 no-drag border-2 border-red-500">
-        <button
-          onClick={() => {
-            const newState = !isSidebarCollapsed;
-            setIsSidebarCollapsed(newState);
-            localStorage.setItem('sidebar-collapsed', String(newState));
-            if (newState) setSidePanelType(null);
-          }}
-          className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-          title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        >
-          {isSidebarCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
-        </button>
+      {/* Full-width Titlebar */}
+      <Titlebar
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => {
+          const newState = !isSidebarCollapsed;
+          setIsSidebarCollapsed(newState);
+          localStorage.setItem('sidebar-collapsed', String(newState));
+          if (newState) setSidePanelType(null);
+        }}
+        onNewChat={handleNewChat}
+        stats={sessionStats && {
+          inputTokens: sessionStats.inputTokens || 0,
+          outputTokens: sessionStats.outputTokens || 0,
+          totalTokens: sessionStats.totalTokens || 0,
+          totalCost: sessionStats.totalCost || 0
+        }}
+        currentBranch={currentBranch}
+        currentModel={settings.model}
+      />
 
-        <button
-          onClick={handleNewChat}
-          className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-          title="New Chat"
-        >
-          <SquarePen className="w-5 h-5" />
-        </button>
-      </div>
-
-      {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      {/* DEBUG: 蓝色边框 - Sidebar 区域 */}
-      <div className={cn(
-        "fixed top-0 left-0 z-50 transform transition-transform duration-200 md:relative md:translate-x-0 h-full border-2 border-blue-500",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full",
-        "flex"
-      )}>
+      {/* Main Content Area: Sidebar + Chat */}
+      <div className="flex-1 flex min-h-0 overflow-hidden relative">
         <Sidebar
           sessions={sessions}
           currentSessionId={currentSessionId}
@@ -2055,9 +2037,69 @@ export default function Home() {
             const newState = !isSidebarCollapsed;
             setIsSidebarCollapsed(newState);
             localStorage.setItem('sidebar-collapsed', String(newState));
-            if (newState) setSidePanelType(null); // Close side panels when collapsing sidebar
+            if (newState) setSidePanelType(null);
           }}
         />
+
+        {/* Chat Content */}
+        <main className="flex-1 flex flex-col min-w-0 bg-[var(--bg-primary)] relative">
+          {/* Side Panel (Graph or Timeline) - Inspection Overlay or Sidebar */}
+          <SidePanel
+            sidePanelType={sidePanelType}
+            sidePanelWidth={sidePanelWidth}
+            setSidePanelWidth={setSidePanelWidth}
+            messages={messages}
+            messagesMap={messagesMap}
+            headId={headId}
+            setHeadId={(id) => {
+              setHeadId(id);
+              headIdRef.current = id;
+            }}
+            showInfoToast={showInfoToast}
+          />
+
+          {/* Chat Area */}
+          <ChatContainer
+            messages={messages}
+            isLoading={isLoading}
+            previewFile={previewFile}
+            onClosePreview={() => setPreviewFile(null)}
+            settings={settings}
+            onSendMessage={handleSendMessage}
+            onStopMessage={handleStopMessage}
+            onUndoTool={handleUndoTool}
+            onUndoMessage={handleUndoMessage}
+            inputPrefillRequest={inputPrefillRequest}
+            onRetry={handleRetry}
+            onCancel={handleCancel}
+            onModelChange={(model) => setSettings(s => ({ ...s, model }))}
+            currentModel={settings.model}
+            sessionStats={sessionStats}
+            currentContextUsage={currentContextUsage}
+            mode={mode}
+            onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
+            approvalMode={approvalMode}
+            onApprovalModeChange={handleApprovalModeChange}
+            workspacePath={currentWorkspace || undefined}
+            showTerminal={showTerminal}
+            onToggleTerminal={() => setShowTerminal(!showTerminal)}
+          />
+
+          {/* Terminal Panel Overlay? Or below chat? Assuming ChatContainer handles layout if showTerminal is false? 
+                Actually showTerminal logic was handled in ChatContainer props AND below it.
+                I need to re-add TerminalPanel if active.
+            */}
+          {showTerminal && (
+            <TerminalPanel
+              workspacePath={currentWorkspace || undefined}
+              sessionId={currentSessionId}
+              onClose={() => setShowTerminal(false)}
+              onHeightChange={(height) => {
+                setTerminalPanelHeight(height);
+              }}
+            />
+          )}
+        </main>
       </div>
 
       <SettingsDialog
@@ -2077,102 +2119,6 @@ export default function Home() {
         onClose={() => setShowAddWorkspace(false)}
         onAdd={handleAddWorkspace}
       />
-
-      {/* Main Content */}
-      {/* DEBUG: 绿色边框 - Main Content 区域 */}
-      <div className="flex-1 flex flex-col min-w-0 bg-card relative border-2 border-green-500">
-        {/* Header */}
-        <Header
-          stats={sessionStats}
-          onShowStats={() => setShowUsageStats(true)}
-          currentBranch={currentBranch}
-        />
-
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 flex overflow-hidden">
-            {/* DEBUG: 紫色边框 - SidePanel 区域 */}
-            {/* Side Panel (Graph or Timeline) - Left Side */}
-            <div className="border-2 border-purple-500">
-            <SidePanel
-              sidePanelType={sidePanelType}
-              sidePanelWidth={sidePanelWidth}
-              setSidePanelWidth={setSidePanelWidth}
-              messages={messages}
-              messagesMap={messagesMap}
-              headId={headId}
-              setHeadId={(id) => {
-                setHeadId(id);
-                headIdRef.current = id;
-              }}
-              showInfoToast={showInfoToast}
-            />
-            </div>
-
-            {/* Right Side: Chat + Queue + Terminal (vertical stack) */}
-            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-              {/* Chat Area */}
-              <ChatContainer
-                messages={messages}
-                isLoading={isLoading}
-                previewFile={previewFile}
-                onClosePreview={() => setPreviewFile(null)}
-                settings={settings}
-                onSendMessage={handleSendMessage}
-                onStopMessage={handleStopMessage}
-                onUndoTool={handleUndoTool}
-                onUndoMessage={handleUndoMessage}
-                inputPrefillRequest={inputPrefillRequest}
-                onRetry={handleRetry}
-                onCancel={handleCancel}
-                onModelChange={(model) => setSettings(s => ({ ...s, model }))}
-                currentModel={settings.model}
-                sessionStats={sessionStats}
-                currentContextUsage={currentContextUsage}
-                mode={mode}
-                onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
-                approvalMode={approvalMode}
-                onApprovalModeChange={handleApprovalModeChange}
-                workspacePath={currentWorkspace || undefined}
-                showTerminal={showTerminal}
-                onToggleTerminal={() => setShowTerminal((value) => !value)}
-                onInputHeightChange={(height) => {
-                  setInputAreaHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
-                }}
-                streamingStatus={streamingStatus}
-              />
-
-              {/* Terminal Panel */}
-              <div className={showTerminal ? '' : 'hidden'}>
-                <TerminalPanel
-                  workspacePath={currentWorkspace || undefined}
-                  sessionId={currentSessionId}
-                  onSessionRunStateChange={updateTerminalRunningSessionCount}
-                  onClose={() => setShowTerminal(false)}
-                  onHeightChange={(height) => {
-                    setTerminalPanelHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-          {confirmation && (
-            <ConfirmationDialog
-              details={confirmation.details}
-              onConfirm={(mode) => handleConfirm(true, mode ?? 'once')}
-              onCancel={() => handleConfirm(false, 'once')}
-              bottomOffset={inputAreaHeight + (showTerminal ? terminalPanelHeight : 0)}
-            />
-          )}
-          <UndoMessageConfirmDialog
-            open={Boolean(undoConfirm)}
-            fileChanges={undoConfirm?.fileChanges || []}
-            hasCheckpoint={undoConfirm?.hasCheckpoint || false}
-            onCancel={handleCancelUndoMessage}
-            onConfirm={() => void handleConfirmUndoMessage()}
-            isConfirming={isApplyingUndoMessage}
-          />
-        </div>
-      </div>
 
       {activeQuestion && (
         <QuestionPanel
