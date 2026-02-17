@@ -20,30 +20,57 @@
 }
 
 @theme {
-  /* Semantic color tokens - IDE/Zinc Theme */
-  --color-background: oklch(100% 0 0);
-  --color-foreground: oklch(20% 0 0);
+  /* Semantic color tokens - Linear Style */
+  --bg-primary: #0a0a0b;
+  --bg-secondary: #111113;
+  --bg-tertiary: #18181b;
+  --bg-hover: #1c1c1f;
+  --bg-active: #222225;
+  --border: #27272a;
+  --border-subtle: #1e1e21;
 
-  --color-primary: oklch(20% 0 0);
-  --color-primary-foreground: oklch(98% 0 0);
+  --text-primary: #ededef;
+  --text-secondary: #8b8b8e;
+  --text-tertiary: #5c5c5f;
 
-  --color-secondary: oklch(96% 0 0);
-  --color-secondary-foreground: oklch(20% 0 0);
+  --accent: #7c5cfc;
+  --accent-hover: #8b6ffd;
+  --accent-subtle: rgba(124, 92, 252, 0.12);
 
-  --color-muted: oklch(96% 0 0);
-  --color-muted-foreground: oklch(55% 0 0);
+  --green: #4ade80;
+  --yellow: #facc15;
+  --orange: #fb923c;
+  --red: #f87171;
+  --blue: #60a5fa;
 
-  --color-accent: oklch(96% 0 0);
-  --color-accent-foreground: oklch(20% 0 0);
+  --panel-width: 280px;
+  --titlebar-h: 44px;
 
-  --color-destructive: oklch(55% 0.2 25);
-  --color-destructive-foreground: oklch(98% 0 0);
+  /* Mapping to existing Shadcn/Tailwind tokens */
+  --color-background: var(--bg-primary);
+  --color-foreground: var(--text-primary);
 
-  --color-border: oklch(92% 0 0);
-  --color-ring: oklch(20% 0 0);
+  --color-primary: var(--text-primary);
+  --color-primary-foreground: var(--bg-primary);
 
-  --color-card: oklch(100% 0 0);
-  --color-card-foreground: oklch(20% 0 0);
+  --color-secondary: var(--bg-secondary);
+  --color-secondary-foreground: var(--text-primary);
+
+  --color-muted: var(--bg-tertiary);
+  --color-muted-foreground: var(--text-secondary);
+
+  --color-accent: var(--bg-hover);
+  --color-accent-foreground: var(--text-primary);
+
+  --color-destructive: var(--red);
+  --color-destructive-foreground: #ffffff;
+
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--accent);
+
+  --color-card: var(--bg-secondary);
+  --color-card-foreground: var(--text-primary);
 
   /* Radius tokens */
   --radius-sm: 0.25rem;
@@ -92,40 +119,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 .dark {
-  /* Dark Zinc Theme - IDE Style (VS Code/Codex style) */
-  --color-background: oklch(22% 0 0);
-  /* #1e1e1e -柔和深灰 */
-  --color-foreground: oklch(100% 0 0);
-  /* 纯白 */
-
-  --color-primary: oklch(98% 0 0);
-  --color-primary-foreground: oklch(15% 0 0);
-
-  --color-secondary: oklch(28% 0 0);
-  --color-secondary-foreground: oklch(100% 0 0);
-
-  --color-muted: oklch(28% 0 0);
-  --color-muted-foreground: oklch(95% 0 0);
-  /* 更亮的灰色 - 接近纯白 */
-
-  --color-accent: oklch(28% 0 0);
-  --color-accent-foreground: oklch(100% 0 0);
-
-  --color-destructive: oklch(45% 0.15 25);
-  --color-destructive-foreground: oklch(98% 0 0);
-
-  --color-border: oklch(32% 0 0);
-  /* #3c3c3c - 更可见 */
-  --color-ring: oklch(70% 0 0);
-  /* 降低对比度 */
-
-  --color-card: oklch(24% 0 0);
-  /* #252526 - 略浅于背景 */
-  --color-card-foreground: oklch(100% 0 0);
-
-  /* Code Block Background */
-  --color-code-bg: oklch(20% 0 0);
-  /* #1a1a1a - 微深于背景 */
+  /* Dark mode overrides if necessary, but the root defaults are already dark-themed */
 }
 
 @layer base {
