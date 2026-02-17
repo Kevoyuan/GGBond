@@ -217,7 +217,7 @@ export const SkillBadge = React.memo(function SkillBadge({
 
     return (
         <span className="group/skillref relative inline-flex align-baseline">
-            <span className="inline-flex items-center rounded-md border border-violet-400/30 bg-violet-500/20 px-2 py-0.5 text-[11px] font-medium text-white dark:text-white shadow-sm">
+            <span className="inline-flex items-center rounded-md border border-violet-200 dark:border-violet-400/30 bg-violet-50 dark:bg-violet-500/20 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-white shadow-sm">
                 {label}
             </span>
             <span className="pointer-events-none absolute left-0 top-full z-30 mt-1 w-72 rounded-md border border-border/60 bg-card px-2.5 py-2 text-[11px] leading-snug text-foreground shadow-xl transition-opacity duration-150 opacity-0 group-hover/skillref:opacity-100">
