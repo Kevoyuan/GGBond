@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 import { Toast, ToastType, ToastContainer } from './Toast';
 
 interface ToastContextValue {
@@ -57,18 +57,19 @@ export const ToastProvider = ({ children, position = 'top-right' }: ToastProvide
     showToast('warning', message, duration);
   }, [showToast]);
 
+  // Memoize context value to prevent unnecessary re-renders
+  const value = useMemo(() => ({
+    toasts,
+    showToast,
+    showError,
+    showSuccess,
+    showInfo,
+    showWarning,
+    dismissToast,
+  }), [toasts, showToast, showError, showSuccess, showInfo, showWarning, dismissToast]);
+
   return (
-    <ToastContext.Provider
-      value={{
-        toasts,
-        showToast,
-        showError,
-        showSuccess,
-        showInfo,
-        showWarning,
-        dismissToast,
-      }}
-    >
+    <ToastContext.Provider value={value}>
       {children}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} position={position} />
     </ToastContext.Provider>

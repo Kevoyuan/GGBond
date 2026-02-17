@@ -567,9 +567,24 @@ export default function Home() {
     if (savedCollapsed) setIsSidebarCollapsed(savedCollapsed === 'true');
   }, []);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     setTheme(theme === 'light' ? 'dark' : 'light');
-  };
+  }, [theme]);
+
+  const handleToggleSidebar = useCallback(() => {
+    const newState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(newState);
+    localStorage.setItem('sidebar-collapsed', String(newState));
+    if (newState) setSidePanelType(null);
+  }, [isSidebarCollapsed]);
+
+  const handleModelChange = useCallback((model: string) => {
+    setSettings(s => ({ ...s, model }));
+  }, []);
+
+  const handleModeChange = useCallback((m: 'code' | 'plan' | 'ask') => {
+    setMode(m);
+  }, []);
 
   // Fetch Sessions on Mount
   const fetchSessions = async () => {
@@ -1980,12 +1995,7 @@ export default function Home() {
       {/* Full-width Titlebar */}
       <Titlebar
         isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={() => {
-          const newState = !isSidebarCollapsed;
-          setIsSidebarCollapsed(newState);
-          localStorage.setItem('sidebar-collapsed', String(newState));
-          if (newState) setSidePanelType(null);
-        }}
+        onToggleCollapse={handleToggleSidebar}
         onNewChat={handleNewChat}
         stats={sessionStats && {
           inputTokens: sessionStats.inputTokens || 0,
@@ -2023,12 +2033,7 @@ export default function Home() {
           sidePanelType={sidePanelType}
           onToggleSidePanel={(type) => setSidePanelType(current => current === type ? null : type)}
           isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={() => {
-            const newState = !isSidebarCollapsed;
-            setIsSidebarCollapsed(newState);
-            localStorage.setItem('sidebar-collapsed', String(newState));
-            if (newState) setSidePanelType(null);
-          }}
+          onToggleCollapse={handleToggleSidebar}
         />
 
         {/* Chat Content */}
@@ -2048,12 +2053,12 @@ export default function Home() {
               inputPrefillRequest={inputPrefillRequest}
               onRetry={handleRetry}
               onCancel={handleCancel}
-              onModelChange={(model) => setSettings(s => ({ ...s, model }))}
+              onModelChange={handleModelChange}
               currentModel={settings.model}
               sessionStats={sessionStats}
               currentContextUsage={currentContextUsage}
               mode={mode}
-              onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
+              onModeChange={handleModeChange}
               approvalMode={approvalMode}
               onApprovalModeChange={handleApprovalModeChange}
               workspacePath={currentWorkspace || undefined}
