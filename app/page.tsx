@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useTheme } from 'next-themes';
 import { Sidebar } from '../components/Sidebar';
 import { Titlebar } from '../components/Titlebar';
 import { Message } from '../components/MessageBubble';
@@ -241,7 +242,8 @@ export default function Home() {
   const [showUsageStats, setShowUsageStats] = useState(false);
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
   const [mode, setMode] = useState<'code' | 'plan' | 'ask'>('code');
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
   const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
   const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>(DEFAULT_CHAT_SETTINGS.toolPermissionStrategy);
   const [sidePanelType, setSidePanelType] = useState<'graph' | 'timeline' | null>(null);
@@ -559,26 +561,14 @@ export default function Home() {
     });
   }, []);
 
-  // Load Theme
+  // Load sidebar state
   useEffect(() => {
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setTheme('dark');
-      document.documentElement.classList.add('dark');
-    }
-
-    // Load sidebar state
     const savedCollapsed = localStorage.getItem('sidebar-collapsed');
     if (savedCollapsed) setIsSidebarCollapsed(savedCollapsed === 'true');
   }, []);
 
   const toggleTheme = () => {
-    if (theme === 'light') {
-      setTheme('dark');
-      document.documentElement.classList.add('dark');
-    } else {
-      setTheme('light');
-      document.documentElement.classList.remove('dark');
-    }
+    setTheme(theme === 'light' ? 'dark' : 'light');
   };
 
   // Fetch Sessions on Mount
@@ -2022,7 +2012,7 @@ export default function Home() {
           currentWorkspace={currentWorkspace === null ? undefined : currentWorkspace}
           onAddWorkspace={() => setShowAddWorkspace(true)}
           onOpenSettings={() => setSettingsOpen(true)}
-          isDark={theme === 'dark'}
+          isDark={isDark}
           toggleTheme={toggleTheme}
           onShowStats={() => setShowUsageStats(true)}
           onFileSelect={(file) => setPreviewFile(file)}
