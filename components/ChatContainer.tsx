@@ -1,5 +1,5 @@
 
-import { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { Bot } from 'lucide-react';
 import { GeminiIcon } from './icons/GeminiIcon';
@@ -38,7 +38,7 @@ interface ChatContainerProps {
     streamingStatus?: string;
 }
 
-export function ChatContainer({
+export const ChatContainer = React.memo(function ChatContainer({
     messages,
     isLoading,
     previewFile,
@@ -250,4 +250,4 @@ export function ChatContainer({
             )}
         </div>
     );
-}
+});

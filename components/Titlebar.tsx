@@ -19,7 +19,7 @@ interface TitlebarProps {
     className?: string;
 }
 
-export function Titlebar({
+export const Titlebar = React.memo(function Titlebar({
     isCollapsed,
     onToggleCollapse,
     onNewChat,
@@ -111,4 +111,4 @@ export function Titlebar({
             </div>
         </div>
     );
-}
+});

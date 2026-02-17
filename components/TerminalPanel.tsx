@@ -556,7 +556,9 @@ export function TerminalPanel({
   }, [environment.defaultCwd, workspacePath, sessions, updateSession]);
 
   useEffect(() => {
-    outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight, behavior: 'smooth' });
+    // Use 'auto' instead of 'smooth' to avoid CPU-intensive scroll interpolation
+    // on every terminal output chunk
+    outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight, behavior: 'auto' });
   }, [activeSession.entries, activeSession.isRunning]);
 
   useEffect(() => {

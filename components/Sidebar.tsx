@@ -34,6 +34,7 @@ import { AgentIcon } from './icons/AgentIcon';
 import { NavListItem } from './sidebar/NavListItem';
 import { ChatView } from './sidebar/ChatView';
 import { useGitBranches } from '../hooks/useGitBranches';
+import { Tooltip } from './ui/Tooltip';
 
 interface Session {
   id: string;
@@ -97,7 +98,7 @@ const MIN_SIDEBAR_WIDTH = 240;
 const MAX_SIDEBAR_WIDTH = 480;
 const DEFAULT_SIDEBAR_WIDTH = 280;
 
-export function Sidebar({
+export const Sidebar = React.memo(function Sidebar({
   sessions,
   currentSessionId,
   runningSessionIds = [],
@@ -282,103 +283,115 @@ export function Sidebar({
 
       {/* Footer Toolbar */}
       <div className={cn(
-        "p-2 border-t border-[var(--border-subtle)] shrink-0 flex flex-col gap-1",
-        isCollapsed && "p-1 items-center"
+        "px-2 py-2 border-t border-[var(--border-subtle)] shrink-0 flex flex-col gap-2 bg-[var(--bg-secondary)]",
+        isCollapsed && "p-2 gap-2Items"
       )}>
-        {/* Feature Toolbar */}
+        {/* Horizontal Action Bar */}
         <div className={cn(
-          "flex gap-1",
-          isCollapsed ? "flex-col" : "flex-wrap"
+          "flex items-center gap-1",
+          isCollapsed ? "flex-col" : "justify-between"
         )}>
-          {/* My Usage */}
-          <button
-            onClick={onShowStats}
-            title="My Usage"
-            className={cn(
-              "flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors",
-              isCollapsed && "justify-center p-1.5"
-            )}
-          >
-            <BarChart className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span className="text-[12px] font-medium">Usage</span>}
-          </button>
+          {/* Group 1: Insights & Modules */}
+          <div className={cn("flex items-center gap-1", isCollapsed && "flex-col")}>
+            <Tooltip content="Usage" side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={onShowStats}
+                className={cn(
+                  "p-2 rounded-md transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                <BarChart className="w-4 h-4" />
+              </button>
+            </Tooltip>
 
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            className={cn(
-              "flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors",
-              isCollapsed && "justify-center p-1.5"
-            )}
-          >
-            {isDark ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
-            {!isCollapsed && <span className="text-[12px] font-medium">{isDark ? 'Light' : 'Dark'}</span>}
-          </button>
+            <Tooltip content="Modules" side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={() => setShowModulesDialog(true)}
+                className={cn(
+                  "p-2 rounded-md transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                <Boxes className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          </div>
 
-          {/* Modules */}
-          <button
-            onClick={() => setShowModulesDialog(true)}
-            title="Modules"
-            className={cn(
-              "flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors",
-              isCollapsed && "justify-center p-1.5"
-            )}
-          >
-            <Boxes className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span className="text-[12px] font-medium">Modules</span>}
-          </button>
+          {!isCollapsed && <div className="w-px h-4 bg-[var(--border-subtle)] mx-0.5" />}
 
-          {/* Conversation Graph */}
-          <button
-            onClick={() => onToggleSidePanel?.('graph')}
-            title="Conversation Graph"
-            className={cn(
-              "flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors",
-              sidePanelType === 'graph'
-                ? "text-[var(--accent)] bg-[var(--accent)]/10"
-                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
-              isCollapsed && "justify-center p-1.5"
-            )}
-          >
-            <Network className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span className="text-[12px] font-medium">Graph</span>}
-          </button>
+          {/* Group 2: Visualization Panels */}
+          <div className={cn("flex items-center gap-1", isCollapsed && "flex-col")}>
+            <Tooltip content="Graph" side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={() => onToggleSidePanel?.('graph')}
+                className={cn(
+                  "p-2 rounded-md transition-all duration-200",
+                  sidePanelType === 'graph'
+                    ? "text-[var(--accent)] bg-[var(--accent)]/10"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                <Network className="w-4 h-4" />
+              </button>
+            </Tooltip>
 
-          {/* Timeline */}
-          <button
-            onClick={() => onToggleSidePanel?.('timeline')}
-            title="Timeline"
-            className={cn(
-              "flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors",
-              sidePanelType === 'timeline'
-                ? "text-[var(--accent)] bg-[var(--accent)]/10"
-                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
-              isCollapsed && "justify-center p-1.5"
-            )}
-          >
-            <Clock className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span className="text-[12px] font-medium">Timeline</span>}
-          </button>
+            <Tooltip content="Timeline" side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={() => onToggleSidePanel?.('timeline')}
+                className={cn(
+                  "p-2 rounded-md transition-all duration-200",
+                  sidePanelType === 'timeline'
+                    ? "text-[var(--accent)] bg-[var(--accent)]/10"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                <Clock className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          </div>
 
-          {/* Settings */}
-          <button
-            onClick={onOpenSettings}
-            title="Settings"
-            className={cn(
-              "flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors",
-              isCollapsed && "justify-center p-1.5"
-            )}
-          >
-            <Settings className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span className="text-[12px] font-medium">Settings</span>}
-          </button>
+          {!isCollapsed && <div className="w-px h-4 bg-[var(--border-subtle)] mx-0.5" />}
+
+          {/* Group 3: App Controls */}
+          <div className={cn("flex items-center gap-1", isCollapsed && "flex-col")}>
+            <Tooltip content={isDark ? "Light Mode" : "Dark Mode"} side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={toggleTheme}
+                className={cn(
+                  "p-2 rounded-md transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Settings" side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={onOpenSettings}
+                className={cn(
+                  "p-2 rounded-md transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          </div>
         </div>
 
+        {/* Info Bar */}
         {!isCollapsed && (
-          <div className="flex items-center justify-between px-2 py-1 text-[10px] text-[var(--text-tertiary)]">
-            <span>v0.4.2</span>
-            <span>Pro</span>
+          <div className="flex items-center justify-between px-1.5 pt-1.5 border-t border-[var(--border-subtle)]/50">
+            <span className="text-[10px] text-[var(--text-tertiary)] font-mono opacity-60">v0.4.2</span>
+            <div className="flex items-center gap-1.5">
+              <span className="px-1 py-0.25 rounded-[3px] text-[9px] font-bold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 shadow-sm lowercase">
+                pro
+              </span>
+            </div>
           </div>
         )}
       </div>
@@ -397,4 +410,4 @@ export function Sidebar({
       <ModulesDialog open={showModulesDialog} onOpenChange={setShowModulesDialog} />
     </div>
   );
-}
+});
