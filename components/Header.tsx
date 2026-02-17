@@ -19,7 +19,8 @@ export function Header({
   currentBranch,
 }: HeaderProps) {
   return (
-    <div className="flex flex-col w-full shrink-0 z-20 relative bg-card">
+    // DEBUG: 黄色边框 - Header 区域
+    <div className="flex flex-col w-full shrink-0 z-20 relative bg-card drag-region border-2 border-yellow-500">
       <div className="h-[54px] w-full flex items-center justify-end pr-4 shrink-0">
         <div className="flex items-center gap-4">
           <GitBranchTag branch={currentBranch ?? null} />

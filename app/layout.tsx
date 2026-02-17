@@ -14,7 +14,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className="antialiased drag-region"
+        className="antialiased"
         suppressHydrationWarning
       >
         {children}
