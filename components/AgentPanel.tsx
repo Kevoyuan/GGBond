@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback, memo } from 'react';
+import React, { useEffect, useState, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { User, Sparkles, Shield, Cpu, ExternalLink, Play, RefreshCw, Layers, Plus, Trash, Link2, Search, SlidersHorizontal, Loader2, Ban, CheckCircle2, BookOpen, AlertCircle, FolderSearch, PlusCircle } from 'lucide-react';
@@ -13,6 +13,7 @@ import { AgentIcon } from './icons/AgentIcon';
 import { PanelHeader } from './sidebar/PanelHeader';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useConfirmDelete } from '@/hooks/useConfirmDelete';
+import { ResizeHandle, useResize } from './ui/ResizeHandle';
 
 interface AgentDefinition {
     name: string;
@@ -58,48 +59,24 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
     const [isDirectory, setIsDirectory] = useState(false);
 
     const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
-    const [agentListHeight, setAgentListHeight] = useState(550);
-    const [isResizing, setIsResizing] = useState(false);
-    const panelRef = useRef<HTMLDivElement>(null);
     const [refreshRunsTrigger, setRefreshRunsTrigger] = useState(0);
 
     // Run agent state (kept for compatibility)
     const { getAgents, setAgents: saveAgents } = useAppStore();
 
-    const startResizing = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        setIsResizing(true);
-    }, []);
+    // Load persisted height
+    const getInitialHeight = () => {
+        const saved = localStorage.getItem('agent-panel-list-height');
+        return saved ? parseInt(saved, 10) : 550;
+    };
 
-    const stopResizing = useCallback(() => {
-        setIsResizing(false);
-        // Persist height
-        localStorage.setItem('agent-panel-list-height', agentListHeight.toString());
-    }, [agentListHeight]);
-
-    const resize = useCallback((e: MouseEvent) => {
-        if (isResizing && panelRef.current) {
-            const panelRect = panelRef.current.getBoundingClientRect();
-            const newHeight = e.clientY - panelRect.top - 48; // 48 is the header height
-            if (newHeight > 150 && newHeight < panelRect.height - 150) {
-                setAgentListHeight(newHeight);
-            }
-        }
-    }, [isResizing]);
-
-    useEffect(() => {
-        if (isResizing) {
-            window.addEventListener('mousemove', resize);
-            window.addEventListener('mouseup', stopResizing);
-        } else {
-            window.removeEventListener('mousemove', resize);
-            window.removeEventListener('mouseup', stopResizing);
-        }
-        return () => {
-            window.removeEventListener('mousemove', resize);
-            window.removeEventListener('mouseup', stopResizing);
-        };
-    }, [isResizing, resize, stopResizing]);
+    const { size: agentListHeight, isResizing, handleProps } = useResize({
+        direction: 'vertical',
+        minSize: 150,
+        maxSize: 800,
+        initialSize: getInitialHeight(),
+        onResize: (height) => localStorage.setItem('agent-panel-list-height', height.toString()),
+    });
 
     const fetchAgents = async (force = false) => {
         // Try cache first unless forced
@@ -133,12 +110,6 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
 
     useEffect(() => {
         fetchAgents();
-        // Load persisted height
-        const savedHeight = localStorage.getItem('agent-panel-list-height');
-        if (savedHeight) {
-            const h = parseInt(savedHeight, 10);
-            if (!isNaN(h)) setAgentListHeight(h);
-        }
     }, []);
 
     const handleAction = async (action: string, name?: string) => {
@@ -264,7 +235,6 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
 
     return (
         <div
-            ref={panelRef}
             className={cn("flex flex-col h-full bg-card/30 relative select-none", className)}
         >
             <PanelHeader
@@ -570,16 +540,13 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
             </div>
 
             {/* Resize Divider */}
-            <div
-                className={cn(
-                    "h-1 relative cursor-row-resize hover:bg-primary/40 transition-colors z-20 flex items-center justify-center group/resize",
-                    isResizing && "bg-primary/50"
-                )}
-                onMouseDown={startResizing}
-            >
-                <div className="absolute inset-x-0 -top-2 -bottom-2" />
-                <div className="w-8 h-[1px] bg-zinc-300 dark:bg-zinc-600 group-hover/resize:bg-primary transition-colors" />
-            </div>
+            <ResizeHandle
+                direction="vertical"
+                isResizing={isResizing}
+                onMouseDown={handleProps.onMouseDown}
+                className="relative z-20"
+                indicatorClassName="bg-zinc-300 dark:bg-zinc-600"
+            />
 
             {/* Bottom Section: Execution History */}
             <div className="flex-1 min-h-[150px] flex flex-col bg-card/5 overflow-hidden">

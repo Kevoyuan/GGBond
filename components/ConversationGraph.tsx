@@ -80,7 +80,7 @@ const CustomNode = ({ data, isConnectable }: NodeProps<Node<GraphNodeData>>) => 
   return (
     <div
       className={cn(
-        'w-[220px] rounded-xl border px-3 py-2 shadow-sm transition-all',
+        'w-[220px] rounded-xl border px-3 py-2 shadow-sm transition-colors duration-200',
         'bg-gradient-to-b from-card to-card/80 backdrop-blur-sm',
         nodeData.isActiveLeaf && 'border-amber-400/90 ring-2 ring-amber-400/20 shadow-amber-500/10',
         !nodeData.isActiveLeaf && nodeData.isOnActivePath && 'border-blue-400/80 ring-1 ring-blue-400/20',
@@ -326,7 +326,7 @@ export function ConversationGraph({ messages, currentLeafId, onNodeClick, onCopy
             await copyToClipboard(content);
             onCopyNotification?.('Copied Mermaid Markdown');
           }}
-          className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/60 px-3 py-1.5 text-[11px] font-medium backdrop-blur-md transition-all hover:bg-background/80 hover:border-border/60 shadow-lg"
+          className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/60 px-3 py-1.5 text-[11px] font-medium backdrop-blur-md transition-colors duration-200 hover:bg-background/80 hover:border-border/60 shadow-lg"
           title="Copy Mermaid Markdown"
         >
           <FileText size={14} className="text-muted-foreground" />
@@ -338,7 +338,7 @@ export function ConversationGraph({ messages, currentLeafId, onNodeClick, onCopy
             await copyToClipboard(content);
             onCopyNotification?.('Copied JSON');
           }}
-          className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/60 px-3 py-1.5 text-[11px] font-medium backdrop-blur-md transition-all hover:bg-background/80 hover:border-border/60 shadow-lg"
+          className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/60 px-3 py-1.5 text-[11px] font-medium backdrop-blur-md transition-colors duration-200 hover:bg-background/80 hover:border-border/60 shadow-lg"
           title="Copy JSON"
         >
           <FileJson size={14} className="text-muted-foreground" />
@@ -368,10 +368,10 @@ export function ConversationGraph({ messages, currentLeafId, onNodeClick, onCopy
             if (data.isOnActivePath) return '#60a5fa';
             return data.role === 'user' ? '#10b981' : '#64748b';
           }}
-          className="!border !border-border/40 !bg-background/40 dark:!bg-zinc-900/40 !backdrop-blur-md rounded-xl"
+          className="!border !border-border/40 !bg-background/40 dark:!bg-[var(--bg-secondary)]/60 !backdrop-blur-md rounded-xl"
         />
         <Controls
-          className="!border !border-border/40 !bg-background/40 dark:!bg-zinc-900/40 !backdrop-blur-md rounded-lg overflow-hidden !shadow-xl [&_button]:!bg-transparent [&_button]:!border-border/20 [&_svg]:!fill-foreground [&_svg]:!text-foreground"
+          className="!border !border-border/40 !bg-background/40 dark:!bg-[var(--bg-secondary)]/60 !backdrop-blur-md rounded-lg overflow-hidden !shadow-xl [&_button]:!bg-transparent [&_button]:!border-border/20 [&_svg]:!fill-foreground [&_svg]:!text-foreground"
           showInteractive={false}
         />
         <Background gap={20} size={1} color="rgba(148,163,184,0.15)" />
