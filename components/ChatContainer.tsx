@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { Bot } from 'lucide-react';
+import { Bot, ArrowDown } from 'lucide-react';
 import { GeminiIcon } from './icons/GeminiIcon';
 import { MessageBubble, LoadingBubble, Message } from './MessageBubble';
 import { ChatInput } from './ChatInput';
@@ -11,6 +11,7 @@ import { ChatSettings } from './SettingsDialog';
 import { TaskProgressDock, TodoItem } from './TaskProgressDock';
 
 interface ChatContainerProps {
+
     messages: Message[];
     isLoading: boolean;
     previewFile: { name: string; path: string } | null;
@@ -67,19 +68,33 @@ export const ChatContainer = React.memo(function ChatContainer({
 }: ChatContainerProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const [isAtBottom, setIsAtBottom] = React.useState(true);
+
     const lastModelIdx = useMemo(() => {
         return messages.findLastIndex(m => m.role === 'model');
     }, [messages]);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+        messagesEndRef.current?.scrollIntoView({ behavior });
+    };
+
+    // Handle scroll to detect if user is at bottom
+    const handleScroll = () => {
+        if (!scrollContainerRef.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+        const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+        setIsAtBottom(distanceToBottom < 100); // 100px threshold
     };
 
     useEffect(() => {
-        scrollToBottom();
-    }, [messages.length, isLoading]);
+        if (isAtBottom) {
+            scrollToBottom(isLoading ? 'auto' : 'smooth');
+        }
+    }, [messages.length, isLoading, streamingStatus, messages[messages.length - 1]?.content]);
 
     const normalizeTodoStatus = (value: unknown): TodoItem['status'] => {
+
+
         if (value === 'in-progress') return 'in_progress';
         if (value === 'pending' || value === 'in_progress' || value === 'completed' || value === 'cancelled') {
             return value;
@@ -161,70 +176,92 @@ export const ChatContainer = React.memo(function ChatContainer({
                 />
             ) : (
                 <>
-                    <div className="flex-1 overflow-y-auto scroll-smooth relative" ref={scrollContainerRef}>
-                        {messages.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center p-8 text-center opacity-0 animate-fade-in" style={{ animationDelay: '0.1s', opacity: 1 }}>
-                                <div className="text-center space-y-4 max-w-lg mx-auto">
-                                    <div className="mb-6 flex justify-center">
-                                        <GeminiIcon className="w-16 h-16" />
-                                    </div>
-                                    <h2 className="text-2xl font-semibold tracking-tight">
-                                        How can I help you today?
-                                    </h2>
-                                    <p className="text-muted-foreground leading-relaxed">
-                                        I can help you write code, debug issues, or answer questions about your project.
-                                    </p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="max-w-3xl mx-auto w-full pb-8 pt-6 px-4 flex flex-col gap-6">
-                                {messages.map((msg, idx) => {
-                                    const prev = messages[idx - 1];
-                                    const next = messages[idx + 1];
-                                    const isFirstInSequence = !prev || prev.role === 'user';
-                                    const isLastInSequence = !next || next.role === 'user';
-                                    const isStreaming = isLoading && msg.role === 'model' && !!streamingStatus && idx === lastModelIdx;
-
-                                    return (
-                                        <div key={msg.id || idx} data-message-index={idx} className={cn("flex flex-col gap-2", msg.role === 'user' && "items-end")}>
-                                            {/* Show images before user message - right aligned */}
-                                            {msg.role === 'user' && msg.images && msg.images.length > 0 && (
-                                                <div className="flex gap-2 flex-wrap">
-                                                    {msg.images.map((img, imgIdx) => (
-                                                        <Image
-                                                            key={imgIdx}
-                                                            src={img.dataUrl}
-                                                            alt={img.name}
-                                                            width={200}
-                                                            height={200}
-                                                            className="max-w-[200px] max-h-[200px] object-contain rounded-lg border"
-                                                        />
-                                                    ))}
-                                                </div>
-                                            )}
-                                            <MessageBubble
-                                                message={msg}
-                                                isFirst={isFirstInSequence}
-                                                isLast={isLastInSequence}
-                                                settings={settings}
-                                                index={idx}
-                                                onUndoTool={onUndoTool}
-                                                onUndoMessage={onUndoMessage}
-                                                onRetry={onRetry}
-                                                onCancel={onCancel}
-                                                isStreaming={isStreaming}
-                                                streamingStatus={streamingStatus}
-                                            />
+                    <div className="flex-1 relative min-h-0">
+                        <div className="absolute inset-0 overflow-y-auto scroll-smooth" ref={scrollContainerRef} onScroll={handleScroll}>
+                            {messages.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center p-8 text-center opacity-0 animate-fade-in" style={{ animationDelay: '0.1s', opacity: 1 }}>
+                                    <div className="text-center space-y-4 max-w-lg mx-auto">
+                                        <div className="mb-6 flex justify-center">
+                                            <GeminiIcon className="w-16 h-16" />
                                         </div>
-                                    );
-                                })}
-                                {isLoading && (lastModelIdx === -1 || !streamingStatus) && (
-                                    <LoadingBubble status={streamingStatus || "Thinking..."} />
+                                        <h2 className="text-2xl font-semibold tracking-tight">
+                                            How can I help you today?
+                                        </h2>
+                                        <p className="text-muted-foreground leading-relaxed">
+                                            I can help you write code, debug issues, or answer questions about your project.
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="max-w-3xl mx-auto w-full pb-8 pt-6 px-4 flex flex-col gap-6">
+                                    {messages.map((msg, idx) => {
+                                        const prev = messages[idx - 1];
+                                        const next = messages[idx + 1];
+                                        const isFirstInSequence = !prev || prev.role === 'user';
+                                        const isLastInSequence = !next || next.role === 'user';
+                                        const isStreaming = isLoading && msg.role === 'model' && !!streamingStatus && idx === lastModelIdx;
+
+                                        return (
+                                            <div key={msg.id || idx} data-message-index={idx} className={cn("flex flex-col gap-2", msg.role === 'user' && "items-end")}>
+                                                {/* Show images before user message - right aligned */}
+                                                {msg.role === 'user' && msg.images && msg.images.length > 0 && (
+                                                    <div className="flex gap-2 flex-wrap">
+                                                        {msg.images.map((img, imgIdx) => (
+                                                            <Image
+                                                                key={imgIdx}
+                                                                src={img.dataUrl}
+                                                                alt={img.name}
+                                                                width={200}
+                                                                height={200}
+                                                                className="max-w-[200px] max-h-[200px] object-contain rounded-lg border"
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                <MessageBubble
+                                                    message={msg}
+                                                    isFirst={isFirstInSequence}
+                                                    isLast={isLastInSequence}
+                                                    settings={settings}
+                                                    index={idx}
+                                                    onUndoTool={onUndoTool}
+                                                    onUndoMessage={onUndoMessage}
+                                                    onRetry={onRetry}
+                                                    onCancel={onCancel}
+                                                    isStreaming={isStreaming}
+                                                    streamingStatus={streamingStatus}
+                                                />
+                                            </div>
+                                        );
+                                    })}
+                                    {isLoading && (lastModelIdx === -1 || !streamingStatus) && (
+                                        <LoadingBubble status={streamingStatus || "Thinking..."} />
+                                    )}
+                                    <div ref={messagesEndRef} className="h-4" />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Scroll to Bottom Button - Enhanced Visibility */}
+                        {!isAtBottom && messages.length > 0 && (
+                            <button
+                                onClick={() => scrollToBottom('smooth')}
+                                className={cn(
+                                    "absolute bottom-6 left-1/2 -translate-x-1/2 z-30",
+                                    "flex items-center justify-center w-9 h-9 rounded-full",
+                                    "bg-[var(--accent)] shadow-lg shadow-[var(--accent)]/20",
+                                    "text-white border border-white/10",
+                                    "hover:scale-110 active:scale-95 transition-all duration-200",
+                                    "animate-in fade-in slide-in-from-bottom-4"
                                 )}
-                                <div ref={messagesEndRef} className="h-4" />
-                            </div>
+                                title="Scroll to bottom"
+                            >
+                                <ArrowDown className="w-5 h-5" />
+                            </button>
                         )}
+
                     </div>
+
 
                     {latestTodos && latestTodos.length > 0 && <TaskProgressDock todos={latestTodos} />}
                     <ChatInput

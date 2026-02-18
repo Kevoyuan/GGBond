@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { PanelHeader } from '../sidebar/PanelHeader';
 import { SkillPreviewDialog } from '../SkillPreviewDialog';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 
 interface Skill {
     id: string;
@@ -47,7 +48,7 @@ export function SkillsManager({ compact = false, className, search: externalSear
     const [actionMessageIsError, setActionMessageIsError] = useState(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
-    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
     const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
 
     const fetchSkills = () => {
@@ -368,7 +369,7 @@ export function SkillsManager({ compact = false, className, search: externalSear
                     )}
                 </AnimatePresence>
 
-                <div className={cn("space-y-2.5", compact ? "h-[calc(100vh-320px)] overflow-y-auto pr-1" : "max-h-[400px] overflow-y-auto")}>
+                <div className={cn("space-y-2.5")}>
                     {filteredSkills.length === 0 ? (
                         <div className="text-center py-10 opacity-20 grayscale">
                             <Puzzle size={32} className="mx-auto mb-3" />
@@ -414,7 +415,7 @@ export function SkillsManager({ compact = false, className, search: externalSear
 
                                 <div
                                     className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all"
-                                    onMouseLeave={() => setConfirmDeleteId(null)}
+                                    onMouseLeave={() => handleMouseLeave(skill.id)}
                                 >
                                     <div className="w-[1px] h-4 bg-border/50 mx-1" />
                                     {skill.status === 'Enabled' ? (
@@ -437,12 +438,11 @@ export function SkillsManager({ compact = false, className, search: externalSear
                                         </button>
                                     )}
                                     {!skill.isBuiltIn && (
-                                        confirmDeleteId === skill.id ? (
+                                        isPending(skill.id) ? (
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    handleAction('uninstall', skill.id);
-                                                    setConfirmDeleteId(null);
+                                                    confirmDelete(skill.id, (id) => handleAction('uninstall', id));
                                                 }}
                                                 className="px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors animate-in fade-in slide-in-from-right-2 duration-200"
                                             >
@@ -452,7 +452,7 @@ export function SkillsManager({ compact = false, className, search: externalSear
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setConfirmDeleteId(skill.id);
+                                                    startDelete(skill.id);
                                                 }}
                                                 className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-all"
                                                 title="Uninstall"
@@ -504,7 +504,7 @@ export function SkillsManager({ compact = false, className, search: externalSear
                     badge={skills.length}
                     actions={headerActions}
                 />
-                <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
+                <div className="flex-1 min-h-0 p-4">
                     {loading && skills.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 opacity-20">
                             <Loader2 size={24} className="animate-spin mb-3" />

@@ -259,7 +259,7 @@ export default function Home() {
   // Toast notifications state (via hook)
   const { toasts, dismissToast, showErrorToast, showWarningToast, showInfoToast } = useToast();
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+
   const currentSessionIdRef = useRef<string | null>(currentSessionId);
   const activeChatAbortRef = useRef<AbortController | null>(null);
   const aiProcessingRef = useRef(false); // Track if AI is currently processing
@@ -494,13 +494,7 @@ export default function Home() {
     return 0;
   }, [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages.length, isLoading]); // Scroll on new messages or loading state change
 
   // Load Settings & Migration
   useEffect(() => {

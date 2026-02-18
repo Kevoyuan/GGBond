@@ -1526,7 +1526,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
               onMouseLeave={() => setShowContextTooltip(false)}
             >
               <button
-                className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors hidden sm:flex group"
+                className="flex items-center justify-center gap-1 px-1.5 h-[28px] w-[64px] text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg border border-transparent transition-all hidden sm:flex group"
               >
                 <div className="relative w-4 h-4 flex items-center justify-center">
                   <svg className="w-full h-full transform -rotate-90">
@@ -1675,7 +1675,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
                 setCurrentApprovalMode(nextMode);
               }}
               className={cn(
-                "flex items-center justify-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-all duration-300 relative z-20 w-[60px] h-[26px]",
+                "flex items-center justify-center gap-1.5 px-2 h-[28px] w-[64px] text-[11px] font-bold rounded-lg transition-all duration-300 relative z-20",
                 currentApprovalMode === 'auto'
                   ? "text-orange-500 bg-orange-500/10 hover:bg-orange-500/20 ring-1 ring-orange-500/20"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -1700,7 +1700,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
             <button
               onClick={onToggleTerminal}
               className={cn(
-                "inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors",
+                "inline-flex items-center justify-center gap-1.5 px-3 h-[28px] rounded-lg text-[11px] font-bold transition-colors",
                 showTerminal
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
