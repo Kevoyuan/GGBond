@@ -23,6 +23,7 @@ interface TokenUsageDisplayProps {
   hideContextPercentage?: boolean;
   showMemoryUsage?: boolean;
   floating?: boolean;
+  hover?: boolean;
 }
 
 // Helper to format tokens in k units (e.g., 1500 -> 1.5k)
@@ -33,8 +34,11 @@ function formatTokensK(count: number): string {
   return count.toString();
 }
 
-export function TokenUsageDisplay({ stats, compact = true, className, hideModelInfo = false, hideContextPercentage = false, showMemoryUsage = true, floating = false }: TokenUsageDisplayProps) {
+export function TokenUsageDisplay({ stats, compact = true, className, hideModelInfo = false, hideContextPercentage = false, showMemoryUsage = true, floating = false, hover = false }: TokenUsageDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(!compact);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const showPanel = hover ? isHovered : isExpanded;
 
   // Safely extract values with defaults (handling both camelCase and snake_case)
   const inputTokens = stats.inputTokenCount || stats.input_tokens || stats.inputTokens || 0;
@@ -56,11 +60,18 @@ export function TokenUsageDisplay({ stats, compact = true, className, hideModelI
   const outputPercent = totalTokens > 0 ? (outputTokens / totalTokens) * 100 : 0;
 
   return (
-    <div className={cn("flex flex-col gap-2 font-sans", floating && "relative", className)}>
+    <div
+      className={cn("flex flex-col gap-2 font-sans", floating && "relative", className)}
+      onMouseEnter={() => hover && setIsHovered(true)}
+      onMouseLeave={() => hover && setIsHovered(false)}
+    >
       {/* Compact Header / Toggle */}
       <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-3 text-[10px] sm:text-xs text-muted-foreground/70 hover:text-primary transition-colors group select-none w-fit"
+        onClick={() => !hover && setIsExpanded(!isExpanded)}
+        className={cn(
+          "flex items-center gap-3 text-[10px] sm:text-xs text-muted-foreground/70 hover:text-primary transition-colors group select-none w-fit",
+          hover && "cursor-default"
+        )}
       >
         <div className="flex items-center gap-1.5">
           <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -88,13 +99,13 @@ export function TokenUsageDisplay({ stats, compact = true, className, hideModelI
         )}
 
         <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-1">
-          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {!hover && (isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
         </div>
       </button>
 
       {/* Expanded Details */}
       <AnimatePresence>
-        {isExpanded && (
+        {showPanel && (
           <motion.div
             initial={{ height: 0, opacity: 0, y: -4, scale: 0.98 }}
             animate={{ height: 'auto', opacity: 1, y: 0, scale: 1 }}
