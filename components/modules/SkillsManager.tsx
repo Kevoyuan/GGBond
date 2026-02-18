@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ModuleCard } from './ModuleCard';
 import { Sparkles, Loader2, RefreshCw, Trash2, BookOpen, Search, CheckCircle2, Ban, Plus, SlidersHorizontal, Puzzle, ExternalLink, Edit, PlusCircle, Layers, Globe, FolderOpen } from 'lucide-react';
@@ -32,7 +32,7 @@ interface SkillsManagerProps {
     search?: string;
 }
 
-export function SkillsManager({ compact = false, className, search: externalSearch }: SkillsManagerProps = {}) {
+export const SkillsManager = memo(function SkillsManager({ compact = false, className, search: externalSearch }: SkillsManagerProps = {}) {
     const [skills, setSkills] = useState<Skill[]>([]);
     const [sources, setSources] = useState<SkillSource[]>([]);
     const [loading, setLoading] = useState(true);
@@ -86,9 +86,12 @@ export function SkillsManager({ compact = false, className, search: externalSear
             .finally(() => setLoading(false));
     };
 
+    const fetchSkillsRef = useRef(fetchSkills);
+    fetchSkillsRef.current = fetchSkills;
+
     useEffect(() => { fetchSkills(); }, []);
 
-    const handleAction = async (action: string, name?: string) => {
+    const handleAction = useCallback(async (action: string, name?: string) => {
         if ((action === 'enable' || action === 'disable' || action === 'uninstall') && !name) return;
         if (action === 'install' && !installSource.trim()) return;
         if ((action === 'link_dir' || action === 'unlink_dir') && !linkSource.trim()) return;
@@ -125,17 +128,17 @@ export function SkillsManager({ compact = false, className, search: externalSear
             setActionMessageIsError(true);
         }
         finally { setActionLoading(null); }
-    };
+    }, [installSource, linkSource, fetchSkills]);
 
-    const handleUseSkill = (e: React.MouseEvent, skillId: string) => {
+    const handleUseSkill = useCallback((e: React.MouseEvent, skillId: string) => {
         e.stopPropagation();
         const event = new CustomEvent('insert-skill-token', {
             detail: { skillId }
         });
         window.dispatchEvent(event);
-    };
+    }, []);
 
-    const handleEditSkill = async (e: React.MouseEvent, location: string) => {
+    const handleEditSkill = useCallback(async (e: React.MouseEvent, location: string) => {
         e.stopPropagation();
         if (!location) return;
         try {
@@ -147,26 +150,35 @@ export function SkillsManager({ compact = false, className, search: externalSear
         } catch (error) {
             console.error("Failed to open file", error);
         }
-    };
+    }, []);
 
-    const scopeFilteredSkills = skills.filter((skill) => {
-        return scopeFilter === 'all' ? true : skill.scope === scopeFilter;
-    });
+    const scopeFilteredSkills = useMemo(() =>
+        skills.filter((skill) => {
+            return scopeFilter === 'all' ? true : skill.scope === scopeFilter;
+        }),
+        [skills, scopeFilter]
+    );
 
-    const filteredSkills = scopeFilteredSkills.filter((skill) => {
-        if (statusFilter === 'enabled' && skill.status !== 'Enabled') return false;
-        if (statusFilter === 'disabled' && skill.status !== 'Disabled') return false;
+    const filteredSkills = useMemo(() =>
+        scopeFilteredSkills.filter((skill) => {
+            if (statusFilter === 'enabled' && skill.status !== 'Enabled') return false;
+            if (statusFilter === 'disabled' && skill.status !== 'Disabled') return false;
 
-        const q = search.trim().toLowerCase();
-        if (!q) return true;
-        return (
-            skill.name.toLowerCase().includes(q) ||
-            skill.description.toLowerCase().includes(q) ||
-            skill.location.toLowerCase().includes(q)
-        );
-    });
+            const q = search.trim().toLowerCase();
+            if (!q) return true;
+            return (
+                skill.name.toLowerCase().includes(q) ||
+                skill.description.toLowerCase().includes(q) ||
+                skill.location.toLowerCase().includes(q)
+            );
+        }),
+        [scopeFilteredSkills, statusFilter, search]
+    );
 
-    const enabledCount = scopeFilteredSkills.filter((s) => s.status === 'Enabled').length;
+    const enabledCount = useMemo(() =>
+        scopeFilteredSkills.filter((s) => s.status === 'Enabled').length,
+        [scopeFilteredSkills]
+    );
     const disabledCount = scopeFilteredSkills.length - enabledCount;
     const displaySources = useMemo(() => {
         const seen = new Set<string>();
@@ -545,4 +557,4 @@ export function SkillsManager({ compact = false, className, search: externalSear
             />
         </ModuleCard>
     );
-}
+});
