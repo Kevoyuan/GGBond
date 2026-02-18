@@ -123,8 +123,35 @@ export const Sidebar = React.memo(function Sidebar({
   isCollapsed = false,
   onToggleCollapse,
   workspaceBranchSummary = {},
-  formatSessionAge = (session: Session) => new Date(session.created_at).toLocaleDateString()
+  formatSessionAge = (session: Session) => {
+    const date = new Date(session.created_at);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 1) return 'now';
+    if (diffInSeconds < 60) return `${diffInSeconds}s`;
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m`;
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h`;
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays}d`;
+
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    if (diffInWeeks < 4) return `${diffInWeeks}w`;
+
+    const diffInMonths = Math.floor(diffInDays / 30);
+    if (diffInMonths < 12) return `${diffInMonths}mo`;
+
+    const diffInYears = Math.floor(diffInDays / 365);
+    return `${diffInYears}y`;
+  }
 }: SidebarProps) {
+
+
   const [activeView, setActiveView] = useState<SidebarView>('chat');
   const handleViewClick = useCallback((view: SidebarView) => {
     setActiveView(view);

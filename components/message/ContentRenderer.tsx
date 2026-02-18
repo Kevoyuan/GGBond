@@ -179,7 +179,7 @@ export const ContentRenderer = React.memo(function ContentRenderer({
             }
 
             if (inlineSpans.length > 0) {
-                return <>{renderTextWithSkillRefs(codeStr, skillMetaMap)}</>;
+                return <>{renderTextWithSkillRefs(codeStr, skillMetaMap, { variant: 'plain' })}</>;
             }
 
             return (
