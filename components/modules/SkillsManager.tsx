@@ -202,7 +202,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                     <button
                         onClick={() => setStatusFilter(prev => prev === 'enabled' ? 'all' : 'enabled')}
                         className={cn(
-                            "px-3 py-2.5 rounded-xl border transition-all text-left group",
+                            "px-3 py-2.5 rounded-xl border transition-colors text-left group",
                             statusFilter === 'enabled'
                                 ? "border-emerald-500 bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
                                 : "border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10 hover:border-emerald-500/40"
@@ -217,7 +217,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                     <button
                         onClick={() => setStatusFilter(prev => prev === 'disabled' ? 'all' : 'disabled')}
                         className={cn(
-                            "px-3 py-2.5 rounded-xl border transition-all text-left group",
+                            "px-3 py-2.5 rounded-xl border transition-colors text-left group",
                             statusFilter === 'disabled'
                                 ? "border-primary bg-primary/10 shadow-[0_0_10px_rgba(var(--primary),0.1)]"
                                 : "border-border/50 bg-card/40 hover:border-primary/40"
@@ -297,12 +297,12 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                                 value={installSource}
                                                 onChange={(e) => setInstallSource(e.target.value)}
                                                 placeholder="GitHub URL or local path"
-                                                className="w-full px-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/30 outline-none transition-all font-mono"
+                                                className="w-full px-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/30 outline-none transition-colors font-mono"
                                             />
                                             <button
                                                 onClick={() => handleAction('install')}
                                                 disabled={!installSource.trim() || actionLoading === `install:${installSource}`}
-                                                className="w-full px-4 py-2 text-[10px] rounded-lg bg-primary text-primary-foreground font-bold uppercase tracking-widest hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg"
+                                                className="w-full px-4 py-2 text-[10px] rounded-lg bg-primary text-primary-foreground font-bold uppercase tracking-widest hover:brightness-110 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 shadow-lg"
                                             >
                                                 {actionLoading?.startsWith('install:') ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
                                                 Install
@@ -320,20 +320,20 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                                 value={linkSource}
                                                 onChange={(e) => setLinkSource(e.target.value)}
                                                 placeholder="~/.claude/skills"
-                                                className="w-full px-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/30 outline-none transition-all font-mono"
+                                                className="w-full px-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/30 outline-none transition-colors font-mono"
                                             />
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button
                                                     onClick={() => handleAction('link_dir')}
                                                     disabled={!linkSource.trim() || actionLoading === `link_dir:${linkSource.trim()}`}
-                                                    className="px-3 py-2 text-[10px] rounded-lg bg-secondary/80 text-secondary-foreground font-bold uppercase tracking-widest hover:bg-secondary disabled:opacity-50 transition-all border border-border/50"
+                                                    className="px-3 py-2 text-[10px] rounded-lg bg-secondary/80 text-secondary-foreground font-bold uppercase tracking-widest hover:bg-secondary disabled:opacity-50 transition-colors border border-border/50"
                                                 >
                                                     Link
                                                 </button>
                                                 <button
                                                     onClick={() => handleAction('unlink_dir')}
                                                     disabled={!linkSource.trim() || actionLoading === `unlink_dir:${linkSource.trim()}`}
-                                                    className="px-3 py-2 text-[10px] rounded-lg border border-border/50 bg-background/50 hover:bg-muted font-bold uppercase tracking-widest disabled:opacity-50 transition-all"
+                                                    className="px-3 py-2 text-[10px] rounded-lg border border-border/50 bg-background/50 hover:bg-muted font-bold uppercase tracking-widest disabled:opacity-50 transition-colors"
                                                 >
                                                     Unlink
                                                 </button>
@@ -392,7 +392,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                             <div
                                 key={skill.id}
                                 className={cn(
-                                    "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-muted/40 dark:hover:bg-muted/40 transition-all cursor-pointer group",
+                                    "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-muted/40 dark:hover:bg-muted/40 transition-colors cursor-pointer group",
                                     selectedSkill?.id === skill.id && "bg-primary/5 border-primary ring-1 ring-primary/20 text-primary"
                                 )}
                                 onClick={() => setSelectedSkill(skill)}
@@ -417,7 +417,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                     {skill.status === 'Enabled' && (
                                         <button
                                             onClick={(e) => handleUseSkill(e, skill.id)}
-                                            className="p-1 px-[5px] text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-all shrink-0"
+                                            className="p-1 px-[5px] text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors shrink-0"
                                             title="Add to chat"
                                         >
                                             <PlusCircle size={14} className="stroke-[2.5]" />
@@ -426,14 +426,14 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                 </div>
 
                                 <div
-                                    className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all"
+                                    className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-colors"
                                     onMouseLeave={() => handleMouseLeave(skill.id)}
                                 >
                                     <div className="w-[1px] h-4 bg-border/50 mx-1" />
                                     {skill.status === 'Enabled' ? (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleAction('disable', skill.id); }}
-                                            className="p-1.5 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-md transition-all"
+                                            className="p-1.5 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-md transition-colors"
                                             title="Disable"
                                             disabled={actionLoading === `disable:${skill.id}`}
                                         >
@@ -442,7 +442,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                     ) : (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleAction('enable', skill.id); }}
-                                            className="p-1.5 text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 rounded-md transition-all"
+                                            className="p-1.5 text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 rounded-md transition-colors"
                                             title="Enable"
                                             disabled={actionLoading === `enable:${skill.id}`}
                                         >
@@ -466,7 +466,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                                     e.stopPropagation();
                                                     startDelete(skill.id);
                                                 }}
-                                                className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-all"
+                                                className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
                                                 title="Uninstall"
                                                 disabled={actionLoading === `uninstall:${skill.id}`}
                                             >
@@ -488,7 +488,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
             <button
                 onClick={() => setShowAdvanced((prev) => !prev)}
                 className={cn(
-                    "p-1.5 rounded-lg transition-all border",
+                    "p-1.5 rounded-lg transition-colors border",
                     showAdvanced
                         ? "bg-primary text-primary-foreground border-primary shadow-inner"
                         : "text-muted-foreground border-transparent hover:bg-primary/10 hover:text-primary"
@@ -499,7 +499,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
             </button>
             <button
                 onClick={fetchSkills}
-                className="p-1.5 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary transition-all"
+                className="p-1.5 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
                 title="Sync Registry"
             >
                 <RefreshCw size={14} className={cn(loading && "animate-spin")} />

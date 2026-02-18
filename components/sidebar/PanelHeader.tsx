@@ -34,7 +34,7 @@ export function PanelHeader({
 }: PanelHeaderProps) {
     return (
         <div className={cn(
-            "h-14 flex items-center justify-between px-4 bg-card z-20 transition-all drag-region",
+            "h-14 flex items-center justify-between px-4 bg-card z-20 transition-colors drag-region",
             sticky && "sticky top-0",
             className
         )}>
