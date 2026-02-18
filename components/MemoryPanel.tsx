@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import {
     Database,
@@ -51,7 +51,7 @@ const buildWorkspaceGeminiPath = (workspacePath?: string) => {
     return `${trimmed}/GEMINI.md`;
 };
 
-export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPanelProps) {
+export const MemoryPanel = memo(function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPanelProps) {
     const [files, setFiles] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -458,4 +458,4 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
             {portalReady && editorModal ? createPortal(editorModal, document.body) : null}
         </div>
     );
-}
+});

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, memo } from 'react';
 import {
     Plug,
     Activity,
@@ -65,7 +65,7 @@ const defaultServerStatus = (status?: string): ServerStatus => {
     return 'disconnected';
 };
 
-export function MCPPanel({ className }: MCPPanelProps) {
+export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
     const [servers, setServers] = useState<Record<string, MCPServerRecord>>({});
     const [discoveryState, setDiscoveryState] = useState('not_started');
     const [isLoading, setIsLoading] = useState(true);
@@ -430,4 +430,4 @@ export function MCPPanel({ className }: MCPPanelProps) {
             )}
         </div>
     );
-}
+});
