@@ -13,7 +13,7 @@ export type SkillSpan = {
     start: number;
     end: number;
     skillId: string;
-    source: 'path' | 'token';
+    source: 'path' | 'token' | 'agent';
     path?: string;
 };
 
@@ -23,7 +23,8 @@ const SKILL_REGEX = {
     CMD: /\/skills\s+([A-Za-z0-9._-]+)/gi,
     USE: /\buse skill\s+([A-Za-z0-9._-]+)\b/gi,
     ACTIVATE: /\bactivate_skill\s+([A-Za-z0-9._-]+)\b/gi,
-    TOKEN: /\b([A-Za-z0-9._-]+)\b/g
+    TOKEN: /\b([A-Za-z0-9._-]+)\b/g,
+    AGENT: /#([A-Za-z0-9._-]+)/g
 };
 
 let skillMetaCache: SkillMetaMap | null = null;
@@ -91,6 +92,7 @@ export function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): Sk
     SKILL_REGEX.CMD.lastIndex = 0;
     SKILL_REGEX.USE.lastIndex = 0;
     SKILL_REGEX.ACTIVATE.lastIndex = 0;
+    SKILL_REGEX.AGENT.lastIndex = 0;
 
     while ((match = SKILL_REGEX.PATH.exec(text)) !== null) {
         const full = match[0];
@@ -159,6 +161,18 @@ export function collectSkillSpans(text: string, skillMetaMap?: SkillMetaMap): Sk
         });
     }
 
+    while ((match = SKILL_REGEX.AGENT.exec(text)) !== null) {
+        const full = match[0];
+        const agentName = match[1];
+        if (!agentName) continue;
+        spans.push({
+            start: match.index,
+            end: match.index + full.length,
+            skillId: agentName,
+            source: 'agent',
+        });
+    }
+
     if (knownSkillIds.length > 0) {
         SKILL_REGEX.TOKEN.lastIndex = 0;
         while ((match = SKILL_REGEX.TOKEN.exec(text)) !== null) {
@@ -209,7 +223,7 @@ export const SkillBadge = React.memo(function SkillBadge({
     variant = 'plain',
 }: {
     skillId: string;
-    source: 'path' | 'token';
+    source: 'path' | 'token' | 'agent';
     meta?: SkillMeta;
     hideTooltip?: boolean;
     variant?: 'badge' | 'plain';
@@ -217,15 +231,24 @@ export const SkillBadge = React.memo(function SkillBadge({
     const label = source === 'path'
         ? 'SKILL.md'
         : (meta?.name || toTitleCaseSkill(skillId));
-    const description = meta?.description || `Skill: ${skillId}`;
+
+    // Determine description based on source
+    let description = meta?.description;
+    if (!description) {
+        if (source === 'agent') {
+            description = `Agent: ${skillId}`;
+        } else {
+            description = `Skill: ${skillId}`;
+        }
+    }
 
     return (
         <span className="group/skillref relative inline-flex align-baseline">
             <span className={cn(
                 "inline-flex items-center text-[11px] font-bold transition-colors",
-                variant === 'badge'
-                    ? "rounded-md border border-current/20 bg-current/10 px-2 py-0.5 shadow-sm text-violet-300 dark:text-violet-700"
-                    : "text-violet-700 dark:text-violet-400 hover:text-violet-600"
+                variant === 'badge' ? (
+                    "rounded-md border border-violet-300 bg-violet-100 dark:bg-violet-200/90 text-violet-900 dark:text-violet-950 px-2 py-0.5 shadow-sm font-medium"
+                ) : "text-violet-700 dark:text-violet-400 hover:text-violet-600"
             )}>
                 {label}
             </span>
