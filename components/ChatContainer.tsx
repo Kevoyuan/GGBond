@@ -251,7 +251,7 @@ export const ChatContainer = React.memo(function ChatContainer({
                                     "flex items-center justify-center w-9 h-9 rounded-full",
                                     "bg-[var(--accent)] shadow-lg shadow-[var(--accent)]/20",
                                     "text-white border border-white/10",
-                                    "hover:scale-110 active:scale-95 transition-all duration-200",
+                                    "hover:scale-110 active:scale-95 transition-transform duration-200",
                                     "animate-in fade-in slide-in-from-bottom-4"
                                 )}
                                 title="Scroll to bottom"
