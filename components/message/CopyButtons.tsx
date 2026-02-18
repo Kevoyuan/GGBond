@@ -14,7 +14,7 @@ export const CodeCopyButton = React.memo(function CodeCopyButton({ content }: { 
     return (
         <button
             onClick={handleCopy}
-            className="p-1.5 bg-muted/80 backdrop-blur-sm hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-all"
+            className="p-1.5 bg-muted/80 backdrop-blur-sm hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
             title="Copy code"
         >
             {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -37,7 +37,7 @@ export function CopyButton({ content, className }: { content: string; className?
             type="button"
             onClick={handleCopy}
             className={cn(
-                "inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 dark:hover:bg-muted/30 transition-all",
+                "inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 dark:hover:bg-muted/30 transition-colors",
                 className
             )}
             title="Copy message text"
