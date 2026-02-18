@@ -5,7 +5,7 @@ description: React 应用性能优化技术，包括 React.memo、useCallback、
 
 # React Performance Optimization
 
-提供 React 应用性能优化指南和可复用的代码模式。
+提供 React 应用性能优化指南和可复用的代码模式。调用 using-superpowers, ui-ux-pro-max skills
 
 ## 使用场景
 
