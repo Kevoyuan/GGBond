@@ -8,7 +8,6 @@ import {
     RefreshCw,
     Plus,
     Trash2,
-    Edit3,
     ExternalLink,
     AlertCircle,
     CheckCircle2,
@@ -405,16 +404,6 @@ export const MemoryPanel = memo(function MemoryPanel({ onFileSelect, className, 
                                             </div>
                                         </div>
                                         <div className="opacity-0 group-hover:opacity-100 transition-colors flex items-center gap-1 mt-1">
-                                            <button
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    void openEditor(filePath);
-                                                }}
-                                                className="p-1.5 hover:bg-primary/20 hover:text-primary rounded-md text-muted-foreground transition-colors"
-                                                title="Edit Memory"
-                                            >
-                                                <Edit3 className="w-3.5 h-3.5" />
-                                            </button>
                                             <button
                                                 onClick={(event) => {
                                                     event.stopPropagation();
