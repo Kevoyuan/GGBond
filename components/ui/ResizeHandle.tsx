@@ -144,19 +144,19 @@ export const ResizeHandle = React.memo(function ResizeHandle({
     <div
       onMouseDown={onMouseDown}
       className={cn(
-        'flex items-center justify-center transition-colors z-50',
+        'flex items-center justify-center transition-colors z-50 rounded-sm',
         isHorizontal
-          ? 'w-1.5 h-full cursor-col-resize bg-transparent hover:bg-[var(--accent)]/50'
-          : 'h-[5px] cursor-row-resize flex items-center justify-center hover:bg-[var(--bg-hover)] transition-colors shrink-0 -mt-1 z-10',
-        isResizing && 'bg-[var(--accent)]',
+          ? 'w-2 h-full cursor-col-resize bg-[var(--bg-secondary)]/50 hover:bg-[var(--accent)]/30'
+          : 'h-2 cursor-row-resize flex items-center justify-center bg-[var(--bg-secondary)]/50 hover:bg-[var(--accent)]/30 transition-colors shrink-0 -mt-0.5 z-10',
+        isResizing && 'bg-[var(--accent)]/40',
         className
       )}
     >
       {/* Visible line indicator */}
       <div
         className={cn(
-          isHorizontal ? 'w-0.5 h-full bg-[var(--border-subtle)]' : 'w-8 h-0.5 bg-[var(--border-subtle)]',
-          isResizing ? 'bg-[var(--accent)]' : 'group-hover:bg-[var(--accent)]/50',
+          isHorizontal ? 'w-0.5 h-8 bg-[var(--border)]' : 'w-10 h-0.5 bg-[var(--border)]',
+          isResizing ? 'bg-[var(--accent)]' : 'group-hover:bg-[var(--accent)]/70',
           indicatorClassName
         )}
       />
