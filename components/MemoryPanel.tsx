@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import {
     Database,
@@ -8,7 +8,6 @@ import {
     RefreshCw,
     Plus,
     Trash2,
-    Edit3,
     ExternalLink,
     AlertCircle,
     CheckCircle2,
@@ -19,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './sidebar/PanelHeader';
+import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 
 interface MemoryPanelProps {
     onFileSelect?: (file: { name: string; path: string }) => void;
@@ -51,7 +51,7 @@ const buildWorkspaceGeminiPath = (workspacePath?: string) => {
     return `${trimmed}/GEMINI.md`;
 };
 
-export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPanelProps) {
+export const MemoryPanel = memo(function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPanelProps) {
     const [files, setFiles] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -64,6 +64,9 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
     const [editorMode, setEditorMode] = useState<'create' | 'edit'>('edit');
     const [portalReady, setPortalReady] = useState(false);
     const editorFileName = editorPath ? (editorPath.split(/[\\/]/).pop() || editorPath) : '';
+
+    // Delete confirmation state
+    const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
 
     const closeEditor = () => {
         setEditorPath(null);
@@ -200,9 +203,6 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
     };
 
     const handleDelete = async (filePath: string) => {
-        const confirmed = window.confirm(`Permanently delete ${filePath}?`);
-        if (!confirmed) return;
-
         try {
             const res = await fetch('/api/memory', {
                 method: 'POST',
@@ -256,7 +256,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                     </div>
                     <button
                         onClick={closeEditor}
-                        className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-all"
+                        className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
                     >
                         <X className="w-6 h-6" />
                     </button>
@@ -273,7 +273,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                             value={editorContent}
                             onChange={(event) => setEditorContent(event.target.value)}
                             spellCheck={false}
-                            className="w-full h-full min-h-0 resize-none rounded-xl border border-border/50 bg-muted/20 p-6 text-[14px] leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all selection:bg-primary/20"
+                            className="w-full h-full min-h-0 resize-none rounded-xl border border-border/50 bg-muted/20 p-6 text-[14px] leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors selection:bg-primary/20"
                         />
                     )}
                 </div>
@@ -285,14 +285,14 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                     <div className="flex items-center gap-3">
                         <button
                             onClick={closeEditor}
-                            className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-muted transition-all"
+                            className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-muted transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             onClick={() => void handleSave()}
                             disabled={saving || editorLoading}
-                            className="px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest bg-primary text-primary-foreground hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all shadow-lg flex items-center gap-2"
+                            className="px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest bg-primary text-primary-foreground hover:brightness-110 active:scale-95 disabled:opacity-50 transition-colors shadow-lg flex items-center gap-2"
                         >
                             {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                             {saving ? 'Saving...' : 'Save Context'}
@@ -313,14 +313,14 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                     <div className="flex items-center gap-1">
                         <button
                             onClick={handleCreate}
-                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                             title="Add Memory Document"
                         >
                             <Plus className="w-4 h-4" />
                         </button>
                         <button
                             onClick={handleRefresh}
-                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                             title="Force Sync Context"
                             disabled={refreshing}
                         >
@@ -361,7 +361,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                     </div>
                 ) : files.length === 0 ? (
                     <div className="p-8 text-center space-y-6">
-                        <div className="w-20 h-20 bg-primary/5 rounded-3xl border border-primary/10 flex items-center justify-center mx-auto opacity-30 group hover:opacity-100 transition-all duration-500">
+                        <div className="w-20 h-20 bg-primary/5 rounded-3xl border border-primary/10 flex items-center justify-center mx-auto opacity-30 group hover:opacity-100 transition-colors duration-500">
                             <FileText className="w-10 h-10 text-primary group-hover:scale-110 transition-transform" />
                         </div>
                         <div className="space-y-2">
@@ -372,7 +372,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                         </div>
                         <button
                             onClick={handleCreate}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-widest rounded-xl mx-auto hover:brightness-110 active:scale-95 transition-all shadow-xl"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-widest rounded-xl mx-auto hover:brightness-110 active:scale-95 transition-colors shadow-xl"
                         >
                             <Plus className="w-4 h-4" />
                             Enshrine Knowledge
@@ -389,7 +389,7 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                             return (
                                 <div
                                     key={filePath}
-                                    className="group relative flex flex-col p-3 rounded-xl border border-border/50 bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-all duration-200 cursor-pointer"
+                                    className="group relative flex flex-col p-3 rounded-xl border border-border/50 bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-colors duration-200 cursor-pointer"
                                     onClick={() => onFileSelect?.({ name, path: filePath })}
                                 >
                                     <div className="flex items-start justify-between">
@@ -404,27 +404,40 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1 mt-1">
-                                            <button
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    void openEditor(filePath);
-                                                }}
-                                                className="p-1.5 hover:bg-primary/20 hover:text-primary rounded-md text-muted-foreground transition-all"
-                                                title="Edit Memory"
-                                            >
-                                                <Edit3 className="w-3.5 h-3.5" />
-                                            </button>
-                                            <button
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    void handleDelete(filePath);
-                                                }}
-                                                className="p-1.5 hover:bg-red-500/20 hover:text-red-500 rounded-md text-muted-foreground transition-all"
-                                                title="Purge Document"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
+                                        <div className="opacity-0 group-hover:opacity-100 transition-colors flex items-center gap-1 mt-1">
+                                            {isPending(filePath) ? (
+                                                <>
+                                                    <button
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            confirmDelete(filePath, handleDelete);
+                                                        }}
+                                                        className="flex items-center justify-center h-6 px-2 rounded bg-red-500 text-white text-[10px] font-medium hover:bg-red-600 transition-colors shadow-sm"
+                                                    >
+                                                        Confirm
+                                                    </button>
+                                                    <button
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            handleMouseLeave(filePath);
+                                                        }}
+                                                        className="p-1.5 hover:bg-muted rounded-md text-muted-foreground transition-colors"
+                                                    >
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <button
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        startDelete(filePath);
+                                                    }}
+                                                    className="p-1.5 hover:bg-red-500/20 hover:text-red-500 rounded-md text-muted-foreground transition-colors"
+                                                    title="Purge Document"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
 
@@ -458,4 +471,4 @@ export function MemoryPanel({ onFileSelect, className, workspacePath }: MemoryPa
             {portalReady && editorModal ? createPortal(editorModal, document.body) : null}
         </div>
     );
-}
+});

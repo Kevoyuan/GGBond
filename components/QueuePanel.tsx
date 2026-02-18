@@ -144,7 +144,7 @@ export function QueuePanel({ sessionId, isOpen, onToggle, onProcessNext, isProce
           <div className="flex items-center gap-1">
             <button
               onClick={fetchQueue}
-              className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+              className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
               title="Refresh Queue"
             >
               <RotateCcw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
@@ -154,7 +154,7 @@ export function QueuePanel({ sessionId, isOpen, onToggle, onProcessNext, isProce
                 onClick={onProcessNext}
                 disabled={isProcessing}
                 className={cn(
-                  "p-1.5 rounded-lg transition-all",
+                  "p-1.5 rounded-lg transition-colors",
                   isProcessing
                     ? "bg-muted text-muted-foreground/30 cursor-not-allowed"
                     : "bg-primary/10 text-primary hover:bg-primary/20"
@@ -166,7 +166,7 @@ export function QueuePanel({ sessionId, isOpen, onToggle, onProcessNext, isProce
             )}
             <button
               onClick={() => handleClear('completed')}
-              className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-all"
+              className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
               title="Clear Completed"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -231,7 +231,7 @@ export function QueuePanel({ sessionId, isOpen, onToggle, onProcessNext, isProce
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-colors">
                     {(item.status === 'pending' || item.status === 'processing') && (
                       <button
                         onClick={() => handleCancel(item.id)}

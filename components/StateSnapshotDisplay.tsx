@@ -84,7 +84,7 @@ export function StateSnapshotDisplay({ content }: StateSnapshotDisplayProps) {
                       <span>Task Progress</span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-primary transition-all duration-500" style={{ width: `${progress}%` }} />
+                      <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
                     </div>
                     <div className="text-xs text-muted-foreground whitespace-pre-wrap font-mono bg-muted/30 p-2 rounded border border-border/50">
                       {snapshot.task_state}

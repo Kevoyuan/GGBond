@@ -130,6 +130,33 @@ export const ContentRenderer = React.memo(function ContentRenderer({
         li({ children, ...props }) {
             return <li {...props}>{injectSkillRefs(children, skillMetaMap)}</li>;
         },
+        strong({ children, ...props }) {
+            return <strong {...props} className="font-bold text-zinc-900 dark:text-white">{children}</strong>;
+        },
+        h1({ children, ...props }) {
+            return <h1 {...props} className="text-2xl font-bold text-zinc-900 dark:text-white mb-4 mt-6">{children}</h1>;
+        },
+        h2({ children, ...props }) {
+            return <h2 {...props} className="text-xl font-bold text-zinc-900 dark:text-white mb-3 mt-5">{children}</h2>;
+        },
+        h3({ children, ...props }) {
+            return <h3 {...props} className="text-lg font-bold text-zinc-900 dark:text-white mb-2 mt-4">{children}</h3>;
+        },
+        h4({ children, ...props }) {
+            return <h4 {...props} className="text-base font-bold text-zinc-900 dark:text-white mb-2 mt-3">{children}</h4>;
+        },
+        h5({ children, ...props }) {
+            return <h5 {...props} className="text-sm font-bold text-zinc-900 dark:text-white mb-1 mt-2">{children}</h5>;
+        },
+        h6({ children, ...props }) {
+            return <h6 {...props} className="text-xs font-bold text-zinc-900 dark:text-white mb-1 mt-2">{children}</h6>;
+        },
+        a({ children, ...props }) {
+            return <a {...props} className="font-medium text-blue-600 dark:text-blue-400 hover:underline">{children}</a>;
+        },
+        blockquote({ children, ...props }) {
+            return <blockquote {...props} className="border-l-2 border-zinc-300 dark:border-zinc-600 pl-4 py-1 my-2 text-zinc-600 dark:text-zinc-300 italic">{children}</blockquote>;
+        },
         code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '')
             const lang = match?.[1];
@@ -152,11 +179,11 @@ export const ContentRenderer = React.memo(function ContentRenderer({
             }
 
             if (inlineSpans.length > 0) {
-                return <>{renderTextWithSkillRefs(codeStr, skillMetaMap)}</>;
+                return <>{renderTextWithSkillRefs(codeStr, skillMetaMap, { variant: 'plain' })}</>;
             }
 
             return (
-                <code {...props} className={cn(className, "text-xs font-mono")}>
+                <code {...props} className={cn(className, "text-[13px] font-mono bg-zinc-100 dark:bg-white/10 border border-zinc-200 dark:border-white/10 px-1.5 py-0.5 rounded-md text-zinc-800 dark:text-zinc-100")}>
                     {children}
                 </code>
             )
@@ -238,7 +265,7 @@ export const ContentRenderer = React.memo(function ContentRenderer({
 
                 return (
                     <div key={index} className="timeline-item">
-                        <div className="prose dark:prose-invert prose-sm max-w-none break-words prose-p:leading-relaxed prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-code:bg-muted/30 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none opacity-90">
+                        <div className="prose dark:prose-invert prose-sm max-w-none break-words prose-p:leading-relaxed prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-code:bg-muted/30 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm prose-code:before:content-none prose-code:after:content-none text-primary">
                             <ReactMarkdown
                                 components={markdownComponents}
                             >
