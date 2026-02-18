@@ -171,7 +171,7 @@ export function MessageTimeline({
                             <div
                                 key={item.id || item.index}
                                 className={cn(
-                                    'group relative pl-8 transition-all duration-300 ease-out',
+                                    'group relative pl-8 transition-colors duration-300 ease-out',
                                     isActive ? 'opacity-100 z-10' : 'opacity-80 hover:opacity-100',
                                     item.role === 'user' ? 'py-1' : 'py-2'
                                 )}
@@ -179,7 +179,7 @@ export function MessageTimeline({
                             >
                                 {/* Connector Dot */}
                                 <div className={cn(
-                                    'absolute left-[7px] w-2.5 h-2.5 rounded-full border-2 transition-all duration-300 z-20',
+                                    'absolute left-[7px] w-2.5 h-2.5 rounded-full border-2 transition-colors duration-300 z-20',
                                     'bg-background shadow-sm',
                                     item.role === 'user' ? 'top-[0.7rem]' : 'top-[1.5rem]',
                                     isActive
@@ -198,7 +198,7 @@ export function MessageTimeline({
                                 {item.role === 'user' ? (
                                     // Compact User Row
                                     <div className={cn(
-                                        'relative rounded-lg px-0 py-1 cursor-pointer transition-all duration-200 border border-transparent', // Reduced padding
+                                        'relative rounded-lg px-0 py-1 cursor-pointer transition-colors duration-200 border border-transparent', // Reduced padding
                                         isActive
                                             ? 'text-primary font-medium'
                                             : 'text-muted-foreground hover:text-foreground'
@@ -212,7 +212,7 @@ export function MessageTimeline({
                                 ) : (
                                     // Full Card for AI / System
                                     <div className={cn(
-                                        'relative rounded-xl border p-3 cursor-pointer transition-all duration-200',
+                                        'relative rounded-xl border p-3 cursor-pointer transition-colors duration-200',
                                         isActive
                                             ? 'bg-background border-primary/40 shadow-sm'
                                             : 'bg-card/40 border-transparent hover:bg-card hover:border-border/50 hover:shadow-md hover:-translate-y-0.5'

@@ -36,7 +36,7 @@ export const Titlebar = React.memo(function Titlebar({
             {/* Titlebar Left - Fixed at Panel Width */}
             <div
                 className={cn(
-                    "flex items-center justify-between px-4 shrink-0 transition-all duration-200 ease-in-out border-r drag-region w-[var(--panel-width)]",
+                    "flex items-center justify-between px-4 shrink-0 transition-colors duration-200 ease-in-out border-r drag-region w-[var(--panel-width)]",
                     // When collapsed: match main content background, hide border
                     isCollapsed
                         ? "bg-[var(--bg-primary)] border-r-transparent"
