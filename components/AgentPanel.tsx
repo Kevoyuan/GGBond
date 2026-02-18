@@ -12,6 +12,7 @@ import { useAppStore } from '@/stores/useAppStore';
 import { AgentIcon } from './icons/AgentIcon';
 import { PanelHeader } from './sidebar/PanelHeader';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 
 interface AgentDefinition {
     name: string;
@@ -56,7 +57,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className, search
     const [scanning, setScanning] = useState(false);
     const [isDirectory, setIsDirectory] = useState(false);
 
-    const [confirmDeleteName, setConfirmDeleteName] = useState<string | null>(null);
+    const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
     const [agentListHeight, setAgentListHeight] = useState(550);
     const [isResizing, setIsResizing] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -527,14 +528,13 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className, search
                                                 {isUserAgent(agent.name) && (
                                                     <div
                                                         className="flex items-center"
-                                                        onMouseLeave={() => setConfirmDeleteName(null)}
+                                                        onMouseLeave={() => handleMouseLeave(agent.name)}
                                                     >
-                                                        {confirmDeleteName === agent.name ? (
+                                                        {isPending(agent.name) ? (
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    handleAction('delete', agent.name);
-                                                                    setConfirmDeleteName(null);
+                                                                    confirmDelete(agent.name, (name) => handleAction('delete', name));
                                                                 }}
                                                                 className="px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors animate-in fade-in slide-in-from-right-2 duration-200"
                                                             >
@@ -544,7 +544,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className, search
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    setConfirmDeleteName(agent.name);
+                                                                    startDelete(agent.name);
                                                                 }}
                                                                 className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-all"
                                                                 title="Delete"

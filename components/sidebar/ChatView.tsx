@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './PanelHeader';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 
 interface Session {
     id: string;
@@ -61,7 +62,7 @@ export const ChatView = React.memo(function ChatView({
 }: ChatViewProps & { searchTerm?: string }) {
     // Internal state for workspace collapse
     const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set());
-    const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null);
+    const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
 
     const toggleWorkspace = (workspace: string) => {
         const newCollapsed = new Set(collapsedWorkspaces);
@@ -177,18 +178,16 @@ export const ChatView = React.memo(function ChatView({
                                         <div
                                             key={session.id}
                                             className={cn(
-                                                "group flex items-center gap-2.5 px-2 py-2 rounded-md cursor-pointer transition-all border border-transparent select-none",
+                                                "group relative flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-all border border-transparent select-none",
                                                 isActive
                                                     ? "bg-[var(--bg-active)]"
                                                     : "hover:bg-[var(--bg-hover)]"
                                             )}
                                             onClick={() => onSelectSession(session.id)}
-                                            onMouseLeave={() => {
-                                                if (pendingDeleteSessionId === session.id) setPendingDeleteSessionId(null);
-                                            }}
+                                            onMouseLeave={() => handleMouseLeave(session.id)}
                                         >
                                             {/* Status Dot */}
-                                            <div className="shrink-0 pt-0.5 self-start">
+                                            <div className="shrink-0">
                                                 {isSessionRunning ? (
                                                     <div className="w-2 h-2 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
                                                 ) : isUnread ? (
@@ -201,56 +200,38 @@ export const ChatView = React.memo(function ChatView({
                                             </div>
 
                                             {/* Item Info */}
-                                            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                                            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
                                                 <div className={cn(
-                                                    "text-[13px] font-medium truncate leading-tight",
+                                                    "text-[13px] font-medium truncate leading-none",
                                                     isActive ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"
                                                 )}>
                                                     {session.title}
                                                 </div>
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span className="text-[11px] text-[var(--text-tertiary)] truncate">
-                                                        {isActive ? 'Active now' : 'Chat'}
-                                                    </span>
 
-                                                    {pendingDeleteSessionId !== session.id && (
-                                                        <span className="text-[10px] text-[var(--text-tertiary)] shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
-                                                            {formatSessionAge(session)}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                                {!isPending(session.id) && (
+                                                    <span className="text-[10px] text-[var(--text-tertiary)] shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
+                                                        {formatSessionAge(session)}
+                                                    </span>
+                                                )}
                                             </div>
 
-                                            {/* Delete Action (Top right or overlay) */}
-                                            {pendingDeleteSessionId === session.id && (
-                                                <div className="absolute inset-0 flex items-center justify-end px-2 bg-[var(--bg-secondary)] rounded-md">
-                                                    <span className="text-[11px] text-[var(--text-secondary)] mr-2">Delete?</span>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onDeleteSession(session.id);
-                                                        }}
-                                                        className="px-2 py-0.5 rounded bg-[var(--red)] text-white text-[10px] font-medium hover:bg-red-600 transition-colors"
-                                                    >
-                                                        Confirm
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setPendingDeleteSessionId(null);
-                                                        }}
-                                                        className="ml-1 p-1"
-                                                    >
-                                                        <Plus className="w-3 h-3 rotate-45 text-[var(--text-secondary)]" />
-                                                    </button>
-                                                </div>
-                                            )}
 
-                                            {pendingDeleteSessionId !== session.id && (
+                                            {/* Delete Action */}
+                                            {isPending(session.id) ? (
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        setPendingDeleteSessionId(session.id);
+                                                        confirmDelete(session.id, onDeleteSession);
+                                                    }}
+                                                    className="absolute right-2 px-2 py-0.5 rounded bg-[var(--red)] text-white text-[10px] font-medium hover:bg-red-600 transition-colors"
+                                                >
+                                                    Confirm
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        startDelete(session.id);
                                                     }}
                                                     className="absolute right-2 opacity-0 group-hover:opacity-100 p-1 hover:bg-[var(--bg-tertiary)] hover:text-[var(--red)] rounded transition-all"
                                                 >
