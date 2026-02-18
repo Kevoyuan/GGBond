@@ -1227,7 +1227,7 @@ export function TerminalPanel({
               </div>
 
               {showActionMenu && (
-                <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-60 rounded-xl border border-border/50 bg-zinc-950 shadow-2xl p-1.5 animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/5 dark:ring-white/5">
+                <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-60 rounded-xl border border-border/50 bg-background dark:bg-zinc-950 shadow-2xl p-1.5 animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/5 dark:ring-white/5">
                   <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
                     {environment.name || 'workspace'} actions
                   </div>
@@ -1242,13 +1242,13 @@ export function TerminalPanel({
                           className={cn(
                             'w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-left transition-all',
                             selected
-                              ? 'bg-zinc-800 text-zinc-100'
-                              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+                              ? 'bg-primary/10 dark:bg-zinc-800 text-foreground dark:text-zinc-100'
+                              : 'text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:hover:text-zinc-200 hover:bg-muted dark:hover:bg-zinc-900'
                           )}
                           title={action.script || 'No script set'}
                         >
-                          <div className={cn("p-1 rounded-md bg-zinc-900 border border-zinc-800", selected && "border-zinc-700 bg-zinc-800")}>
-                            <Play size={10} className={cn(selected ? "text-emerald-400" : "text-zinc-500")} fill="currentColor" />
+                          <div className={cn("p-1 rounded-md bg-muted dark:bg-zinc-900 border border-border/50 dark:border-zinc-800", selected && "border-primary/30 dark:border-zinc-700 bg-primary/5 dark:bg-zinc-800")}>
+                            <Play size={10} className={cn(selected ? "text-emerald-500 dark:text-emerald-400" : "text-muted-foreground dark:text-zinc-500")} fill="currentColor" />
                           </div>
                           <span className="flex-1 truncate">{action.name}</span>
                           {selected && <Check size={12} className="text-emerald-500 shrink-0" />}
@@ -1264,9 +1264,9 @@ export function TerminalPanel({
                       setShowActionMenu(false);
                       setShowEnvironmentSettings(true);
                     }}
-                    className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-left text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 transition-colors"
+                    className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-left text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:hover:text-zinc-200 hover:bg-muted dark:hover:bg-zinc-900 transition-colors"
                   >
-                    <Plus size={12} className="text-muted-foreground shrink-0" />
+                    <Plus size={12} className="text-muted-foreground dark:text-muted-foreground shrink-0" />
                     Add action
                   </button>
                   <button
@@ -1275,9 +1275,9 @@ export function TerminalPanel({
                       setShowActionMenu(false);
                       setShowEnvironmentSettings(true);
                     }}
-                    className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-left text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 transition-colors"
+                    className="w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-left text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:hover:text-zinc-200 hover:bg-muted dark:hover:bg-zinc-900 transition-colors"
                   >
-                    <Settings2 size={12} className="text-muted-foreground shrink-0" />
+                    <Settings2 size={12} className="text-muted-foreground dark:text-muted-foreground shrink-0" />
                     Change environment
                   </button>
                 </div>
@@ -1307,7 +1307,7 @@ export function TerminalPanel({
         <div className="flex-1 flex min-h-0 relative">
           <div
             ref={outputRef}
-            className="flex-1 overflow-y-auto bg-zinc-950 text-zinc-100 font-mono text-[13px] px-3 py-3 space-y-3"
+            className="flex-1 overflow-y-auto bg-zinc-950 dark:bg-zinc-950 text-zinc-100 dark:text-zinc-100 font-mono text-[13px] px-3 py-3 space-y-3"
             onClick={() => commandTextareaRef.current?.focus()}
           >
             {activeSession.entries.map((entry) => (
@@ -1321,7 +1321,7 @@ export function TerminalPanel({
 
             <div>
               <div className="flex items-start gap-2">
-                <span className="font-mono text-[13px] text-zinc-400 shrink-0 pt-1">{terminalPrompt}</span>
+                <span className="font-mono text-[13px] text-zinc-400 dark:text-zinc-400 shrink-0 pt-1">{terminalPrompt}</span>
                 <textarea
                   ref={commandTextareaRef}
                   value={activeSession.command}
@@ -1369,7 +1369,7 @@ export function TerminalPanel({
                       void handleRunCommand(activeSessionId);
                     }
                   }}
-                  className="flex-1 min-w-0 bg-transparent font-mono text-[15px] leading-relaxed text-zinc-100 placeholder:text-zinc-500 border-none rounded-none px-0 py-0.5 focus:outline-none resize-none"
+                  className="flex-1 min-w-0 bg-transparent font-mono text-[15px] leading-relaxed text-zinc-100 dark:text-zinc-100 placeholder:text-zinc-500 dark:placeholder:text-zinc-500 border-none rounded-none px-0 py-0.5 focus:outline-none resize-none"
                   placeholder="Type command. Enter run, Shift+Enter newline, Up/Down history, Ctrl+C interrupt."
                   spellCheck={false}
                   autoComplete="off"
@@ -1382,22 +1382,22 @@ export function TerminalPanel({
           {/* Resizer Handle */}
           <div
             className={cn(
-              "w-1 cursor-col-resize hover:bg-primary/50 transition-colors z-20 flex items-center justify-center group/resize",
-              isSidebarResizing && "bg-primary/50"
+              "w-1 cursor-col-resize hover:bg-primary/50 dark:hover:bg-primary/50 transition-colors z-20 flex items-center justify-center group/resize",
+              isSidebarResizing && "bg-primary/50 dark:bg-primary/50"
             )}
             onMouseDown={handleSidebarResizeStart}
           />
 
           {/* Right Sidebar Tabs */}
           <div
-            className="border-l border-border/40 bg-muted/5 flex flex-col shrink-0"
+            className="border-l border-border/40 bg-muted/5 dark:bg-muted/5 flex flex-col shrink-0"
             style={{ width: sidebarWidth }}
           >
             <div className="px-2 py-1.5 flex items-center justify-between border-b border-border/20">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">Sessions</span>
               <button
                 onClick={handleAddTab}
-                className="p-1 rounded hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                className="p-1 rounded hover:bg-muted/80 dark:hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
                 title="New Terminal"
               >
                 <Plus size={12} />
@@ -1411,14 +1411,14 @@ export function TerminalPanel({
                   className={cn(
                     "group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-xs cursor-pointer transition-all border border-transparent select-none overflow-hidden",
                     activeSessionId === session.id
-                      ? "bg-background shadow-sm border-border/50 text-foreground font-medium"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground/80"
+                      ? "bg-background dark:bg-background shadow-sm border-border/50 text-foreground dark:text-foreground font-medium"
+                      : "text-muted-foreground dark:text-muted-foreground hover:bg-muted/50 dark:hover:bg-muted/50 hover:text-foreground/80 dark:hover:text-foreground/80"
                   )}
                 >
-                  <TerminalSquare size={13} className={cn("shrink-0", activeSessionId === session.id ? "text-primary" : "opacity-70")} />
+                  <TerminalSquare size={13} className={cn("shrink-0", activeSessionId === session.id ? "text-primary dark:text-primary" : "opacity-70")} />
                   <span className="truncate flex-1 min-w-0 pr-12">{session.name}</span>
                   {session.isRunning && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 dark:bg-sky-500 animate-pulse shrink-0" />
                   )}
                   <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 z-10">
                     <button
@@ -1426,7 +1426,7 @@ export function TerminalPanel({
                         e.stopPropagation();
                         handleAddTab();
                       }}
-                      className="p-1 hover:bg-muted-foreground/20 rounded transition-all text-muted-foreground bg-background/80 backdrop-blur-sm"
+                      className="p-1 hover:bg-muted-foreground/20 dark:hover:bg-muted-foreground/20 rounded transition-all text-muted-foreground dark:text-muted-foreground bg-background/80 dark:bg-background/80 backdrop-blur-sm"
                       title="Split (New Tab)"
                     >
                       <SplitSquareHorizontal size={12} />
@@ -1434,7 +1434,7 @@ export function TerminalPanel({
                     {sessions.length > 1 && (
                       <button
                         onClick={(e) => handleCloseTab(session.id, e)}
-                        className="p-1 hover:bg-red-500/10 hover:text-red-500 rounded transition-all text-muted-foreground bg-background/80 backdrop-blur-sm"
+                        className="p-1 hover:bg-red-500/10 dark:hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-500 rounded transition-all text-muted-foreground dark:text-muted-foreground bg-background/80 dark:bg-background/80 backdrop-blur-sm"
                         title="Close"
                       >
                         <Trash2 size={12} />
