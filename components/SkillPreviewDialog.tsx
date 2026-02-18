@@ -116,7 +116,7 @@ export function SkillPreviewDialog({ open, onOpenChange, skill }: SkillPreviewDi
                         {displaySkill.status === 'Enabled' && (
                             <button
                                 onClick={handleUseSkill}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold uppercase tracking-wider transition-all hover:scale-105 active:scale-95 shadow-sm"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold uppercase tracking-wider transition-transform hover:scale-105 active:scale-95 shadow-sm"
                                 title="Add to chat"
                             >
                                 <PlusCircle className="w-3.5 h-3.5" />
@@ -126,7 +126,7 @@ export function SkillPreviewDialog({ open, onOpenChange, skill }: SkillPreviewDi
                         <button
                             onClick={handleEdit}
                             disabled={opening || !displaySkill.location}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/80 hover:bg-background border border-border/50 text-xs font-medium transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/80 hover:bg-background border border-border/50 text-xs font-medium transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
                             title="Open in VSCode"
                         >
                             {opening ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Edit className="w-3.5 h-3.5" />}
