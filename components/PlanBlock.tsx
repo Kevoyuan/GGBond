@@ -92,7 +92,7 @@ export function PlanBlock({ content }: PlanBlockProps) {
 
                         {/* Status Icon */}
                         <div className={cn(
-                            "relative z-10 w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-all duration-300",
+                            "relative z-10 w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-colors duration-300",
                             item.status === 'completed'
                                 ? "bg-green-500/20 border-green-500/50 text-green-500"
                                 : item.status === 'in-progress'

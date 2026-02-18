@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 import { Shield, Info, RefreshCw, AlertCircle, Clock, Zap, Activity, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './sidebar/PanelHeader';
@@ -23,7 +23,7 @@ interface QuotaPanelProps {
     className?: string;
 }
 
-export function QuotaPanel({ className }: QuotaPanelProps) {
+export const QuotaPanel = memo(function QuotaPanel({ className }: QuotaPanelProps) {
     const [quota, setQuota] = useState<QuotaResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -63,7 +63,7 @@ export function QuotaPanel({ className }: QuotaPanelProps) {
                 actions={
                     <button
                         onClick={fetchQuota}
-                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all disabled:opacity-50"
+                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
                         title="Sync Usage"
                     >
                         <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
@@ -86,7 +86,7 @@ export function QuotaPanel({ className }: QuotaPanelProps) {
                         </div>
                         <button
                             onClick={fetchQuota}
-                            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-red-500/10 text-red-500 text-[10px] font-bold uppercase tracking-widest hover:bg-red-500/20 active:scale-95 transition-all"
+                            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-red-500/10 text-red-500 text-[10px] font-bold uppercase tracking-widest hover:bg-red-500/20 active:scale-95 transition-colors"
                         >
                             Retry Sync
                         </button>
@@ -104,7 +104,7 @@ export function QuotaPanel({ className }: QuotaPanelProps) {
                             const isCritical = fraction < 0.05;
 
                             return (
-                                <div key={idx} className="group p-4 rounded-xl border border-border/50 bg-card/40 space-y-4 relative overflow-hidden transition-all duration-300 hover:border-primary/30">
+                                <div key={idx} className="group p-4 rounded-xl border border-border/50 bg-card/40 space-y-4 relative overflow-hidden transition-colors duration-300 hover:border-primary/30">
                                     <div className="flex items-start justify-between relative z-10 gap-2">
                                         <div className="flex items-center gap-3 min-w-0 flex-1">
                                             <div className={cn(
@@ -139,7 +139,7 @@ export function QuotaPanel({ className }: QuotaPanelProps) {
                                         <div className="h-1.5 w-full bg-muted/40 rounded-full overflow-hidden border border-border/5">
                                             <div
                                                 className={cn(
-                                                    "h-full transition-all duration-1000 ease-out rounded-full shadow-[0_0_10px_rgba(var(--primary),0.3)]",
+                                                    "h-full transition-colors duration-500 ease-out rounded-full shadow-[0_0_10px_rgba(var(--primary),0.3)]",
                                                     isCritical ? "bg-red-500 shadow-red-500/40" : isLow ? "bg-amber-500 shadow-amber-500/40" : "bg-primary"
                                                 )}
                                                 style={{ width: `${fraction * 100}%` }}
@@ -185,4 +185,4 @@ export function QuotaPanel({ className }: QuotaPanelProps) {
             </div>
         </div>
     );
-}
+});

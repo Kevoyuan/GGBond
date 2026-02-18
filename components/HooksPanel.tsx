@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Zap,
@@ -84,6 +84,7 @@ interface HooksPanelProps {
     onEventClick?: (event: HookEvent) => void;
     onClear?: () => void;
     maxHeight?: string;
+    searchTerm?: string;
 }
 
 // Hooks configuration types
@@ -190,7 +191,7 @@ function HooksConfigTab({ onRefresh }: { onRefresh?: () => void }) {
                         onClick={() => updateConfig({ enabled: !hooksConfig.enabled })}
                         disabled={saving}
                         className={cn(
-                            "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-all",
+                            "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-colors",
                             hooksConfig.enabled
                                 ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
                                 : "bg-muted text-muted-foreground border-border"
@@ -213,7 +214,7 @@ function HooksConfigTab({ onRefresh }: { onRefresh?: () => void }) {
                         onClick={() => updateConfig({ notifications: !hooksConfig.notifications })}
                         disabled={saving || !hooksConfig.enabled}
                         className={cn(
-                            "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-all",
+                            "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-colors",
                             hooksConfig.notifications
                                 ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
                                 : "bg-muted text-muted-foreground border-border"
@@ -241,7 +242,7 @@ function HooksConfigTab({ onRefresh }: { onRefresh?: () => void }) {
                                 onClick={() => toggleEvent(event)}
                                 disabled={saving || !hooksConfig.enabled}
                                 className={cn(
-                                    "relative p-2.5 rounded-lg border text-left transition-all group",
+                                    "relative p-2.5 rounded-lg border text-left transition-colors group",
                                     isDisabled
                                         ? "border-border/50 bg-muted/30 opacity-60"
                                         : "border-primary/10 bg-card/50 hover:border-primary/30",
@@ -307,7 +308,7 @@ function HooksConfigTab({ onRefresh }: { onRefresh?: () => void }) {
             {/* Refresh Button */}
             <button
                 onClick={fetchConfig}
-                className="w-full p-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider"
+                className="w-full p-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider"
             >
                 <RefreshCw className="w-3 h-3" />
                 Refresh Config
@@ -427,15 +428,15 @@ const FILTER_OPTIONS: { value: HookEventType | 'all'; label: string }[] = [
 
 type TabType = 'events' | 'config';
 
-export function HooksPanel({
+export const HooksPanel = memo(function HooksPanel({
     events,
     className,
     onEventClick,
     onClear,
-    maxHeight = 'h-96'
+    maxHeight = 'h-96',
+    searchTerm
 }: HooksPanelProps) {
     const [activeTab, setActiveTab] = useState<TabType>('events');
-    const [searchQuery, setSearchQuery] = useState('');
     const [typeFilter, setTypeFilter] = useState<HookEventType | 'all'>('all');
     const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
     const [showFilters, setShowFilters] = useState(false);
@@ -446,8 +447,8 @@ export function HooksPanel({
                 if (typeFilter !== 'all' && event.type !== typeFilter) {
                     return false;
                 }
-                if (searchQuery) {
-                    const query = searchQuery.toLowerCase();
+                if (searchTerm) {
+                    const query = searchTerm.toLowerCase();
                     return (
                         event.name.toLowerCase().includes(query) ||
                         event.toolName?.toLowerCase().includes(query) ||
@@ -458,7 +459,7 @@ export function HooksPanel({
                 return true;
             })
             .sort((a, b) => b.timestamp - a.timestamp);
-    }, [events, typeFilter, searchQuery]);
+    }, [events, typeFilter, searchTerm]);
 
     const eventStats = useMemo(() => {
         const stats: Record<HookEventType, number> = {} as Record<HookEventType, number>;
@@ -504,7 +505,7 @@ export function HooksPanel({
             <div
                 key={event.id}
                 className={cn(
-                    "group relative rounded-lg border border-primary/10 bg-card/50 hover:bg-card/80 transition-all duration-200",
+                    "group relative rounded-lg border border-primary/10 bg-card/50 hover:bg-card/80 transition-colors duration-200",
                     "hover:border-primary/30 hover:shadow-sm"
                 )}
             >
@@ -648,7 +649,7 @@ export function HooksPanel({
                     onClear && events.length > 0 ? (
                         <button
                             onClick={onClear}
-                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                             title="Clear all events"
                         >
                             <X className="w-3.5 h-3.5" />
@@ -693,32 +694,12 @@ export function HooksPanel({
                 {/* Sub-header for Events Tab */}
                 {activeTab === 'events' && (
                     <div className="p-3 space-y-2 bg-background/20">
-                        {/* Search bar */}
-                        <div className="relative group">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-all" />
-                            <input
-                                type="text"
-                                placeholder="Search hooks..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full h-8 pl-8 pr-8 text-xs bg-muted/30 border border-primary/10 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/50 transition-all font-mono"
-                            />
-                            {searchQuery && (
-                                <button
-                                    onClick={() => setSearchQuery('')}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted text-muted-foreground"
-                                >
-                                    <X className="w-3 h-3" />
-                                </button>
-                            )}
-                        </div>
-
                         {/* Filter toggle & stats */}
                         <div className="flex items-center justify-between">
                             <button
                                 onClick={() => setShowFilters(!showFilters)}
                                 className={cn(
-                                    "flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md transition-all font-medium",
+                                    "flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md transition-colors font-medium",
                                     showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground border border-transparent hover:border-primary/20"
                                 )}
                             >
@@ -761,7 +742,7 @@ export function HooksPanel({
                                                 key={option.value}
                                                 onClick={() => setTypeFilter(option.value)}
                                                 className={cn(
-                                                    "text-[9px] px-2 py-0.5 rounded-full transition-all border uppercase tracking-tighter font-bold",
+                                                    "text-[9px] px-2 py-0.5 rounded-full transition-colors border uppercase tracking-tighter font-bold",
                                                     typeFilter === option.value
                                                         ? "bg-primary text-primary-foreground border-primary"
                                                         : "bg-muted/50 border-transparent text-muted-foreground hover:border-muted-foreground/30"
@@ -793,7 +774,7 @@ export function HooksPanel({
                             filteredEvents.map(renderEventContent)
                         ) : (
                             <div className="flex flex-col items-center justify-center h-40 opacity-30 grayscale">
-                                {searchQuery || typeFilter !== 'all' ? (
+                                {searchTerm || typeFilter !== 'all' ? (
                                     <>
                                         <Search className="w-10 h-10 mb-2" />
                                         <p className="text-xs uppercase tracking-widest font-bold">No matches</p>
@@ -814,10 +795,10 @@ export function HooksPanel({
             </div>
         </div>
     );
-}
+});
 
 // Compact version for inline display
-export function HooksPanelCompact({
+export const HooksPanelCompact = memo(function HooksPanelCompact({
     events,
     className,
     maxItems = 5
@@ -862,4 +843,4 @@ export function HooksPanelCompact({
             })}
         </div>
     );
-}
+});

@@ -7,6 +7,7 @@ import { ConversationGraph, GraphMessage } from '@/components/ConversationGraph'
 import { BranchInsights } from '@/components/BranchInsights';
 import { MessageTimeline } from '@/components/MessageTimeline';
 import { cn } from '@/lib/utils';
+import { ResizeHandle, useResize } from './ui/ResizeHandle';
 import {
   transformToGraphMessage,
   computeBranchInsights,
@@ -55,9 +56,15 @@ export function SidePanel({
   setHeadId,
   showInfoToast,
 }: SidePanelProps) {
-  const sidePanelRef = useRef<HTMLDivElement>(null);
-  const isResizingRef = useRef(false);
-  const startWidthRef = useRef(0);
+  // Use resize hook for panel width (reverse for left edge)
+  const { size, isResizing, handleProps } = useResize({
+    direction: 'horizontal',
+    minSize: 250,
+    maxSize: 800,
+    initialSize: sidePanelWidth,
+    reverse: true,
+    onResize: setSidePanelWidth,
+  });
 
   // Graph data computation
   const graphMessages: GraphMessage[] = useMemo(() => {
@@ -74,43 +81,6 @@ export function SidePanel({
   const branchJumpMessages = useMemo(() => {
     return getBranchJumpMessages(branchInsights.branchPointIds, messagesMap);
   }, [branchInsights.branchPointIds, messagesMap]);
-
-  // Resize handlers - define stopResizing first, then use it in startResizing
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isResizingRef.current || !sidePanelRef.current) return;
-    const deltaX = e.clientX - startWidthRef.current;
-    const newWidth = Math.max(250, Math.min(800, startWidthRef.current + deltaX));
-    sidePanelRef.current.style.width = `${newWidth}px`;
-  }, []);
-
-  const stopResizing = useCallback(() => {
-    isResizingRef.current = false;
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-
-    if (sidePanelRef.current) {
-      const finalWidth = parseInt(sidePanelRef.current.style.width, 10);
-      if (finalWidth > 0) {
-        setSidePanelWidth(finalWidth);
-      }
-    }
-  }, [setSidePanelWidth]);
-
-  const startResizing = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isResizingRef.current = true;
-    startWidthRef.current = sidePanelWidth;
-    const onMouseMove = (ev: MouseEvent) => handleMouseMove(ev);
-    const onStop = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onStop);
-      stopResizing();
-    };
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onStop);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-  }, [sidePanelWidth, handleMouseMove, stopResizing]);
 
   // Event handlers
   const handleNodeClick = useCallback((nodeId: string) => {
@@ -134,13 +104,13 @@ export function SidePanel({
 
   return (
     <div
-      ref={sidePanelRef}
       className={cn(
         "flex-none border-r bg-muted/5 relative flex flex-col overflow-hidden",
-        "transition-[width] duration-200 ease-in-out",
+        // Disable transition during resize for smooth dragging
+        !isResizing && "transition-[width] duration-200 ease-in-out",
         !sidePanelType && "w-0 border-none"
       )}
-      style={{ width: sidePanelType ? sidePanelWidth : 0 }}
+      style={{ width: sidePanelType ? size : 0 }}
     >
       <AnimatePresence mode="wait">
         {sidePanelType === 'graph' && (
@@ -199,12 +169,13 @@ export function SidePanel({
         )}
       </AnimatePresence>
 
-      {/* Resize Handle (Right edge) */}
-      <div
-        onMouseDown={startResizing}
-        className={cn(
-          "absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-50 transition-colors hover:bg-primary/30"
-        )}
+      {/* Left Resize Handle (at edge with main content) */}
+      <ResizeHandle
+        direction="horizontal"
+        isResizing={isResizing}
+        onMouseDown={handleProps.onMouseDown}
+        className="absolute top-0 left-0 h-full"
+        indicatorClassName="bg-[var(--border-subtle)]"
       />
     </div>
   );

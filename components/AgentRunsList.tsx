@@ -314,7 +314,7 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onDelete, onNavigateToC
   return (
     <div
       className={cn(
-        "rounded-xl border transition-all duration-200 group",
+        "rounded-xl border transition-colors duration-200 group",
         status.bg, status.border,
         isExpanded && "ring-1 ring-primary/20"
       )}

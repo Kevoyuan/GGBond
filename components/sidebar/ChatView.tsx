@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './PanelHeader';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 
 interface Session {
     id: string;
@@ -56,13 +57,14 @@ export const ChatView = React.memo(function ChatView({
     onShowStats,
     currentWorkspace,
     workspaceBranchSummary,
-    formatSessionAge
-}: ChatViewProps) {
-    const [searchTerm, setSearchTerm] = useState('');
+    formatSessionAge,
+    searchTerm = ''
+}: ChatViewProps & { searchTerm?: string }) {
+    // Internal state for workspace collapse
     const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set());
-    const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null);
+    const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
 
-    const toggleWorkspace = (workspace: string) => {
+    const toggleWorkspace = useCallback((workspace: string) => {
         const newCollapsed = new Set(collapsedWorkspaces);
         if (newCollapsed.has(workspace)) {
             newCollapsed.delete(workspace);
@@ -70,7 +72,32 @@ export const ChatView = React.memo(function ChatView({
             newCollapsed.add(workspace);
         }
         setCollapsedWorkspaces(newCollapsed);
-    };
+    }, [collapsedWorkspaces]);
+
+    // Stable callback for workspace toggle
+    const handleToggleWorkspace = useCallback((workspace: string) => {
+        toggleWorkspace(workspace);
+    }, [toggleWorkspace]);
+
+    // Stable callback for new chat in workspace
+    const handleNewChatInWorkspace = useCallback((workspace: string) => {
+        onNewChatInWorkspace?.(workspace);
+    }, [onNewChatInWorkspace]);
+
+    // Stable callback for session selection
+    const handleSelectSession = useCallback((sessionId: string) => {
+        onSelectSession(sessionId);
+    }, [onSelectSession]);
+
+    // Stable callbacks for delete actions
+    const handleStartDelete = useCallback((sessionId: string) => {
+        startDelete(sessionId);
+    }, [startDelete]);
+
+    const handleConfirmDelete = useCallback((e: React.MouseEvent, sessionId: string) => {
+        e.stopPropagation();
+        confirmDelete(sessionId, onDeleteSession);
+    }, [confirmDelete, onDeleteSession]);
 
     const groupedSessions = useMemo(() => {
         const groups: Record<string, Session[]> = {};
@@ -92,170 +119,160 @@ export const ChatView = React.memo(function ChatView({
         return result;
     }, [groupedSessions, searchTerm]);
 
+    const hasResults = Object.keys(filteredGroups).length > 0;
+
     return (
         <div className="flex flex-col h-full overflow-hidden">
-            <PanelHeader
-                title="Chats"
-                icon={MessageSquare}
-                actions={
-                    onAddWorkspace && (
-                        <Tooltip content="Add Workspace" side="bottom">
-                            <button
-                                onClick={onAddWorkspace}
-                                className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
-                            >
-                                <FolderPlus className="w-4 h-4" />
-                            </button>
-                        </Tooltip>
-                    )
-                }
-            />
-
-            <div className="px-4 py-3 border-b bg-card/30 backdrop-blur-sm">
-                <div className="relative group">
-                    <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                    <input
-                        type="text"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Search chats..."
-                        className="w-full bg-background border rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm"
-                    />
-                </div>
+            <div className="px-3 py-2 shrink-0 flex items-center justify-between">
+                <h3 className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">
+                    Recent Chats
+                </h3>
+                {onAddWorkspace && (
+                    <button
+                        onClick={onAddWorkspace}
+                        className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                        title="Add Workspace"
+                    >
+                        <FolderPlus className="w-3.5 h-3.5" />
+                    </button>
+                )}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2 scrollbar-thin">
-                <div className="px-3 mb-2 mt-2 flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Workspaces</span>
-                </div>
+            <div className="flex-1 overflow-y-auto px-1.5 scrollbar-thin">
+                {!hasResults && (
+                    <div className="flex flex-col items-center justify-center p-8 text-center">
+                        <MessageSquare className="w-8 h-8 text-[var(--text-tertiary)] mb-3 opacity-50" />
+                        <p className="text-xs text-[var(--text-tertiary)]">No chats found.</p>
+                    </div>
+                )}
 
                 {Object.entries(filteredGroups).map(([workspace, list]) => (
-                    list.length > 0 && (
-                        <div key={workspace} className="mb-1 text-xs sm:text-sm">
-                            <div
-                                className={cn(
-                                    "group flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-muted/60 cursor-pointer transition-colors",
-                                    currentWorkspace === workspace
-                                        ? "text-foreground bg-primary/5 border border-primary/20"
-                                        : "text-muted-foreground hover:text-foreground border border-transparent"
-                                )}
-                                onClick={() => toggleWorkspace(workspace)}
-                            >
-                                {collapsedWorkspaces.has(workspace) ? (
-                                    <ChevronRight className="w-4 h-4 shrink-0 opacity-100" />
-                                ) : (
-                                    <ChevronDown className="w-4 h-4 shrink-0 opacity-100" />
-                                )}
-                                <Folder className={cn(
-                                    "w-4 h-4 shrink-0",
-                                    currentWorkspace === workspace ? "text-primary" : "text-muted-foreground"
-                                )} />
-                                <span className="truncate font-medium flex-1 text-[13px]" title={workspace}>
-                                    {workspace === 'Default' ? workspace : workspace.split('/').pop()}
-                                </span>
-                                {workspaceBranchSummary[workspace] && (
-                                    <span
-                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 shrink-0 max-w-[120px]"
-                                        title={workspaceBranchSummary[workspace]?.title}
-                                    >
-                                        <GitBranch className="w-2.5 h-2.5 shrink-0" />
-                                        <span className="truncate">{workspaceBranchSummary[workspace]?.label}</span>
-                                    </span>
-                                )}
-                                <button
-                                    className="opacity-0 group-hover:opacity-100 hover:bg-background p-0.5 rounded transition-all"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onNewChatInWorkspace?.(workspace);
-                                    }}
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-
-                            {!collapsedWorkspaces.has(workspace) && (
-                                <div className="ml-4 pl-2 border-l border-border/40 flex flex-col gap-0.5 mt-1">
-                                    {list.map((session) => {
-                                        const isSessionRunning = runningSessionIds.includes(session.id);
-                                        const isTerminalRunning = terminalRunningSessionIds.includes(session.id);
-                                        return (
-                                            <div
-                                                key={session.id}
-                                                className={cn(
-                                                    "group flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer transition-all border border-transparent",
-                                                    currentSessionId === session.id
-                                                        ? "text-foreground font-medium bg-muted/40"
-                                                        : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                                                )}
-                                                onClick={() => onSelectSession(session.id)}
-                                                onMouseLeave={() => {
-                                                    if (pendingDeleteSessionId === session.id) setPendingDeleteSessionId(null);
-                                                }}
-                                            >
-                                                <div className="relative w-2.5 h-2.5 shrink-0 flex items-center justify-center">
-                                                    {isSessionRunning ? (
-                                                        <span className="absolute inset-0 rounded-full border border-muted-foreground/40 border-t-transparent animate-spin [animation-duration:1s]" />
-                                                    ) : currentSessionId === session.id ? (
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                                                    ) : unreadSessionIds.includes(session.id) ? (
-                                                        <span className="w-2 h-2 rounded-full bg-amber-500" title="Unread messages" />
-                                                    ) : (
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-transparent group-hover:bg-muted-foreground/30" />
-                                                    )}
-                                                </div>
-                                                <span className="truncate flex-1 text-[13px]">{session.title}</span>
-                                                {isTerminalRunning && (
-                                                    <span className="inline-flex items-center justify-center shrink-0 text-amber-500/90" title="Terminal running">
-                                                        <TerminalSquare className="w-3 h-3" />
-                                                    </span>
-                                                )}
-                                                <div className="relative shrink-0 w-12 h-5 flex items-center justify-end">
-                                                    {pendingDeleteSessionId === session.id ? (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setPendingDeleteSessionId(null);
-                                                                onDeleteSession(session.id);
-                                                            }}
-                                                            className="w-full h-5 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-[10px] font-semibold leading-none hover:bg-destructive/15 transition-colors"
-                                                        >
-                                                            Confirm
-                                                        </button>
-                                                    ) : (
-                                                        <>
-                                                            <span className="absolute right-0 text-[10px] text-muted-foreground tabular-nums transition-opacity group-hover:opacity-0">
-                                                                {formatSessionAge(session)}
-                                                            </span>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setPendingDeleteSessionId(session.id);
-                                                                }}
-                                                                className="absolute right-0 opacity-0 group-hover:opacity-100 h-5 w-5 inline-flex items-center justify-center hover:bg-destructive/10 hover:text-destructive rounded transition-all"
-                                                            >
-                                                                <Trash2 className="w-3 h-3" />
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                    <div key={workspace} className="mb-2">
+                        {/* Workspace Header */}
+                        <div
+                            className={cn(
+                                "group flex items-center gap-2 px-2 py-1.5 mb-0.5 rounded-md cursor-pointer transition-colors select-none",
+                                "hover:bg-[var(--bg-hover)]",
+                                currentWorkspace === workspace ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
                             )}
-                        </div>
-                    )
-                ))}
-            </div>
+                            onClick={() => handleToggleWorkspace(workspace)}
+                        >
+                            <span className="text-[var(--text-tertiary)]">
+                                {collapsedWorkspaces.has(workspace) ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </span>
+                            <Folder className={cn(
+                                "w-3.5 h-3.5",
+                                currentWorkspace === workspace ? "text-[var(--accent)]" : "text-[var(--text-tertiary)]"
+                            )} />
+                            <span className="text-[12px] font-medium truncate flex-1">
+                                {workspace === 'Default' ? 'Default' : workspace.split('/').pop()}
+                            </span>
 
-            <div className="p-3 border-t bg-card/50 backdrop-blur-sm space-y-1.5">
-                <button
-                    onClick={onShowStats}
-                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-md text-sm text-muted-foreground transition-colors overflow-hidden whitespace-nowrap"
-                >
-                    <BarChart2 className="w-4 h-4 shrink-0" />
-                    <span className="truncate">Usage Dashboard</span>
-                </button>
+                            {/* Branch Info Badge */}
+                            {workspaceBranchSummary[workspace] && (
+                                <span className={cn(
+                                    "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border max-w-[100px] truncate",
+                                    "bg-[var(--bg-primary)] border-[var(--border-subtle)] text-[var(--text-tertiary)]"
+                                )}>
+                                    <GitBranch className="w-2.5 h-2.5" />
+                                    <span className="truncate">{workspaceBranchSummary[workspace]?.label}</span>
+                                </span>
+                            )}
+
+                            <button
+                                className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)] transition-colors"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleNewChatInWorkspace(workspace);
+                                }}
+                                title="New Chat in Workspace"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+
+                        {/* Session List */}
+                        {!collapsedWorkspaces.has(workspace) && (
+                            <div className="ml-2 pl-2 border-l border-[var(--border-subtle)] flex flex-col gap-0.5 mt-0.5">
+                                {list.map((session) => {
+                                    const isSessionRunning = runningSessionIds.includes(session.id);
+                                    const isActive = currentSessionId === session.id;
+                                    const isUnread = unreadSessionIds.includes(session.id);
+
+                                    return (
+                                        <div
+                                            key={session.id}
+                                            className={cn(
+                                                "group relative flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors border border-transparent select-none",
+                                                isActive
+                                                    ? "bg-[var(--bg-active)]"
+                                                    : "hover:bg-[var(--bg-hover)]"
+                                            )}
+                                            onClick={() => handleSelectSession(session.id)}
+                                            onMouseLeave={() => handleMouseLeave(session.id)}
+                                        >
+                                            {/* Status Dot */}
+                                            <div className="shrink-0">
+                                                {isSessionRunning ? (
+                                                    <div className="w-2 h-2 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
+                                                ) : isUnread ? (
+                                                    <div className="w-2 h-2 rounded-full bg-[var(--orange)] shadow-[0_0_4px_rgba(251,146,60,0.4)]" />
+                                                ) : isActive ? (
+                                                    <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-[0_0_4px_rgba(124,92,252,0.4)]" />
+                                                ) : (
+                                                    <div className="w-2 h-2 rounded-full bg-[var(--border)] group-hover:bg-[var(--text-tertiary)] transition-colors" />
+                                                )}
+                                            </div>
+
+                                            {/* Item Info */}
+                                            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                                                <div className={cn(
+                                                    "text-[13px] font-medium truncate leading-none",
+                                                    isActive ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"
+                                                )}>
+                                                    {session.title}
+                                                </div>
+
+                                                <span className="text-[10px] text-[var(--text-tertiary)] shrink-0 opacity-70 group-hover:opacity-0 transition-opacity">
+                                                    {formatSessionAge(session)}
+                                                </span>
+                                            </div>
+
+
+                                            {/* Delete Action - Absolute Position Overlay to prevent jitter and space compression */}
+                                            <div className={cn(
+                                                "absolute right-1 top-0 bottom-0 w-14 flex items-center justify-end pr-1 opacity-0 group-hover:opacity-100 transition-colors z-10 pointer-events-none",
+                                                isPending(session.id) && "opacity-100",
+                                                isActive ? "bg-gradient-to-l from-[var(--bg-active)] via-[var(--bg-active)] to-transparent" : "bg-gradient-to-l from-[var(--bg-hover)] via-[var(--bg-hover)] to-transparent"
+                                            )}>
+                                                {isPending(session.id) ? (
+                                                    <button
+                                                        onClick={(e) => handleConfirmDelete(e, session.id)}
+                                                        className="pointer-events-auto flex items-center justify-center w-full h-6 rounded bg-[var(--red)] text-white text-[10px] font-medium hover:bg-red-600 transition-colors shadow-sm animate-in fade-in zoom-in-95 duration-200"
+                                                    >
+                                                        Confirm
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleStartDelete(session.id);
+                                                        }}
+                                                        className="pointer-events-auto p-1.5 hover:bg-[var(--bg-tertiary)] hover:text-[var(--red)] rounded transition-colors"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
+                                            </div>
+
+
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                ))}
             </div>
         </div>
     );

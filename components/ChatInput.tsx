@@ -128,7 +128,7 @@ const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
   'uninstall',
 ]);
 
-export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange, prefillRequest, compressionThreshold = 0.5 }: ChatInputProps) {
+export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange, prefillRequest, compressionThreshold = 0.5 }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | '#' | 'skill' | null>(null);
@@ -1150,7 +1150,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
 
           {/* Visual Badge - Option B: Modern Minimalist (Standardized Layout) */}
           <span className={cn(
-            "absolute left-[0.5px] right-[0.5px] top-1/2 -translate-y-[55%] h-[20px] rounded-full border flex items-center transition-all duration-200 select-none z-0 hover:z-10 shadow-sm",
+            "absolute left-[0.5px] right-[0.5px] top-1/2 -translate-y-[55%] h-[20px] rounded-full border flex items-center transition-colors duration-200 select-none z-0 hover:z-10 shadow-sm",
             isAgent
               ? "bg-slate-100 border-slate-300 text-slate-900 dark:bg-slate-200 dark:border-slate-400 dark:text-slate-950"
               : "bg-white border-slate-200 text-slate-800 dark:bg-slate-100 dark:border-slate-300 dark:text-slate-900"
@@ -1163,7 +1163,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
             <button
               type="button"
               className={cn(
-                "absolute right-0 -top-1 h-3.5 w-3.5 rounded-full bg-slate-800 text-white border-none shadow-sm opacity-0 flex items-center justify-center hover:bg-slate-950 transition-all duration-200 z-20",
+                "absolute right-0 -top-1 h-3.5 w-3.5 rounded-full bg-slate-800 text-white border-none shadow-sm opacity-0 flex items-center justify-center hover:bg-slate-950 transition-colors duration-200 z-20",
                 isAgent ? "group-hover/agent:opacity-100" : "group-hover/skill:opacity-100"
               )}
               onMouseDown={(e) => {
@@ -1366,7 +1366,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
         )}
 
         <div className={cn(
-          "group/chipwrap relative flex flex-col gap-2 p-2 rounded-xl border bg-secondary transition-all duration-200",
+          "group/chipwrap relative flex flex-col gap-2 p-2 rounded-xl border bg-secondary transition-colors duration-200",
           "focus-within:bg-background focus-within:ring-1 focus-within:ring-primary/20 focus-within:border-primary/30"
         )}>
           <div className="relative min-h-[40px] max-h-[200px]">
@@ -1485,14 +1485,14 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
                   disabled={!onStop}
                   aria-label="Stop"
                   className={cn(
-                    "group/stopbtn h-8 w-8 rounded-full transition-all duration-200 inline-flex items-center justify-center relative",
+                    "group/stopbtn h-8 w-8 rounded-full transition-colors duration-200 inline-flex items-center justify-center relative",
                     onStop
                       ? "bg-foreground text-background hover:opacity-90 shadow-sm"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
                   )}
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
-                  <span className="absolute bottom-full mb-2 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover/stopbtn:opacity-100 group-hover/stopbtn:visible transition-all whitespace-nowrap z-50 border border-border">
+                  <span className="absolute bottom-full mb-2 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover/stopbtn:opacity-100 group-hover/stopbtn:visible transition-colors whitespace-nowrap z-50 border border-border">
                     Stop response
                   </span>
                 </button>
@@ -1502,14 +1502,14 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
                   disabled={!input.trim()}
                   aria-label="Send"
                   className={cn(
-                    "group/sendbtn h-8 w-8 rounded-full transition-all duration-200 inline-flex items-center justify-center relative",
+                    "group/sendbtn h-8 w-8 rounded-full transition-colors duration-200 inline-flex items-center justify-center relative",
                     input.trim()
                       ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
                   )}
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span className="absolute bottom-full mb-2 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover/sendbtn:opacity-100 group-hover/sendbtn:visible transition-all whitespace-nowrap z-50 border border-border">
+                  <span className="absolute bottom-full mb-2 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover/sendbtn:opacity-100 group-hover/sendbtn:visible transition-colors whitespace-nowrap z-50 border border-border">
                     Send message
                   </span>
                 </button>
@@ -1526,7 +1526,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
               onMouseLeave={() => setShowContextTooltip(false)}
             >
               <button
-                className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors hidden sm:flex group"
+                className="flex items-center justify-center gap-1 px-1.5 h-[28px] w-[64px] text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg border border-transparent transition-colors hidden sm:flex group"
               >
                 <div className="relative w-4 h-4 flex items-center justify-center">
                   <svg className="w-full h-full transform -rotate-90">
@@ -1550,7 +1550,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
                       strokeDashoffset={strokeDashoffset}
                       strokeLinecap="round"
                       className={cn(
-                        "transition-all duration-500",
+                        "transition-colors duration-300",
                         contextPercent > 90 ? "text-red-500" :
                           contextPercent > 75 ? "text-yellow-500" :
                             "text-primary"
@@ -1651,7 +1651,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
                           handleCompress();
                         }}
                         disabled={isCompressing}
-                        className="w-full group relative overflow-hidden rounded-lg bg-primary/5 hover:bg-primary/10 border border-primary/10 text-primary transition-all duration-200 py-2 flex items-center justify-center gap-2 font-medium text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full group relative overflow-hidden rounded-lg bg-primary/5 hover:bg-primary/10 border border-primary/10 text-primary transition-colors duration-200 py-2 flex items-center justify-center gap-2 font-medium text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent -translate-x-full group-hover:animate-shimmer" />
                         <RefreshCw className={cn("w-3.5 h-3.5", isCompressing && "animate-spin")} />
@@ -1675,7 +1675,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
                 setCurrentApprovalMode(nextMode);
               }}
               className={cn(
-                "flex items-center justify-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-all duration-300 relative z-20 w-[60px] h-[26px]",
+                "flex items-center justify-center gap-1.5 px-2 h-[28px] w-[64px] text-[11px] font-bold rounded-lg transition-colors duration-300 relative z-20",
                 currentApprovalMode === 'auto'
                   ? "text-orange-500 bg-orange-500/10 hover:bg-orange-500/20 ring-1 ring-orange-500/20"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -1700,7 +1700,7 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
             <button
               onClick={onToggleTerminal}
               className={cn(
-                "inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors",
+                "inline-flex items-center justify-center gap-1.5 px-3 h-[28px] rounded-lg text-[11px] font-bold transition-colors",
                 showTerminal
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -1715,4 +1715,4 @@ export function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChan
       </div>
     </div>
   );
-}
+});

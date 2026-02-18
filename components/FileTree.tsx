@@ -30,11 +30,11 @@ interface FileTreeProps {
     initialPath?: string;
     onFileSelect?: (file: FileEntry) => void;
     className?: string;
+    searchTerm?: string;
 }
 
-export function FileTree({ initialPath, onFileSelect, className }: FileTreeProps) {
+export const FileTree = React.memo(function FileTree({ initialPath, onFileSelect, className, searchTerm }: FileTreeProps) {
     const [rootPath, setRootPath] = useState<string>(initialPath || '');
-    const [searchTerm, setSearchTerm] = useState('');
 
     return (
         <div className={cn("flex flex-col h-full bg-card/30", className)}>
@@ -52,31 +52,18 @@ export function FileTree({ initialPath, onFileSelect, className }: FileTreeProps
                 }
             />
 
-            <div className="p-3 border-b bg-card/10 backdrop-blur-sm">
-                <div className="relative group">
-                    <Search className="absolute left-2 top-2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                    <input
-                        type="text"
-                        placeholder="Filter files..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-muted/20 border border-border/50 rounded-md pl-7 pr-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all font-mono"
-                    />
-                </div>
-            </div>
-
             <div className="flex-1 overflow-y-auto scrollbar-thin p-1">
                 <DirectoryNode
                     path={rootPath}
                     name={rootPath.split('/').pop() || 'root'}
                     onFileSelect={onFileSelect}
                     defaultExpanded={true}
-                    searchTerm={searchTerm}
+                    searchTerm={searchTerm || ''}
                 />
             </div>
         </div>
     );
-}
+});
 
 interface DirectoryNodeProps {
     path: string;

@@ -172,7 +172,7 @@ export function MCPManager() {
                 {server.timeout && <span className="text-xs text-muted-foreground">{server.timeout / 1000}s</span>}
                 <button
                   onClick={() => handleRemove(server.name)}
-                  className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                  className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                   title="Remove"
                 >
                   <Trash2 size={14} />
@@ -282,7 +282,7 @@ export function ExtensionManager() {
               </div>
               <button
                 onClick={() => handleUninstall(ext.name)}
-                className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <Trash2 size={14} />
               </button>

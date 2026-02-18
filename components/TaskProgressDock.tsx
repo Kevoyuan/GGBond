@@ -78,7 +78,7 @@ export function TaskProgressDock({ todos }: TaskProgressDockProps) {
             <div className="px-4 pt-2">
               <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
                 <div
-                  className="h-full bg-primary transition-all duration-300"
+                  className="h-full bg-primary transition-colors duration-300"
                   style={{ width: `${percent}%` }}
                 />
               </div>

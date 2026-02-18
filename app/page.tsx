@@ -1,203 +1,33 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useTheme } from 'next-themes';
 import { Sidebar } from '../components/Sidebar';
-import { Header } from '../components/Header';
+import { Titlebar } from '../components/Titlebar';
 import { Message } from '../components/MessageBubble';
 import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
-import { cn } from '@/lib/utils';
 import { SidePanel } from '../components/SidePanel';
 
 import { ChatContainer } from '../components/ChatContainer';
-import { ConfirmationDialog, ConfirmationDetails } from '../components/ConfirmationDialog';
+import { ConfirmationDetails } from '../components/ConfirmationDialog';
 import { QuestionPanel, Question } from '../components/QuestionPanel';
 import { HookEvent } from '../components/HooksPanel';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 import { TerminalPanel } from '../components/TerminalPanel';
-import { UndoMessageConfirmDialog, UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
-import { Toast, ToastContainer } from '../components/Toast';
+import { UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
+import { ToastContainer } from '../components/Toast';
 import { useToast } from '@/hooks/useToast';
 import { useGitBranches } from '@/hooks/useGitBranches';
 
-
-interface Session {
-  id: string;
-  title: string;
-  created_at: string | number;
-  updated_at: string | number;
-  workspace?: string;
-  branch?: string | null;
-  isCore?: boolean;
-  lastUpdated?: string;
-}
-
-interface ApiMessageRecord {
-  id?: string | number | null;
-  role?: string;
-  content?: string;
-  parentId?: string | number | null;
-  parent_id?: string | number | null;
-  stats?: unknown;
-  thought?: string;
-  citations?: string[];
-  images?: Array<{ dataUrl: string; type: string; name: string }>;
-  sessionId?: string;
-  error?: boolean;
-}
-
-interface UndoConfirmState {
-  sessionId: string;
-  messageId: string;
-  messageContent: string;
-  workspace: string | null;
-  model: string;
-  hasCheckpoint: boolean;
-  fileChanges: UndoPreviewFileChange[];
-}
-
-const toMessageId = (value: unknown, fallback: string): string => {
-  if (typeof value === 'string' && value.trim()) {
-    return value;
-  }
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return String(value);
-  }
-  return fallback;
-};
-
-const toStatsValue = (value: unknown): Message['stats'] | undefined => {
-  if (!value) return undefined;
-  if (typeof value === 'string') {
-    try {
-      return JSON.parse(value) as Message['stats'];
-    } catch {
-      return undefined;
-    }
-  }
-  if (typeof value === 'object') {
-    return value as Message['stats'];
-  }
-  return undefined;
-};
-
-const DEFAULT_TERMINAL_PANEL_HEIGHT = 360;
-
-const buildTreeFromApiMessages = (rawMessages: ApiMessageRecord[]) => {
-  const normalized = rawMessages.map((rawMessage, index) => {
-    const id = toMessageId(rawMessage.id, `msg-${index}`);
-    const parentCandidateRaw = rawMessage.parentId ?? rawMessage.parent_id ?? null;
-    const parentCandidate = parentCandidateRaw === null || parentCandidateRaw === undefined
-      ? null
-      : String(parentCandidateRaw);
-
-    const normalizedMessage: Message = {
-      id,
-      role: rawMessage.role === 'user' ? 'user' : 'model',
-      content: typeof rawMessage.content === 'string' ? rawMessage.content : '',
-      stats: toStatsValue(rawMessage.stats),
-      parentId: null,
-      thought: typeof rawMessage.thought === 'string' ? rawMessage.thought : undefined,
-      citations: Array.isArray(rawMessage.citations) ? rawMessage.citations : undefined,
-      images: Array.isArray(rawMessage.images) ? rawMessage.images : undefined,
-      sessionId: typeof rawMessage.sessionId === 'string' ? rawMessage.sessionId : undefined,
-      error: Boolean(rawMessage.error),
-    };
-
-    return {
-      id,
-      parentCandidate,
-      message: normalizedMessage,
-    };
-  });
-
-  const knownIds = new Set(normalized.map((entry) => entry.id));
-  const hasExplicitParents = normalized.some((entry) => entry.parentCandidate !== null);
-  const nextMap = new Map<string, Message>();
-  let previousId: string | null = null;
-
-  for (const entry of normalized) {
-    let parentId: string | null = null;
-
-    if (
-      entry.parentCandidate &&
-      knownIds.has(entry.parentCandidate) &&
-      entry.parentCandidate !== entry.id
-    ) {
-      parentId = entry.parentCandidate;
-    } else if (!hasExplicitParents && previousId) {
-      parentId = previousId;
-    }
-
-    nextMap.set(entry.id, {
-      ...entry.message,
-      parentId,
-    });
-
-    previousId = entry.id;
-  }
-
-  const nextHeadId = normalized.length > 0 ? normalized[normalized.length - 1].id : null;
-  return { nextMap, nextHeadId };
-};
-
-const ALLOWED_MODELS = new Set([
-  'gemini-3-pro-preview',
-  'gemini-3-flash-preview',
-  'gemini-2.5-pro',
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-]);
-
-interface UploadedImage {
-  id: string;
-  file: File;
-  preview: string;
-  dataUrl: string;
-}
-
-const DEFAULT_CHAT_SETTINGS: ChatSettings = {
-  model: 'gemini-3-pro-preview',
-  systemInstruction: '',
-  toolPermissionStrategy: 'safe',
-  ui: {
-    footer: {
-      hideModelInfo: false,
-      hideContextPercentage: false,
-    },
-    showMemoryUsage: true,
-  },
-  modelSettings: {
-    compressionThreshold: 0.5,
-    maxSessionTurns: -1,
-    tokenBudget: 2000,
-  }
-};
-
-const normalizeChatSettings = (input: Partial<ChatSettings> | null | undefined): ChatSettings => {
-  const safeInput = input || {};
-  const nextModel = ALLOWED_MODELS.has(safeInput.model || '')
-    ? (safeInput.model as string)
-    : DEFAULT_CHAT_SETTINGS.model;
-
-  return {
-    model: nextModel,
-    systemInstruction: safeInput.systemInstruction ?? DEFAULT_CHAT_SETTINGS.systemInstruction,
-    toolPermissionStrategy: safeInput.toolPermissionStrategy === 'auto' ? 'auto' : 'safe',
-    ui: {
-      footer: {
-        hideModelInfo: safeInput.ui?.footer?.hideModelInfo ?? DEFAULT_CHAT_SETTINGS.ui.footer.hideModelInfo,
-        hideContextPercentage: safeInput.ui?.footer?.hideContextPercentage ?? DEFAULT_CHAT_SETTINGS.ui.footer.hideContextPercentage,
-      },
-      showMemoryUsage: safeInput.ui?.showMemoryUsage ?? DEFAULT_CHAT_SETTINGS.ui.showMemoryUsage,
-    },
-    modelSettings: {
-      compressionThreshold: safeInput.modelSettings?.compressionThreshold ?? DEFAULT_CHAT_SETTINGS.modelSettings.compressionThreshold,
-      maxSessionTurns: safeInput.modelSettings?.maxSessionTurns ?? DEFAULT_CHAT_SETTINGS.modelSettings.maxSessionTurns,
-      tokenBudget: safeInput.modelSettings?.tokenBudget ?? DEFAULT_CHAT_SETTINGS.modelSettings.tokenBudget,
-    },
-  };
-};
+// Import types and constants from separate module
+import type { Session, UploadedImage, ApiMessageRecord, UndoConfirmState } from '@/app/page/types';
+import {
+  DEFAULT_CHAT_SETTINGS,
+  DEFAULT_TERMINAL_PANEL_HEIGHT,
+  normalizeChatSettings,
+  buildTreeFromApiMessages,
+} from '@/app/page/types';
 
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -240,7 +70,8 @@ export default function Home() {
   const [showUsageStats, setShowUsageStats] = useState(false);
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
   const [mode, setMode] = useState<'code' | 'plan' | 'ask'>('code');
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
   const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
   const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>(DEFAULT_CHAT_SETTINGS.toolPermissionStrategy);
   const [sidePanelType, setSidePanelType] = useState<'graph' | 'timeline' | null>(null);
@@ -249,10 +80,14 @@ export default function Home() {
   const [inputAreaHeight, setInputAreaHeight] = useState(120);
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
   const [streamingStatus, setStreamingStatus] = useState<string | undefined>(undefined);
+  // Sidebar state
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showSidebarToggle, setShowSidebarToggle] = useState(true);
+
   // Toast notifications state (via hook)
   const { toasts, dismissToast, showErrorToast, showWarningToast, showInfoToast } = useToast();
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+
   const currentSessionIdRef = useRef<string | null>(currentSessionId);
   const activeChatAbortRef = useRef<AbortController | null>(null);
   const aiProcessingRef = useRef(false); // Track if AI is currently processing
@@ -487,13 +322,7 @@ export default function Home() {
     return 0;
   }, [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages.length, isLoading]); // Scroll on new messages or loading state change
 
   // Load Settings & Migration
   useEffect(() => {
@@ -554,23 +383,30 @@ export default function Home() {
     });
   }, []);
 
-  // Load Theme
+  // Load sidebar state
   useEffect(() => {
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setTheme('dark');
-      document.documentElement.classList.add('dark');
-    }
+    const savedCollapsed = localStorage.getItem('sidebar-collapsed');
+    if (savedCollapsed) setIsSidebarCollapsed(savedCollapsed === 'true');
   }, []);
 
-  const toggleTheme = () => {
-    if (theme === 'light') {
-      setTheme('dark');
-      document.documentElement.classList.add('dark');
-    } else {
-      setTheme('light');
-      document.documentElement.classList.remove('dark');
-    }
-  };
+  const toggleTheme = useCallback(() => {
+    setTheme(theme === 'light' ? 'dark' : 'light');
+  }, [theme]);
+
+  const handleToggleSidebar = useCallback(() => {
+    const newState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(newState);
+    localStorage.setItem('sidebar-collapsed', String(newState));
+    if (newState) setSidePanelType(null);
+  }, [isSidebarCollapsed]);
+
+  const handleModelChange = useCallback((model: string) => {
+    setSettings(s => ({ ...s, model }));
+  }, []);
+
+  const handleModeChange = useCallback((m: 'code' | 'plan' | 'ask') => {
+    setMode(m);
+  }, []);
 
   // Fetch Sessions on Mount
   const fetchSessions = async () => {
@@ -1975,22 +1811,26 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans antialiased">
+    <div className="flex flex-col h-screen w-full bg-[var(--bg-primary)] overflow-hidden font-sans antialiased text-[var(--text-primary)]">
       <ToastContainer toasts={toasts} onDismiss={dismissToast} position="top-right" />
-      {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
 
-      {/* Sidebar */}
-      <div className={cn(
-        "fixed top-0 left-0 z-50 transform transition-transform duration-200 md:relative md:translate-x-0 h-full",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full",
-        "flex"
-      )}>
+      {/* Full-width Titlebar */}
+      <Titlebar
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={handleToggleSidebar}
+        onNewChat={handleNewChat}
+        stats={sessionStats && {
+          inputTokens: sessionStats.inputTokens || 0,
+          outputTokens: sessionStats.outputTokens || 0,
+          totalTokens: sessionStats.totalTokens || 0,
+          totalCost: sessionStats.totalCost || 0
+        }}
+        currentBranch={currentBranch}
+        currentModel={settings.model}
+      />
+
+      {/* Main Content Area: Sidebar + Chat */}
+      <div className="flex-1 flex min-h-0 overflow-hidden relative">
         <Sidebar
           sessions={sessions}
           currentSessionId={currentSessionId}
@@ -2004,7 +1844,7 @@ export default function Home() {
           currentWorkspace={currentWorkspace === null ? undefined : currentWorkspace}
           onAddWorkspace={() => setShowAddWorkspace(true)}
           onOpenSettings={() => setSettingsOpen(true)}
-          isDark={theme === 'dark'}
+          isDark={isDark}
           toggleTheme={toggleTheme}
           onShowStats={() => setShowUsageStats(true)}
           onFileSelect={(file) => setPreviewFile(file)}
@@ -2014,7 +1854,68 @@ export default function Home() {
           selectedAgentName={selectedAgent?.name}
           sidePanelType={sidePanelType}
           onToggleSidePanel={(type) => setSidePanelType(current => current === type ? null : type)}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={handleToggleSidebar}
         />
+
+        {/* Chat Content */}
+        <main className="flex-1 flex min-w-0 bg-[var(--bg-primary)] relative">
+          {/* Chat Area + Terminal (vertical stack) */}
+          <div className="flex-1 flex flex-col min-w-0">
+            <ChatContainer
+              messages={messages}
+              isLoading={isLoading}
+              previewFile={previewFile}
+              onClosePreview={() => setPreviewFile(null)}
+              settings={settings}
+              onSendMessage={handleSendMessage}
+              onStopMessage={handleStopMessage}
+              onUndoTool={handleUndoTool}
+              onUndoMessage={handleUndoMessage}
+              inputPrefillRequest={inputPrefillRequest}
+              onRetry={handleRetry}
+              onCancel={handleCancel}
+              onModelChange={handleModelChange}
+              currentModel={settings.model}
+              sessionStats={sessionStats}
+              currentContextUsage={currentContextUsage}
+              mode={mode}
+              onModeChange={handleModeChange}
+              approvalMode={approvalMode}
+              onApprovalModeChange={handleApprovalModeChange}
+              workspacePath={currentWorkspace || undefined}
+              showTerminal={showTerminal}
+              onToggleTerminal={() => setShowTerminal(!showTerminal)}
+            />
+
+            {/* Terminal Panel */}
+            {showTerminal && (
+              <TerminalPanel
+                workspacePath={currentWorkspace || undefined}
+                sessionId={currentSessionId}
+                onClose={() => setShowTerminal(false)}
+                onHeightChange={(height) => {
+                  setTerminalPanelHeight(height);
+                }}
+              />
+            )}
+          </div>
+
+          {/* Side Panel (Graph or Timeline) - to the right of chat */}
+          <SidePanel
+            sidePanelType={sidePanelType}
+            sidePanelWidth={sidePanelWidth}
+            setSidePanelWidth={setSidePanelWidth}
+            messages={messages}
+            messagesMap={messagesMap}
+            headId={headId}
+            setHeadId={(id) => {
+              setHeadId(id);
+              headIdRef.current = id;
+            }}
+            showInfoToast={showInfoToast}
+          />
+        </main>
       </div>
 
       <SettingsDialog
@@ -2034,94 +1935,6 @@ export default function Home() {
         onClose={() => setShowAddWorkspace(false)}
         onAdd={handleAddWorkspace}
       />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 bg-card relative">
-        {/* Header */}
-        <Header stats={sessionStats} onShowStats={() => setShowUsageStats(true)} currentBranch={currentBranch} />
-
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 flex overflow-hidden">
-            {/* Side Panel (Graph or Timeline) - Left Side */}
-            <SidePanel
-              sidePanelType={sidePanelType}
-              sidePanelWidth={sidePanelWidth}
-              setSidePanelWidth={setSidePanelWidth}
-              messages={messages}
-              messagesMap={messagesMap}
-              headId={headId}
-              setHeadId={(id) => {
-                setHeadId(id);
-                headIdRef.current = id;
-              }}
-              showInfoToast={showInfoToast}
-            />
-
-            {/* Right Side: Chat + Queue + Terminal (vertical stack) */}
-            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-              {/* Chat Area */}
-              <ChatContainer
-                messages={messages}
-                isLoading={isLoading}
-                previewFile={previewFile}
-                onClosePreview={() => setPreviewFile(null)}
-                settings={settings}
-                onSendMessage={handleSendMessage}
-                onStopMessage={handleStopMessage}
-                onUndoTool={handleUndoTool}
-                onUndoMessage={handleUndoMessage}
-                inputPrefillRequest={inputPrefillRequest}
-                onRetry={handleRetry}
-                onCancel={handleCancel}
-                onModelChange={(model) => setSettings(s => ({ ...s, model }))}
-                currentModel={settings.model}
-                sessionStats={sessionStats}
-                currentContextUsage={currentContextUsage}
-                mode={mode}
-                onModeChange={(m: 'code' | 'plan' | 'ask') => setMode(m)}
-                approvalMode={approvalMode}
-                onApprovalModeChange={handleApprovalModeChange}
-                workspacePath={currentWorkspace || undefined}
-                showTerminal={showTerminal}
-                onToggleTerminal={() => setShowTerminal((value) => !value)}
-                onInputHeightChange={(height) => {
-                  setInputAreaHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
-                }}
-                streamingStatus={streamingStatus}
-              />
-
-              {/* Terminal Panel */}
-              <div className={showTerminal ? '' : 'hidden'}>
-                <TerminalPanel
-                  workspacePath={currentWorkspace || undefined}
-                  sessionId={currentSessionId}
-                  onSessionRunStateChange={updateTerminalRunningSessionCount}
-                  onClose={() => setShowTerminal(false)}
-                  onHeightChange={(height) => {
-                    setTerminalPanelHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-          {confirmation && (
-            <ConfirmationDialog
-              details={confirmation.details}
-              onConfirm={(mode) => handleConfirm(true, mode ?? 'once')}
-              onCancel={() => handleConfirm(false, 'once')}
-              bottomOffset={inputAreaHeight + (showTerminal ? terminalPanelHeight : 0)}
-            />
-          )}
-          <UndoMessageConfirmDialog
-            open={Boolean(undoConfirm)}
-            fileChanges={undoConfirm?.fileChanges || []}
-            hasCheckpoint={undoConfirm?.hasCheckpoint || false}
-            onCancel={handleCancelUndoMessage}
-            onConfirm={() => void handleConfirmUndoMessage()}
-            isConfirming={isApplyingUndoMessage}
-          />
-        </div>
-      </div>
 
       {activeQuestion && (
         <QuestionPanel
