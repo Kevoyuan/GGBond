@@ -64,7 +64,7 @@ export const ChatView = React.memo(function ChatView({
     const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set());
     const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
 
-    const toggleWorkspace = (workspace: string) => {
+    const toggleWorkspace = useCallback((workspace: string) => {
         const newCollapsed = new Set(collapsedWorkspaces);
         if (newCollapsed.has(workspace)) {
             newCollapsed.delete(workspace);
@@ -72,7 +72,32 @@ export const ChatView = React.memo(function ChatView({
             newCollapsed.add(workspace);
         }
         setCollapsedWorkspaces(newCollapsed);
-    };
+    }, [collapsedWorkspaces]);
+
+    // Stable callback for workspace toggle
+    const handleToggleWorkspace = useCallback((workspace: string) => {
+        toggleWorkspace(workspace);
+    }, [toggleWorkspace]);
+
+    // Stable callback for new chat in workspace
+    const handleNewChatInWorkspace = useCallback((workspace: string) => {
+        onNewChatInWorkspace?.(workspace);
+    }, [onNewChatInWorkspace]);
+
+    // Stable callback for session selection
+    const handleSelectSession = useCallback((sessionId: string) => {
+        onSelectSession(sessionId);
+    }, [onSelectSession]);
+
+    // Stable callbacks for delete actions
+    const handleStartDelete = useCallback((sessionId: string) => {
+        startDelete(sessionId);
+    }, [startDelete]);
+
+    const handleConfirmDelete = useCallback((e: React.MouseEvent, sessionId: string) => {
+        e.stopPropagation();
+        confirmDelete(sessionId, onDeleteSession);
+    }, [confirmDelete, onDeleteSession]);
 
     const groupedSessions = useMemo(() => {
         const groups: Record<string, Session[]> = {};
@@ -130,7 +155,7 @@ export const ChatView = React.memo(function ChatView({
                                 "hover:bg-[var(--bg-hover)]",
                                 currentWorkspace === workspace ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
                             )}
-                            onClick={() => toggleWorkspace(workspace)}
+                            onClick={() => handleToggleWorkspace(workspace)}
                         >
                             <span className="text-[var(--text-tertiary)]">
                                 {collapsedWorkspaces.has(workspace) ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -155,10 +180,10 @@ export const ChatView = React.memo(function ChatView({
                             )}
 
                             <button
-                                className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)] transition-all"
+                                className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)] transition-colors"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onNewChatInWorkspace?.(workspace);
+                                    handleNewChatInWorkspace(workspace);
                                 }}
                                 title="New Chat in Workspace"
                             >
@@ -178,12 +203,12 @@ export const ChatView = React.memo(function ChatView({
                                         <div
                                             key={session.id}
                                             className={cn(
-                                                "group relative flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-all border border-transparent select-none",
+                                                "group relative flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors border border-transparent select-none",
                                                 isActive
                                                     ? "bg-[var(--bg-active)]"
                                                     : "hover:bg-[var(--bg-hover)]"
                                             )}
-                                            onClick={() => onSelectSession(session.id)}
+                                            onClick={() => handleSelectSession(session.id)}
                                             onMouseLeave={() => handleMouseLeave(session.id)}
                                         >
                                             {/* Status Dot */}
@@ -216,16 +241,13 @@ export const ChatView = React.memo(function ChatView({
 
                                             {/* Delete Action - Absolute Position Overlay to prevent jitter and space compression */}
                                             <div className={cn(
-                                                "absolute right-1 top-0 bottom-0 w-14 flex items-center justify-end pr-1 opacity-0 group-hover:opacity-100 transition-all z-10 pointer-events-none",
+                                                "absolute right-1 top-0 bottom-0 w-14 flex items-center justify-end pr-1 opacity-0 group-hover:opacity-100 transition-colors z-10 pointer-events-none",
                                                 isPending(session.id) && "opacity-100",
                                                 isActive ? "bg-gradient-to-l from-[var(--bg-active)] via-[var(--bg-active)] to-transparent" : "bg-gradient-to-l from-[var(--bg-hover)] via-[var(--bg-hover)] to-transparent"
                                             )}>
                                                 {isPending(session.id) ? (
                                                     <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            confirmDelete(session.id, onDeleteSession);
-                                                        }}
+                                                        onClick={(e) => handleConfirmDelete(e, session.id)}
                                                         className="pointer-events-auto flex items-center justify-center w-full h-6 rounded bg-[var(--red)] text-white text-[10px] font-medium hover:bg-red-600 transition-colors shadow-sm animate-in fade-in zoom-in-95 duration-200"
                                                     >
                                                         Confirm
@@ -234,9 +256,9 @@ export const ChatView = React.memo(function ChatView({
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            startDelete(session.id);
+                                                            handleStartDelete(session.id);
                                                         }}
-                                                        className="pointer-events-auto p-1.5 hover:bg-[var(--bg-tertiary)] hover:text-[var(--red)] rounded transition-all"
+                                                        className="pointer-events-auto p-1.5 hover:bg-[var(--bg-tertiary)] hover:text-[var(--red)] rounded transition-colors"
                                                     >
                                                         <Trash2 className="w-3.5 h-3.5" />
                                                     </button>

@@ -33,7 +33,7 @@ interface FileTreeProps {
     searchTerm?: string;
 }
 
-export function FileTree({ initialPath, onFileSelect, className, searchTerm }: FileTreeProps) {
+export const FileTree = React.memo(function FileTree({ initialPath, onFileSelect, className, searchTerm }: FileTreeProps) {
     const [rootPath, setRootPath] = useState<string>(initialPath || '');
 
     return (
@@ -63,7 +63,7 @@ export function FileTree({ initialPath, onFileSelect, className, searchTerm }: F
             </div>
         </div>
     );
-}
+});
 
 interface DirectoryNodeProps {
     path: string;

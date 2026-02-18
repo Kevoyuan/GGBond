@@ -156,6 +156,16 @@ export const Sidebar = React.memo(function Sidebar({
   const handleViewClick = useCallback((view: SidebarView) => {
     setActiveView(view);
   }, []);
+
+  // Stable callbacks for NavListItem to prevent re-renders
+  const handleChatClick = useCallback(() => handleViewClick('chat'), [handleViewClick]);
+  const handleAgentsClick = useCallback(() => handleViewClick('agents'), [handleViewClick]);
+  const handleSkillsClick = useCallback(() => handleViewClick('skills'), [handleViewClick]);
+  const handleFilesClick = useCallback(() => handleViewClick('files'), [handleViewClick]);
+  const handleHooksClick = useCallback(() => handleViewClick('hooks'), [handleViewClick]);
+  const handleMCPClick = useCallback(() => handleViewClick('mcp'), [handleViewClick]);
+  const handleQuotaClick = useCallback(() => handleViewClick('quota'), [handleViewClick]);
+  const handleMemoryClick = useCallback(() => handleViewClick('memory'), [handleViewClick]);
   const [sidePanelWidth, setSidePanelWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -212,7 +222,7 @@ export const Sidebar = React.memo(function Sidebar({
   return (
     <div
       className={cn(
-        "bg-[var(--bg-secondary)] border-r border-[var(--border-subtle)] relative flex flex-col h-full transition-all duration-200 ease-in-out shrink-0",
+        "bg-[var(--bg-secondary)] border-r border-[var(--border-subtle)] relative flex flex-col h-full transition-colors duration-200 ease-in-out shrink-0",
         isCollapsed ? "w-[56px]" : ""
       )}
       style={{ width: isCollapsed ? undefined : sidePanelWidth }}
@@ -223,14 +233,14 @@ export const Sidebar = React.memo(function Sidebar({
         style={{ height: isCollapsed ? 'auto' : navHeight }}
       >
         <div className="flex flex-col gap-0.5 px-2 py-2">
-          <NavListItem active={activeView === 'chat'} onClick={() => handleViewClick('chat')} icon={MessageSquare} label="Chats" count={unreadSessionIds.length} collapsed={isCollapsed} kbd="⌘1" />
-          <NavListItem active={activeView === 'agents'} onClick={() => handleViewClick('agents')} icon={AgentIcon} label="Agents" collapsed={isCollapsed} kbd="⌘2" />
-          <NavListItem active={activeView === 'skills'} onClick={() => handleViewClick('skills')} icon={Puzzle} label="Skills" collapsed={isCollapsed} kbd="⌘3" />
-          <NavListItem active={activeView === 'files'} onClick={() => handleViewClick('files')} icon={FolderOpen} label="Files" collapsed={isCollapsed} kbd="⌘4" />
-          <NavListItem active={activeView === 'hooks'} onClick={() => handleViewClick('hooks')} icon={Zap} label="Hooks" collapsed={isCollapsed} />
-          <NavListItem active={activeView === 'mcp'} onClick={() => handleViewClick('mcp')} icon={Plug} label="MCP" collapsed={isCollapsed} />
-          <NavListItem active={activeView === 'quota'} onClick={() => handleViewClick('quota')} icon={Activity} label="Quota" collapsed={isCollapsed} />
-          <NavListItem active={activeView === 'memory'} onClick={() => handleViewClick('memory')} icon={Database} label="Memory" collapsed={isCollapsed} />
+          <NavListItem active={activeView === 'chat'} onClick={handleChatClick} icon={MessageSquare} label="Chats" count={unreadSessionIds.length} collapsed={isCollapsed} kbd="⌘1" />
+          <NavListItem active={activeView === 'agents'} onClick={handleAgentsClick} icon={AgentIcon} label="Agents" collapsed={isCollapsed} kbd="⌘2" />
+          <NavListItem active={activeView === 'skills'} onClick={handleSkillsClick} icon={Puzzle} label="Skills" collapsed={isCollapsed} kbd="⌘3" />
+          <NavListItem active={activeView === 'files'} onClick={handleFilesClick} icon={FolderOpen} label="Files" collapsed={isCollapsed} kbd="⌘4" />
+          <NavListItem active={activeView === 'hooks'} onClick={handleHooksClick} icon={Zap} label="Hooks" collapsed={isCollapsed} />
+          <NavListItem active={activeView === 'mcp'} onClick={handleMCPClick} icon={Plug} label="MCP" collapsed={isCollapsed} />
+          <NavListItem active={activeView === 'quota'} onClick={handleQuotaClick} icon={Activity} label="Quota" collapsed={isCollapsed} />
+          <NavListItem active={activeView === 'memory'} onClick={handleMemoryClick} icon={Database} label="Memory" collapsed={isCollapsed} />
         </div>
       </div>
 
@@ -260,7 +270,7 @@ export const Sidebar = React.memo(function Sidebar({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder={getSearchPlaceholder(activeView)}
-                className="w-full bg-[var(--bg-tertiary)] border border-transparent rounded-md pl-8 pr-8 py-1.5 text-[13px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--border)] focus:bg-[var(--bg-primary)] transition-all shadow-sm"
+                className="w-full bg-[var(--bg-tertiary)] border border-transparent rounded-md pl-8 pr-8 py-1.5 text-[13px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--border)] focus:bg-[var(--bg-primary)] transition-colors shadow-sm"
               />
               <div className="absolute right-2 top-2 text-[var(--text-tertiary)] flex items-center gap-0.5 pointer-events-none">
                 <Command className="w-3 h-3 opacity-50" />
@@ -324,7 +334,7 @@ export const Sidebar = React.memo(function Sidebar({
               <button
                 onClick={onShowStats}
                 className={cn(
-                  "p-2 rounded-md transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
                   isCollapsed && "w-9 h-9 flex items-center justify-center"
                 )}
               >
@@ -336,7 +346,7 @@ export const Sidebar = React.memo(function Sidebar({
               <button
                 onClick={() => setShowModulesDialog(true)}
                 className={cn(
-                  "p-2 rounded-md transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
                   isCollapsed && "w-9 h-9 flex items-center justify-center"
                 )}
               >
@@ -353,7 +363,7 @@ export const Sidebar = React.memo(function Sidebar({
               <button
                 onClick={() => onToggleSidePanel?.('graph')}
                 className={cn(
-                  "p-2 rounded-md transition-all duration-200",
+                  "p-2 rounded-md transition-colors duration-200",
                   sidePanelType === 'graph'
                     ? "text-[var(--accent)] bg-[var(--accent)]/10"
                     : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
@@ -368,7 +378,7 @@ export const Sidebar = React.memo(function Sidebar({
               <button
                 onClick={() => onToggleSidePanel?.('timeline')}
                 className={cn(
-                  "p-2 rounded-md transition-all duration-200",
+                  "p-2 rounded-md transition-colors duration-200",
                   sidePanelType === 'timeline'
                     ? "text-[var(--accent)] bg-[var(--accent)]/10"
                     : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
@@ -388,7 +398,7 @@ export const Sidebar = React.memo(function Sidebar({
               <button
                 onClick={toggleTheme}
                 className={cn(
-                  "p-2 rounded-md transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
                   isCollapsed && "w-9 h-9 flex items-center justify-center"
                 )}
               >
@@ -400,7 +410,7 @@ export const Sidebar = React.memo(function Sidebar({
               <button
                 onClick={onOpenSettings}
                 className={cn(
-                  "p-2 rounded-md transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
                   isCollapsed && "w-9 h-9 flex items-center justify-center"
                 )}
               >
