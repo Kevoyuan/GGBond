@@ -192,7 +192,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                 type="button"
                 onClick={() => void handleUndoMessage()}
                 disabled={isUndoingMessage}
-                className="inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 dark:hover:bg-muted/30 transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 dark:hover:bg-muted/30 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 title="Undo this message"
               >
                 {isUndoingMessage ? (
