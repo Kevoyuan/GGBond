@@ -172,7 +172,7 @@ export function TokenUsageDisplay({ stats, compact = true, className, hideModelI
                       animate={{ width: `${Math.max(contextPercent, 1)}%` }}
                       transition={{ duration: 1, ease: "easeOut" }}
                       className={cn(
-                        "h-full transition-all duration-500",
+                        "h-full transition-colors duration-300",
                         contextPercent > 90
                           ? "bg-gradient-to-r from-rose-500 to-red-600 shadow-[0_0_12px_rgba(239,68,68,0.4)]"
                           : contextPercent > 70
