@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 import { Shield, Info, RefreshCw, AlertCircle, Clock, Zap, Activity, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './sidebar/PanelHeader';
@@ -23,7 +23,7 @@ interface QuotaPanelProps {
     className?: string;
 }
 
-export function QuotaPanel({ className }: QuotaPanelProps) {
+export const QuotaPanel = memo(function QuotaPanel({ className }: QuotaPanelProps) {
     const [quota, setQuota] = useState<QuotaResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -185,4 +185,4 @@ export function QuotaPanel({ className }: QuotaPanelProps) {
             </div>
         </div>
     );
-}
+});

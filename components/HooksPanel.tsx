@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Zap,
@@ -428,7 +428,7 @@ const FILTER_OPTIONS: { value: HookEventType | 'all'; label: string }[] = [
 
 type TabType = 'events' | 'config';
 
-export function HooksPanel({
+export const HooksPanel = memo(function HooksPanel({
     events,
     className,
     onEventClick,
@@ -795,10 +795,10 @@ export function HooksPanel({
             </div>
         </div>
     );
-}
+});
 
 // Compact version for inline display
-export function HooksPanelCompact({
+export const HooksPanelCompact = memo(function HooksPanelCompact({
     events,
     className,
     maxItems = 5
@@ -843,4 +843,4 @@ export function HooksPanelCompact({
             })}
         </div>
     );
-}
+});
