@@ -191,7 +191,7 @@ function HooksConfigTab({ onRefresh }: { onRefresh?: () => void }) {
                         onClick={() => updateConfig({ enabled: !hooksConfig.enabled })}
                         disabled={saving}
                         className={cn(
-                            "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-all",
+                            "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-colors",
                             hooksConfig.enabled
                                 ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
                                 : "bg-muted text-muted-foreground border-border"
@@ -214,7 +214,7 @@ function HooksConfigTab({ onRefresh }: { onRefresh?: () => void }) {
                         onClick={() => updateConfig({ notifications: !hooksConfig.notifications })}
                         disabled={saving || !hooksConfig.enabled}
                         className={cn(
-                            "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-all",
+                            "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-colors",
                             hooksConfig.notifications
                                 ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
                                 : "bg-muted text-muted-foreground border-border"
@@ -242,7 +242,7 @@ function HooksConfigTab({ onRefresh }: { onRefresh?: () => void }) {
                                 onClick={() => toggleEvent(event)}
                                 disabled={saving || !hooksConfig.enabled}
                                 className={cn(
-                                    "relative p-2.5 rounded-lg border text-left transition-all group",
+                                    "relative p-2.5 rounded-lg border text-left transition-colors group",
                                     isDisabled
                                         ? "border-border/50 bg-muted/30 opacity-60"
                                         : "border-primary/10 bg-card/50 hover:border-primary/30",
@@ -308,7 +308,7 @@ function HooksConfigTab({ onRefresh }: { onRefresh?: () => void }) {
             {/* Refresh Button */}
             <button
                 onClick={fetchConfig}
-                className="w-full p-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider"
+                className="w-full p-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider"
             >
                 <RefreshCw className="w-3 h-3" />
                 Refresh Config
@@ -505,7 +505,7 @@ export const HooksPanel = memo(function HooksPanel({
             <div
                 key={event.id}
                 className={cn(
-                    "group relative rounded-lg border border-primary/10 bg-card/50 hover:bg-card/80 transition-all duration-200",
+                    "group relative rounded-lg border border-primary/10 bg-card/50 hover:bg-card/80 transition-colors duration-200",
                     "hover:border-primary/30 hover:shadow-sm"
                 )}
             >
@@ -649,7 +649,7 @@ export const HooksPanel = memo(function HooksPanel({
                     onClear && events.length > 0 ? (
                         <button
                             onClick={onClear}
-                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                             title="Clear all events"
                         >
                             <X className="w-3.5 h-3.5" />
@@ -699,7 +699,7 @@ export const HooksPanel = memo(function HooksPanel({
                             <button
                                 onClick={() => setShowFilters(!showFilters)}
                                 className={cn(
-                                    "flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md transition-all font-medium",
+                                    "flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md transition-colors font-medium",
                                     showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground border border-transparent hover:border-primary/20"
                                 )}
                             >
@@ -742,7 +742,7 @@ export const HooksPanel = memo(function HooksPanel({
                                                 key={option.value}
                                                 onClick={() => setTypeFilter(option.value)}
                                                 className={cn(
-                                                    "text-[9px] px-2 py-0.5 rounded-full transition-all border uppercase tracking-tighter font-bold",
+                                                    "text-[9px] px-2 py-0.5 rounded-full transition-colors border uppercase tracking-tighter font-bold",
                                                     typeFilter === option.value
                                                         ? "bg-primary text-primary-foreground border-primary"
                                                         : "bg-muted/50 border-transparent text-muted-foreground hover:border-muted-foreground/30"
