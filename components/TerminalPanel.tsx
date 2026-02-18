@@ -431,7 +431,7 @@ const normalizeEnvironment = (
   };
 };
 
-export function TerminalPanel({
+export const TerminalPanel = React.memo(function TerminalPanel({
   workspacePath,
   sessionId,
   onSessionRunStateChange,
@@ -1572,4 +1572,4 @@ export function TerminalPanel({
       )}
     </>
   );
-}
+});
