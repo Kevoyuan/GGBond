@@ -211,7 +211,7 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
                 placeholder="Search skills..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-sm rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                className="w-full pl-9 pr-4 py-2 text-sm rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
               />
             </div>
           </div>
@@ -253,7 +253,7 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
                   key={skill.name}
                   onClick={() => handleQuickInsert(skill.id)}
                   className={cn(
-                    "flex flex-col gap-2 p-4 rounded-lg border transition-all cursor-pointer",
+                    "flex flex-col gap-2 p-4 rounded-lg border transition-colors cursor-pointer",
                     skill.status === 'Enabled' 
                       ? "bg-card border-border shadow-sm hover:border-primary/40 hover:bg-primary/5" 
                       : "bg-muted/30 border-transparent opacity-80 hover:opacity-100 hover:border-border"
