@@ -68,7 +68,7 @@ const ToastItem = ({ toast, onDismiss }: ToastItemProps) => {
   return (
     <div
       className={cn(
-        'flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg transition-all duration-300',
+        'flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg transition-opacity transition-transform duration-300',
         styles[toast.type],
         isVisible && !isLeaving ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       )}

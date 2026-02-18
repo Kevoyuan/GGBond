@@ -1,25 +1,24 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare,
-  // ... (rest of imports)
   Plus,
   Settings,
-  Moon,
-  Sun,
   FolderOpen,
   Plug,
   BarChart2,
-  LayoutGrid,
-  PanelLeftClose,
-  PanelLeftOpen,
   Zap,
-  Layers,
   Activity,
   Database,
   Puzzle,
+  Search,
+  Command,
+  Moon,
+  Sun,
+  Boxes,
   Network,
-  Clock
+  Clock,
+  BarChart
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -32,13 +31,11 @@ import { AgentPanel } from './AgentPanel';
 import { QuotaPanel } from './QuotaPanel';
 import { ModulesDialog } from './ModulesDialog';
 import { AgentIcon } from './icons/AgentIcon';
-import { GeminiIcon } from './icons/GeminiIcon';
-import { Tooltip } from '@/components/ui/Tooltip';
-
-// New separated components & hooks
-import { NavButton } from './sidebar/NavButton';
+import { NavListItem } from './sidebar/NavListItem';
 import { ChatView } from './sidebar/ChatView';
 import { useGitBranches } from '../hooks/useGitBranches';
+import { Tooltip } from './ui/Tooltip';
+import { ResizeHandle, useResize } from './ui/ResizeHandle';
 
 interface Session {
   id: string;
@@ -64,7 +61,7 @@ interface SidebarProps {
   onOpenSettings: () => void;
   isDark: boolean;
   toggleTheme: () => void;
-  className?: string; // Although not used here, keep for consistency if needed later
+  className?: string;
   onShowStats?: () => void;
   currentWorkspace?: string;
   onAddWorkspace?: () => void;
@@ -76,15 +73,36 @@ interface SidebarProps {
   selectedAgentName?: string;
   sidePanelType?: 'graph' | 'timeline' | null;
   onToggleSidePanel?: (type: 'graph' | 'timeline' | null) => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+  workspaceBranchSummary?: Record<string, { label: string; title: string; mixed: boolean } | null>;
+  formatSessionAge?: (session: Session) => string;
 }
 
 type SidebarView = 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory';
 
-const MIN_SIDEBAR_WIDTH = 160;
-const MAX_SIDEBAR_WIDTH = 600;
-const DEFAULT_SIDEBAR_WIDTH = 256;
+const getSearchPlaceholder = (view: SidebarView): string => {
+  const placeholders: Record<SidebarView, string> = {
+    chat: 'Search chats...',
+    files: 'Search files...',
+    skills: 'Search skills...',
+    hooks: 'Search hooks...',
+    mcp: 'Search MCP servers...',
+    agents: 'Search agents...',
+    quota: 'Search quotas...',
+    memory: 'Search memory...',
+  };
+  return placeholders[view];
+};
 
-export function Sidebar({
+const MIN_SIDEBAR_WIDTH = 240;
+const MAX_SIDEBAR_WIDTH = 480;
+const DEFAULT_SIDEBAR_WIDTH = 280;
+const MIN_NAV_HEIGHT = 100;
+const MAX_NAV_HEIGHT = 800;
+const DEFAULT_NAV_HEIGHT = 240;
+
+export const Sidebar = React.memo(function Sidebar({
   sessions,
   currentSessionId,
   runningSessionIds = [],
@@ -92,7 +110,6 @@ export function Sidebar({
   unreadSessionIds = [],
   onSelectSession,
   onDeleteSession,
-  onNewChat,
   onNewChatInWorkspace,
   onOpenSettings,
   isDark,
@@ -106,293 +123,297 @@ export function Sidebar({
   onSelectAgent,
   selectedAgentName,
   sidePanelType,
-  onToggleSidePanel
-}: SidebarProps) {
-  const [activeView, setActiveView] = useState<SidebarView>('chat');
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [sidePanelWidth, setSidePanelWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
-  const [isResizing, setIsResizing] = useState(false);
+  onToggleSidePanel,
+  isCollapsed = false,
+  onToggleCollapse,
+  workspaceBranchSummary = {},
+  formatSessionAge = (session: Session) => {
+    const date = new Date(session.created_at);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  // Dialog states
+    if (diffInSeconds < 1) return 'now';
+    if (diffInSeconds < 60) return `${diffInSeconds}s`;
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m`;
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h`;
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays}d`;
+
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    if (diffInWeeks < 4) return `${diffInWeeks}w`;
+
+    const diffInMonths = Math.floor(diffInDays / 30);
+    if (diffInMonths < 12) return `${diffInMonths}mo`;
+
+    const diffInYears = Math.floor(diffInDays / 365);
+    return `${diffInYears}y`;
+  }
+}: SidebarProps) {
+
+
+  const [activeView, setActiveView] = useState<SidebarView>('chat');
+  const handleViewClick = useCallback((view: SidebarView) => {
+    setActiveView(view);
+  }, []);
+
+  // Stable callbacks for NavListItem to prevent re-renders
+  const handleChatClick = useCallback(() => handleViewClick('chat'), [handleViewClick]);
+  const handleAgentsClick = useCallback(() => handleViewClick('agents'), [handleViewClick]);
+  const handleSkillsClick = useCallback(() => handleViewClick('skills'), [handleViewClick]);
+  const handleFilesClick = useCallback(() => handleViewClick('files'), [handleViewClick]);
+  const handleHooksClick = useCallback(() => handleViewClick('hooks'), [handleViewClick]);
+  const handleMCPClick = useCallback(() => handleViewClick('mcp'), [handleViewClick]);
+  const handleQuotaClick = useCallback(() => handleViewClick('quota'), [handleViewClick]);
+  const handleMemoryClick = useCallback(() => handleViewClick('memory'), [handleViewClick]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [showModulesDialog, setShowModulesDialog] = useState(false);
 
-  // Session utility
-  const getSessionUpdatedAt = useCallback((session: Session) => {
-    const raw = session.updated_at ?? session.lastUpdated ?? session.created_at;
-    if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
-    if (typeof raw === 'string') {
-      const parsed = new Date(raw).getTime();
-      return Number.isFinite(parsed) ? parsed : 0;
-    }
-    return 0;
-  }, []);
+  // Use resize hooks for sidebar width and nav height
+  const { size: sidePanelWidth, isResizing, handleProps: sidebarHandleProps } = useResize({
+    direction: 'horizontal',
+    minSize: MIN_SIDEBAR_WIDTH,
+    maxSize: MAX_SIDEBAR_WIDTH,
+    initialSize: DEFAULT_SIDEBAR_WIDTH,
+  });
 
-  const dedupedSessions = useMemo(() => {
-    const byId = new Map<string, Session>();
-    for (const session of sessions) {
-      const existing = byId.get(session.id);
-      if (!existing || getSessionUpdatedAt(session) >= getSessionUpdatedAt(existing)) {
-        byId.set(session.id, session);
-      }
-    }
-    return Array.from(byId.values());
-  }, [sessions, getSessionUpdatedAt]);
+  const { size: navHeight, isResizing: isResizingNav, handleProps: navHandleProps } = useResize({
+    direction: 'vertical',
+    minSize: MIN_NAV_HEIGHT,
+    maxSize: MAX_NAV_HEIGHT,
+    initialSize: DEFAULT_NAV_HEIGHT,
+  });
 
-  const formatSessionAge = useCallback((session: Session): string => {
-    const raw = session.updated_at ?? session.created_at;
-    if (!raw) return '';
-    const ts = typeof raw === 'number' ? raw : new Date(raw).getTime();
-    if (!Number.isFinite(ts)) return '';
 
-    const diffMs = Date.now() - ts;
-    if (diffMs < 0) return 'now';
-    const mins = Math.floor(diffMs / 60000);
-    if (mins < 1) return 'now';
-    if (mins < 60) return `${mins}m`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d`;
-    const weeks = Math.floor(days / 7);
-    if (weeks < 5) return `${weeks}w`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `${months}mo`;
-    return `${Math.floor(days / 365)}y`;
-  }, []);
-
-  // Git and grouping
-  const workspaceNames = useMemo(() => Array.from(new Set(dedupedSessions.map(s => s.workspace || 'Default'))), [dedupedSessions]);
-  const branchInfo = useGitBranches(workspaceNames);
-
-  const workspaceBranchSummary = useMemo(() => {
-    const summaries: Record<string, { label: string; title: string; mixed: boolean } | null> = {};
-    const groups: Record<string, Session[]> = {};
-    dedupedSessions.forEach(s => {
-      const w = s.workspace || 'Default';
-      if (!groups[w]) groups[w] = [];
-      groups[w].push(s);
-    });
-
-    Object.entries(groups).forEach(([workspace, list]) => {
-      const uniqueBranches = Array.from(new Set(list.map(s => s.branch || '').filter(Boolean)));
-      if (uniqueBranches.length > 1) {
-        summaries[workspace] = { label: 'mixed', title: `Branches: ${uniqueBranches.join(', ')}`, mixed: true };
-      } else if (uniqueBranches.length === 1) {
-        summaries[workspace] = { label: uniqueBranches[0], title: `Branch: ${uniqueBranches[0]}`, mixed: false };
-      } else if (branchInfo[workspace]) {
-        summaries[workspace] = { label: branchInfo[workspace]!, title: `Current: ${branchInfo[workspace]}`, mixed: false };
-      } else {
-        summaries[workspace] = null;
-      }
-    });
-    return summaries;
-  }, [dedupedSessions, branchInfo]);
-
-  // Collapsed / Width state
-  useEffect(() => {
-    const savedCollapsed = localStorage.getItem('sidebar-collapsed');
-    if (savedCollapsed) setIsCollapsed(savedCollapsed === 'true');
-    const savedWidth = localStorage.getItem('side-panel-width');
-    if (savedWidth) {
-      const width = parseInt(savedWidth, 10);
-      if (!isNaN(width)) setSidePanelWidth(Math.min(Math.max(width, MIN_SIDEBAR_WIDTH), MAX_SIDEBAR_WIDTH));
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('sidebar-collapsed', String(isCollapsed));
-  }, [isCollapsed]);
-
-  const startResizing = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
-
-  const stopResizing = useCallback(() => {
-    setIsResizing(false);
-    localStorage.setItem('side-panel-width', String(sidePanelWidth));
-  }, [sidePanelWidth]);
-
-  const resize = useCallback((e: MouseEvent) => {
-    if (isResizing) {
-      const newWidth = e.clientX - 56;
-      if (newWidth >= MIN_SIDEBAR_WIDTH && newWidth <= MAX_SIDEBAR_WIDTH) setSidePanelWidth(newWidth);
-    }
-  }, [isResizing]);
-
-  useEffect(() => {
-    if (isResizing) {
-      window.addEventListener('mousemove', resize);
-      window.addEventListener('mouseup', stopResizing);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    } else {
-      window.removeEventListener('mousemove', resize);
-      window.removeEventListener('mouseup', stopResizing);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    }
-    return () => {
-      window.removeEventListener('mousemove', resize);
-      window.removeEventListener('mouseup', stopResizing);
-    };
-  }, [isResizing, resize, stopResizing]);
-
-  const handleViewClick = (view: SidebarView) => {
-    if (activeView === view) {
-      setIsCollapsed(!isCollapsed);
-    } else {
-      setActiveView(view);
-      setIsCollapsed(false);
-    }
-  };
-
-  const handleSidePanelClick = (type: 'graph' | 'timeline') => {
-    if (sidePanelType === type) {
-      onToggleSidePanel?.(null);
-    } else {
-      onToggleSidePanel?.(type);
-    }
-  };
-
-  const isAnyOpen = !isCollapsed || (sidePanelType !== null && sidePanelType !== undefined);
-
-  const handleToggleAll = () => {
-    if (isAnyOpen) {
-      setIsCollapsed(true);
-      onToggleSidePanel?.(null);
-    } else {
-      setIsCollapsed(false);
-    }
-  };
+  // ... (rest of component)
 
   return (
-    <div className="flex flex-col h-full bg-card border-r">
-      {/* Global Title Bar - Safe Area for Traffic Lights */}
-      <div className="h-[54px] w-full shrink-0 drag-region" />
-
-      <div className="flex flex-1 min-h-0 relative">
-
-
-        {/* Navigation Rail */}
-        {/* Navigation Rail */}
-        {/* Navigation Rail */}
-        <div className="w-14 border-r relative flex flex-col items-center pt-4 pb-4 gap-4 bg-card z-20 shrink-0 drag-region">
-          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-2 no-drag">
-            <GeminiIcon className="w-6 h-6" />
-          </div>
-
-          <div className="flex flex-col gap-3 w-full px-2 items-center flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden no-drag">
-            <Tooltip content="New Chat" side="right" sideOffset={18}>
-              <button
-                onClick={onNewChat}
-                className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200 hover:scale-105 relative group"
-              >
-                <Plus className="w-5 h-5" />
-              </button>
-            </Tooltip>
-            <div className="w-8 h-px bg-border/50 my-1" />
-
-            <NavButton active={!isCollapsed && activeView === 'chat'} onClick={() => handleViewClick('chat')} icon={MessageSquare} label="Chats" />
-            <NavButton active={!isCollapsed && activeView === 'files'} onClick={() => handleViewClick('files')} icon={FolderOpen} label="Files" />
-            <NavButton active={!isCollapsed && activeView === 'skills'} onClick={() => handleViewClick('skills')} icon={Puzzle} label="Skills" />
-            <NavButton active={!isCollapsed && activeView === 'hooks'} onClick={() => handleViewClick('hooks')} icon={Zap} label="Hooks" />
-            <NavButton active={!isCollapsed && activeView === 'mcp'} onClick={() => handleViewClick('mcp')} icon={Plug} label="MCP" />
-            <NavButton active={!isCollapsed && activeView === 'agents'} onClick={() => handleViewClick('agents')} icon={AgentIcon} label="Agents" />
-            <NavButton active={!isCollapsed && activeView === 'quota'} onClick={() => handleViewClick('quota')} icon={Activity} label="Quota" />
-            <NavButton active={!isCollapsed && activeView === 'memory'} onClick={() => handleViewClick('memory')} icon={Database} label="Knowledge Base" />
-
-            {onToggleSidePanel && (
-              <>
-                <div className="w-8 h-px bg-border/50 my-1" />
-                <NavButton active={sidePanelType === 'graph'} onClick={() => handleSidePanelClick('graph')} icon={Network} label="Conversation Graph" />
-                <NavButton active={sidePanelType === 'timeline'} onClick={() => handleSidePanelClick('timeline')} icon={Clock} label="Timeline" />
-              </>
-            )}
-          </div>
-
-          <div className="mt-auto flex flex-col gap-3 w-full px-2 items-center shrink-0">
-            <Tooltip content="Deep Monitoring" side="right" sideOffset={18}>
-              <button onClick={() => setShowModulesDialog(true)} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-                <LayoutGrid className="w-5 h-5" />
-              </button>
-            </Tooltip>
-            <Tooltip content={isAnyOpen ? "Collapse All" : "Expand Sidebar"} side="right" sideOffset={18}>
-              <button onClick={handleToggleAll} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-                {!isAnyOpen ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
-              </button>
-            </Tooltip>
-            <Tooltip content={isDark ? "Light" : "Dark"} side="right" sideOffset={18}>
-              <button onClick={toggleTheme} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-                {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
-            </Tooltip>
-            <Tooltip content="Settings" side="right" sideOffset={18}>
-              <button onClick={onOpenSettings} className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted border border-border hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
-                <Settings className="w-5 h-5" />
-              </button>
-            </Tooltip>
-          </div>
+    <div
+      className={cn(
+        "bg-[var(--bg-secondary)] border-r border-[var(--border-subtle)] relative flex flex-col h-full transition-colors duration-200 ease-in-out shrink-0",
+        isCollapsed ? "w-[56px]" : ""
+      )}
+      style={{ width: isCollapsed ? undefined : sidePanelWidth }}
+    >
+      {/* Navigation Section - Vertical Resizable */}
+      <div
+        className={cn("flex flex-col shrink-0 overflow-y-auto min-h-[100px]", isCollapsed && "h-auto overflow-visible")}
+        style={{ height: isCollapsed ? 'auto' : navHeight }}
+      >
+        <div className="flex flex-col gap-0.5 px-2 py-2">
+          <NavListItem active={activeView === 'chat'} onClick={handleChatClick} icon={MessageSquare} label="Chats" count={unreadSessionIds.length} collapsed={isCollapsed} kbd="⌘1" />
+          <NavListItem active={activeView === 'agents'} onClick={handleAgentsClick} icon={AgentIcon} label="Agents" collapsed={isCollapsed} kbd="⌘2" />
+          <NavListItem active={activeView === 'skills'} onClick={handleSkillsClick} icon={Puzzle} label="Skills" collapsed={isCollapsed} kbd="⌘3" />
+          <NavListItem active={activeView === 'files'} onClick={handleFilesClick} icon={FolderOpen} label="Files" collapsed={isCollapsed} kbd="⌘4" />
+          <NavListItem active={activeView === 'hooks'} onClick={handleHooksClick} icon={Zap} label="Hooks" collapsed={isCollapsed} />
+          <NavListItem active={activeView === 'mcp'} onClick={handleMCPClick} icon={Plug} label="MCP" collapsed={isCollapsed} />
+          <NavListItem active={activeView === 'quota'} onClick={handleQuotaClick} icon={Activity} label="Quota" collapsed={isCollapsed} />
+          <NavListItem active={activeView === 'memory'} onClick={handleMemoryClick} icon={Database} label="Memory" collapsed={isCollapsed} />
         </div>
-
-        <div
-          className={cn("flex flex-col bg-card z-10 relative shrink-0", !isResizing && "transition-all duration-200 ease-in-out", isCollapsed && "w-0 opacity-0 overflow-hidden")}
-          style={{ width: isCollapsed ? 0 : sidePanelWidth }}
-        >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeView}
-              initial={{ opacity: 0, x: -5 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 5 }}
-              transition={{ duration: 0.1 }}
-              className="flex-1 overflow-hidden flex flex-col"
-            >
-              {/* Content area */}
-
-              {activeView === 'chat' ? (
-                <ChatView
-                  sessions={dedupedSessions}
-                  currentSessionId={currentSessionId}
-                  runningSessionIds={runningSessionIds}
-                  terminalRunningSessionIds={terminalRunningSessionIds}
-                  unreadSessionIds={unreadSessionIds}
-                  onSelectSession={onSelectSession}
-                  onDeleteSession={onDeleteSession}
-                  onNewChatInWorkspace={onNewChatInWorkspace}
-                  onAddWorkspace={onAddWorkspace}
-                  onShowStats={onShowStats}
-                  currentWorkspace={currentWorkspace}
-                  workspaceBranchSummary={workspaceBranchSummary}
-                  formatSessionAge={formatSessionAge}
-                />
-              ) : activeView === 'files' ? (
-                <FileTree className="h-full" initialPath={currentWorkspace} onFileSelect={onFileSelect} />
-              ) : activeView === 'skills' ? (
-                <SkillsManager compact className="h-full" />
-              ) : activeView === 'hooks' ? (
-                <HooksPanel className="h-full" events={hookEvents} onClear={onClearHooks} />
-              ) : activeView === 'agents' ? (
-                <AgentPanel className="h-full" onSelectAgent={onSelectAgent!} selectedAgentName={selectedAgentName} />
-              ) : activeView === 'quota' ? (
-                <QuotaPanel className="h-full" />
-              ) : activeView === 'memory' ? (
-                <MemoryPanel className="h-full" onFileSelect={onFileSelect} workspacePath={currentWorkspace} />
-              ) : (
-                <MCPPanel className="h-full" />
-              )}
-            </motion.div>
-          </AnimatePresence>
-
-          {!isCollapsed && (
-            <div onMouseDown={startResizing} className={cn("absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-50 transition-colors hover:bg-primary/30 group", isResizing && "bg-primary/50")}>
-              <div className={cn("absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[2px] h-8 bg-border/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity", isResizing && "opacity-100 bg-primary/40")} />
-            </div>
-          )}
-        </div>
-
-        <ModulesDialog open={showModulesDialog} onOpenChange={setShowModulesDialog} />
       </div>
+
+      {/* Vertical Resizer Handle */}
+      {!isCollapsed && (
+        <ResizeHandle
+          direction="vertical"
+          isResizing={isResizingNav}
+          onMouseDown={navHandleProps.onMouseDown}
+          indicatorClassName="bg-[var(--border-subtle)]"
+        />
+      )}
+
+      {/* Divider & Search - hidden when collapsed or on views without search */}
+      {!isCollapsed && !['quota', 'memory'].includes(activeView) && (
+        <>
+          <div className="mx-4 h-px bg-[var(--border-subtle)] mb-1 shrink-0" />
+
+          <div className="px-3 py-2 shrink-0">
+            <div className="relative group">
+              <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={getSearchPlaceholder(activeView)}
+                className="w-full bg-[var(--bg-tertiary)] border border-transparent rounded-md pl-8 pr-8 py-1.5 text-[13px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--border)] focus:bg-[var(--bg-primary)] transition-colors shadow-sm"
+              />
+              <div className="absolute right-2 top-2 text-[var(--text-tertiary)] flex items-center gap-0.5 pointer-events-none">
+                <Command className="w-3 h-3 opacity-50" />
+                <span className="text-[10px] font-medium opacity-50">K</span>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Content View */}
+      <div className={cn("flex-1 min-h-0 overflow-hidden flex flex-col relative", isCollapsed && "hidden")}>
+        {/* ... content remains same ... */}
+        {activeView === 'chat' ? (
+          <ChatView
+            sessions={sessions}
+            currentSessionId={currentSessionId}
+            runningSessionIds={runningSessionIds}
+            terminalRunningSessionIds={terminalRunningSessionIds}
+            unreadSessionIds={unreadSessionIds}
+            onSelectSession={onSelectSession}
+            onDeleteSession={onDeleteSession}
+            onNewChatInWorkspace={onNewChatInWorkspace}
+            onAddWorkspace={onAddWorkspace}
+            onShowStats={onShowStats}
+            currentWorkspace={currentWorkspace}
+            workspaceBranchSummary={workspaceBranchSummary}
+            formatSessionAge={formatSessionAge}
+            searchTerm={searchTerm}
+          />
+        ) : activeView === 'files' ? (
+          <FileTree className="h-full" initialPath={currentWorkspace} onFileSelect={onFileSelect} searchTerm={searchTerm} />
+        ) : activeView === 'skills' ? (
+          <SkillsManager compact className="h-full" search={searchTerm} />
+        ) : activeView === 'hooks' ? (
+          <HooksPanel className="h-full" events={hookEvents} onClear={onClearHooks} searchTerm={searchTerm} />
+        ) : activeView === 'agents' ? (
+          <AgentPanel className="h-full" onSelectAgent={onSelectAgent!} selectedAgentName={selectedAgentName} search={searchTerm} />
+        ) : activeView === 'quota' ? (
+          <QuotaPanel className="h-full" />
+        ) : activeView === 'memory' ? (
+          <MemoryPanel className="h-full" onFileSelect={onFileSelect} workspacePath={currentWorkspace} />
+        ) : activeView === 'mcp' ? (
+          <MCPPanel className="h-full" />
+        ) : null}
+      </div>
+
+      {/* Footer Toolbar */}
+      <div className={cn(
+        "px-2 py-2 border-t border-[var(--border-subtle)] shrink-0 flex flex-col gap-2 bg-[var(--bg-secondary)]",
+        isCollapsed && "p-2 gap-2Items"
+      )}>
+        {/* Horizontal Action Bar */}
+        <div className={cn(
+          "flex items-center gap-1",
+          isCollapsed ? "flex-col" : "justify-between"
+        )}>
+          {/* Group 1: Insights & Modules */}
+          <div className={cn("flex items-center gap-1", isCollapsed && "flex-col")}>
+            <Tooltip content="Usage" side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={onShowStats}
+                className={cn(
+                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                <BarChart className="w-4 h-4" />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Modules" side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={() => setShowModulesDialog(true)}
+                className={cn(
+                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                <Boxes className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          </div>
+
+          {!isCollapsed && <div className="w-px h-4 bg-[var(--border-subtle)] mx-0.5" />}
+
+          {/* Group 2: Visualization Panels */}
+          <div className={cn("flex items-center gap-1", isCollapsed && "flex-col")}>
+            <Tooltip content="Graph" side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={() => onToggleSidePanel?.('graph')}
+                className={cn(
+                  "p-2 rounded-md transition-colors duration-200",
+                  sidePanelType === 'graph'
+                    ? "text-[var(--accent)] bg-[var(--accent)]/10"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                <Network className="w-4 h-4" />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Timeline" side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={() => onToggleSidePanel?.('timeline')}
+                className={cn(
+                  "p-2 rounded-md transition-colors duration-200",
+                  sidePanelType === 'timeline'
+                    ? "text-[var(--accent)] bg-[var(--accent)]/10"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                <Clock className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          </div>
+
+          {!isCollapsed && <div className="w-px h-4 bg-[var(--border-subtle)] mx-0.5" />}
+
+          {/* Group 3: App Controls */}
+          <div className={cn("flex items-center gap-1", isCollapsed && "flex-col")}>
+            <Tooltip content={isDark ? "Light Mode" : "Dark Mode"} side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={toggleTheme}
+                className={cn(
+                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Settings" side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={onOpenSettings}
+                className={cn(
+                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+
+        {/* Info Bar */}
+        {!isCollapsed && (
+          <div className="flex items-center justify-between px-1.5 pt-1.5 border-t border-[var(--border-subtle)]/50">
+            <span className="text-[10px] text-[var(--text-tertiary)] font-mono opacity-60">v0.4.2</span>
+            <div className="flex items-center gap-1.5">
+              <span className="px-1 py-0.25 rounded-[3px] text-[9px] font-bold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 shadow-sm lowercase">
+                pro
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Horizontal Resizer (sidebar width) */}
+      {!isCollapsed && (
+        <ResizeHandle
+          direction="horizontal"
+          isResizing={isResizing}
+          onMouseDown={sidebarHandleProps.onMouseDown}
+          className="absolute top-0 right-[-1px] h-full hover:opacity-100 delay-75"
+          indicatorClassName="bg-[var(--border-subtle)]"
+        />
+      )}
+
+      <ModulesDialog open={showModulesDialog} onOpenChange={setShowModulesDialog} />
     </div>
   );
-}
+});

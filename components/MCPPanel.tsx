@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, memo } from 'react';
 import {
     Plug,
     Activity,
@@ -65,7 +65,7 @@ const defaultServerStatus = (status?: string): ServerStatus => {
     return 'disconnected';
 };
 
-export function MCPPanel({ className }: MCPPanelProps) {
+export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
     const [servers, setServers] = useState<Record<string, MCPServerRecord>>({});
     const [discoveryState, setDiscoveryState] = useState('not_started');
     const [isLoading, setIsLoading] = useState(true);
@@ -228,7 +228,7 @@ export function MCPPanel({ className }: MCPPanelProps) {
                     <button
                         onClick={loadServers}
                         disabled={isLoading}
-                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all disabled:opacity-50"
+                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
                         title="Refresh Servers"
                     >
                         <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
@@ -260,13 +260,13 @@ export function MCPPanel({ className }: MCPPanelProps) {
                             value={newServerName}
                             onChange={(e) => setNewServerName(e.target.value)}
                             placeholder="Server name"
-                            className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-all font-mono"
+                            className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-colors font-mono"
                         />
 
                         <select
                             value={transportType}
                             onChange={(e) => setTransportType(e.target.value as 'stdio' | 'sse' | 'http')}
-                            className="w-full rounded-md border border-border/50 bg-background/50 px-2 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-all"
+                            className="w-full rounded-md border border-border/50 bg-background/50 px-2 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-colors"
                         >
                             <option value="stdio">stdio (Local Command)</option>
                             <option value="sse">sse (Network Stream)</option>
@@ -279,13 +279,13 @@ export function MCPPanel({ className }: MCPPanelProps) {
                                     value={command}
                                     onChange={(e) => setCommand(e.target.value)}
                                     placeholder="command (e.g. npx @modelcontextprotocol/...)"
-                                    className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-all font-mono"
+                                    className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-colors font-mono"
                                 />
                                 <input
                                     value={argsInput}
                                     onChange={(e) => setArgsInput(e.target.value)}
                                     placeholder="arguments (space-separated)"
-                                    className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-all font-mono"
+                                    className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-colors font-mono"
                                 />
                             </>
                         ) : (
@@ -293,7 +293,7 @@ export function MCPPanel({ className }: MCPPanelProps) {
                                 value={urlInput}
                                 onChange={(e) => setUrlInput(e.target.value)}
                                 placeholder="http://localhost:3000/sse"
-                                className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-all font-mono"
+                                className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-colors font-mono"
                             />
                         )}
 
@@ -301,14 +301,14 @@ export function MCPPanel({ className }: MCPPanelProps) {
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="brief description (optional)"
-                            className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-all"
+                            className="w-full rounded-md border border-border/50 bg-background/50 px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-primary/40 outline-none transition-colors"
                         />
                     </div>
 
                     <button
                         onClick={handleAddServer}
                         disabled={isSavingServer}
-                        className="w-full py-2 mt-1 rounded bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-60 transition-all shadow-sm flex items-center justify-center gap-2"
+                        className="w-full py-2 mt-1 rounded bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-60 transition-colors shadow-sm flex items-center justify-center gap-2"
                     >
                         {isSavingServer ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                         Save Server
@@ -323,7 +323,7 @@ export function MCPPanel({ className }: MCPPanelProps) {
                     const toolCount = config.includeToolsCount ?? (Array.isArray(config.includeTools) ? config.includeTools.length : null);
 
                     return (
-                        <div key={name} className="group relative p-3 rounded-xl border border-border/50 bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-all duration-200">
+                        <div key={name} className="group relative p-3 rounded-xl border border-border/50 bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-colors duration-200">
                             <div className="flex items-start justify-between mb-2">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 bg-primary/5 rounded-lg border border-primary/10 group-hover:bg-primary/10 transition-colors">
@@ -354,11 +354,11 @@ export function MCPPanel({ className }: MCPPanelProps) {
                                 </p>
                             )}
 
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-colors">
                                 <button
                                     onClick={() => handleRestart(name)}
                                     disabled={restartingServer === name}
-                                    className="flex-1 py-1.5 rounded-md bg-secondary/40 hover:bg-secondary/60 text-[11px] font-bold uppercase tracking-wider transition-all border border-border/50 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                    className="flex-1 py-1.5 rounded-md bg-secondary/40 hover:bg-secondary/60 text-[11px] font-bold uppercase tracking-wider transition-colors border border-border/50 flex items-center justify-center gap-1.5 disabled:opacity-50"
                                 >
                                     {restartingServer === name
                                         ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -367,7 +367,7 @@ export function MCPPanel({ className }: MCPPanelProps) {
                                 </button>
                                 <button
                                     onClick={() => void handleDetails(name, config)}
-                                    className="flex-1 py-1.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-bold uppercase tracking-wider transition-all border border-primary/20 flex items-center justify-center gap-1.5"
+                                    className="flex-1 py-1.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-bold uppercase tracking-wider transition-colors border border-primary/20 flex items-center justify-center gap-1.5"
                                 >
                                     <ExternalLink className="w-3 h-3" />
                                     Details
@@ -395,7 +395,7 @@ export function MCPPanel({ className }: MCPPanelProps) {
             <div className="p-3 border-t bg-card/20 group">
                 <button
                     onClick={() => setShowAddForm(true)}
-                    className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg text-xs font-bold uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all shadow-lg flex items-center justify-center gap-2 overflow-hidden relative"
+                    className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg text-xs font-bold uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-colors shadow-lg flex items-center justify-center gap-2 overflow-hidden relative"
                 >
                     <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
                     <Plus className="w-4 h-4 relative z-10" />
@@ -430,4 +430,4 @@ export function MCPPanel({ className }: MCPPanelProps) {
             )}
         </div>
     );
-}
+});

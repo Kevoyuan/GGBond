@@ -60,6 +60,7 @@ function createMainWindow() {
     title: WINDOW_TITLE,
     frame: false,
     titleBarStyle: 'hidden',
+    trafficLightPosition: { x: 18, y: 19 },
     autoHideMenuBar: true,
     show: false,
     // Performance optimizations

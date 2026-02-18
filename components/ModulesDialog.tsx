@@ -72,7 +72,7 @@ const TabButton = React.memo(function TabButton({
       aria-selected={isActive}
       role="tab"
       className={cn(
-        "flex items-center gap-2.5 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-200 relative group",
+        "flex items-center gap-2.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 relative group",
         isActive
           ? "border-primary text-primary"
           : "border-transparent text-muted-foreground hover:text-foreground hover:border-zinc-300 dark:hover:border-zinc-600"
@@ -86,7 +86,7 @@ const TabButton = React.memo(function TabButton({
       </span>
       <span>{tab.label}</span>
       {!isActive && (
-        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-primary rounded-full transition-all duration-300 group-hover:w-full opacity-0 group-hover:opacity-100" />
+        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-primary rounded-full transition-colors duration-300 group-hover:w-full opacity-0 group-hover:opacity-100" />
       )}
     </button>
   );
@@ -188,7 +188,7 @@ export function ModulesDialog({ open, onOpenChange }: ModulesDialogProps) {
           </div>
           <button
             onClick={handleClose}
-            className="p-2.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 hover:rotate-90"
+            className="p-2.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-200 hover:rotate-90"
             aria-label="Close dialog"
           >
             <X className="w-5 h-5" />

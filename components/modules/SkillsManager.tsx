@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ModuleCard } from './ModuleCard';
 import { Sparkles, Loader2, RefreshCw, Trash2, BookOpen, Search, CheckCircle2, Ban, Plus, SlidersHorizontal, Puzzle, ExternalLink, Edit, PlusCircle, Layers, Globe, FolderOpen } from 'lucide-react';
@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { PanelHeader } from '../sidebar/PanelHeader';
 import { SkillPreviewDialog } from '../SkillPreviewDialog';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 
 interface Skill {
     id: string;
@@ -28,22 +29,26 @@ interface SkillSource {
 interface SkillsManagerProps {
     compact?: boolean;
     className?: string;
+    search?: string;
 }
 
-export function SkillsManager({ compact = false, className }: SkillsManagerProps = {}) {
+export const SkillsManager = memo(function SkillsManager({ compact = false, className, search: externalSearch }: SkillsManagerProps = {}) {
     const [skills, setSkills] = useState<Skill[]>([]);
     const [sources, setSources] = useState<SkillSource[]>([]);
     const [loading, setLoading] = useState(true);
     const [scopeFilter, setScopeFilter] = useState<'all' | 'global' | 'project'>('all');
     const [showAdvanced, setShowAdvanced] = useState(false);
-    const [search, setSearch] = useState('');
+    const [internalSearch, setInternalSearch] = useState('');
     const [installSource, setInstallSource] = useState('');
+
+    // Use external search if provided, otherwise use internal state
+    const search = externalSearch !== undefined ? externalSearch : internalSearch;
     const [linkSource, setLinkSource] = useState('');
     const [actionMessage, setActionMessage] = useState<string | null>(null);
     const [actionMessageIsError, setActionMessageIsError] = useState(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
-    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
     const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
 
     const fetchSkills = () => {
@@ -81,9 +86,12 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
             .finally(() => setLoading(false));
     };
 
+    const fetchSkillsRef = useRef(fetchSkills);
+    fetchSkillsRef.current = fetchSkills;
+
     useEffect(() => { fetchSkills(); }, []);
 
-    const handleAction = async (action: string, name?: string) => {
+    const handleAction = useCallback(async (action: string, name?: string) => {
         if ((action === 'enable' || action === 'disable' || action === 'uninstall') && !name) return;
         if (action === 'install' && !installSource.trim()) return;
         if ((action === 'link_dir' || action === 'unlink_dir') && !linkSource.trim()) return;
@@ -120,17 +128,17 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
             setActionMessageIsError(true);
         }
         finally { setActionLoading(null); }
-    };
+    }, [installSource, linkSource, fetchSkills]);
 
-    const handleUseSkill = (e: React.MouseEvent, skillId: string) => {
+    const handleUseSkill = useCallback((e: React.MouseEvent, skillId: string) => {
         e.stopPropagation();
         const event = new CustomEvent('insert-skill-token', {
             detail: { skillId }
         });
         window.dispatchEvent(event);
-    };
+    }, []);
 
-    const handleEditSkill = async (e: React.MouseEvent, location: string) => {
+    const handleEditSkill = useCallback(async (e: React.MouseEvent, location: string) => {
         e.stopPropagation();
         if (!location) return;
         try {
@@ -142,26 +150,35 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
         } catch (error) {
             console.error("Failed to open file", error);
         }
-    };
+    }, []);
 
-    const scopeFilteredSkills = skills.filter((skill) => {
-        return scopeFilter === 'all' ? true : skill.scope === scopeFilter;
-    });
+    const scopeFilteredSkills = useMemo(() =>
+        skills.filter((skill) => {
+            return scopeFilter === 'all' ? true : skill.scope === scopeFilter;
+        }),
+        [skills, scopeFilter]
+    );
 
-    const filteredSkills = scopeFilteredSkills.filter((skill) => {
-        if (statusFilter === 'enabled' && skill.status !== 'Enabled') return false;
-        if (statusFilter === 'disabled' && skill.status !== 'Disabled') return false;
+    const filteredSkills = useMemo(() =>
+        scopeFilteredSkills.filter((skill) => {
+            if (statusFilter === 'enabled' && skill.status !== 'Enabled') return false;
+            if (statusFilter === 'disabled' && skill.status !== 'Disabled') return false;
 
-        const q = search.trim().toLowerCase();
-        if (!q) return true;
-        return (
-            skill.name.toLowerCase().includes(q) ||
-            skill.description.toLowerCase().includes(q) ||
-            skill.location.toLowerCase().includes(q)
-        );
-    });
+            const q = search.trim().toLowerCase();
+            if (!q) return true;
+            return (
+                skill.name.toLowerCase().includes(q) ||
+                skill.description.toLowerCase().includes(q) ||
+                skill.location.toLowerCase().includes(q)
+            );
+        }),
+        [scopeFilteredSkills, statusFilter, search]
+    );
 
-    const enabledCount = scopeFilteredSkills.filter((s) => s.status === 'Enabled').length;
+    const enabledCount = useMemo(() =>
+        scopeFilteredSkills.filter((s) => s.status === 'Enabled').length,
+        [scopeFilteredSkills]
+    );
     const disabledCount = scopeFilteredSkills.length - enabledCount;
     const displaySources = useMemo(() => {
         const seen = new Set<string>();
@@ -185,7 +202,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                     <button
                         onClick={() => setStatusFilter(prev => prev === 'enabled' ? 'all' : 'enabled')}
                         className={cn(
-                            "px-3 py-2.5 rounded-xl border transition-all text-left group",
+                            "px-3 py-2.5 rounded-xl border transition-colors text-left group",
                             statusFilter === 'enabled'
                                 ? "border-emerald-500 bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
                                 : "border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10 hover:border-emerald-500/40"
@@ -200,7 +217,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                     <button
                         onClick={() => setStatusFilter(prev => prev === 'disabled' ? 'all' : 'disabled')}
                         className={cn(
-                            "px-3 py-2.5 rounded-xl border transition-all text-left group",
+                            "px-3 py-2.5 rounded-xl border transition-colors text-left group",
                             statusFilter === 'disabled'
                                 ? "border-primary bg-primary/10 shadow-[0_0_10px_rgba(var(--primary),0.1)]"
                                 : "border-border/50 bg-card/40 hover:border-primary/40"
@@ -212,18 +229,6 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                         </div>
                         <div className="text-lg font-bold text-muted-foreground font-mono tracking-tighter">{disabledCount}</div>
                     </button>
-                </div>
-
-                <div className="flex gap-2">
-                    <div className="relative flex-1 group">
-                        <Search size={13} className="absolute left-2.5 top-2.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                        <input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search skills..."
-                            className="w-full h-9 pl-8 pr-3 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/40 focus:border-primary/40 outline-none transition-all font-mono"
-                        />
-                    </div>
                 </div>
 
                 <div className="flex p-1 bg-muted/30 rounded-lg relative overflow-hidden">
@@ -292,12 +297,12 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                                                 value={installSource}
                                                 onChange={(e) => setInstallSource(e.target.value)}
                                                 placeholder="GitHub URL or local path"
-                                                className="w-full px-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/30 outline-none transition-all font-mono"
+                                                className="w-full px-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/30 outline-none transition-colors font-mono"
                                             />
                                             <button
                                                 onClick={() => handleAction('install')}
                                                 disabled={!installSource.trim() || actionLoading === `install:${installSource}`}
-                                                className="w-full px-4 py-2 text-[10px] rounded-lg bg-primary text-primary-foreground font-bold uppercase tracking-widest hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg"
+                                                className="w-full px-4 py-2 text-[10px] rounded-lg bg-primary text-primary-foreground font-bold uppercase tracking-widest hover:brightness-110 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 shadow-lg"
                                             >
                                                 {actionLoading?.startsWith('install:') ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
                                                 Install
@@ -315,20 +320,20 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                                                 value={linkSource}
                                                 onChange={(e) => setLinkSource(e.target.value)}
                                                 placeholder="~/.claude/skills"
-                                                className="w-full px-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/30 outline-none transition-all font-mono"
+                                                className="w-full px-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/30 outline-none transition-colors font-mono"
                                             />
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button
                                                     onClick={() => handleAction('link_dir')}
                                                     disabled={!linkSource.trim() || actionLoading === `link_dir:${linkSource.trim()}`}
-                                                    className="px-3 py-2 text-[10px] rounded-lg bg-secondary/80 text-secondary-foreground font-bold uppercase tracking-widest hover:bg-secondary disabled:opacity-50 transition-all border border-border/50"
+                                                    className="px-3 py-2 text-[10px] rounded-lg bg-secondary/80 text-secondary-foreground font-bold uppercase tracking-widest hover:bg-secondary disabled:opacity-50 transition-colors border border-border/50"
                                                 >
                                                     Link
                                                 </button>
                                                 <button
                                                     onClick={() => handleAction('unlink_dir')}
                                                     disabled={!linkSource.trim() || actionLoading === `unlink_dir:${linkSource.trim()}`}
-                                                    className="px-3 py-2 text-[10px] rounded-lg border border-border/50 bg-background/50 hover:bg-muted font-bold uppercase tracking-widest disabled:opacity-50 transition-all"
+                                                    className="px-3 py-2 text-[10px] rounded-lg border border-border/50 bg-background/50 hover:bg-muted font-bold uppercase tracking-widest disabled:opacity-50 transition-colors"
                                                 >
                                                     Unlink
                                                 </button>
@@ -376,7 +381,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                     )}
                 </AnimatePresence>
 
-                <div className={cn("space-y-2.5", compact ? "h-[calc(100vh-320px)] overflow-y-auto pr-1" : "max-h-[400px] overflow-y-auto")}>
+                <div className={cn("space-y-2.5")}>
                     {filteredSkills.length === 0 ? (
                         <div className="text-center py-10 opacity-20 grayscale">
                             <Puzzle size={32} className="mx-auto mb-3" />
@@ -387,7 +392,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                             <div
                                 key={skill.id}
                                 className={cn(
-                                    "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer group",
+                                    "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-muted/40 dark:hover:bg-muted/40 transition-colors cursor-pointer group",
                                     selectedSkill?.id === skill.id && "bg-primary/5 border-primary ring-1 ring-primary/20 text-primary"
                                 )}
                                 onClick={() => setSelectedSkill(skill)}
@@ -412,7 +417,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                                     {skill.status === 'Enabled' && (
                                         <button
                                             onClick={(e) => handleUseSkill(e, skill.id)}
-                                            className="p-1 px-[5px] text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-all shrink-0"
+                                            className="p-1 px-[5px] text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors shrink-0"
                                             title="Add to chat"
                                         >
                                             <PlusCircle size={14} className="stroke-[2.5]" />
@@ -421,14 +426,14 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                                 </div>
 
                                 <div
-                                    className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all"
-                                    onMouseLeave={() => setConfirmDeleteId(null)}
+                                    className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-colors"
+                                    onMouseLeave={() => handleMouseLeave(skill.id)}
                                 >
                                     <div className="w-[1px] h-4 bg-border/50 mx-1" />
                                     {skill.status === 'Enabled' ? (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleAction('disable', skill.id); }}
-                                            className="p-1.5 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-md transition-all"
+                                            className="p-1.5 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-md transition-colors"
                                             title="Disable"
                                             disabled={actionLoading === `disable:${skill.id}`}
                                         >
@@ -437,7 +442,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                                     ) : (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleAction('enable', skill.id); }}
-                                            className="p-1.5 text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 rounded-md transition-all"
+                                            className="p-1.5 text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 rounded-md transition-colors"
                                             title="Enable"
                                             disabled={actionLoading === `enable:${skill.id}`}
                                         >
@@ -445,12 +450,11 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                                         </button>
                                     )}
                                     {!skill.isBuiltIn && (
-                                        confirmDeleteId === skill.id ? (
+                                        isPending(skill.id) ? (
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    handleAction('uninstall', skill.id);
-                                                    setConfirmDeleteId(null);
+                                                    confirmDelete(skill.id, (id) => handleAction('uninstall', id));
                                                 }}
                                                 className="px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors animate-in fade-in slide-in-from-right-2 duration-200"
                                             >
@@ -460,9 +464,9 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setConfirmDeleteId(skill.id);
+                                                    startDelete(skill.id);
                                                 }}
-                                                className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-all"
+                                                className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
                                                 title="Uninstall"
                                                 disabled={actionLoading === `uninstall:${skill.id}`}
                                             >
@@ -484,7 +488,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
             <button
                 onClick={() => setShowAdvanced((prev) => !prev)}
                 className={cn(
-                    "p-1.5 rounded-lg transition-all border",
+                    "p-1.5 rounded-lg transition-colors border",
                     showAdvanced
                         ? "bg-primary text-primary-foreground border-primary shadow-inner"
                         : "text-muted-foreground border-transparent hover:bg-primary/10 hover:text-primary"
@@ -495,7 +499,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
             </button>
             <button
                 onClick={fetchSkills}
-                className="p-1.5 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary transition-all"
+                className="p-1.5 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
                 title="Sync Registry"
             >
                 <RefreshCw size={14} className={cn(loading && "animate-spin")} />
@@ -512,7 +516,7 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
                     badge={skills.length}
                     actions={headerActions}
                 />
-                <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
+                <div className="flex-1 min-h-0 p-4">
                     {loading && skills.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 opacity-20">
                             <Loader2 size={24} className="animate-spin mb-3" />
@@ -553,4 +557,4 @@ export function SkillsManager({ compact = false, className }: SkillsManagerProps
             />
         </ModuleCard>
     );
-}
+});

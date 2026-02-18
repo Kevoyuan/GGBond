@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { User, Sparkles, Shield, Cpu, ExternalLink, Play, RefreshCw, Layers, Plus, Trash, Link2, Search, SlidersHorizontal, Loader2, Ban, CheckCircle2, BookOpen, AlertCircle, FolderSearch, PlusCircle } from 'lucide-react';
@@ -12,6 +12,8 @@ import { useAppStore } from '@/stores/useAppStore';
 import { AgentIcon } from './icons/AgentIcon';
 import { PanelHeader } from './sidebar/PanelHeader';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { useConfirmDelete } from '@/hooks/useConfirmDelete';
+import { ResizeHandle, useResize } from './ui/ResizeHandle';
 
 interface AgentDefinition {
     name: string;
@@ -26,20 +28,24 @@ interface AgentPanelProps {
     onSelectAgent: (agent: AgentDefinition) => void;
     selectedAgentName?: string;
     className?: string;
+    search?: string;
 }
 
 const builtInAgents = ['codebase-investigator', 'cli-help-agent', 'generalist-agent'];
 
-export function AgentPanel({ onSelectAgent, selectedAgentName, className }: AgentPanelProps) {
+export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgentName, className, search: externalSearch }: AgentPanelProps) {
     const [agents, setAgents] = useState<AgentDefinition[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [search, setSearch] = useState('');
+    const [internalSearch, setInternalSearch] = useState('');
     const [scopeFilter, setScopeFilter] = useState<'all' | 'built-in' | 'user'>('all');
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [actionMessage, setActionMessage] = useState<string | null>(null);
     const [actionMessageIsError, setActionMessageIsError] = useState(false);
+
+    // Use external search if provided, otherwise use internal state
+    const search = externalSearch !== undefined ? externalSearch : internalSearch;
 
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [previewAgent, setPreviewAgent] = useState<AgentDefinition | null>(null);
@@ -52,49 +58,25 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
     const [scanning, setScanning] = useState(false);
     const [isDirectory, setIsDirectory] = useState(false);
 
-    const [confirmDeleteName, setConfirmDeleteName] = useState<string | null>(null);
-    const [agentListHeight, setAgentListHeight] = useState(550);
-    const [isResizing, setIsResizing] = useState(false);
-    const panelRef = useRef<HTMLDivElement>(null);
+    const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
     const [refreshRunsTrigger, setRefreshRunsTrigger] = useState(0);
 
     // Run agent state (kept for compatibility)
     const { getAgents, setAgents: saveAgents } = useAppStore();
 
-    const startResizing = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        setIsResizing(true);
-    }, []);
+    // Load persisted height
+    const getInitialHeight = () => {
+        const saved = localStorage.getItem('agent-panel-list-height');
+        return saved ? parseInt(saved, 10) : 550;
+    };
 
-    const stopResizing = useCallback(() => {
-        setIsResizing(false);
-        // Persist height
-        localStorage.setItem('agent-panel-list-height', agentListHeight.toString());
-    }, [agentListHeight]);
-
-    const resize = useCallback((e: MouseEvent) => {
-        if (isResizing && panelRef.current) {
-            const panelRect = panelRef.current.getBoundingClientRect();
-            const newHeight = e.clientY - panelRect.top - 48; // 48 is the header height
-            if (newHeight > 150 && newHeight < panelRect.height - 150) {
-                setAgentListHeight(newHeight);
-            }
-        }
-    }, [isResizing]);
-
-    useEffect(() => {
-        if (isResizing) {
-            window.addEventListener('mousemove', resize);
-            window.addEventListener('mouseup', stopResizing);
-        } else {
-            window.removeEventListener('mousemove', resize);
-            window.removeEventListener('mouseup', stopResizing);
-        }
-        return () => {
-            window.removeEventListener('mousemove', resize);
-            window.removeEventListener('mouseup', stopResizing);
-        };
-    }, [isResizing, resize, stopResizing]);
+    const { size: agentListHeight, isResizing, handleProps } = useResize({
+        direction: 'vertical',
+        minSize: 150,
+        maxSize: 800,
+        initialSize: getInitialHeight(),
+        onResize: (height) => localStorage.setItem('agent-panel-list-height', height.toString()),
+    });
 
     const fetchAgents = async (force = false) => {
         // Try cache first unless forced
@@ -128,12 +110,6 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
 
     useEffect(() => {
         fetchAgents();
-        // Load persisted height
-        const savedHeight = localStorage.getItem('agent-panel-list-height');
-        if (savedHeight) {
-            const h = parseInt(savedHeight, 10);
-            if (!isNaN(h)) setAgentListHeight(h);
-        }
     }, []);
 
     const handleAction = async (action: string, name?: string) => {
@@ -259,7 +235,6 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
 
     return (
         <div
-            ref={panelRef}
             className={cn("flex flex-col h-full bg-card/30 relative select-none", className)}
         >
             <PanelHeader
@@ -270,7 +245,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                     <div className="flex items-center gap-1">
                         <button
                             onClick={() => setShowCreateDialog(true)}
-                            className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+                            className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                             title="Create Agent"
                         >
                             <Plus size={14} />
@@ -278,7 +253,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                         <button
                             onClick={() => setShowAdvanced((prev) => !prev)}
                             className={cn(
-                                "p-1.5 rounded-lg transition-all",
+                                "p-1.5 rounded-lg transition-colors",
                                 showAdvanced
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:bg-muted"
@@ -289,7 +264,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                         </button>
                         <button
                             onClick={() => fetchAgents(true)}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-all"
+                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
                             title="Refresh"
                         >
                             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
@@ -301,24 +276,13 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
             {/* Top Section: Agents List & Controls */}
             <div
                 className={cn(
-                    "flex flex-col shrink-0 min-h-[150px] transition-all duration-200",
+                    "flex flex-col shrink-0 min-h-[150px] transition-colors duration-200",
                     isResizing && "transition-none"
                 )}
                 style={{ height: `${agentListHeight}px` }}
             >
                 {/* Fixed controls - kept out of scroll area for stability */}
                 <div className="px-3 pt-3 pb-2 space-y-3 bg-card/10 border-b border-border/10">
-                    {/* Search */}
-                    <div className="relative group">
-                        <Search size={13} className="absolute left-2.5 top-2.5 text-muted-foreground group-focus-within:text-primary transition-all" />
-                        <input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search agents..."
-                            className="w-full pl-8 pr-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary/40 transition-all font-mono"
-                        />
-                    </div>
-
                     {/* Filter Tabs (Segmented Control style) */}
                     <div className="flex p-1 bg-muted/30 rounded-lg relative overflow-hidden">
                         {[
@@ -384,7 +348,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                                     value={importSource}
                                                     onChange={(e) => setImportSource(e.target.value)}
                                                     placeholder="~/.claude/agents or /path/to/agents"
-                                                    className="w-full px-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-background focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm"
+                                                    className="w-full px-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-background focus:ring-1 focus:ring-primary focus:border-primary transition-colors shadow-sm"
                                                 />
                                                 <button
                                                     onClick={() => handleAction('import')}
@@ -495,7 +459,7 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                         <div
                                             key={agent.name}
                                             className={cn(
-                                                "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer group",
+                                                "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer group",
                                                 selectedAgentName === agent.name && "bg-primary/5 border-primary ring-1 ring-primary/20"
                                             )}
                                             onClick={() => {
@@ -523,25 +487,24 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                                 </div>
                                                 <button
                                                     onClick={(e) => handleUseAgent(e, agent.name)}
-                                                    className="p-1 px-[5px] text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-all shrink-0"
+                                                    className="p-1 px-[5px] text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors shrink-0"
                                                     title="Add to chat"
                                                 >
                                                     <PlusCircle size={14} className="stroke-[2.5]" />
                                                 </button>
                                             </div>
 
-                                            <div className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                            <div className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-colors">
                                                 {isUserAgent(agent.name) && (
                                                     <div
                                                         className="flex items-center"
-                                                        onMouseLeave={() => setConfirmDeleteName(null)}
+                                                        onMouseLeave={() => handleMouseLeave(agent.name)}
                                                     >
-                                                        {confirmDeleteName === agent.name ? (
+                                                        {isPending(agent.name) ? (
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    handleAction('delete', agent.name);
-                                                                    setConfirmDeleteName(null);
+                                                                    confirmDelete(agent.name, (name) => handleAction('delete', name));
                                                                 }}
                                                                 className="px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors animate-in fade-in slide-in-from-right-2 duration-200"
                                                             >
@@ -551,9 +514,9 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    setConfirmDeleteName(agent.name);
+                                                                    startDelete(agent.name);
                                                                 }}
-                                                                className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-all"
+                                                                className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
                                                                 title="Delete"
                                                                 disabled={actionLoading === `delete:${agent.name}`}
                                                             >
@@ -577,16 +540,13 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
             </div>
 
             {/* Resize Divider */}
-            <div
-                className={cn(
-                    "h-1 relative cursor-row-resize hover:bg-primary/40 transition-colors z-20 flex items-center justify-center group/resize",
-                    isResizing && "bg-primary/50"
-                )}
-                onMouseDown={startResizing}
-            >
-                <div className="absolute inset-x-0 -top-2 -bottom-2" />
-                <div className="w-8 h-[1px] bg-zinc-300 dark:bg-zinc-600 group-hover/resize:bg-primary transition-colors" />
-            </div>
+            <ResizeHandle
+                direction="vertical"
+                isResizing={isResizing}
+                onMouseDown={handleProps.onMouseDown}
+                className="relative z-20"
+                indicatorClassName="bg-zinc-300 dark:bg-zinc-600"
+            />
 
             {/* Bottom Section: Execution History */}
             <div className="flex-1 min-h-[150px] flex flex-col bg-card/5 overflow-hidden">
@@ -612,4 +572,4 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className }: Agen
             />
         </div>
     );
-}
+});

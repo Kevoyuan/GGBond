@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { X, Settings, Save, RotateCcw } from 'lucide-react';
+import { X, Settings, Save, RotateCcw, Shield, Zap, Code2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Select } from '@/components/ui/Select';
 
 export interface ChatSettings {
   model: string;
@@ -28,11 +29,11 @@ interface SettingsDialogProps {
 }
 
 const MODELS = [
-  { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview' },
-  { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview' },
-  { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro' },
-  { id: 'gemini-2.5-flash', name: 'gemini-2.5-flash' },
-  { id: 'gemini-2.5-flash-lite', name: 'gemini-2.5-flash-lite' },
+  { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', icon: Code2 },
+  { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', icon: Zap },
+  { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro', icon: Code2 },
+  { id: 'gemini-2.5-flash', name: 'gemini-2.5-flash', icon: Zap },
+  { id: 'gemini-2.5-flash-lite', name: 'gemini-2.5-flash-lite', icon: Zap },
 ];
 
 export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDialogProps) {
@@ -107,19 +108,13 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
         <div className="p-6 space-y-6 overflow-y-auto">
           
           {/* Model Selection */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none">Model</label>
-            <select
-              value={localSettings.model}
-              onChange={(e) => setLocalSettings(s => ({ ...s, model: e.target.value }))}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {MODELS.map(m => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-            <p className="text-[13px] text-muted-foreground">Select the AI model to use.</p>
-          </div>
+          <Select
+            label="Model"
+            value={localSettings.model}
+            onChange={(value) => setLocalSettings(s => ({ ...s, model: value }))}
+            options={MODELS}
+            description="Select the AI model to use."
+          />
 
           {/* System Instruction */}
           <div className="space-y-2">
@@ -133,23 +128,19 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
           </div>
 
           {/* Tool Permissions */}
-          <div className="space-y-2 pt-4 border-t">
-            <label className="text-sm font-medium leading-none">Tool Permission Strategy</label>
-            <select
-              value={localSettings.toolPermissionStrategy}
-              onChange={(e) => setLocalSettings(s => ({
-                ...s,
-                toolPermissionStrategy: e.target.value as 'safe' | 'auto'
-              }))}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="safe">Safe (Approve / Deny / Allow Session)</option>
-              <option value="auto">Auto (Always Allow)</option>
-            </select>
-            <p className="text-[13px] text-muted-foreground">
-              Safe mode prompts for each privileged tool call. Auto mode sends tool calls without confirmation.
-            </p>
-          </div>
+          <Select
+            label="Tool Permission Strategy"
+            value={localSettings.toolPermissionStrategy}
+            onChange={(value) => setLocalSettings(s => ({
+              ...s,
+              toolPermissionStrategy: value as 'safe' | 'auto'
+            }))}
+            options={[
+              { id: 'safe', name: 'Safe', description: 'Approve / Deny / Allow Session', icon: Shield },
+              { id: 'auto', name: 'Auto', description: 'Always Allow', icon: Zap },
+            ]}
+            description="Safe mode prompts for each privileged tool call. Auto mode sends tool calls without confirmation."
+          />
 
           {/* UI Settings */}
           <div className="space-y-4 pt-4 border-t">

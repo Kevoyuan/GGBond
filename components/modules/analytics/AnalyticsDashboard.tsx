@@ -409,7 +409,7 @@ export function AnalyticsDashboard() {
               {tokenSeries.map((point, index) => (
                 <div key={index} className="group relative flex-1">
                   <div
-                    className="w-full rounded-sm bg-primary/80 transition-all group-hover:bg-primary"
+                    className="w-full rounded-sm bg-primary/80 transition-colors duration-200 group-hover:bg-primary"
                     style={{ height: `${Math.max((point.total / maxSeriesToken) * 100, 6)}%` }}
                     title={`Total: ${point.total.toLocaleString()} | In: ${point.input.toLocaleString()} | Out: ${point.output.toLocaleString()}`}
                   />
@@ -425,18 +425,18 @@ export function AnalyticsDashboard() {
             <h4 className="text-xs font-semibold text-muted-foreground">Token Distribution</h4>
             <div className="flex h-3 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
               <div
-                className="bg-blue-500 transition-all"
+                className="bg-blue-500 transition-colors duration-300"
                 style={{ width: `${(current.inputTokens / current.totalTokens) * 100}%` }}
                 title={`Input: ${current.inputTokens.toLocaleString()}`}
               />
               <div
-                className="bg-emerald-500 transition-all"
+                className="bg-emerald-500 transition-colors duration-300"
                 style={{ width: `${(current.outputTokens / current.totalTokens) * 100}%` }}
                 title={`Output: ${current.outputTokens.toLocaleString()}`}
               />
               {current.cachedTokens > 0 && (
                 <div
-                  className="bg-amber-500 transition-all"
+                  className="bg-amber-500 transition-colors duration-300"
                   style={{ width: `${(current.cachedTokens / current.totalTokens) * 100}%` }}
                   title={`Cached: ${current.cachedTokens.toLocaleString()}`}
                 />
@@ -461,7 +461,7 @@ export function AnalyticsDashboard() {
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
               <div
-                className={`h-full transition-all ${contextUsagePercent > 85 ? 'bg-red-500' : contextUsagePercent > 65 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                className={`h-full transition-all duration-300 ${contextUsagePercent > 85 ? 'bg-red-500' : contextUsagePercent > 65 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                 style={{ width: `${Math.max(contextUsagePercent, 1)}%` }}
               />
             </div>

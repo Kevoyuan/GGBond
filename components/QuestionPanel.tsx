@@ -81,7 +81,7 @@ export function QuestionPanel({ questions, title, correlationId, onSubmit, onCan
                             {(q.type === 'text' || !q.type) && (
                                 <input
                                     type="text"
-                                    className="w-full bg-muted/30 border border-border/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                                    className="w-full bg-muted/30 border border-border/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-colors"
                                     placeholder={q.placeholder || "Your answer..."}
                                     value={answers[i]}
                                     onChange={(e) => handleAnswerChange(i, e.target.value)}
@@ -96,7 +96,7 @@ export function QuestionPanel({ questions, title, correlationId, onSubmit, onCan
                                             key={optIdx}
                                             onClick={() => q.multiSelect ? handleToggleOption(i, opt.label) : handleAnswerChange(i, opt.label)}
                                             className={cn(
-                                                "flex items-center gap-3 px-3 py-2.5 rounded-lg border text-sm text-left transition-all",
+                                                "flex items-center gap-3 px-3 py-2.5 rounded-lg border text-sm text-left transition-colors",
                                                 (q.multiSelect ? (answers[i] as string[]).includes(opt.label) : answers[i] === opt.label)
                                                     ? "bg-primary/10 border-primary/50 text-primary"
                                                     : "bg-muted/20 border-border/50 hover:bg-muted/40 text-muted-foreground"
@@ -125,7 +125,7 @@ export function QuestionPanel({ questions, title, correlationId, onSubmit, onCan
                                     <button
                                         onClick={() => handleAnswerChange(i, true)}
                                         className={cn(
-                                            "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border transition-all",
+                                            "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border transition-colors",
                                             answers[i] === true
                                                 ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-600 dark:text-emerald-400"
                                                 : "bg-muted/20 border-border/50 hover:bg-muted/40 text-muted-foreground"
@@ -137,7 +137,7 @@ export function QuestionPanel({ questions, title, correlationId, onSubmit, onCan
                                     <button
                                         onClick={() => handleAnswerChange(i, false)}
                                         className={cn(
-                                            "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border transition-all",
+                                            "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border transition-colors",
                                             answers[i] === false
                                                 ? "bg-rose-500/10 border-rose-500/50 text-rose-600 dark:text-rose-400"
                                                 : "bg-muted/20 border-border/50 hover:bg-muted/40 text-muted-foreground"

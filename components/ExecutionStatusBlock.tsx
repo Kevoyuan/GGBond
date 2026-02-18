@@ -81,7 +81,7 @@ export function ExecutionStatusBlock({ hooks, defaultExpanded = false }: Executi
 
     return (
         <div className={cn(
-            "rounded-xl border backdrop-blur-sm overflow-hidden transition-all duration-300 my-2",
+            "rounded-xl border backdrop-blur-sm overflow-hidden transition-colors duration-300 my-2",
             statusColor
         )}>
             {/* Header */}
@@ -169,7 +169,7 @@ export function ExecutionStatusBlock({ hooks, defaultExpanded = false }: Executi
                                                 <span className="absolute inset-0 rounded-full animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] bg-blue-500/30 dark:bg-blue-400/30" />
                                             )}
                                             <div className={cn(
-                                                "relative w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center bg-background transition-all duration-300",
+                                                "relative w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center bg-background transition-colors duration-300",
                                                 isFailed ? "border-red-500 text-red-500 shadow-[0_0_8px_rgba(239,68,68,0.25)]"
                                                     : isRunning ? "border-blue-500 text-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.3)] scale-110"
                                                         : "border-emerald-500/50 text-emerald-500"

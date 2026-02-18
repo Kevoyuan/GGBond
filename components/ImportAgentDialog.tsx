@@ -144,7 +144,7 @@ export function ImportAgentDialog({ open, onOpenChange, onSuccess }: ImportAgent
                   key={agent.path}
                   onClick={() => setSelectedPath(agent.path)}
                   className={cn(
-                    "w-full p-4 rounded-lg border text-left transition-all",
+                    "w-full p-4 rounded-lg border text-left transition-colors",
                     selectedPath === agent.path
                       ? "bg-primary/5 border-primary ring-2 ring-primary/20"
                       : "bg-muted/30 border-transparent hover:bg-muted/50 hover:border-border"

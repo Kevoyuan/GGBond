@@ -141,7 +141,7 @@ export function ThinkingBlock({ content, defaultExpanded = false }: ThinkingBloc
         <div className="my-2 overflow-hidden">
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground/70 hover:bg-muted/50 hover:text-foreground transition-colors"
                 title={isExpanded ? "Collapse thought process" : "Expand thought process"}
             >
                 <BrainCircuit className="w-3.5 h-3.5" />
@@ -153,7 +153,7 @@ export function ThinkingBlock({ content, defaultExpanded = false }: ThinkingBloc
             </button>
 
             {isExpanded && (
-                <div className="px-3 py-2 text-sm text-muted-foreground border-l-2 border-border/40 ml-3.5 my-1">
+                <div className="px-3 py-2 text-sm text-foreground/90 border-l-2 border-border/40 ml-3.5 my-1">
                     {hasStructuredItems ? (
                         <div className="space-y-4">
                             {parsedItems.map((item, idx) => (
@@ -161,11 +161,11 @@ export function ThinkingBlock({ content, defaultExpanded = false }: ThinkingBloc
                                     key={`${item.subject}-${idx}`}
                                     className="relative pl-4"
                                 >
-                                    <div className="text-xs font-medium text-foreground/90">
+                                    <div className="text-xs font-medium text-foreground">
                                         {item.subject}
                                     </div>
                                     {item.description && (
-                                        <div className="mt-1 text-xs leading-relaxed text-muted-foreground/90">
+                                        <div className="mt-1 text-xs leading-relaxed text-foreground/80">
                                             {item.description}
                                         </div>
                                     )}
