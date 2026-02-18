@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './sidebar/PanelHeader';
+import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 
 interface MemoryPanelProps {
     onFileSelect?: (file: { name: string; path: string }) => void;
@@ -63,6 +64,9 @@ export const MemoryPanel = memo(function MemoryPanel({ onFileSelect, className, 
     const [editorMode, setEditorMode] = useState<'create' | 'edit'>('edit');
     const [portalReady, setPortalReady] = useState(false);
     const editorFileName = editorPath ? (editorPath.split(/[\\/]/).pop() || editorPath) : '';
+
+    // Delete confirmation state
+    const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
 
     const closeEditor = () => {
         setEditorPath(null);
@@ -199,9 +203,6 @@ export const MemoryPanel = memo(function MemoryPanel({ onFileSelect, className, 
     };
 
     const handleDelete = async (filePath: string) => {
-        const confirmed = window.confirm(`Permanently delete ${filePath}?`);
-        if (!confirmed) return;
-
         try {
             const res = await fetch('/api/memory', {
                 method: 'POST',
@@ -404,16 +405,39 @@ export const MemoryPanel = memo(function MemoryPanel({ onFileSelect, className, 
                                             </div>
                                         </div>
                                         <div className="opacity-0 group-hover:opacity-100 transition-colors flex items-center gap-1 mt-1">
-                                            <button
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    void handleDelete(filePath);
-                                                }}
-                                                className="p-1.5 hover:bg-red-500/20 hover:text-red-500 rounded-md text-muted-foreground transition-colors"
-                                                title="Purge Document"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
+                                            {isPending(filePath) ? (
+                                                <>
+                                                    <button
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            confirmDelete(filePath, handleDelete);
+                                                        }}
+                                                        className="flex items-center justify-center h-6 px-2 rounded bg-red-500 text-white text-[10px] font-medium hover:bg-red-600 transition-colors shadow-sm"
+                                                    >
+                                                        Confirm
+                                                    </button>
+                                                    <button
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            handleMouseLeave(filePath);
+                                                        }}
+                                                        className="p-1.5 hover:bg-muted rounded-md text-muted-foreground transition-colors"
+                                                    >
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <button
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        startDelete(filePath);
+                                                    }}
+                                                    className="p-1.5 hover:bg-red-500/20 hover:text-red-500 rounded-md text-muted-foreground transition-colors"
+                                                    title="Purge Document"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
 
