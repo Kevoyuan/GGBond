@@ -244,7 +244,7 @@ export const ToolCallCard = React.memo(function ToolCallCard({
                     <div className="px-3 py-2.5 space-y-2">
                         <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
                             <div
-                                className="h-full bg-primary transition-all duration-300"
+                                className="h-full bg-primary transition-colors duration-300"
                                 style={{ width: `${progress}%` }}
                             />
                         </div>
