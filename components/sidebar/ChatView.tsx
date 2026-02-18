@@ -208,36 +208,42 @@ export const ChatView = React.memo(function ChatView({
                                                     {session.title}
                                                 </div>
 
-                                                {!isPending(session.id) && (
-                                                    <span className="text-[10px] text-[var(--text-tertiary)] shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
-                                                        {formatSessionAge(session)}
-                                                    </span>
+                                                <span className="text-[10px] text-[var(--text-tertiary)] shrink-0 opacity-70 group-hover:opacity-0 transition-opacity">
+                                                    {formatSessionAge(session)}
+                                                </span>
+                                            </div>
+
+
+                                            {/* Delete Action - Absolute Position Overlay to prevent jitter and space compression */}
+                                            <div className={cn(
+                                                "absolute right-1 top-0 bottom-0 w-14 flex items-center justify-end pr-1 opacity-0 group-hover:opacity-100 transition-all z-10 pointer-events-none",
+                                                isPending(session.id) && "opacity-100",
+                                                isActive ? "bg-gradient-to-l from-[var(--bg-active)] via-[var(--bg-active)] to-transparent" : "bg-gradient-to-l from-[var(--bg-hover)] via-[var(--bg-hover)] to-transparent"
+                                            )}>
+                                                {isPending(session.id) ? (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            confirmDelete(session.id, onDeleteSession);
+                                                        }}
+                                                        className="pointer-events-auto flex items-center justify-center w-full h-6 rounded bg-[var(--red)] text-white text-[10px] font-medium hover:bg-red-600 transition-colors shadow-sm animate-in fade-in zoom-in-95 duration-200"
+                                                    >
+                                                        Confirm
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            startDelete(session.id);
+                                                        }}
+                                                        className="pointer-events-auto p-1.5 hover:bg-[var(--bg-tertiary)] hover:text-[var(--red)] rounded transition-all"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
                                                 )}
                                             </div>
 
 
-                                            {/* Delete Action */}
-                                            {isPending(session.id) ? (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        confirmDelete(session.id, onDeleteSession);
-                                                    }}
-                                                    className="absolute right-2 px-2 py-0.5 rounded bg-[var(--red)] text-white text-[10px] font-medium hover:bg-red-600 transition-colors"
-                                                >
-                                                    Confirm
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        startDelete(session.id);
-                                                    }}
-                                                    className="absolute right-2 opacity-0 group-hover:opacity-100 p-1 hover:bg-[var(--bg-tertiary)] hover:text-[var(--red)] rounded transition-all"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                            )}
                                         </div>
                                     );
                                 })}

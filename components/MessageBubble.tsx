@@ -13,6 +13,7 @@ import { StateSnapshotDisplay } from './StateSnapshotDisplay';
 import { ContentRenderer } from './message/ContentRenderer';
 import { CitationsDisplay } from './message/CitationsDisplay';
 import { CopyButton } from './message/CopyButtons';
+import { SkillMetaMap, loadSkillMetaMap, renderTextWithSkillRefs } from './message/SkillBadge';
 
 export interface Message {
   id?: string;
@@ -85,9 +86,15 @@ export const MessageBubble = React.memo(function MessageBubble({
   isStreaming = false,
   streamingStatus
 }: MessageBubbleProps) {
+  const [skillMetaMap, setSkillMetaMap] = useState<SkillMetaMap>({});
   const isUser = message.role === 'user';
   const isSnapshot = !isUser && message.content.includes('<state_snapshot>');
   const [isUndoingMessage, setIsUndoingMessage] = useState(false);
+
+  React.useEffect(() => {
+    loadSkillMetaMap().then(setSkillMetaMap);
+  }, []);
+
   const isUndoableUserMessage = Boolean(
     isUser &&
     typeof message.id === 'string' &&
@@ -165,7 +172,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                     <Loader2 className="w-3 h-3 animate-spin" />
                   </span>
                 )}
-                {message.content}
+                {renderTextWithSkillRefs(message.content, skillMetaMap, { hideTooltip: true, variant: 'badge' })}
               </div>
             )}
 

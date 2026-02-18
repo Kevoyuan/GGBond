@@ -205,10 +205,14 @@ export const SkillBadge = React.memo(function SkillBadge({
     skillId,
     source,
     meta,
+    hideTooltip = false,
+    variant = 'plain',
 }: {
     skillId: string;
     source: 'path' | 'token';
     meta?: SkillMeta;
+    hideTooltip?: boolean;
+    variant?: 'badge' | 'plain';
 }) {
     const label = source === 'path'
         ? 'SKILL.md'
@@ -217,17 +221,30 @@ export const SkillBadge = React.memo(function SkillBadge({
 
     return (
         <span className="group/skillref relative inline-flex align-baseline">
-            <span className="inline-flex items-center rounded-md border border-violet-200 dark:border-violet-400/30 bg-violet-50 dark:bg-violet-500/20 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:text-white shadow-sm">
+            <span className={cn(
+                "inline-flex items-center text-[11px] font-bold transition-colors",
+                variant === 'badge'
+                    ? "rounded-md border border-current/20 bg-current/10 px-2 py-0.5 shadow-sm text-violet-300 dark:text-violet-700"
+                    : "text-violet-700 dark:text-violet-400 hover:text-violet-600"
+            )}>
                 {label}
             </span>
-            <span className="pointer-events-none absolute left-0 top-full z-30 mt-1 w-72 rounded-md border border-border/60 bg-card px-2.5 py-2 text-[11px] leading-snug text-foreground shadow-xl transition-opacity duration-150 opacity-0 group-hover/skillref:opacity-100">
-                {description}
-            </span>
+            {!hideTooltip && (
+                <span className="pointer-events-none absolute left-0 top-full z-30 mt-1 w-72 rounded-md border border-border/60 bg-card px-2.5 py-2 text-[11px] leading-snug text-foreground shadow-xl transition-opacity duration-150 opacity-0 group-hover/skillref:opacity-100">
+                    {description}
+                </span>
+            )}
         </span>
     );
 });
 
-export function renderTextWithSkillRefs(text: string, skillMetaMap: SkillMetaMap): ReactNode {
+export function renderTextWithSkillRefs(
+    text: string,
+    skillMetaMap: SkillMetaMap,
+    options?: { hideTooltip?: boolean; variant?: 'badge' | 'plain' }
+): ReactNode {
+    const hideTooltip = options?.hideTooltip ?? false;
+    const variant = options?.variant ?? 'plain';
     const spans = collectSkillSpans(text, skillMetaMap);
     if (spans.length === 0) return text;
 
@@ -244,6 +261,8 @@ export function renderTextWithSkillRefs(text: string, skillMetaMap: SkillMetaMap
                 skillId={span.skillId}
                 source={span.source}
                 meta={skillMetaMap[span.skillId]}
+                hideTooltip={hideTooltip}
+                variant={variant}
             />
         );
         cursor = span.end;
@@ -259,14 +278,19 @@ export function renderTextWithSkillRefs(text: string, skillMetaMap: SkillMetaMap
 export function injectSkillRefs(children: ReactNode, skillMetaMap: SkillMetaMap): ReactNode {
     return React.Children.map(children, (child) => {
         if (typeof child === 'string') {
-            return renderTextWithSkillRefs(child, skillMetaMap);
+            return renderTextWithSkillRefs(child, skillMetaMap, { variant: 'plain' });
         }
 
-        if (React.isValidElement<{ children?: ReactNode }>(child) && child.props.children) {
-            const element = child as ReactElement<{ children?: ReactNode }>;
-            return React.cloneElement(element, {
-                children: injectSkillRefs(element.props.children, skillMetaMap),
-            });
+        if (React.isValidElement<{ children?: ReactNode }>(child)) {
+            if (child.type === 'code' || child.type === 'pre') {
+                return child;
+            }
+            if (child.props.children) {
+                const element = child as ReactElement<{ children?: ReactNode }>;
+                return React.cloneElement(element, {
+                    children: injectSkillRefs(element.props.children, skillMetaMap),
+                });
+            }
         }
 
         return child;
