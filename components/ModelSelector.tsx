@@ -52,7 +52,7 @@ export function ModelSelector({
                     type="button"
                     onClick={() => setIsOpen(!isOpen)}
                     className={cn(
-                        "w-full flex items-center justify-between px-4 py-3 text-sm rounded-lg border bg-background hover:border-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary/20",
+                        "w-full flex items-center justify-between px-4 py-3 text-sm rounded-lg border bg-background hover:border-primary/50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20",
                         isOpen && "border-primary/50 ring-2 ring-primary/20"
                     )}
                 >
