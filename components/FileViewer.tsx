@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { X, FileCode, FileJson, FileText, FileImage, File, Loader2, AlertTriangle, Copy, Check, Save, Eye } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { X, FileCode, FileJson, FileText, FileImage, File, Loader2, AlertTriangle, Copy, Check, Eye, Zap, ZapOff } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -47,6 +47,7 @@ export function FileViewer({ filePath, fileName, onClose, className }: FileViewe
     const [copied, setCopied] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [showRender, setShowRender] = useState(false);
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
     const isMarkdown = fileContent?.language === 'markdown';
     const isDirty = editedContent !== (fileContent?.content || '');
@@ -79,7 +80,7 @@ export function FileViewer({ filePath, fileName, onClose, className }: FileViewe
         fetchContent();
     }, [filePath]);
 
-    const handleSave = async () => {
+    const handleSave = useCallback(async () => {
         if (!fileContent || !isDirty) return;
 
         setIsSaving(true);
@@ -109,7 +110,36 @@ export function FileViewer({ filePath, fileName, onClose, className }: FileViewe
         } finally {
             setIsSaving(false);
         }
-    };
+    }, [fileContent, editedContent, filePath]);
+
+    // Auto-save after 1 second delay when content changes
+    useEffect(() => {
+        if (!fileContent || !isDirty || isSaving) return;
+
+        const timer = setTimeout(() => {
+            handleSave();
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [editedContent, isDirty, isSaving, fileContent, handleSave]);
+
+    // Handle close with unsaved changes check
+    const handleClose = useCallback(() => {
+        if (isDirty) {
+            setShowCloseConfirm(true);
+        } else {
+            onClose();
+        }
+    }, [isDirty, onClose]);
+
+    const handleCloseConfirm = useCallback(() => {
+        setShowCloseConfirm(false);
+        onClose();
+    }, [onClose]);
+
+    const handleCloseCancel = useCallback(() => {
+        setShowCloseConfirm(false);
+    }, []);
 
     const handleCopy = async () => {
         if (!fileContent) return;
@@ -200,7 +230,7 @@ export function FileViewer({ filePath, fileName, onClose, className }: FileViewe
                     </div>
                 )}
                 <button
-                    onClick={onClose}
+                    onClick={handleClose}
                     className="p-1.5 hover:bg-accent rounded-md text-muted-foreground hover:text-foreground transition-colors shrink-0"
                     title="Close"
                 >
@@ -240,28 +270,10 @@ export function FileViewer({ filePath, fileName, onClose, className }: FileViewe
                 )}
                 {canEdit && (
                     <div className="ml-auto flex items-center gap-2">
-                        {isDirty && (
-                            <span className="text-[10px] text-amber-500">Unsaved changes</span>
-                        )}
-                        <button
-                            onClick={handleSave}
-                            disabled={!isDirty || isSaving}
-                            className={cn(
-                                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                                isDirty && !isSaving
-                                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                                    : 'bg-muted text-muted-foreground cursor-not-allowed'
-                            )}
-                        >
-                            {isSaving ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : saveSuccess ? (
-                                <Check className="w-3.5 h-3.5" />
-                            ) : (
-                                <Save className="w-3.5 h-3.5" />
-                            )}
-                            {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}
-                        </button>
+                        <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-green-600/20 text-green-500">
+                            <Zap className="w-3.5 h-3.5" />
+                            Auto-save
+                        </span>
                     </div>
                 )}
             </div>
@@ -443,6 +455,37 @@ export function FileViewer({ filePath, fileName, onClose, className }: FileViewe
                     </>
                 ) : null}
             </div>
+
+            {/* Close confirmation dialog */}
+            {showCloseConfirm && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="rounded-lg border border-border bg-background p-4 shadow-xl max-w-sm mx-4">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                            <div>
+                                <h3 className="text-sm font-semibold text-foreground">Unsaved Changes</h3>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    You have unsaved changes. Do you want to discard them?
+                                </p>
+                                <div className="flex gap-2 mt-4">
+                                    <button
+                                        onClick={handleCloseCancel}
+                                        className="flex-1 px-3 py-1.5 text-xs font-medium rounded-md border border-border hover:bg-muted transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleCloseConfirm}
+                                        className="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-500 transition-colors"
+                                    >
+                                        Discard
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
