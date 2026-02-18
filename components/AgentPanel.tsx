@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { User, Sparkles, Shield, Cpu, ExternalLink, Play, RefreshCw, Layers, Plus, Trash, Link2, Search, SlidersHorizontal, Loader2, Ban, CheckCircle2, BookOpen, AlertCircle, FolderSearch, PlusCircle } from 'lucide-react';
@@ -32,7 +32,7 @@ interface AgentPanelProps {
 
 const builtInAgents = ['codebase-investigator', 'cli-help-agent', 'generalist-agent'];
 
-export function AgentPanel({ onSelectAgent, selectedAgentName, className, search: externalSearch }: AgentPanelProps) {
+export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgentName, className, search: externalSearch }: AgentPanelProps) {
     const [agents, setAgents] = useState<AgentDefinition[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -605,4 +605,4 @@ export function AgentPanel({ onSelectAgent, selectedAgentName, className, search
             />
         </div>
     );
-}
+});

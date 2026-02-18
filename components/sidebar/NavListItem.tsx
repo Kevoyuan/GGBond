@@ -11,7 +11,7 @@ interface NavListItemProps {
     kbd?: string;
 }
 
-export function NavListItem({ active, onClick, icon: Icon, label, count, collapsed, kbd }: NavListItemProps) {
+export const NavListItem = React.memo(function NavListItem({ active, onClick, icon: Icon, label, count, collapsed, kbd }: NavListItemProps) {
     return (
         <div
             onClick={onClick}
@@ -39,4 +39,4 @@ export function NavListItem({ active, onClick, icon: Icon, label, count, collaps
             )}
         </div>
     );
-}
+});
