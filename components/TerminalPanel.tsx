@@ -1199,7 +1199,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
                   }}
                   disabled={!activeSession.isRunning && !selectedAction?.script.trim()}
                   className={cn(
-                    'inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all',
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors',
                     !activeSession.isRunning && !selectedAction?.script.trim()
                       ? 'text-muted-foreground bg-transparent cursor-not-allowed'
                       : activeSession.isRunning
@@ -1240,7 +1240,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
                           type="button"
                           onClick={() => handleSelectAction(action.id)}
                           className={cn(
-                            'w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-left transition-all',
+                            'w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-left transition-colors',
                             selected
                               ? 'bg-primary/10 dark:bg-zinc-800 text-foreground dark:text-zinc-100'
                               : 'text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:hover:text-zinc-200 hover:bg-muted dark:hover:bg-zinc-900'
@@ -1409,7 +1409,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
                   key={session.id}
                   onClick={() => setActiveSessionId(session.id)}
                   className={cn(
-                    "group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-xs cursor-pointer transition-all border border-transparent select-none overflow-hidden",
+                    "group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors border border-transparent select-none overflow-hidden",
                     activeSessionId === session.id
                       ? "bg-background dark:bg-background shadow-sm border-border/50 text-foreground dark:text-foreground font-medium"
                       : "text-muted-foreground dark:text-muted-foreground hover:bg-muted/50 dark:hover:bg-muted/50 hover:text-foreground/80 dark:hover:text-foreground/80"
@@ -1426,7 +1426,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
                         e.stopPropagation();
                         handleAddTab();
                       }}
-                      className="p-1 hover:bg-muted-foreground/20 dark:hover:bg-muted-foreground/20 rounded transition-all text-muted-foreground dark:text-muted-foreground bg-background/80 dark:bg-background/80 backdrop-blur-sm"
+                      className="p-1 hover:bg-muted-foreground/20 dark:hover:bg-muted-foreground/20 rounded transition-colors text-muted-foreground dark:text-muted-foreground bg-background/80 dark:bg-background/80 backdrop-blur-sm"
                       title="Split (New Tab)"
                     >
                       <SplitSquareHorizontal size={12} />
@@ -1434,7 +1434,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
                     {sessions.length > 1 && (
                       <button
                         onClick={(e) => handleCloseTab(session.id, e)}
-                        className="p-1 hover:bg-red-500/10 dark:hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-500 rounded transition-all text-muted-foreground dark:text-muted-foreground bg-background/80 dark:bg-background/80 backdrop-blur-sm"
+                        className="p-1 hover:bg-red-500/10 dark:hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-500 rounded transition-colors text-muted-foreground dark:text-muted-foreground bg-background/80 dark:bg-background/80 backdrop-blur-sm"
                         title="Close"
                       >
                         <Trash2 size={12} />

@@ -275,7 +275,7 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                     <div className="flex items-center gap-1">
                         <button
                             onClick={() => setShowCreateDialog(true)}
-                            className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+                            className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                             title="Create Agent"
                         >
                             <Plus size={14} />
@@ -283,7 +283,7 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                         <button
                             onClick={() => setShowAdvanced((prev) => !prev)}
                             className={cn(
-                                "p-1.5 rounded-lg transition-all",
+                                "p-1.5 rounded-lg transition-colors",
                                 showAdvanced
                                     ? "bg-primary text-primary-foreground"
                                     : "text-muted-foreground hover:bg-muted"
@@ -294,7 +294,7 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                         </button>
                         <button
                             onClick={() => fetchAgents(true)}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-all"
+                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
                             title="Refresh"
                         >
                             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
@@ -306,7 +306,7 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
             {/* Top Section: Agents List & Controls */}
             <div
                 className={cn(
-                    "flex flex-col shrink-0 min-h-[150px] transition-all duration-200",
+                    "flex flex-col shrink-0 min-h-[150px] transition-colors duration-200",
                     isResizing && "transition-none"
                 )}
                 style={{ height: `${agentListHeight}px` }}
@@ -378,7 +378,7 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                                     value={importSource}
                                                     onChange={(e) => setImportSource(e.target.value)}
                                                     placeholder="~/.claude/agents or /path/to/agents"
-                                                    className="w-full px-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-background focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm"
+                                                    className="w-full px-3 py-2 text-xs border border-zinc-200 dark:border-zinc-700 rounded-md bg-background focus:ring-1 focus:ring-primary focus:border-primary transition-colors shadow-sm"
                                                 />
                                                 <button
                                                     onClick={() => handleAction('import')}
@@ -489,7 +489,7 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                         <div
                                             key={agent.name}
                                             className={cn(
-                                                "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer group",
+                                                "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer group",
                                                 selectedAgentName === agent.name && "bg-primary/5 border-primary ring-1 ring-primary/20"
                                             )}
                                             onClick={() => {
@@ -517,14 +517,14 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                                 </div>
                                                 <button
                                                     onClick={(e) => handleUseAgent(e, agent.name)}
-                                                    className="p-1 px-[5px] text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-all shrink-0"
+                                                    className="p-1 px-[5px] text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors shrink-0"
                                                     title="Add to chat"
                                                 >
                                                     <PlusCircle size={14} className="stroke-[2.5]" />
                                                 </button>
                                             </div>
 
-                                            <div className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                            <div className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-colors">
                                                 {isUserAgent(agent.name) && (
                                                     <div
                                                         className="flex items-center"
@@ -546,7 +546,7 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                                                     e.stopPropagation();
                                                                     startDelete(agent.name);
                                                                 }}
-                                                                className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-all"
+                                                                className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
                                                                 title="Delete"
                                                                 disabled={actionLoading === `delete:${agent.name}`}
                                                             >
