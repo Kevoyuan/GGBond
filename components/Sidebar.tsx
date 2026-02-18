@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare,
@@ -35,6 +35,7 @@ import { NavListItem } from './sidebar/NavListItem';
 import { ChatView } from './sidebar/ChatView';
 import { useGitBranches } from '../hooks/useGitBranches';
 import { Tooltip } from './ui/Tooltip';
+import { ResizeHandle, useResize } from './ui/ResizeHandle';
 
 interface Session {
   id: string;
@@ -97,6 +98,9 @@ const getSearchPlaceholder = (view: SidebarView): string => {
 const MIN_SIDEBAR_WIDTH = 240;
 const MAX_SIDEBAR_WIDTH = 480;
 const DEFAULT_SIDEBAR_WIDTH = 280;
+const MIN_NAV_HEIGHT = 100;
+const MAX_NAV_HEIGHT = 800;
+const DEFAULT_NAV_HEIGHT = 240;
 
 export const Sidebar = React.memo(function Sidebar({
   sessions,
@@ -166,55 +170,23 @@ export const Sidebar = React.memo(function Sidebar({
   const handleMCPClick = useCallback(() => handleViewClick('mcp'), [handleViewClick]);
   const handleQuotaClick = useCallback(() => handleViewClick('quota'), [handleViewClick]);
   const handleMemoryClick = useCallback(() => handleViewClick('memory'), [handleViewClick]);
-  const [sidePanelWidth, setSidePanelWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
-  const [isResizing, setIsResizing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModulesDialog, setShowModulesDialog] = useState(false);
 
-  // Vertical resize states
-  const [navHeight, setNavHeight] = useState(240);
-  const [isResizingNav, setIsResizingNav] = useState(false);
-  const navResizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  // Use resize hooks for sidebar width and nav height
+  const { size: sidePanelWidth, isResizing, handleProps: sidebarHandleProps } = useResize({
+    direction: 'horizontal',
+    minSize: MIN_SIDEBAR_WIDTH,
+    maxSize: MAX_SIDEBAR_WIDTH,
+    initialSize: DEFAULT_SIDEBAR_WIDTH,
+  });
 
-  // ... (existing width resize logic matches)
-
-  const startResizingNav = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsResizingNav(true);
-    navResizeRef.current = { startY: e.clientY, startHeight: navHeight };
-  }, [navHeight]);
-
-  const resizeNav = useCallback((e: MouseEvent) => {
-    if (isResizingNav && navResizeRef.current) {
-      const delta = e.clientY - navResizeRef.current.startY;
-      const newHeight = Math.max(100, Math.min(800, navResizeRef.current.startHeight + delta));
-      setNavHeight(newHeight);
-    }
-  }, [isResizingNav]);
-
-  const stopResizingNav = useCallback(() => {
-    setIsResizingNav(false);
-    navResizeRef.current = null;
-  }, []);
-
-  useEffect(() => {
-    if (isResizingNav) {
-      window.addEventListener('mousemove', resizeNav);
-      window.addEventListener('mouseup', stopResizingNav);
-      document.body.style.cursor = 'row-resize';
-      document.body.style.userSelect = 'none';
-    } else {
-      window.removeEventListener('mousemove', resizeNav);
-      window.removeEventListener('mouseup', stopResizingNav);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    }
-    return () => {
-      window.removeEventListener('mousemove', resizeNav);
-      window.removeEventListener('mouseup', stopResizingNav);
-    };
-  }, [isResizingNav, resizeNav, stopResizingNav]);
+  const { size: navHeight, isResizing: isResizingNav, handleProps: navHandleProps } = useResize({
+    direction: 'vertical',
+    minSize: MIN_NAV_HEIGHT,
+    maxSize: MAX_NAV_HEIGHT,
+    initialSize: DEFAULT_NAV_HEIGHT,
+  });
 
 
   // ... (rest of component)
@@ -246,15 +218,12 @@ export const Sidebar = React.memo(function Sidebar({
 
       {/* Vertical Resizer Handle */}
       {!isCollapsed && (
-        <div
-          onMouseDown={startResizingNav}
-          className={cn(
-            "h-[5px] cursor-row-resize flex items-center justify-center hover:bg-[var(--bg-hover)] transition-colors shrink-0 -mt-1 z-10",
-            isResizingNav && "bg-[var(--accent)]"
-          )}
-        >
-          <div className={cn("w-8 h-1 rounded-full bg-[var(--border-subtle)] transition-colors", isResizingNav && "bg-[var(--accent)]")} />
-        </div>
+        <ResizeHandle
+          direction="vertical"
+          isResizing={isResizingNav}
+          onMouseDown={navHandleProps.onMouseDown}
+          indicatorClassName="bg-[var(--border-subtle)]"
+        />
       )}
 
       {/* Divider & Search - hidden when collapsed or on views without search */}
@@ -433,14 +402,14 @@ export const Sidebar = React.memo(function Sidebar({
         )}
       </div>
 
-      {/* Resizer */}
+      {/* Horizontal Resizer (sidebar width) */}
       {!isCollapsed && (
-        <div
-          onMouseDown={startResizingNav}
-          className={cn(
-            "absolute top-0 right-[-1px] w-1 h-full cursor-col-resize z-50 transition-colors hover:bg-[var(--accent)] delay-75 opacity-0 hover:opacity-100",
-            isResizing && "bg-[var(--accent)] opacity-100"
-          )}
+        <ResizeHandle
+          direction="horizontal"
+          isResizing={isResizing}
+          onMouseDown={sidebarHandleProps.onMouseDown}
+          className="absolute top-0 right-[-1px] h-full hover:opacity-100 delay-75"
+          indicatorClassName="bg-[var(--border-subtle)]"
         />
       )}
 

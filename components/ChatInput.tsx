@@ -1550,7 +1550,7 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                       strokeDashoffset={strokeDashoffset}
                       strokeLinecap="round"
                       className={cn(
-                        "transition-colors duration-500",
+                        "transition-colors duration-300",
                         contextPercent > 90 ? "text-red-500" :
                           contextPercent > 75 ? "text-yellow-500" :
                             "text-primary"

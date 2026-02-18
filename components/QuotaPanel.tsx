@@ -139,7 +139,7 @@ export const QuotaPanel = memo(function QuotaPanel({ className }: QuotaPanelProp
                                         <div className="h-1.5 w-full bg-muted/40 rounded-full overflow-hidden border border-border/5">
                                             <div
                                                 className={cn(
-                                                    "h-full transition-colors duration-1000 ease-out rounded-full shadow-[0_0_10px_rgba(var(--primary),0.3)]",
+                                                    "h-full transition-colors duration-500 ease-out rounded-full shadow-[0_0_10px_rgba(var(--primary),0.3)]",
                                                     isCritical ? "bg-red-500 shadow-red-500/40" : isLow ? "bg-amber-500 shadow-amber-500/40" : "bg-primary"
                                                 )}
                                                 style={{ width: `${fraction * 100}%` }}

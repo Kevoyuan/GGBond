@@ -75,7 +75,7 @@ export function DeleteConfirmDialog({
                         onClick={onConfirm}
                         disabled={isDeleting}
                         className={cn(
-                            "px-4 py-2 flex items-center justify-center rounded-lg text-sm font-medium text-white shadow-sm transition-all hover:bg-destructive/90 disabled:opacity-60",
+                            "px-4 py-2 flex items-center justify-center rounded-lg text-sm font-medium text-white shadow-sm transition-colors duration-200 hover:bg-destructive/90 disabled:opacity-60",
                             isDeleting ? "bg-destructive/70" : "bg-destructive"
                         )}
                     >

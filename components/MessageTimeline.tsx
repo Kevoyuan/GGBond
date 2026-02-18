@@ -147,7 +147,7 @@ export function MessageTimeline({
     }
 
     return (
-        <div className={cn('flex flex-col h-full bg-muted/5', className)}>
+        <div className={cn('flex flex-col h-full bg-[var(--bg-secondary)]/30 dark:bg-[var(--bg-secondary)]/30', className)}>
             <div className="px-4 py-3 border-b border-border/40 bg-background/50 backdrop-blur-sm sticky top-0 z-10">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                     <NetworkIcon className="w-3.5 h-3.5" />
@@ -171,7 +171,7 @@ export function MessageTimeline({
                             <div
                                 key={item.id || item.index}
                                 className={cn(
-                                    'group relative pl-8 transition-colors duration-300 ease-out',
+                                    'group relative pl-8 transition-colors duration-200',
                                     isActive ? 'opacity-100 z-10' : 'opacity-80 hover:opacity-100',
                                     item.role === 'user' ? 'py-1' : 'py-2'
                                 )}
@@ -179,7 +179,7 @@ export function MessageTimeline({
                             >
                                 {/* Connector Dot */}
                                 <div className={cn(
-                                    'absolute left-[7px] w-2.5 h-2.5 rounded-full border-2 transition-colors duration-300 z-20',
+                                    'absolute left-[7px] w-2.5 h-2.5 rounded-full border-2 transition-colors duration-200 z-20',
                                     'bg-background shadow-sm',
                                     item.role === 'user' ? 'top-[0.7rem]' : 'top-[1.5rem]',
                                     isActive
