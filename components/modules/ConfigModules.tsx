@@ -64,7 +64,7 @@ export function SettingsManager() {
               key={model.id}
               onClick={() => handleSwitch(model.id)}
               disabled={saving}
-              className={`w-full text-left p-3 rounded-lg border transition-all ${isCurrent
+              className={`w-full text-left p-3 rounded-lg border transition-colors ${isCurrent
                   ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/10 dark:border-blue-900/30'
                   : 'bg-card border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
                 }`}
