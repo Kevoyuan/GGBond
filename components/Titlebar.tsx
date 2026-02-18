@@ -1,5 +1,5 @@
 import React from 'react';
-import { SquarePen, PanelLeftClose, ChevronRight, Activity, Cpu } from 'lucide-react';
+import { SquarePen, PanelLeftClose, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TokenUsageDisplay } from './TokenUsageDisplay';
 import { GitBranchTag } from './GitBranchTag';
@@ -15,7 +15,6 @@ interface TitlebarProps {
         totalCost: number;
     };
     currentBranch?: string | null;
-    currentModel?: string;
     className?: string;
 }
 
@@ -25,7 +24,6 @@ export const Titlebar = React.memo(function Titlebar({
     onNewChat,
     stats,
     currentBranch,
-    currentModel = 'Gemini 3 Pro',
     className
 }: TitlebarProps) {
     return (
@@ -91,22 +89,21 @@ export const Titlebar = React.memo(function Titlebar({
 
                 {/* Right Side Info */}
                 <div className="flex items-center gap-4 no-drag">
-                    {/* Stats */}
+                    {/* Branch Info - Show first */}
+                    <GitBranchTag branch={currentBranch ?? null} className="bg-[var(--bg-secondary)] border-[var(--border-subtle)] text-[var(--text-secondary)] h-6 text-[11px]" />
+
+                    {/* Stats - Token Usage Display with Hover Panel */}
                     {stats && (
-                        <div className="hidden md:flex items-center gap-4">
-                            <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors cursor-default">
-                                <Activity className="w-3 h-3" />
-                                <span>{stats.totalTokens.toLocaleString()} tokens</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors cursor-default">
-                                <span className="text-[var(--text-secondary)]">$</span>
-                                <span>{stats.totalCost.toFixed(4)}</span>
-                            </div>
+                        <div className="hidden md:block">
+                            <TokenUsageDisplay
+                                stats={stats}
+                                compact={true}
+                                floating={true}
+                                hover={true}
+                                className="relative"
+                            />
                         </div>
                     )}
-
-                    {/* Branch Info */}
-                    <GitBranchTag branch={currentBranch ?? null} className="bg-[var(--bg-secondary)] border-[var(--border-subtle)] text-[var(--text-secondary)] h-6 text-[11px]" />
                 </div>
             </div>
         </div>
