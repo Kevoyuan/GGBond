@@ -47,21 +47,21 @@ const ToastItem = ({ toast, onDismiss }: ToastItemProps) => {
   const icons = {
     error: <AlertCircle className="w-5 h-5 text-red-500" />,
     success: <CheckCircle className="w-5 h-5 text-green-500" />,
-    info: <Info className="w-5 h-5 text-blue-500" />,
+    info: <Info className="w-5 h-5" style={{ color: 'var(--accent)' }} />,
     warning: <AlertTriangle className="w-5 h-5 text-yellow-500" />,
   };
 
   const styles = {
     error: 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800',
     success: 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800',
-    info: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800',
+    info: 'bg-[var(--bg-secondary)] border-[var(--border-subtle)] dark:border-white/10',
     warning: 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800',
   };
 
   const iconStyles = {
     error: 'text-red-500',
     success: 'text-green-500',
-    info: 'text-blue-500',
+    info: 'text-[var(--accent)]',
     warning: 'text-yellow-500',
   };
 
@@ -99,18 +99,18 @@ export const ToastContainer = ({
   position = 'top-right'
 }: ToastContainerProps) => {
   const positions = {
-    'top-right': 'top-4 right-4',
-    'top-left': 'top-4 left-4',
+    'top-right': 'top-[var(--titlebar-h)] right-4',
+    'top-left': 'top-[var(--titlebar-h)] left-4',
     'bottom-right': 'bottom-4 right-4',
     'bottom-left': 'bottom-4 left-4',
-    'top-center': 'top-4 left-1/2 -translate-x-1/2',
+    'top-center': 'top-[var(--titlebar-h)] left-1/2 -translate-x-1/2',
     'bottom-center': 'bottom-4 left-1/2 -translate-x-1/2',
   };
 
   return (
     <div
       className={cn(
-        'fixed z-50 flex flex-col gap-2 w-full max-w-sm pointer-events-none',
+        'fixed z-50 flex flex-col gap-2 w-full max-w-xs pointer-events-none',
         positions[position]
       )}
       aria-live="polite"

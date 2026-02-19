@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { Bot, ArrowDown } from 'lucide-react';
+import { ArrowDown } from 'lucide-react';
 import { GeminiIcon } from './icons/GeminiIcon';
 import { MessageBubble, LoadingBubble, Message } from './MessageBubble';
 import { ChatInput } from './ChatInput';
@@ -264,6 +264,7 @@ export const ChatContainer = React.memo(function ChatContainer({
 
 
                     {latestTodos && latestTodos.length > 0 && <TaskProgressDock todos={latestTodos} />}
+
                     <ChatInput
                         onSend={onSendMessage}
                         onStop={onStopMessage}

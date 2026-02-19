@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User } from 'lucide-react';
+import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User, Info, BookOpen, Layout, Laptop, Keyboard, Monitor, Key, Bug, Github, FileCode, Eye, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -99,6 +99,19 @@ const BASE_COMMANDS: CommandItem[] = [
   { command: '/settings', description: 'Open settings', icon: Settings, group: 'Built-in' },
   { command: '/model', description: 'Select model', icon: Cpu, group: 'Built-in' },
   { command: '/theme', description: 'Change theme', icon: Palette, group: 'Built-in' },
+  { command: '/editor', description: 'Toggle editor mode', icon: Layout, group: 'Built-in' },
+  { command: '/vim', description: 'Toggle Vim mode', icon: Keyboard, group: 'Built-in' },
+  { command: '/shells', description: 'Show configured shells', icon: TerminalSquare, group: 'Built-in' },
+  { command: '/terminal-setup', description: 'Open terminal settings', icon: Settings, group: 'Built-in' },
+  { command: '/ide', description: 'IDE integration settings', icon: Monitor, group: 'Built-in' },
+  { command: '/auth', description: 'Manage authentication', icon: Key, group: 'Built-in' },
+  { command: '/bug', description: 'Report a bug', icon: Bug, group: 'Built-in' },
+  { command: '/setup-github', description: 'Setup GitHub integration', icon: Github, group: 'Built-in' },
+  { command: '/policies', description: 'Show security policies', icon: Shield, group: 'Built-in' },
+  { command: '/privacy', description: 'Show privacy settings', icon: Eye, group: 'Built-in' },
+  { command: '/quit', description: 'Quit application', icon: LogOut, group: 'Built-in' },
+  { command: '/about', description: 'Show GGBond information', icon: Info, group: 'Built-in' },
+  { command: '/docs', description: 'Show help documentation', icon: BookOpen, group: 'Built-in' },
 ];
 
 interface ModeOption {
@@ -106,12 +119,13 @@ interface ModeOption {
   label: string;
   icon: React.ElementType;
   description: string;
+  shortcut?: string;
 }
 
 const MODE_OPTIONS: ModeOption[] = [
-  { value: 'code', label: 'Code', icon: Code2, description: 'Read/Write files & Execute commands' },
-  { value: 'plan', label: 'Plan', icon: ClipboardList, description: 'Analyze & Plan, no execution' },
-  { value: 'ask', label: 'Ask', icon: HelpCircle, description: 'Answer questions only' },
+  { value: 'code', label: 'Code', icon: Code2, description: 'Read/Write files & Execute commands', shortcut: 'Ctrl+1' },
+  { value: 'plan', label: 'Plan', icon: ClipboardList, description: 'Analyze & Plan, no execution', shortcut: 'Ctrl+2' },
+  { value: 'ask', label: 'Ask', icon: HelpCircle, description: 'Answer questions only', shortcut: 'Ctrl+3' },
 ];
 
 
@@ -251,12 +265,19 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
 
   const currentMode = MODE_OPTIONS.find(m => m.value === mode) || MODE_OPTIONS[0];
 
-  // Calculate context usage
+  // Calculate context usage - use cumulative session stats to match TokenUsageDisplay behavior
   const { pricing } = getModelInfo(currentModel);
   const contextLimit = pricing.contextWindow;
-  // Use currentContextUsage if available, otherwise fallback to sessionStats.totalTokens (legacy) or 0
-  const usedTokens = currentContextUsage !== undefined ? currentContextUsage : (sessionStats?.totalTokens || 0);
+  // Use sessionStats.totalTokens (cumulative) to match TokenUsageDisplay and Claude Code behavior
+  const usedTokens = sessionStats?.totalTokens || 0;
+  const inputTokens = sessionStats?.inputTokens || 0;
+  const outputTokens = sessionStats?.outputTokens || 0;
+  const cachedTokens = sessionStats?.cachedTokens || 0;
   const contextPercent = Math.min((usedTokens / contextLimit) * 100, 100);
+
+  // Calculate input/output percentages for visualization
+  const inputPercent = usedTokens > 0 ? (inputTokens / usedTokens) * 100 : 0;
+  const outputPercent = usedTokens > 0 ? (outputTokens / usedTokens) * 100 : 0;
 
   // Ring calculations
   const radius = 7;
@@ -1198,6 +1219,28 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
     onApprovalModeChange?.(currentApprovalMode);
   }, [currentApprovalMode, onApprovalModeChange]);
 
+  // Keyboard shortcuts for mode switching
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Ctrl/Cmd + number key
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+        if (e.key === '1') {
+          e.preventDefault();
+          onModeChange?.('code');
+        } else if (e.key === '2') {
+          e.preventDefault();
+          onModeChange?.('plan');
+        } else if (e.key === '3') {
+          e.preventDefault();
+          onModeChange?.('ask');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onModeChange]);
+
   useEffect(() => {
     if (!onHeightChange) return;
     const el = containerRef.current;
@@ -1416,7 +1459,10 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
               <div className="relative" ref={modeMenuRef}>
                 <button
                   onClick={() => setShowModeMenu(!showModeMenu)}
-                  className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer z-20 relative"
+                  className={cn(
+                    "w-20 h-8 flex items-center justify-between gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 cursor-pointer z-20 relative border",
+                    "bg-background text-foreground border-border hover:bg-accent/50"
+                  )}
                   title={`Mode: ${currentMode.label}`}
                 >
                   <currentMode.icon className="w-3.5 h-3.5" />
@@ -1427,7 +1473,10 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                 {showModeMenu && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowModeMenu(false)} />
-                    <div className="absolute bottom-full left-0 mb-2 w-56 bg-background border rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50 py-1">
+                    <div className="absolute bottom-full left-0 mb-2 w-64 bg-background border rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50 py-1">
+                      <div className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        Select Mode
+                      </div>
                       {MODE_OPTIONS.map(opt => {
                         const isActive = opt.value === mode;
                         return (
@@ -1438,18 +1487,33 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                               setShowModeMenu(false);
                             }}
                             className={cn(
-                              "w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 transition-colors",
+                              "w-full text-left px-3 py-2.5 text-xs flex items-center gap-3 transition-all relative",
                               isActive
-                                ? "bg-accent text-accent-foreground"
+                                ? "bg-accent text-foreground"
                                 : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                             )}
                           >
-                            <opt.icon className="w-4 h-4 shrink-0" />
-                            <div className="flex flex-col min-w-0">
-                              <span className="font-medium">{opt.label}</span>
+                            <div className={cn(
+                              "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                              isActive ? "bg-accent-foreground/10" : "bg-muted"
+                            )}>
+                              <opt.icon className={cn("w-4 h-4", isActive ? "text-foreground" : "text-muted-foreground")} />
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="font-semibold">{opt.label}</span>
                               <span className="text-[10px] opacity-70">{opt.description}</span>
                             </div>
-                            {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+                            {opt.shortcut && (
+                              <span className={cn(
+                                "text-[10px] px-1.5 py-0.5 rounded font-mono",
+                                isActive ? "bg-background/30" : "bg-muted"
+                              )}>
+                                {opt.shortcut}
+                              </span>
+                            )}
+                            {isActive && (
+                              <div className="ml-auto w-2 h-2 rounded-full bg-foreground/70" />
+                            )}
                           </button>
                         );
                       })}
@@ -1598,11 +1662,11 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                       </div>
 
                       {/* Stats */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2">
                         <div className="flex flex-col gap-1 p-2 rounded-lg bg-muted/40 border border-border/20">
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground/70 tracking-wider">Used</span>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground/70 tracking-wider">Cached</span>
                           <span className="text-sm font-bold font-mono text-foreground flex items-center gap-1">
-                            {usedTokens.toLocaleString()}
+                            {cachedTokens.toLocaleString()}
                             <span className="text-[10px] font-normal text-muted-foreground">tok</span>
                           </span>
                         </div>
@@ -1611,6 +1675,44 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                           <span className="text-sm font-bold font-mono text-foreground flex items-center gap-1">
                             {(contextLimit - usedTokens).toLocaleString()}
                             <span className="text-[10px] font-normal text-muted-foreground">tok</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Input/Output Visual Bar */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-[10px] uppercase tracking-widest font-bold text-muted-foreground/80">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+                            Input
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            Output
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                          </span>
+                        </div>
+                        <div className="h-2.5 w-full bg-muted/40 rounded-full overflow-hidden flex ring-1 ring-black/5 dark:ring-white/5">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${inputPercent}%` }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                            className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500"
+                          />
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${outputPercent}%` }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-500"
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs font-semibold text-foreground">
+                          <span className="flex items-center gap-1">
+                            {inputTokens >= 1000 ? `${(inputTokens / 1000).toFixed(1)}k` : inputTokens}
+                            <span className="text-[10px] text-muted-foreground font-normal">tokens</span>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            {outputTokens >= 1000 ? `${(outputTokens / 1000).toFixed(1)}k` : outputTokens}
+                            <span className="text-[10px] text-muted-foreground font-normal">tokens</span>
                           </span>
                         </div>
                       </div>

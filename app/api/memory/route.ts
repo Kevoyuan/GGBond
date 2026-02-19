@@ -55,6 +55,7 @@ export async function GET(req: Request) {
         const filePath = searchParams.get('path');
         const includeContent = searchParams.get('content') === '1';
         const workspacePath = searchParams.get('workspacePath') || searchParams.get('workspace') || undefined;
+        const resolvedWorkspace = resolveWorkspacePath(workspacePath);
 
         if (includeContent && filePath) {
             const resolvedFilePath = resolveMemoryPath(filePath, workspacePath);
@@ -67,7 +68,7 @@ export async function GET(req: Request) {
         }
 
         const loadedFiles = core.getMemoryFiles();
-        const projectMemoryPath = path.join(resolveWorkspacePath(workspacePath), 'GEMINI.md');
+        const projectMemoryPath = path.join(resolvedWorkspace, 'GEMINI.md');
         let projectFiles: string[] = [];
 
         try {
@@ -79,8 +80,33 @@ export async function GET(req: Request) {
             projectFiles = [];
         }
 
-        const files = Array.from(new Set([...projectFiles, ...loadedFiles]));
-        return NextResponse.json({ files, loadedFiles, projectFiles });
+        const uniqueFilePaths = Array.from(new Set([...projectFiles, ...loadedFiles]));
+
+        // Build file objects with path, content, scope, and size
+        const files = await Promise.all(
+            uniqueFilePaths.map(async (filePath) => {
+                try {
+                    const stat = await fs.stat(filePath);
+                    const content = await fs.readFile(filePath, 'utf-8');
+                    // Determine scope: global if path contains .claude or similar global dirs
+                    const isGlobal = filePath.includes('.claude') ||
+                                     filePath.includes('Library/Application Support');
+                    return {
+                        path: filePath,
+                        content,
+                        size: stat.size,
+                        scope: isGlobal ? 'global' : 'project'
+                    };
+                } catch {
+                    return null;
+                }
+            })
+        );
+
+        // Filter out null values (files that couldn't be read)
+        const validFiles = files.filter((f): f is { path: string; content: string; size: number; scope: string } => f !== null);
+
+        return NextResponse.json(validFiles);
     } catch (error) {
         console.error('Error fetching memory files:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

@@ -32,6 +32,123 @@ interface SkillsManagerProps {
     search?: string;
 }
 
+const SkillItem = memo(function SkillItem({
+    skill,
+    selected,
+    onSelect,
+    onUse,
+    onAction,
+    actionLoading,
+    isPending,
+    onConfirmDelete,
+    onStartDelete,
+    onMouseLeave
+}: {
+    skill: Skill;
+    selected: boolean;
+    onSelect: (skill: Skill) => void;
+    onUse: (e: React.MouseEvent, id: string) => void;
+    onAction: (action: string, id: string) => void;
+    actionLoading: string | null;
+    isPending: (id: string) => boolean;
+    onConfirmDelete: (id: string, cb: (id: string) => void) => void;
+    onStartDelete: (id: string) => void;
+    onMouseLeave: (id: string) => void;
+}) {
+    return (
+        <motion.div
+            layout
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -2 }}
+            className={cn(
+                "group relative p-3 rounded-xl transition-all duration-300 cursor-pointer border",
+                selected
+                    ? "bg-blue-50/80 dark:bg-blue-500/10 border-blue-300 dark:border-blue-500/50 shadow-md ring-1 ring-blue-500/10"
+                    : "bg-white/60 dark:bg-zinc-900/40 border-zinc-200/50 dark:border-zinc-800/80 hover:bg-white dark:hover:bg-zinc-800/60 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-sm"
+            )}
+            onClick={() => onSelect(skill)}
+        >
+            <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <div className={cn(
+                            "w-2 h-2 rounded-full",
+                            skill.status === 'Enabled'
+                                ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                                : "bg-zinc-300 dark:bg-zinc-700"
+                        )} />
+                        <h3 className="font-bold text-[12px] text-zinc-900 dark:text-zinc-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                            {skill.name}
+                        </h3>
+                    </div>
+
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {skill.status === 'Enabled' && (
+                            <button
+                                onClick={(e) => onUse(e, skill.id)}
+                                className="p-1 text-zinc-400 hover:text-blue-600 rounded-md"
+                                title="Add to chat"
+                            >
+                                <PlusCircle size={14} />
+                            </button>
+                        )}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onAction(skill.status === 'Enabled' ? 'disable' : 'enable', skill.id); }}
+                            className={cn(
+                                "p-1 rounded-md transition-colors",
+                                skill.status === 'Enabled' ? "text-zinc-400 hover:text-amber-600" : "text-zinc-400 hover:text-emerald-600"
+                            )}
+                            disabled={actionLoading?.includes(skill.id)}
+                        >
+                            {actionLoading?.includes(skill.id) ? (
+                                <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                                skill.status === 'Enabled' ? <Ban size={12} /> : <CheckCircle2 size={12} />
+                            )}
+                        </button>
+                        {!skill.isBuiltIn && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onStartDelete(skill.id); }}
+                                className="p-1 text-zinc-400 hover:text-red-600 rounded-md"
+                                title="Uninstall"
+                            >
+                                <Trash2 size={12} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed h-[30px]">
+                    {skill.description || 'No description provided'}
+                </p>
+
+                {isPending(skill.id) && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="absolute inset-0 bg-red-500/90 dark:bg-red-600/90 rounded-xl flex items-center justify-center gap-2 z-10"
+                    >
+                        <span className="text-[10px] text-white font-bold uppercase tracking-widest">Confirm Delete?</span>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onConfirmDelete(skill.id, (id) => onAction('uninstall', id)); }}
+                            className="px-2 py-0.5 bg-white text-red-600 rounded text-[9px] font-bold"
+                        >
+                            YES
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onMouseLeave(skill.id); }}
+                            className="px-2 py-0.5 bg-red-800 text-white rounded text-[9px] font-bold"
+                        >
+                            NO
+                        </button>
+                    </motion.div>
+                )}
+            </div>
+        </motion.div>
+    );
+});
+
 export const SkillsManager = memo(function SkillsManager({ compact = false, className, search: externalSearch }: SkillsManagerProps = {}) {
     const [skills, setSkills] = useState<Skill[]>([]);
     const [sources, setSources] = useState<SkillSource[]>([]);
@@ -50,6 +167,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
     const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
     const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
     const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
+    const [displayLimit, setDisplayLimit] = useState(40);
 
     const fetchSkills = () => {
         setLoading(true);
@@ -196,42 +314,42 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
 
     const body = (
         <div className="space-y-4 flex flex-col h-full overflow-hidden">
-            {/* Fixed Header Section for Stability */}
-            <div className="space-y-4 pb-1">
+            {/* Control Bar */}
+            <div className="space-y-3 pb-1">
                 <div className="grid grid-cols-2 gap-3">
                     <button
                         onClick={() => setStatusFilter(prev => prev === 'enabled' ? 'all' : 'enabled')}
                         className={cn(
-                            "px-3 py-2.5 rounded-xl border transition-colors text-left group",
+                            "px-3 py-2.5 rounded-xl border transition-all duration-200 text-left group relative overflow-hidden",
                             statusFilter === 'enabled'
-                                ? "border-emerald-500 bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
-                                : "border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10 hover:border-emerald-500/40"
+                                ? "border-emerald-500/50 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                                : "border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 hover:border-emerald-500/30 hover:bg-emerald-500/5"
                         )}
                     >
-                        <div className="text-[10px] text-emerald-600/70 dark:text-emerald-400/60 font-bold uppercase tracking-widest flex items-center justify-between">
-                            Enabled
-                            {statusFilter === 'enabled' && <CheckCircle2 size={10} className="text-emerald-500 animate-in fade-in zoom-in-50" />}
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest flex items-center justify-between mb-0.5">
+                            Active
+                            {statusFilter === 'enabled' && <CheckCircle2 size={12} className="text-emerald-500 animate-in fade-in zoom-in-50" />}
                         </div>
-                        <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 font-mono tracking-tighter">{enabledCount}</div>
+                        <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">{enabledCount}</div>
                     </button>
                     <button
                         onClick={() => setStatusFilter(prev => prev === 'disabled' ? 'all' : 'disabled')}
                         className={cn(
-                            "px-3 py-2.5 rounded-xl border transition-colors text-left group",
+                            "px-3 py-2.5 rounded-xl border transition-all duration-200 text-left group relative overflow-hidden",
                             statusFilter === 'disabled'
-                                ? "border-primary bg-primary/10 shadow-[0_0_10px_rgba(var(--primary),0.1)]"
-                                : "border-border/50 bg-card/40 hover:border-primary/40"
+                                ? "border-zinc-400/50 bg-zinc-400/10 shadow-[0_0_15px_rgba(161,161,170,0.1)]"
+                                : "border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 hover:border-zinc-400/30 hover:bg-zinc-400/5"
                         )}
                     >
-                        <div className="text-[10px] text-muted-foreground/60 font-bold uppercase tracking-widest flex items-center justify-between">
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest flex items-center justify-between mb-0.5">
                             Disabled
-                            {statusFilter === 'disabled' && <Ban size={10} className="text-primary animate-in fade-in zoom-in-50" />}
+                            {statusFilter === 'disabled' && <Ban size={12} className="text-zinc-500 animate-in fade-in zoom-in-50" />}
                         </div>
-                        <div className="text-lg font-bold text-muted-foreground font-mono tracking-tighter">{disabledCount}</div>
+                        <div className="text-xl font-bold text-zinc-600 dark:text-zinc-400 font-mono tracking-tight">{disabledCount}</div>
                     </button>
                 </div>
 
-                <div className="flex p-1 bg-muted/30 rounded-lg relative overflow-hidden">
+                <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg relative overflow-hidden">
                     {[
                         { key: 'all', label: 'All', count: skills.length, icon: Layers },
                         { key: 'project', label: 'Project', count: skills.filter(s => s.scope === 'project').length, icon: FolderOpen },
@@ -243,24 +361,24 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                 className={cn(
                                     "relative px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md flex items-center justify-center gap-1.5 z-10 transition-colors w-full",
                                     scopeFilter === item.key
-                                        ? "text-primary-foreground"
-                                        : "text-muted-foreground hover:text-foreground"
+                                        ? "text-zinc-900 dark:text-zinc-100"
+                                        : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                                 )}
                             >
                                 {scopeFilter === item.key && (
                                     <motion.div
                                         layoutId="skillScopeTab"
-                                        className="absolute inset-0 bg-primary rounded-md shadow-sm"
+                                        className="absolute inset-0 bg-white dark:bg-zinc-700 rounded-md shadow-sm"
                                         transition={{ type: "spring", bounce: 0.2, duration: 0.3 }}
                                     />
                                 )}
-                                <item.icon size={16} className="relative z-10" />
+                                <item.icon size={14} className="relative z-10" />
                                 {!compact && <span className="relative z-10">{item.label}</span>}
                                 <span className={cn(
                                     "relative z-10 px-1 py-0.5 rounded text-[9px] min-w-[16px] text-center font-mono leading-none transition-colors",
                                     scopeFilter === item.key
-                                        ? "bg-primary-foreground/20 text-primary-foreground"
-                                        : "bg-muted text-muted-foreground"
+                                        ? "bg-zinc-200/50 dark:bg-zinc-900/30"
+                                        : "bg-zinc-200 dark:bg-zinc-800"
                                 )}>
                                     {item.count}
                                 </span>
@@ -270,7 +388,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto min-h-0 space-y-4 pr-1 scrollbar-thin">
+            <div className="flex-1 min-h-0 space-y-4 pr-1">
                 <AnimatePresence mode="wait">
                     {showAdvanced && (
                         <motion.div
@@ -280,16 +398,16 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                             transition={{ duration: 0.2, ease: "easeOut" }}
                             className="overflow-hidden"
                         >
-                            <div className="rounded-xl border border-border/60 bg-muted/20 p-4 space-y-4 mb-4">
-                                <div className="flex items-center gap-2 pb-2 border-b border-border/40">
-                                    <SlidersHorizontal size={14} className="text-primary/60" />
-                                    <h3 className="text-xs font-bold uppercase tracking-widest text-foreground">Advanced Console</h3>
+                            <div className="rounded-xl border border-zinc-200/50 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 p-4 space-y-4 mb-4">
+                                <div className="flex items-center gap-2 pb-2 border-b border-zinc-200 dark:border-zinc-800">
+                                    <SlidersHorizontal size={14} className="text-zinc-500" />
+                                    <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-900 dark:text-zinc-100">Advanced Console</h3>
                                 </div>
 
                                 <div className="space-y-4">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80 flex items-center gap-2">
-                                            <Plus size={12} className="text-primary" />
+                                        <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2">
+                                            <Plus size={12} className="text-blue-500" />
                                             Install Skill
                                         </label>
                                         <div className="flex flex-col gap-2">
@@ -297,12 +415,12 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                                 value={installSource}
                                                 onChange={(e) => setInstallSource(e.target.value)}
                                                 placeholder="GitHub URL or local path"
-                                                className="w-full px-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/30 outline-none transition-colors font-mono"
+                                                className="w-full px-3 py-2 text-xs border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 focus:ring-1 focus:ring-blue-500 outline-none transition-colors font-mono"
                                             />
                                             <button
                                                 onClick={() => handleAction('install')}
                                                 disabled={!installSource.trim() || actionLoading === `install:${installSource}`}
-                                                className="w-full px-4 py-2 text-[10px] rounded-lg bg-primary text-primary-foreground font-bold uppercase tracking-widest hover:brightness-110 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 shadow-lg"
+                                                className="w-full px-4 py-2 text-[10px] rounded-lg bg-blue-600 text-white font-bold uppercase tracking-widest hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 shadow-sm"
                                             >
                                                 {actionLoading?.startsWith('install:') ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
                                                 Install
@@ -310,8 +428,8 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                         </div>
                                     </div>
 
-                                    <div className="space-y-2 pt-2 border-t border-border/20">
-                                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80 flex items-center gap-2">
+                                    <div className="space-y-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                                        <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2">
                                             <Puzzle size={12} className="text-amber-500" />
                                             External Directory
                                         </label>
@@ -320,20 +438,20 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                                 value={linkSource}
                                                 onChange={(e) => setLinkSource(e.target.value)}
                                                 placeholder="~/.claude/skills"
-                                                className="w-full px-3 py-2 text-xs border border-border/50 rounded-lg bg-background/50 focus:ring-1 focus:ring-primary/30 outline-none transition-colors font-mono"
+                                                className="w-full px-3 py-2 text-xs border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 focus:ring-1 focus:ring-blue-500 outline-none transition-colors font-mono"
                                             />
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button
                                                     onClick={() => handleAction('link_dir')}
                                                     disabled={!linkSource.trim() || actionLoading === `link_dir:${linkSource.trim()}`}
-                                                    className="px-3 py-2 text-[10px] rounded-lg bg-secondary/80 text-secondary-foreground font-bold uppercase tracking-widest hover:bg-secondary disabled:opacity-50 transition-colors border border-border/50"
+                                                    className="px-3 py-2 text-[10px] rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors border border-zinc-200 dark:border-zinc-700"
                                                 >
                                                     Link
                                                 </button>
                                                 <button
                                                     onClick={() => handleAction('unlink_dir')}
                                                     disabled={!linkSource.trim() || actionLoading === `unlink_dir:${linkSource.trim()}`}
-                                                    className="px-3 py-2 text-[10px] rounded-lg border border-border/50 bg-background/50 hover:bg-muted font-bold uppercase tracking-widest disabled:opacity-50 transition-colors"
+                                                    className="px-3 py-2 text-[10px] rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 font-bold uppercase tracking-widest disabled:opacity-50 transition-colors"
                                                 >
                                                     Unlink
                                                 </button>
@@ -342,15 +460,15 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                     </div>
 
                                     {displaySources.length > 0 && (
-                                        <div className="space-y-2 pt-2 border-t border-border/20">
-                                            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 flex items-center gap-2">
+                                        <div className="space-y-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                                            <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2">
                                                 <Puzzle size={12} />
                                                 Active Sources
                                             </label>
                                             <div className="space-y-1.5 px-1">
                                                 {displaySources.map((source) => (
                                                     <div key={source.key} className="flex items-start gap-1 justify-between">
-                                                        <div className="font-mono text-[9px] text-muted-foreground/60 break-all leading-tight">
+                                                        <div className="font-mono text-[9px] text-zinc-500 break-all leading-tight">
                                                             {source.key}
                                                         </div>
                                                         {!source.exists && (
@@ -368,8 +486,8 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                         className={cn(
                                             "text-[10px] font-bold uppercase tracking-tight rounded-lg border px-3 py-2 flex items-start gap-2 animate-in zoom-in-95 duration-200",
                                             actionMessageIsError
-                                                ? "border-red-500/30 text-red-500 bg-red-500/5"
-                                                : "border-emerald-500/30 text-emerald-500 bg-emerald-500/5"
+                                                ? "border-red-500/30 text-red-600 bg-red-500/5 dark:text-red-400"
+                                                : "border-emerald-500/30 text-emerald-600 bg-emerald-500/5 dark:text-emerald-400"
                                         )}
                                     >
                                         {actionMessageIsError ? <Ban size={12} className="mt-0.5" /> : <CheckCircle2 size={12} className="mt-0.5" />}
@@ -381,103 +499,53 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                     )}
                 </AnimatePresence>
 
-                <div className={cn("space-y-2.5")}>
-                    {filteredSkills.length === 0 ? (
-                        <div className="text-center py-10 opacity-20 grayscale">
-                            <Puzzle size={32} className="mx-auto mb-3" />
-                            <p className="text-[10px] font-bold uppercase tracking-widest">No matching skills</p>
-                        </div>
-                    ) : (
-                        filteredSkills.map((skill) => (
-                            <div
-                                key={skill.id}
-                                className={cn(
-                                    "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-muted/40 dark:hover:bg-muted/40 transition-colors cursor-pointer group",
-                                    selectedSkill?.id === skill.id && "bg-primary/5 border-primary ring-1 ring-primary/20 text-primary"
-                                )}
-                                onClick={() => setSelectedSkill(skill)}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-2 mb-0.5">
-                                            <span
-                                                className={cn(
-                                                    "inline-block w-1.5 h-1.5 rounded-full shrink-0",
-                                                    skill.status === 'Enabled' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "bg-zinc-500"
-                                                )}
-                                            />
-                                            <span className="font-semibold text-[13px] text-foreground truncate">
-                                                {skill.name}
-                                            </span>
-                                        </div>
-                                        <p className="text-[11px] text-muted-foreground line-clamp-2 leading-tight">
-                                            {skill.description || 'No description provided'}
-                                        </p>
-                                    </div>
-                                    {skill.status === 'Enabled' && (
-                                        <button
-                                            onClick={(e) => handleUseSkill(e, skill.id)}
-                                            className="p-1 px-[5px] text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors shrink-0"
-                                            title="Add to chat"
-                                        >
-                                            <PlusCircle size={14} className="stroke-[2.5]" />
-                                        </button>
-                                    )}
-                                </div>
-
-                                <div
-                                    className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-colors"
-                                    onMouseLeave={() => handleMouseLeave(skill.id)}
+                <div className="relative">
+                    <div
+                        className="grid grid-cols-1 gap-3 max-h-[450px] overflow-y-auto px-1 py-1 custom-scrollbar"
+                    >
+                        <AnimatePresence mode="popLayout">
+                            {filteredSkills.length === 0 ? (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="col-span-full text-center py-10 opacity-30 grayscale flex flex-col items-center"
                                 >
-                                    <div className="w-[1px] h-4 bg-border/50 mx-1" />
-                                    {skill.status === 'Enabled' ? (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleAction('disable', skill.id); }}
-                                            className="p-1.5 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-md transition-colors"
-                                            title="Disable"
-                                            disabled={actionLoading === `disable:${skill.id}`}
-                                        >
-                                            {actionLoading === `disable:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleAction('enable', skill.id); }}
-                                            className="p-1.5 text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 rounded-md transition-colors"
-                                            title="Enable"
-                                            disabled={actionLoading === `enable:${skill.id}`}
-                                        >
-                                            {actionLoading === `enable:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                                        </button>
-                                    )}
-                                    {!skill.isBuiltIn && (
-                                        isPending(skill.id) ? (
+                                    <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-full mb-3">
+                                        <Puzzle size={24} className="text-zinc-500" />
+                                    </div>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">No matching skills</p>
+                                </motion.div>
+                            ) : (
+                                <>
+                                    {filteredSkills.slice(0, displayLimit).map((skill) => (
+                                        <SkillItem
+                                            key={skill.id}
+                                            skill={skill}
+                                            selected={selectedSkill?.id === skill.id}
+                                            onSelect={setSelectedSkill}
+                                            onUse={handleUseSkill}
+                                            onAction={handleAction}
+                                            actionLoading={actionLoading}
+                                            isPending={isPending}
+                                            onConfirmDelete={confirmDelete}
+                                            onStartDelete={startDelete}
+                                            onMouseLeave={handleMouseLeave}
+                                        />
+                                    ))}
+                                    {displayLimit < filteredSkills.length && (
+                                        <div className="col-span-full py-4 text-center">
                                             <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    confirmDelete(skill.id, (id) => handleAction('uninstall', id));
-                                                }}
-                                                className="px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors animate-in fade-in slide-in-from-right-2 duration-200"
+                                                onClick={() => setDisplayLimit(prev => prev + 40)}
+                                                className="px-6 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all border border-zinc-200 dark:border-zinc-700"
                                             >
-                                                Confirm
+                                                Load More ({filteredSkills.length - displayLimit} remaining)
                                             </button>
-                                        ) : (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    startDelete(skill.id);
-                                                }}
-                                                className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
-                                                title="Uninstall"
-                                                disabled={actionLoading === `uninstall:${skill.id}`}
-                                            >
-                                                {actionLoading === `uninstall:${skill.id}` ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                                            </button>
-                                        )
+                                        </div>
                                     )}
-                                </div>
-                            </div>
-                        ))
-                    )}
+                                </>
+                            )}
+                        </AnimatePresence>
+                    </div>
                 </div>
             </div>
         </div>
@@ -490,8 +558,8 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                 className={cn(
                     "p-1.5 rounded-lg transition-colors border",
                     showAdvanced
-                        ? "bg-primary text-primary-foreground border-primary shadow-inner"
-                        : "text-muted-foreground border-transparent hover:bg-primary/10 hover:text-primary"
+                        ? "bg-blue-600 text-white border-blue-600 shadow-inner"
+                        : "text-zinc-500 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900"
                 )}
                 title="Advanced Console"
             >
@@ -499,7 +567,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
             </button>
             <button
                 onClick={fetchSkills}
-                className="p-1.5 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-blue-600 transition-colors"
                 title="Sync Registry"
             >
                 <RefreshCw size={14} className={cn(loading && "animate-spin")} />
@@ -518,9 +586,9 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                 />
                 <div className="flex-1 min-h-0 p-4">
                     {loading && skills.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-20 opacity-20">
-                            <Loader2 size={24} className="animate-spin mb-3" />
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-center">Syncing Registry...</p>
+                        <div className="flex flex-col items-center justify-center py-20 opacity-40">
+                            <Loader2 size={24} className="animate-spin mb-3 text-blue-500" />
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-center text-zinc-500">Syncing Registry...</p>
                         </div>
                     ) : (
                         body
@@ -543,9 +611,9 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
             actions={headerActions}
         >
             {loading && skills.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 opacity-20">
-                    <Loader2 size={24} className="animate-spin mb-3" />
-                    <p className="text-[10px] font-bold uppercase tracking-widest">Syncing Modules...</p>
+                <div className="flex flex-col items-center justify-center py-20 opacity-40">
+                    <Loader2 size={24} className="animate-spin mb-3 text-blue-500" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Syncing Modules...</p>
                 </div>
             ) : (
                 body

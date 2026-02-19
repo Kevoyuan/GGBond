@@ -124,6 +124,25 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_message_queue_session ON message_queue(session_id);
   CREATE INDEX IF NOT EXISTS idx_message_queue_status ON message_queue(status);
+
+  -- Chat snapshots for /chat save/resume functionality
+  CREATE TABLE IF NOT EXISTS chat_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    title TEXT,
+    message_count INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE,
+    UNIQUE(session_id, tag)
+  );
+
+  -- App configuration (geminiignore, trusted folders, custom commands)
+  CREATE TABLE IF NOT EXISTS app_config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
 `);
 
 // Migration: Add workspace column if it doesn't exist
@@ -333,3 +352,76 @@ export interface DbMessage {
   parent_id?: number | null;
   created_at: number;
 }
+
+// Chat Snapshots Operations (for /chat save/resume)
+export interface ChatSnapshot {
+  id: number;
+  session_id: string;
+  tag: string;
+  title?: string | null;
+  message_count: number;
+  created_at: number;
+}
+
+export const chatSnapshots = {
+  // Save a snapshot of the current session
+  save: (sessionId: string, tag: string, title?: string, messageCount?: number) => {
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO chat_snapshots (session_id, tag, title, message_count, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    return stmt.run(
+      sessionId,
+      tag,
+      title || null,
+      messageCount || 0,
+      Date.now()
+    );
+  },
+
+  // List all snapshots for a session
+  list: (sessionId?: string) => {
+    if (sessionId) {
+      const stmt = db.prepare(`
+        SELECT cs.*, s.title as session_title
+        FROM chat_snapshots cs
+        JOIN sessions s ON cs.session_id = s.id
+        WHERE cs.session_id = ?
+        ORDER BY cs.created_at DESC
+      `);
+      return stmt.all(sessionId) as (ChatSnapshot & { session_title: string })[];
+    }
+    const stmt = db.prepare(`
+      SELECT cs.*, s.title as session_title
+      FROM chat_snapshots cs
+      JOIN sessions s ON cs.session_id = s.id
+      ORDER BY cs.created_at DESC
+    `);
+    return stmt.all() as (ChatSnapshot & { session_title: string })[];
+  },
+
+  // Get a specific snapshot by tag
+  get: (sessionId: string, tag: string) => {
+    const stmt = db.prepare(`
+      SELECT cs.*, s.title as session_title
+      FROM chat_snapshots cs
+      JOIN sessions s ON cs.session_id = s.id
+      WHERE cs.session_id = ? AND cs.tag = ?
+    `);
+    return stmt.get(sessionId, tag) as (ChatSnapshot & { session_title: string }) | undefined;
+  },
+
+  // Delete a snapshot
+  delete: (sessionId: string, tag: string) => {
+    const stmt = db.prepare(`
+      DELETE FROM chat_snapshots WHERE session_id = ? AND tag = ?
+    `);
+    return stmt.run(sessionId, tag);
+  },
+
+  // Delete all snapshots for a session
+  deleteAll: (sessionId: string) => {
+    const stmt = db.prepare('DELETE FROM chat_snapshots WHERE session_id = ?');
+    return stmt.run(sessionId);
+  }
+};
