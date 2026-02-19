@@ -4,12 +4,12 @@ import { cn } from '@/lib/utils';
 
 // Fallback models when API is not available
 const FALLBACK_MODELS = [
+    { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', icon: Code2 },
+    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', icon: Zap },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', icon: Code2 },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', icon: Zap },
     { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', icon: Zap },
     { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', icon: Zap },
-    { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (Preview)', icon: Code2 },
-    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Preview)', icon: Zap },
 ];
 
 // Icon mapping based on tier
@@ -47,13 +47,16 @@ export function ModelSelector({
         fetch('/api/models')
             .then(r => r.json())
             .then(data => {
-                const modelList = (data.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
+                const modelList: typeof FALLBACK_MODELS = (data.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
                     id: m.id,
                     name: m.name || formatModelName(m.id),
                     icon: getModelIcon(m.tier),
                 }));
-                if (modelList.length > 0) {
-                    setModels(modelList);
+                const deduped = modelList.filter(
+                    (model, index, self) => self.findIndex((item) => item.id === model.id) === index
+                );
+                if (deduped.length > 0) {
+                    setModels(deduped);
                 }
             })
             .catch(() => {

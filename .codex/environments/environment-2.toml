@@ -7,10 +7,10 @@ script = "npm run dev"
 
 [[actions]]
 name = "run"
-icon = "tool"
+icon = "run"
 command = "npm run dev"
 
 [[actions]]
 name = "run desktop"
-icon = "tool"
+icon = "test"
 command = "npm run desktop:dev"
