@@ -359,6 +359,209 @@ export async function getModelConfig(): Promise<{
     };
 }
 
+// ─── Model Presets ────────────────────────────────────────
+export interface ModelPreset {
+    id: string;
+    name: string;
+    description?: string;
+    model: string;
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
+    topK?: number;
+    // Conditional routing settings
+    routing?: {
+        enabled: boolean;
+        conditions: ModelRoutingCondition[];
+    };
+}
+
+export interface ModelRoutingCondition {
+    type: 'keyword' | 'length' | 'complexity';
+    // For keyword type
+    keywords?: string[];
+    // For length type
+    minLength?: number;
+    maxLength?: number;
+    // For complexity type
+    threshold?: number;
+    // Target model for this condition
+    model: string;
+    temperature?: number;
+}
+
+// Default presets
+const DEFAULT_PRESETS: ModelPreset[] = [
+    {
+        id: 'balanced',
+        name: 'Balanced',
+        description: 'Default balanced settings',
+        model: 'gemini-2.5-flash',
+        temperature: 0.7,
+    },
+    {
+        id: 'creative',
+        name: 'Creative',
+        description: 'More creative and varied outputs',
+        model: 'gemini-2.5-pro',
+        temperature: 1.0,
+    },
+    {
+        id: 'precise',
+        name: 'Precise',
+        description: 'More focused and accurate outputs',
+        model: 'gemini-2.5-flash-lite',
+        temperature: 0.3,
+    },
+    {
+        id: 'complex',
+        name: 'Complex Task',
+        description: 'For complex coding tasks',
+        model: 'gemini-2.5-pro',
+        temperature: 0.9,
+        routing: {
+            enabled: true,
+            conditions: [
+                {
+                    type: 'keyword',
+                    keywords: ['refactor', 'architecture', 'design', 'complex', 'implement'],
+                    model: 'gemini-2.5-pro',
+                    temperature: 0.9,
+                },
+                {
+                    type: 'length',
+                    minLength: 2000,
+                    model: 'gemini-2.5-pro',
+                    temperature: 0.8,
+                },
+            ],
+        },
+    },
+    {
+        id: 'quick',
+        name: 'Quick Query',
+        description: 'Fast responses for simple questions',
+        model: 'gemini-2.5-flash-lite',
+        temperature: 0.5,
+        routing: {
+            enabled: true,
+            conditions: [
+                {
+                    type: 'length',
+                    maxLength: 200,
+                    model: 'gemini-2.5-flash-lite',
+                    temperature: 0.5,
+                },
+            ],
+        },
+    },
+];
+
+export async function getModelPresets(): Promise<ModelPreset[]> {
+    const settings = await readSettings();
+    const customPresets = settings.modelPresets || [];
+    return [...DEFAULT_PRESETS, ...customPresets];
+}
+
+export async function saveModelPreset(preset: ModelPreset): Promise<void> {
+    const settings = await readSettings();
+    if (!settings.modelPresets) settings.modelPresets = [];
+    const existingIndex = settings.modelPresets.findIndex((p: ModelPreset) => p.id === preset.id);
+    if (existingIndex >= 0) {
+        settings.modelPresets[existingIndex] = preset;
+    } else {
+        settings.modelPresets.push(preset);
+    }
+    await writeSettings(settings);
+}
+
+export async function deleteModelPreset(presetId: string): Promise<void> {
+    const settings = await readSettings();
+    if (settings.modelPresets) {
+        settings.modelPresets = settings.modelPresets.filter((p: ModelPreset) => p.id !== presetId);
+        await writeSettings(settings);
+    }
+}
+
+// Get the effective model based on current preset and routing conditions
+export function resolveModelForContext(
+    preset: ModelPreset | undefined,
+    messageLength: number,
+    messageContent: string
+): { model: string; temperature: number } {
+    // If no preset, return defaults
+    if (!preset) {
+        return { model: 'gemini-2.5-flash', temperature: 0.7 };
+    }
+
+    // If routing is not enabled, return preset defaults
+    if (!preset.routing?.enabled) {
+        return { model: preset.model, temperature: preset.temperature ?? 0.7 };
+    }
+
+    // Check routing conditions
+    for (const condition of preset.routing.conditions) {
+        let match = false;
+
+        if (condition.type === 'keyword' && condition.keywords) {
+            const lowerContent = messageContent.toLowerCase();
+            match = condition.keywords.some(kw => lowerContent.includes(kw.toLowerCase()));
+        } else if (condition.type === 'length') {
+            const len = messageLength;
+            if (condition.minLength !== undefined && len < condition.minLength) continue;
+            if (condition.maxLength !== undefined && len > condition.maxLength) continue;
+            match = true;
+        }
+
+        if (match) {
+            return {
+                model: condition.model,
+                temperature: condition.temperature ?? preset.temperature ?? 0.7,
+            };
+        }
+    }
+
+    // Default to preset values if no conditions matched
+    return { model: preset.model, temperature: preset.temperature ?? 0.7 };
+}
+
+// ─── Custom Tools ──────────────────────────────────────────
+export interface CustomToolDefinition {
+    id: string;
+    name: string;
+    description: string;
+    schema?: Record<string, unknown>;
+    handler?: string; // Path to handler function
+    enabled: boolean;
+}
+
+const DEFAULT_CUSTOM_TOOLS: CustomToolDefinition[] = [];
+
+export async function getCustomTools(): Promise<CustomToolDefinition[]> {
+    const settings = await readSettings();
+    return settings.customTools || DEFAULT_CUSTOM_TOOLS;
+}
+
+export async function saveCustomTool(tool: CustomToolDefinition): Promise<void> {
+    const settings = await readSettings();
+    if (!settings.customTools) settings.customTools = [];
+    const existingIndex = settings.customTools.findIndex((t: CustomToolDefinition) => t.id === tool.id);
+    if (existingIndex >= 0) {
+        settings.customTools[existingIndex] = tool;
+    } else {
+        settings.customTools.push(tool);
+    }
+    await writeSettings(settings);
+}
+
+export async function deleteCustomTool(toolId: string): Promise<void> {
+    const settings = await readSettings();
+    if (settings.customTools) {
+        settings.customTools = settings.customTools.filter((t: CustomToolDefinition) => t.id !== toolId);
+        await writeSettings(settings);
+    }
+}
+
 // ─── Telemetry ───────────────────────────────────────────
 export interface TelemetryEvent {
     name: string;
