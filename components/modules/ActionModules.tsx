@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, memo } from 'react';
 import { ModuleCard } from './ModuleCard';
-import { Terminal, Lock, FileText, ShieldCheck, Key, Loader2, Eye, EyeOff, CheckCircle, XCircle, Folder, File, ChevronLeft, HardDrive } from 'lucide-react';
+import { Terminal, Lock, FileText, ShieldCheck, Key, Loader2, CheckCircle, XCircle, Folder, File, ChevronLeft, HardDrive, Monitor, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from '@/components/ui/Tooltip';
 
@@ -12,14 +12,45 @@ import { Tooltip } from '@/components/ui/Tooltip';
 export const ShellManager = memo(function ShellManager() {
   const [toolsData, setToolsData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [sandboxMode, setSandboxMode] = useState<string>('none');
+  const [headlessMode, setHeadlessMode] = useState<boolean>(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetch('/api/tools')
       .then(r => r.json())
-      .then(setToolsData)
+      .then(data => {
+        setToolsData(data);
+        setSandboxMode(data.config?.sandbox || 'none');
+        setHeadlessMode(data.config?.headless === true || data.config?.headless === 'true');
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  const handleSaveConfig = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/tools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sandbox: sandboxMode,
+          headless: headlessMode
+        })
+      });
+      if (res.ok) {
+        setToolsData((prev: any) => ({
+          ...prev,
+          config: { ...prev.config, sandbox: sandboxMode, headless: headlessMode }
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to save config:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -43,23 +74,68 @@ export const ShellManager = memo(function ShellManager() {
       <div className="space-y-4">
         {/* Sandbox Mode */}
         <div className="p-3 bg-zinc-50/50 dark:bg-zinc-900/30 rounded-lg border border-zinc-200/50 dark:border-zinc-800">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <ShieldCheck size={14} className="text-blue-500" />
               <span className="font-medium text-sm">Sandbox Mode</span>
             </div>
-            <span className={cn(
-              "px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider rounded border",
-              config.sandbox === 'docker'
-                ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
-                : config.sandbox === 'none'
-                  ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
-                  : "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700"
-            )}>
-              {config.sandbox || 'none'}
-            </span>
+            <select
+              value={sandboxMode}
+              onChange={(e) => setSandboxMode(e.target.value)}
+              className={cn(
+                "text-[10px] uppercase font-bold tracking-wider rounded border px-2 py-0.5 cursor-pointer",
+                sandboxMode === 'docker'
+                  ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+                  : sandboxMode === 'none'
+                    ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
+                    : "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700"
+              )}
+            >
+              <option value="none">none</option>
+              <option value="docker">docker</option>
+            </select>
           </div>
+          <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            none: Execute tools directly. docker: Run tools in isolated containers.
+          </p>
         </div>
+
+        {/* Headless Mode */}
+        <div className="p-3 bg-zinc-50/50 dark:bg-zinc-900/30 rounded-lg border border-zinc-200/50 dark:border-zinc-800">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Monitor size={14} className={headlessMode ? "text-emerald-500" : "text-zinc-400"} />
+              <span className="font-medium text-sm">Headless Mode</span>
+            </div>
+            <button
+              onClick={() => setHeadlessMode(!headlessMode)}
+              className={cn(
+                "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+                headlessMode ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600"
+              )}
+            >
+              <span className={cn(
+                "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform",
+                headlessMode ? "translate-x-4.5" : "translate-x-0.5"
+              )} />
+            </button>
+          </div>
+          <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            Auto-approve all safe tool executions. Disable interactive confirmations.
+          </p>
+        </div>
+
+        {/* Save Button */}
+        {(sandboxMode !== (config.sandbox || 'none') || headlessMode !== (config.headless === true || config.headless === 'true')) && (
+          <button
+            onClick={handleSaveConfig}
+            disabled={saving}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            {saving ? 'Saving...' : 'Save Configuration'}
+          </button>
+        )}
 
         {/* Dangerous Tools (require approval) */}
         <div>
