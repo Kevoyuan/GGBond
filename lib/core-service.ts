@@ -606,7 +606,8 @@ export class CoreService {
         this.hookEventSubscribers.clear();
     }
 
-    private emitHookEvent(eventName: HookEventName, data?: Record<string, unknown>) {
+    // Public method to emit hook events from external code (e.g., API routes)
+    public emitHookEvent(eventName: HookEventName, data?: Record<string, unknown>) {
         const payload: HookEventPayload = {
             eventName,
             timestamp: Date.now(),
@@ -622,6 +623,15 @@ export class CoreService {
                 this.hookEventSubscribers.delete(listener);
             }
         }
+    }
+
+    // Convenience method to send notification events
+    public sendNotification(title: string, message: string, level: 'info' | 'warning' | 'error' | 'success' = 'info') {
+        this.emitHookEvent('Notification', {
+            title,
+            message,
+            level,
+        });
     }
 
     private emitConfirmationRequest(request: PendingConfirmationRequest) {
@@ -812,6 +822,14 @@ export class CoreService {
         const displayContent = message;
         const abortSignal = signal || new AbortController().signal;
 
+        // Emit BeforeAgent hook event
+        const agentStartTime = Date.now();
+        this.emitHookEvent('BeforeAgent', {
+            message: displayContent,
+            model: this.config.getModel(),
+            turnCount: 0,
+        });
+
         // Build content array with text and optional images
         const content: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
 
@@ -886,6 +904,13 @@ export class CoreService {
                     break;
                 }
 
+                // Emit BeforeToolSelection hook event before executing tools
+                this.emitHookEvent('BeforeToolSelection', {
+                    turnCount,
+                    toolNames: toolCallRequests.map(req => req.name),
+                    toolCount: toolCallRequests.length,
+                });
+
                 const completedCalls = await this.executeToolCalls(toolCallRequests, abortSignal);
                 if (!completedCalls.length) {
                     break;
@@ -921,6 +946,12 @@ export class CoreService {
             const message = error instanceof Error ? error.message : String(error);
             console.error('[CoreService] Turn error:', message);
             yield { type: 'error', value: { error: { message } } };
+        } finally {
+            // Emit AfterAgent hook event
+            this.emitHookEvent('AfterAgent', {
+                duration: Date.now() - agentStartTime,
+                turnCount,
+            });
         }
     }
 
