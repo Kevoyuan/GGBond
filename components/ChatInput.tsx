@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User } from 'lucide-react';
+import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User, Info, BookOpen, Layout, Laptop, Keyboard, Monitor } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -99,6 +99,13 @@ const BASE_COMMANDS: CommandItem[] = [
   { command: '/settings', description: 'Open settings', icon: Settings, group: 'Built-in' },
   { command: '/model', description: 'Select model', icon: Cpu, group: 'Built-in' },
   { command: '/theme', description: 'Change theme', icon: Palette, group: 'Built-in' },
+  { command: '/editor', description: 'Toggle editor mode', icon: Layout, group: 'Built-in' },
+  { command: '/vim', description: 'Toggle Vim mode', icon: Keyboard, group: 'Built-in' },
+  { command: '/shells', description: 'Show configured shells', icon: TerminalSquare, group: 'Built-in' },
+  { command: '/terminal-setup', description: 'Open terminal settings', icon: Settings, group: 'Built-in' },
+  { command: '/ide', description: 'IDE integration settings', icon: Monitor, group: 'Built-in' },
+  { command: '/about', description: 'Show GGBond information', icon: Info, group: 'Built-in' },
+  { command: '/docs', description: 'Show help documentation', icon: BookOpen, group: 'Built-in' },
 ];
 
 interface ModeOption {
