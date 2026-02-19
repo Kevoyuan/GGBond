@@ -72,7 +72,9 @@ export default function Home() {
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
   const [mode, setMode] = useState<'code' | 'plan' | 'ask'>('code');
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === 'dark';
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted ? resolvedTheme === 'dark' : false;
   const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
   const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>(DEFAULT_CHAT_SETTINGS.toolPermissionStrategy);
   const [sidePanelType, setSidePanelType] = useState<'graph' | 'timeline' | null>(null);
