@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
 import { ModuleCard } from '../ModuleCard';
 import { BarChart, DollarSign, Zap, Loader2, Gauge, Database, AlertTriangle } from 'lucide-react';
 import { getModelInfo } from '@/lib/pricing';
@@ -81,7 +81,7 @@ interface TimelineHoverState {
   rows: Array<{ model: string; tokens: number; color: string }>;
 }
 
-export function AnalyticsDashboard() {
+export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryResponse | null>(null);
   const [quota, setQuota] = useState<QuotaResponse | null>(null);
@@ -90,7 +90,9 @@ export function AnalyticsDashboard() {
   const [timelineHover, setTimelineHover] = useState<TimelineHoverState | null>(null);
   const timelineChartRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
+  // Stable fetch function
+  const fetchData = useCallback(() => {
+    setLoading(true);
     Promise.all([
       fetch('/api/stats').then(r => r.json()),
       fetch('/api/telemetry').then(r => r.json()),
@@ -105,6 +107,10 @@ export function AnalyticsDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
   if (loading) {
     return (
       <ModuleCard title="Analytics" description="Usage & Cost Tracking" icon={BarChart}>
@@ -115,92 +121,77 @@ export function AnalyticsDashboard() {
     );
   }
 
-  const current = stats?.[period] || { inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalTokens: 0, cost: 0, count: 0 };
-  const total = stats?.total || current;
-  const tokenSeries = (telemetry?.recentEvents || [])
+  // Memoized expensive computations
+  const current = useMemo(() => stats?.[period] || { inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalTokens: 0, cost: 0, count: 0 }, [stats, period]);
+  const total = useMemo(() => stats?.total || current, [stats, current]);
+
+  const tokenSeries = useMemo(() => (telemetry?.recentEvents || [])
     .filter((event) => event.name === 'gemini_cli.api_response')
     .slice(-12)
     .map((event) => {
       const input = readNumericValue(event.attributes.input_token_count);
       const output = readNumericValue(event.attributes.output_token_count);
       const totalValue = readNumericValue(event.attributes.total_token_count) || (input + output);
-      return {
-        total: totalValue,
-        input,
-        output,
-      };
-    });
+      return { total: totalValue, input, output };
+    }), [telemetry]);
 
-  const maxSeriesToken = tokenSeries.length > 0 ? Math.max(...tokenSeries.map(item => item.total), 1) : 1;
-  const dominantModel = Object.entries(telemetry?.tokensByModel || {}).sort((a, b) => {
+  const maxSeriesToken = useMemo(() => tokenSeries.length > 0 ? Math.max(...tokenSeries.map(item => item.total), 1) : 1, [tokenSeries]);
+
+  const dominantModel = useMemo(() => Object.entries(telemetry?.tokensByModel || {}).sort((a, b) => {
     const totalA = a[1].input + a[1].output;
     const totalB = b[1].input + b[1].output;
     return totalB - totalA;
-  })[0]?.[0] || 'gemini-3-pro-preview';
-  const { pricing } = getModelInfo(dominantModel);
-  // Show cumulative context usage (matching TokenUsageDisplay behavior)
-  const cumulativeTokens = current.totalTokens;
-  const contextUsagePercent = Math.min((cumulativeTokens / pricing.contextWindow) * 100, 100);
-  const cacheHitRate = current.inputTokens > 0 ? (current.cachedTokens / current.inputTokens) * 100 : 0;
-  const avgCostPerRequest = current.count > 0 ? current.cost / current.count : 0;
-  const costPer1k = current.totalTokens > 0 ? (current.cost / current.totalTokens) * 1000 : 0;
+  })[0]?.[0] || 'gemini-3-pro-preview', [telemetry]);
 
-  const quotaBuckets = quota?.quota?.buckets || [];
-  const dailyQuota = quotaBuckets.find(bucket => /day/i.test(bucket.tokenType || ''));
-  const rateLimit = quotaBuckets.find(bucket => /minute|second|rate/i.test(bucket.tokenType || ''));
-  const dailyQuotaPercent = dailyQuota?.remainingFraction !== undefined ? dailyQuota.remainingFraction * 100 : null;
-  const rateLimitPercent = rateLimit?.remainingFraction !== undefined ? rateLimit.remainingFraction * 100 : null;
-  // Only warn if cumulative context uses more than 90% of context window
-  const shouldWarnCompression = cumulativeTokens > pricing.contextWindow * 0.9;
-  const timelinePeriod: 'today' | 'week' | 'month' = period === 'daily'
-    ? 'today'
-    : period === 'weekly'
-      ? 'week'
-      : 'month';
-  const timelineModeLabel = timelinePeriod === 'today'
-    ? 'Hourly View'
-    : 'Daily View';
-  const timelineBuckets = timelinePeriod === 'today'
+  const { pricing } = useMemo(() => getModelInfo(dominantModel), [dominantModel]);
+  const cumulativeTokens = useMemo(() => current.totalTokens, [current]);
+  const contextUsagePercent = useMemo(() => Math.min((cumulativeTokens / pricing.contextWindow) * 100, 100), [cumulativeTokens, pricing]);
+  const cacheHitRate = useMemo(() => current.inputTokens > 0 ? (current.cachedTokens / current.inputTokens) * 100 : 0, [current]);
+  const avgCostPerRequest = useMemo(() => current.count > 0 ? current.cost / current.count : 0, [current]);
+  const costPer1k = useMemo(() => current.totalTokens > 0 ? (current.cost / current.totalTokens) * 1000 : 0, [current]);
+
+  const quotaBuckets = useMemo(() => quota?.quota?.buckets || [], [quota]);
+  const dailyQuota = useMemo(() => quotaBuckets.find(bucket => /day/i.test(bucket.tokenType || '')), [quotaBuckets]);
+  const rateLimit = useMemo(() => quotaBuckets.find(bucket => /minute|second|rate/i.test(bucket.tokenType || '')), [quotaBuckets]);
+  const dailyQuotaPercent = useMemo(() => dailyQuota?.remainingFraction !== undefined ? dailyQuota.remainingFraction * 100 : null, [dailyQuota]);
+  const rateLimitPercent = useMemo(() => rateLimit?.remainingFraction !== undefined ? rateLimit.remainingFraction * 100 : null, [rateLimit]);
+  const shouldWarnCompression = useMemo(() => cumulativeTokens > pricing.contextWindow * 0.9, [cumulativeTokens, pricing]);
+
+  const timelinePeriod = useMemo<'today' | 'week' | 'month'>(() => period === 'daily' ? 'today' : period === 'weekly' ? 'week' : 'month', [period]);
+  const timelineModeLabel = useMemo(() => timelinePeriod === 'today' ? 'Hourly View' : 'Daily View', [timelinePeriod]);
+
+  const timelineBuckets = useMemo(() => timelinePeriod === 'today'
     ? (stats?.breakdowns?.todayHourly || [])
     : timelinePeriod === 'week'
       ? (stats?.breakdowns?.weekDaily || [])
-      : (stats?.breakdowns?.monthDaily || []);
+      : (stats?.breakdowns?.monthDaily || []), [stats, timelinePeriod]);
 
-  const modelTotals = timelineBuckets.reduce<Record<string, number>>((acc, bucket) => {
+  const modelTotals = useMemo(() => timelineBuckets.reduce<Record<string, number>>((acc, bucket) => {
     Object.entries(bucket.models || {}).forEach(([model, tokens]) => {
       acc[model] = (acc[model] || 0) + tokens;
     });
     return acc;
-  }, {});
+  }, {}), [timelineBuckets]);
 
-  const orderedModels = Object.entries(modelTotals)
-    .sort((a, b) => b[1] - a[1])
-    .map(([name]) => name);
-  const primaryModels = orderedModels.slice(0, 8);
-  const useOthers = orderedModels.length > primaryModels.length;
-  const chartModels = useOthers ? [...primaryModels, 'Others'] : primaryModels;
-  const maxTimelineToken = timelineBuckets.length > 0
-    ? Math.max(...timelineBuckets.map(bucket => bucket.totalTokens), 1)
-    : 1;
+  const orderedModels = useMemo(() => Object.entries(modelTotals).sort((a, b) => b[1] - a[1]).map(([name]) => name), [modelTotals]);
+  const primaryModels = useMemo(() => orderedModels.slice(0, 8), [orderedModels]);
+  const useOthers = useMemo(() => orderedModels.length > primaryModels.length, [orderedModels, primaryModels]);
+  const chartModels = useMemo(() => useOthers ? [...primaryModels, 'Others'] : primaryModels, [useOthers, primaryModels]);
+  const maxTimelineToken = useMemo(() => timelineBuckets.length > 0 ? Math.max(...timelineBuckets.map(bucket => bucket.totalTokens), 1) : 1, [timelineBuckets]);
 
-  const modelColors = [
-    '#ec4899', // pink
-    '#3b82f6', // blue
-    '#84cc16', // lime
-    '#f97316', // orange
-    '#22c55e', // green
-    '#a855f7', // purple
-    '#06b6d4', // cyan
-    '#eab308', // yellow
-    '#6b7280', // gray
-  ];
-  const modelColorMap = new Map<string, string>();
-  chartModels.forEach((model, idx) => {
-    modelColorMap.set(model, modelColors[idx % modelColors.length]);
-  });
-  const timelineGrandTotal = Object.values(modelTotals).reduce((sum, value) => sum + value, 0);
-  const topModelsTotal = primaryModels.reduce((sum, model) => sum + (modelTotals[model] || 0), 0);
-  const othersTotal = Math.max(timelineGrandTotal - topModelsTotal, 0);
+  const modelColors = useMemo(() => [
+    '#ec4899', '#3b82f6', '#84cc16', '#f97316', '#22c55e', '#a855f7', '#06b6d4', '#eab308', '#6b7280',
+  ], []);
+
+  const modelColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    chartModels.forEach((model, idx) => map.set(model, modelColors[idx % modelColors.length]));
+    return map;
+  }, [chartModels, modelColors]);
+
+  const timelineGrandTotal = useMemo(() => Object.values(modelTotals).reduce((sum, value) => sum + value, 0), [modelTotals]);
+  const topModelsTotal = useMemo(() => primaryModels.reduce((sum, model) => sum + (modelTotals[model] || 0), 0), [primaryModels, modelTotals]);
+  const othersTotal = useMemo(() => Math.max(timelineGrandTotal - topModelsTotal, 0), [timelineGrandTotal, topModelsTotal]);
   const chartHeightPx = 140;
   const shouldRenderDenseLabels = timelinePeriod === 'month';
 
@@ -533,4 +524,4 @@ export function AnalyticsDashboard() {
       </div>
     </ModuleCard>
   );
-}
+});

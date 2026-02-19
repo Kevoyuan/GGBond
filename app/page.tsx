@@ -1868,6 +1868,7 @@ export default function Home() {
             <ChatContainer
               messages={messages}
               isLoading={isLoading}
+              streamingStatus={streamingStatus}
               previewFile={previewFile}
               onClosePreview={() => setPreviewFile(null)}
               settings={settings}
