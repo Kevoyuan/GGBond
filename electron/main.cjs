@@ -2,6 +2,10 @@
 const path = require('path');
 const fs = require('fs');
 const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage, ipcMain, shell, dialog } = require('electron');
+
+// Check for headless mode
+const isHeadless = process.argv.includes('--headless') || process.env.GEMINI_HEADLESS === '1' || process.env.GEMINI_HEADLESS === 'true';
+
 // Performance: Enable hardware acceleration
 // app.commandLine.appendSwitch('enable-gpu-rasterization');
 // app.commandLine.appendSwitch('enable-zero-copy');
@@ -17,6 +21,12 @@ let START_URL = isDev
   : `file://${path.join(__dirname, '../.next/start.html')}`;
 const WINDOW_TITLE = 'GGBond';
 const TOGGLE_SHORTCUT = process.env.ELECTRON_TOGGLE_SHORTCUT || 'CommandOrControl+Shift+Space';
+
+// Set headless env var for child processes
+if (isHeadless) {
+  process.env.GEMINI_HEADLESS = '1';
+  console.log('[GGBond] Running in headless mode');
+}
 
 let mainWindow = null;
 let tray = null;
@@ -221,6 +231,14 @@ app.whenReady().then(async () => {
     console.log('[Electron] Next.js server started at:', serverUrl);
     // Override START_URL to use local server
     START_URL = serverUrl;
+  }
+
+  // In headless mode, skip window creation and tray
+  // The server will run in background for API calls
+  if (isHeadless) {
+    console.log('[Electron] Headless mode: skipping window and tray creation');
+    console.log('[Electron] Server available at:', START_URL);
+    return;
   }
 
   mainWindow = createMainWindow();
