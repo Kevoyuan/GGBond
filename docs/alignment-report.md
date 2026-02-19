@@ -28,12 +28,12 @@
 | 官方命令 | GGBond 状态 | 文件位置 |
 |---------|------------|----------|
 | `/about` | ✅ 已实现 | page.tsx |
-| `/auth` | ❌ 未实现 | - |
-| `/bug` | ❌ 未实现 | - |
+| `/auth` | ✅ 已实现 | page.tsx |
+| `/bug` | ✅ 已实现 | page.tsx |
 | `/chat` | ✅ 已实现 | page.tsx, snapshots API |
 | `/clear` | ✅ 已实现 | page.tsx:696 |
-| `/compress` | ❌ 未实现 | - |
-| `/copy` | ❌ 未实现 | - |
+| `/compress` | ✅ 已实现 | page.tsx |
+| `/copy` | ✅ 已实现 | page.tsx |
 | `/directory` | ✅ 已实现 | ChatInput.tsx |
 | `/docs` | ✅ 已实现 | page.tsx |
 | `/editor` | ✅ 已实现 | page.tsx |
@@ -41,18 +41,18 @@
 | `/help` | ✅ 已实现 | - |
 | `/hooks` | ✅ 已实现 | HooksPanel |
 | `/ide` | ✅ 已实现 | page.tsx |
-| `/init` | ❌ 未实现 | - |
+| `/init` | ✅ 已实现 | page.tsx |
 | `/mcp` | ✅ 已实现 | MCPPanel |
 | `/memory` | ✅ 已实现 | MemoryPanel |
 | `/model` | ✅ 已实现 | ModelSelector |
-| `/policies` | ❌ 未实现 | - |
-| `/privacy` | ❌ 未实现 | - |
-| `/quit` | ❌ 未实现 | - |
+| `/policies` | ✅ 已实现 | page.tsx |
+| `/privacy` | ✅ 已实现 | page.tsx |
+| `/quit` | ✅ 已实现 | page.tsx |
 | `/restore` | ✅ 已实现 | page.tsx:941 |
 | `/resume` | ✅ 已实现 | SessionModules |
 | `/rewind` | ✅ 已实现 | page.tsx:908 |
 | `/settings` | ✅ 已实现 | SettingsDialog |
-| `/setup-github` | ❌ 未实现 | - |
+| `/setup-github` | ✅ 已实现 | page.tsx |
 | `/shells` | ✅ 已实现 | page.tsx |
 | `/skills` | ✅ 已实现 | SkillsDialog |
 | `/stats` | ✅ 已实现 | usage stats |
@@ -61,7 +61,7 @@
 | `/tools` | ✅ 已实现 | - |
 | `/vim` | ✅ 已实现 | page.tsx |
 
-**覆盖率: 28/40 = 70%** (更新)
+**覆盖率: 38/40 = 95%** (更新)
 
 ---
 
@@ -366,15 +366,17 @@
 
 | 配置项 | 状态 |
 |-------|------|
-| Custom Commands | ❌ |
+| Custom Commands | ✅ |
 | Enterprise Config | ❌ |
-| .geminiignore | ❌ |
+| .geminiignore | ✅ |
 | Model Config | ✅ |
 | GEMINI.md | ✅ |
 | Settings | ✅ |
 | System Prompt | ✅ |
 | Themes | ✅ |
-| Trusted Folders | ❌ |
+| Trusted Folders | ✅ |
+
+**覆盖率: 7/9 = 78%** (更新)
 
 **覆盖率: 5/9 = 56%** (更新)
 
@@ -385,12 +387,12 @@
 | 类别 | 得分 |
 |-----|------|
 | 核心工具 | **100%** ✅ |
-| Slash 命令 | **70%** ✅ |
+| Slash 命令 | **95%** ✅ |
 | 核心功能 | **95%** ✅ |
 | 配置选项 | **78%** ✅ |
 | Panel 组件 | **78%** ✅ |
-| API 对齐 | **90%** ✅ |
-| **整体** | **~88%** |
+| API 对齐 | **95%** ✅ |
+| **整体** | **~92%** |
 
 ---
 
@@ -406,8 +408,9 @@
 - ✅ 模型预设 - 5 个默认预设
 - ✅ 自定义工具 - 工具注册机制
 - ✅ 条件模型路由 - 自动模型切换
-- ✅ 更多 Slash 命令 - /about, /docs, /editor, /ide, /shells, /terminal-setup, /vim
-- ✅ API 事件对齐 - BeforeAgent, AfterAgent, BeforeToolSelection, PreCompress
+- ✅ Slash 命令 - 38/40 已实现
+- ✅ API 事件对齐 - 全部主要事件
+- ✅ 配置选项 - .geminiignore, Trusted Folders, Custom Commands
 
 ---
 
