@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import {
     X,
     Loader2,
@@ -9,6 +10,11 @@ import {
     Tag,
     Sparkles,
     AlertCircle,
+    ExternalLink,
+    Copy,
+    Check,
+    User,
+    Package,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -18,6 +24,9 @@ interface GalleryExtension {
     description: string;
     installCommand: string;
     category?: string;
+    icon?: string;
+    author?: string;
+    githubUrl?: string;
 }
 
 interface ExtensionsGalleryDialogProps {
@@ -34,6 +43,8 @@ export function ExtensionsGalleryDialog({ open, onClose, onInstalled }: Extensio
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [installingExtension, setInstallingExtension] = useState<string | null>(null);
+    const [selectedExtension, setSelectedExtension] = useState<GalleryExtension | null>(null);
+    const [copiedCommand, setCopiedCommand] = useState(false);
 
     // Load gallery when dialog opens
     useEffect(() => {
@@ -48,6 +59,8 @@ export function ExtensionsGalleryDialog({ open, onClose, onInstalled }: Extensio
             setSearchQuery('');
             setSelectedCategory(null);
             setGalleryError(null);
+            setSelectedExtension(null);
+            setCopiedCommand(false);
         }
     }, [open]);
 
@@ -103,6 +116,28 @@ export function ExtensionsGalleryDialog({ open, onClose, onInstalled }: Extensio
         } finally {
             setInstallingExtension(null);
         }
+    };
+
+    const handleCopyInstallCommand = async (command: string) => {
+        try {
+            await navigator.clipboard.writeText(command);
+            setCopiedCommand(true);
+            setTimeout(() => setCopiedCommand(false), 2000);
+        } catch {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = command;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            setCopiedCommand(true);
+            setTimeout(() => setCopiedCommand(false), 2000);
+        }
+    };
+
+    const handleOpenGitHub = (url: string) => {
+        window.open(url, '_blank', 'noopener,noreferrer');
     };
 
     const filteredExtensions = useMemo(() => {
@@ -218,7 +253,8 @@ export function ExtensionsGalleryDialog({ open, onClose, onInstalled }: Extensio
                             {filteredExtensions.map((ext) => (
                                 <div
                                     key={ext.id}
-                                    className="group p-5 rounded-xl border border-border/50 bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-all duration-200 flex flex-col"
+                                    className="group p-5 rounded-xl border border-border/50 bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-all duration-200 flex flex-col cursor-pointer"
+                                    onClick={() => setSelectedExtension(ext)}
                                 >
                                     <div className="flex items-start justify-between mb-3">
                                         <div className="flex-1 min-w-0">
@@ -237,7 +273,10 @@ export function ExtensionsGalleryDialog({ open, onClose, onInstalled }: Extensio
                                         {ext.description}
                                     </p>
                                     <button
-                                        onClick={() => handleInstallExtension(ext)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleInstallExtension(ext);
+                                        }}
                                         disabled={installingExtension === ext.id}
                                         className="w-full py-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-sm font-bold uppercase tracking-wider transition-colors border border-primary/20 flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
@@ -265,6 +304,120 @@ export function ExtensionsGalleryDialog({ open, onClose, onInstalled }: Extensio
                         Showing {filteredExtensions.length} of {galleryExtensions.length} extensions
                     </p>
                 </div>
+
+                {/* Extension Detail Dialog */}
+                {selectedExtension && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div
+                            className="bg-background border border-primary/20 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Header with gradient */}
+                            <div className="relative h-24 bg-gradient-to-br from-primary/20 via-purple-500/20 to-primary/20">
+                                <button
+                                    onClick={() => setSelectedExtension(null)}
+                                    className="absolute top-3 right-3 p-2 rounded-lg bg-black/20 hover:bg-black/30 text-white/80 hover:text-white transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                                <div className="absolute -bottom-8 left-5">
+                                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-lg border-4 border-background overflow-hidden">
+                                        {selectedExtension.icon ? (
+                                            <Image
+                                                src={selectedExtension.icon}
+                                                alt=""
+                                                width={32}
+                                                height={32}
+                                                className="w-8 h-8 object-contain"
+                                            />
+                                        ) : (
+                                            <Package className="w-8 h-8 text-white" />
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Content */}
+                            <div className="pt-12 p-6">
+                                <h3 className="text-xl font-bold mb-1">{selectedExtension.name}</h3>
+
+                                {/* Author */}
+                                {selectedExtension.author && (
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                                        <User className="w-4 h-4" />
+                                        <span>{selectedExtension.author}</span>
+                                    </div>
+                                )}
+
+                                {/* Category */}
+                                {selectedExtension.category && (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-4">
+                                        <Tag className="w-3.5 h-3.5" />
+                                        {selectedExtension.category}
+                                    </div>
+                                )}
+
+                                {/* Description */}
+                                <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+                                    {selectedExtension.description}
+                                </p>
+
+                                {/* Install Command */}
+                                <div className="mb-4">
+                                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
+                                        Install Command
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <code className="flex-1 px-4 py-2.5 rounded-lg bg-muted/50 border border-border/50 text-sm font-mono text-foreground overflow-x-auto">
+                                            {selectedExtension.installCommand}
+                                        </code>
+                                        <button
+                                            onClick={() => handleCopyInstallCommand(selectedExtension.installCommand)}
+                                            className="p-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors border border-primary/20 shrink-0"
+                                            title="Copy to clipboard"
+                                        >
+                                            {copiedCommand ? (
+                                                <Check className="w-4 h-4" />
+                                            ) : (
+                                                <Copy className="w-4 h-4" />
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-3 pt-2">
+                                    <button
+                                        onClick={() => handleInstallExtension(selectedExtension)}
+                                        disabled={installingExtension === selectedExtension.id}
+                                        className="flex-1 py-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {installingExtension === selectedExtension.id ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                Installing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Download className="w-4 h-4" />
+                                                Install Extension
+                                            </>
+                                        )}
+                                    </button>
+                                    {selectedExtension.githubUrl && (
+                                        <button
+                                            onClick={() => handleOpenGitHub(selectedExtension.githubUrl!)}
+                                            className="p-3 rounded-lg bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors border border-border/50"
+                                            title="View on GitHub"
+                                        >
+                                            <ExternalLink className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

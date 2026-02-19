@@ -8,6 +8,8 @@ export interface GalleryExtension {
   installCommand: string;
   category?: string;
   icon?: string;
+  author?: string;
+  githubUrl?: string;
 }
 
 // Pre-defined extension list from geminicli.com/extensions/
@@ -19,6 +21,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Control Android devices via ADB with Gemini CLI using /android commands',
     installCommand: 'gemini extensions install https://github.com/tiendung2k03/adb-control-gemini',
     category: 'Spotlight',
+    author: 'tiendung2k03',
+    githubUrl: 'https://github.com/tiendung2k03/adb-control-gemini',
   },
   {
     id: 'palladius-common-commands',
@@ -26,6 +30,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Ricc\'s golden custom commands',
     installCommand: 'gemini extensions install https://github.com/palladius/gemini-cli-custom-commands',
     category: 'Spotlight',
+    author: 'palladius',
+    githubUrl: 'https://github.com/palladius/gemini-cli-custom-commands',
   },
   {
     id: 'gcloud',
@@ -33,6 +39,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Enable MCP-compatible AI agents to interact with Google Cloud',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/gcloud',
     category: 'Spotlight',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/gcloud',
   },
   // All Extensions
   {
@@ -41,6 +49,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Up-to-date code docs for any prompt',
     installCommand: 'gemini extensions install https://github.com/upstash/context7',
     category: 'Documentation',
+    author: 'upstash',
+    githubUrl: 'https://github.com/upstash/context7',
   },
   {
     id: 'github',
@@ -48,6 +58,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'GitHub\'s official MCP Server',
     installCommand: 'gemini extensions install https://github.com/github/github-mcp-server',
     category: 'Development',
+    author: 'GitHub',
+    githubUrl: 'https://github.com/github/github-mcp-server',
   },
   {
     id: 'mcp-toolbox-for-databases',
@@ -55,6 +67,8 @@ const extensionsData: GalleryExtension[] = [
     description: '30+ datasources for database operations',
     installCommand: 'gemini extensions install https://github.com/googleapis/genai-toolbox',
     category: 'Database',
+    author: 'Google APIs',
+    githubUrl: 'https://github.com/googleapis/genai-toolbox',
   },
   {
     id: 'clasp',
@@ -62,6 +76,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Manage Google Apps Script projects',
     installCommand: 'gemini extensions install https://github.com/google/clasp',
     category: 'Google',
+    author: 'Google',
+    githubUrl: 'https://github.com/google/clasp',
   },
   {
     id: 'exa-mcp-server',
@@ -69,6 +85,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Web search, crawling, and technical code docs',
     installCommand: 'gemini extensions install https://github.com/exa-labs/exa-mcp-server',
     category: 'Search',
+    author: 'Exa Labs',
+    githubUrl: 'https://github.com/exa-labs/exa-mcp-server',
   },
   {
     id: 'mcp-server-browserbase',
@@ -76,6 +94,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Control browsers with Browserbase and Stagehand',
     installCommand: 'gemini extensions install https://github.com/browserbase/mcp-server-browserbase',
     category: 'Browser',
+    author: 'Browserbase',
+    githubUrl: 'https://github.com/browserbase/mcp-server-browserbase',
   },
   {
     id: 'conductor',
@@ -83,6 +103,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Specify, plan, and implement software features',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/conductor',
     category: 'Development',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/conductor',
   },
   {
     id: 'grafana',
@@ -90,6 +112,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'MCP server for Grafana',
     installCommand: 'gemini extensions install https://github.com/grafana/mcp-grafana',
     category: 'DevOps',
+    author: 'Grafana',
+    githubUrl: 'https://github.com/grafana/mcp-grafana',
   },
   {
     id: 'mcp-server-kubernetes',
@@ -97,6 +121,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Kubernetes management commands',
     installCommand: 'gemini extensions install https://github.com/Flux159/mcp-server-kubernetes',
     category: 'DevOps',
+    author: 'Flux159',
+    githubUrl: 'https://github.com/Flux159/mcp-server-kubernetes',
   },
   {
     id: 'stripe',
@@ -104,6 +130,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Build AI-powered products with Stripe',
     installCommand: 'gemini extensions install https://github.com/stripe/ai',
     category: 'Finance',
+    author: 'Stripe',
+    githubUrl: 'https://github.com/stripe/ai',
   },
   {
     id: 'huggingface-skills',
@@ -111,6 +139,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Access Hugging Face Skills',
     installCommand: 'gemini extensions install https://github.com/huggingface/skills',
     category: 'AI/ML',
+    author: 'Hugging Face',
+    githubUrl: 'https://github.com/huggingface/skills',
   },
   {
     id: 'terraform',
@@ -118,6 +148,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Terraform MCP Server for IaC automation',
     installCommand: 'gemini extensions install https://github.com/hashicorp/terraform-mcp-server',
     category: 'DevOps',
+    author: 'HashiCorp',
+    githubUrl: 'https://github.com/hashicorp/terraform-mcp-server',
   },
   {
     id: 'elevenlabs',
@@ -125,6 +157,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Text-to-speech, voice design, audio processing',
     installCommand: 'gemini extensions install https://github.com/elevenlabs/elevenlabs-mcp',
     category: 'Audio',
+    author: 'ElevenLabs',
+    githubUrl: 'https://github.com/elevenlabs/elevenlabs-mcp',
   },
   {
     id: 'cloudbase-ai-toolkit',
@@ -132,6 +166,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Tencent CloudBase AI development toolkit',
     installCommand: 'gemini extensions install https://github.com/TencentCloudBase/CloudBase-MCP',
     category: 'Cloud',
+    author: 'Tencent CloudBase',
+    githubUrl: 'https://github.com/TencentCloudBase/CloudBase-MCP',
   },
   {
     id: 'mcp-neo4j',
@@ -139,6 +175,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Neo4j Labs Model Context Protocol servers',
     installCommand: 'gemini extensions install https://github.com/neo4j-contrib/mcp-neo4j',
     category: 'Database',
+    author: 'Neo4j',
+    githubUrl: 'https://github.com/neo4j-contrib/mcp-neo4j',
   },
   {
     id: 'nanobanana',
@@ -146,6 +184,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Generate and manipulate images with text prompts',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/nanobanana',
     category: 'Media',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/nanobanana',
   },
   {
     id: 'gemini-cli-security',
@@ -153,6 +193,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Find vulnerabilities in code changes and PRs',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/security',
     category: 'Security',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/security',
   },
   {
     id: 'cloud-run',
@@ -160,6 +202,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Deploy apps to Cloud Run',
     installCommand: 'gemini extensions install https://github.com/GoogleCloudPlatform/cloud-run-mcp',
     category: 'Google',
+    author: 'Google Cloud Platform',
+    githubUrl: 'https://github.com/GoogleCloudPlatform/cloud-run-mcp',
   },
   {
     id: 'open-aware',
@@ -167,6 +211,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Deep Code Research Agent for complex codebases',
     installCommand: 'gemini extensions install https://github.com/qodo-ai/open-aware',
     category: 'Development',
+    author: 'Qodo AI',
+    githubUrl: 'https://github.com/qodo-ai/open-aware',
   },
   {
     id: 'redis',
@@ -174,6 +220,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Manage and search data in Redis',
     installCommand: 'gemini extensions install https://github.com/redis/mcp-redis',
     category: 'Database',
+    author: 'Redis',
+    githubUrl: 'https://github.com/redis/mcp-redis',
   },
   {
     id: 'sonarqube-mcp-server',
@@ -181,6 +229,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Code quality and security integration',
     installCommand: 'gemini extensions install https://github.com/SonarSource/sonarqube-mcp-server',
     category: 'Security',
+    author: 'SonarSource',
+    githubUrl: 'https://github.com/SonarSource/sonarqube-mcp-server',
   },
   {
     id: 'pickle-rick',
@@ -188,6 +238,8 @@ const extensionsData: GalleryExtension[] = [
     description: '"Pickle Rick" engineering persona extension',
     installCommand: 'gemini extensions install https://github.com/galz10/pickle-rick-extension',
     category: 'Fun',
+    author: 'galz10',
+    githubUrl: 'https://github.com/galz10/pickle-rick-extension',
   },
   {
     id: 'monday',
@@ -195,6 +247,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Manage monday.com projects and tasks',
     installCommand: 'gemini extensions install https://github.com/mondaycom/mcp',
     category: 'Productivity',
+    author: 'Monday.com',
+    githubUrl: 'https://github.com/mondaycom/mcp',
   },
   {
     id: 'code-review',
@@ -202,6 +256,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Google\'s Code Review extension',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/code-review',
     category: 'Development',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/code-review',
   },
   {
     id: 'flutter',
@@ -209,6 +265,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Flutter and Dart-related commands',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/flutter',
     category: 'Development',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/flutter',
   },
   {
     id: 'google-workspace',
@@ -216,6 +274,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Access Google Workspace',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/workspace',
     category: 'Google',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/workspace',
   },
   {
     id: 'atlassian-rovo-mcp-server',
@@ -223,6 +283,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Connect Jira and Confluence with AI',
     installCommand: 'gemini extensions install https://github.com/atlassian/atlassian-mcp-server',
     category: 'Productivity',
+    author: 'Atlassian',
+    githubUrl: 'https://github.com/atlassian/atlassian-mcp-server',
   },
   {
     id: 'gemini-cli-jules',
@@ -230,6 +292,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Orchestrate Jules async agent',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/jules',
     category: 'Development',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/jules',
   },
   {
     id: 'gemini-cli-prompt-library',
@@ -237,6 +301,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Curated prompts for development tasks',
     installCommand: 'gemini extensions install https://github.com/harish-garg/gemini-cli-prompt-library',
     category: 'Development',
+    author: 'harish-garg',
+    githubUrl: 'https://github.com/harish-garg/gemini-cli-prompt-library',
   },
   {
     id: 'stitch',
@@ -244,6 +310,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Generate UI from Text, Image',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/stitch',
     category: 'UI/UX',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/stitch',
   },
   {
     id: 'gemini-kit',
@@ -251,6 +319,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Team of AI Agents for software development',
     installCommand: 'gemini extensions install https://github.com/nth5693/gemini-kit',
     category: 'AI/ML',
+    author: 'nth5693',
+    githubUrl: 'https://github.com/nth5693/gemini-kit',
   },
   {
     id: 'mcp-server-milvus',
@@ -258,6 +328,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Model Context Protocol for Milvus',
     installCommand: 'gemini extensions install https://github.com/zilliztech/mcp-server-milvus',
     category: 'Database',
+    author: 'Zilliz',
+    githubUrl: 'https://github.com/zilliztech/mcp-server-milvus',
   },
   {
     id: 'apify-agent-skills',
@@ -265,6 +337,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Web scraping and automation skills',
     installCommand: 'gemini extensions install https://github.com/apify/agent-skills',
     category: 'Automation',
+    author: 'Apify',
+    githubUrl: 'https://github.com/apify/agent-skills',
   },
   {
     id: 'dynatrace-mcp-server',
@@ -272,6 +346,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Dynatrace Observability MCP server',
     installCommand: 'gemini extensions install https://github.com/dynatrace-oss/dynatrace-mcp',
     category: 'DevOps',
+    author: 'Dynatrace',
+    githubUrl: 'https://github.com/dynatrace-oss/dynatrace-mcp',
   },
   {
     id: 'huggingface',
@@ -279,6 +355,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Access the Hugging Face Hub',
     installCommand: 'gemini extensions install https://github.com/huggingface/hf-mcp-server',
     category: 'AI/ML',
+    author: 'Hugging Face',
+    githubUrl: 'https://github.com/huggingface/hf-mcp-server',
   },
   {
     id: 'ralph',
@@ -286,6 +364,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Ralph loops extension',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/ralph',
     category: 'Development',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/ralph',
   },
   {
     id: 'postman-api-mcp',
@@ -293,6 +373,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Connect AI to Postman APIs',
     installCommand: 'gemini extensions install https://github.com/postmanlabs/postman-mcp-server',
     category: 'API',
+    author: 'Postman Labs',
+    githubUrl: 'https://github.com/postmanlabs/postman-mcp-server',
   },
   {
     id: 'genkit',
@@ -300,6 +382,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Build full-stack AI apps',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/genkit',
     category: 'AI/ML',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/genkit',
   },
   {
     id: 'uuv',
@@ -307,6 +391,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'BDD assistance based on accessibility',
     installCommand: 'gemini extensions install https://github.com/e2e-test-quest/uuv',
     category: 'Testing',
+    author: 'e2e-test-quest',
+    githubUrl: 'https://github.com/e2e-test-quest/uuv',
   },
   {
     id: 'mcp-confluent',
@@ -314,6 +400,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Confluent MCP server',
     installCommand: 'gemini extensions install https://github.com/confluentinc/mcp-confluent',
     category: 'Data',
+    author: 'Confluent',
+    githubUrl: 'https://github.com/confluentinc/mcp-confluent',
   },
   {
     id: 'gke-mcp',
@@ -321,6 +409,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Google Kubernetes Engine extension',
     installCommand: 'gemini extensions install https://github.com/GoogleCloudPlatform/gke-mcp',
     category: 'Google',
+    author: 'Google Cloud Platform',
+    githubUrl: 'https://github.com/GoogleCloudPlatform/gke-mcp',
   },
   {
     id: 'skill-porter',
@@ -328,6 +418,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Convert Claude Code skills to Gemini',
     installCommand: 'gemini extensions install https://github.com/jduncan-rva/skill-porter',
     category: 'Development',
+    author: 'jduncan-rva',
+    githubUrl: 'https://github.com/jduncan-rva/skill-porter',
   },
   {
     id: 'firebase',
@@ -335,6 +427,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Firebase backend and AI infrastructure',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/firebase',
     category: 'Google',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/firebase',
   },
   {
     id: 'falcon-mcp',
@@ -342,6 +436,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'CrowdStrike Falcon security analysis',
     installCommand: 'gemini extensions install https://github.com/CrowdStrike/falcon-mcp',
     category: 'Security',
+    author: 'CrowdStrike',
+    githubUrl: 'https://github.com/CrowdStrike/falcon-mcp',
   },
   {
     id: 'gemini-cli-ralph',
@@ -349,6 +445,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Ralph Wiggum extension',
     installCommand: 'gemini extensions install https://github.com/AsyncFuncAI/ralph-wiggum-extension',
     category: 'Fun',
+    author: 'AsyncFuncAI',
+    githubUrl: 'https://github.com/AsyncFuncAI/ralph-wiggum-extension',
   },
   {
     id: 'ack-mcp-server',
@@ -356,6 +454,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Alibaba Cloud container operations',
     installCommand: 'gemini extensions install https://github.com/aliyun/alibabacloud-ack-mcp-server',
     category: 'Cloud',
+    author: 'Alibaba Cloud',
+    githubUrl: 'https://github.com/aliyun/alibabacloud-ack-mcp-server',
   },
   {
     id: 'figma',
@@ -363,6 +463,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Generate code from Figma frames',
     installCommand: 'gemini extensions install https://github.com/figma/figma-gemini-cli-extension',
     category: 'UI/UX',
+    author: 'Figma',
+    githubUrl: 'https://github.com/figma/figma-gemini-cli-extension',
   },
   {
     id: 'criticalthink',
@@ -370,6 +472,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Skepticism countermeasure for AI responses',
     installCommand: 'gemini extensions install https://github.com/abagames/slash-criticalthink',
     category: 'Development',
+    author: 'abagames',
+    githubUrl: 'https://github.com/abagames/slash-criticalthink',
   },
   {
     id: 'elasticsearch',
@@ -377,6 +481,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Official Elasticsearch extension',
     installCommand: 'gemini extensions install https://github.com/elastic/gemini-cli-elasticsearch',
     category: 'Database',
+    author: 'Elastic',
+    githubUrl: 'https://github.com/elastic/gemini-cli-elasticsearch',
   },
   {
     id: 'auth0',
@@ -384,6 +490,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Manage Auth0 tenants, apps, APIs',
     installCommand: 'gemini extensions install https://github.com/auth0/auth0-mcp-server',
     category: 'Security',
+    author: 'Auth0',
+    githubUrl: 'https://github.com/auth0/auth0-mcp-server',
   },
   {
     id: 'google-maps-platform',
@@ -391,6 +499,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Google Maps Platform documentation',
     installCommand: 'gemini extensions install https://github.com/googlemaps/platform-ai',
     category: 'Google',
+    author: 'Google Maps',
+    githubUrl: 'https://github.com/googlemaps/platform-ai',
   },
   {
     id: 'hcom',
@@ -398,6 +508,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Connect Claude Code, Gemini CLI, Codex',
     installCommand: 'gemini extensions install https://github.com/aannoo/hcom',
     category: 'Integration',
+    author: 'aannoo',
+    githubUrl: 'https://github.com/aannoo/hcom',
   },
   {
     id: 'google-workspace-developer-tools',
@@ -405,6 +517,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Google Workspace Developer Tools',
     installCommand: 'gemini extensions install https://github.com/googleworkspace/developer-tools',
     category: 'Google',
+    author: 'Google Workspace',
+    githubUrl: 'https://github.com/googleworkspace/developer-tools',
   },
   {
     id: 'mcp-toolbox',
@@ -412,6 +526,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Load custom tools using MCP Toolbox',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/mcp-toolbox',
     category: 'Development',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/mcp-toolbox',
   },
   {
     id: 'skillz',
@@ -419,6 +535,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Load Claude-style skills into Gemini',
     installCommand: 'gemini extensions install https://github.com/intellectronica/gemini-cli-skillz',
     category: 'Development',
+    author: 'intellectronica',
+    githubUrl: 'https://github.com/intellectronica/gemini-cli-skillz',
   },
   {
     id: 'computer-use',
@@ -426,6 +544,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Autonomous web browsing and testing',
     installCommand: 'gemini extensions install https://github.com/automateyournetwork/GeminiCLI_ComputerUse_Extension',
     category: 'Automation',
+    author: 'automateyournetwork',
+    githubUrl: 'https://github.com/automateyournetwork/GeminiCLI_ComputerUse_Extension',
   },
   {
     id: 'endor-labs-code-security',
@@ -433,6 +553,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Secure copilot for coding assistants',
     installCommand: 'gemini extensions install https://github.com/endorlabs/gemini-extension',
     category: 'Security',
+    author: 'Endor Labs',
+    githubUrl: 'https://github.com/endorlabs/gemini-extension',
   },
   {
     id: 'postgres',
@@ -440,6 +562,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Connect PostgreSQL database',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/postgres',
     category: 'Database',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/postgres',
   },
   {
     id: 'web-accessibility',
@@ -447,6 +571,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Find and fix web accessibility violations',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/web-accessibility',
     category: 'Accessibility',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/web-accessibility',
   },
   {
     id: 'blueprint',
@@ -454,6 +580,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Guide software development',
     installCommand: 'gemini extensions install https://github.com/gplasky/gemini-cli-blueprint-extension',
     category: 'Development',
+    author: 'gplasky',
+    githubUrl: 'https://github.com/gplasky/gemini-cli-blueprint-extension',
   },
   {
     id: 'spec-flow',
@@ -461,6 +589,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Spec-Driven Development toolkit',
     installCommand: 'gemini extensions install https://github.com/marcusgoll/Spec-Flow',
     category: 'Development',
+    author: 'marcusgoll',
+    githubUrl: 'https://github.com/marcusgoll/Spec-Flow',
   },
   {
     id: 'miro',
@@ -468,6 +598,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'AI access to Miro boards',
     installCommand: 'gemini extensions install https://github.com/miroapp/miro-ai',
     category: 'Productivity',
+    author: 'Miro',
+    githubUrl: 'https://github.com/miroapp/miro-ai',
   },
   {
     id: 'godoctor',
@@ -475,6 +607,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'AI-powered Go development assistant',
     installCommand: 'gemini extensions install https://github.com/danicat/godoctor',
     category: 'Development',
+    author: 'danicat',
+    githubUrl: 'https://github.com/danicat/godoctor',
   },
   {
     id: 'gemini-ralph-loop',
@@ -482,6 +616,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Self-referential iterative loops',
     installCommand: 'gemini extensions install https://github.com/kranthik123/Gemini-Ralph-Loop',
     category: 'Development',
+    author: 'kranthik123',
+    githubUrl: 'https://github.com/kranthik123/Gemini-Ralph-Loop',
   },
   {
     id: 'pinecone-mcp',
@@ -489,6 +625,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Connect Pinecone projects',
     installCommand: 'gemini extensions install https://github.com/pinecone-io/pinecone-mcp',
     category: 'Database',
+    author: 'Pinecone',
+    githubUrl: 'https://github.com/pinecone-io/pinecone-mcp',
   },
   {
     id: 'firebase-rules',
@@ -496,6 +634,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Security rules snippets',
     installCommand: 'gemini extensions install https://github.com/firebase/snippets-rules',
     category: 'Security',
+    author: 'Firebase',
+    githubUrl: 'https://github.com/firebase/snippets-rules',
   },
   {
     id: 'gemini-cloud-assist',
@@ -503,6 +643,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'GCP tasks assistance',
     installCommand: 'gemini extensions install https://github.com/GoogleCloudPlatform/gemini-cloud-assist-mcp',
     category: 'Google',
+    author: 'Google Cloud Platform',
+    githubUrl: 'https://github.com/GoogleCloudPlatform/gemini-cloud-assist-mcp',
   },
   {
     id: 'gemini-docs-ext',
@@ -510,6 +652,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Gemini API docs and MCP',
     installCommand: 'gemini extensions install https://github.com/markmcd/gemini-docs-ext',
     category: 'Documentation',
+    author: 'markmcd',
+    githubUrl: 'https://github.com/markmcd/gemini-docs-ext',
   },
   {
     id: 'mcp-tts',
@@ -517,6 +661,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Text-to-Speech announcements',
     installCommand: 'gemini extensions install https://github.com/blacktop/mcp-tts',
     category: 'Audio',
+    author: 'blacktop',
+    githubUrl: 'https://github.com/blacktop/mcp-tts',
   },
   {
     id: 'vision',
@@ -524,6 +670,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Webcam/iPhone camera capture',
     installCommand: 'gemini extensions install https://github.com/automateyournetwork/GeminiCLI_Vision_Extension',
     category: 'Media',
+    author: 'automateyournetwork',
+    githubUrl: 'https://github.com/automateyournetwork/GeminiCLI_Vision_Extension',
   },
   {
     id: 'globalping',
@@ -531,6 +679,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Network measurements and benchmarks',
     installCommand: 'gemini extensions install https://github.com/jsdelivr/globalping-mcp-server',
     category: 'Network',
+    author: 'jsDelivr',
+    githubUrl: 'https://github.com/jsdelivr/globalping-mcp-server',
   },
   {
     id: 'ipsw-skill',
@@ -538,6 +688,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Apple firmware reverse engineering',
     installCommand: 'gemini extensions install https://github.com/blacktop/ipsw-skill',
     category: 'Security',
+    author: 'blacktop',
+    githubUrl: 'https://github.com/blacktop/ipsw-skill',
   },
   {
     id: 'google-adk-agent-extension',
@@ -545,6 +697,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Google ADK AI Agent Application',
     installCommand: 'gemini extensions install https://github.com/simonliu-ai-product/adk-agent-extension',
     category: 'Google',
+    author: 'simonliu-ai-product',
+    githubUrl: 'https://github.com/simonliu-ai-product/adk-agent-extension',
   },
   {
     id: 'google-ads-api-developer-assistant',
@@ -552,6 +706,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Google Ads API assistant',
     installCommand: 'gemini extensions install https://github.com/googleads/google-ads-api-developer-assistant',
     category: 'Google',
+    author: 'Google Ads',
+    githubUrl: 'https://github.com/googleads/google-ads-api-developer-assistant',
   },
   {
     id: 'gemini-deep-research',
@@ -559,6 +715,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Deep research extension',
     installCommand: 'gemini extensions install https://github.com/allenhutchison/gemini-cli-deep-research',
     category: 'Research',
+    author: 'allenhutchison',
+    githubUrl: 'https://github.com/allenhutchison/gemini-cli-deep-research',
   },
   {
     id: 'outline-driven-development',
@@ -566,6 +724,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'AST analysis with context engineering',
     installCommand: 'gemini extensions install https://github.com/OutlineDriven/outline-driven-development',
     category: 'Development',
+    author: 'OutlineDriven',
+    githubUrl: 'https://github.com/OutlineDriven/outline-driven-development',
   },
   {
     id: 'speedgrapher',
@@ -573,6 +733,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'MCP server for writers',
     installCommand: 'gemini extensions install https://github.com/danicat/speedgrapher',
     category: 'Writing',
+    author: 'danicat',
+    githubUrl: 'https://github.com/danicat/speedgrapher',
   },
   {
     id: 'antigravity-swarm',
@@ -580,6 +742,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Deploy autonomous sub-agents',
     installCommand: 'gemini extensions install https://github.com/wjgoarxiv/antigravity-swarm',
     category: 'Development',
+    author: 'wjgoarxiv',
+    githubUrl: 'https://github.com/wjgoarxiv/antigravity-swarm',
   },
   {
     id: 'bigquery-data-analytics',
@@ -587,6 +751,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'BigQuery data insights',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/bigquery-data-analytics',
     category: 'Google',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/bigquery-data-analytics',
   },
   {
     id: 'bitrise',
@@ -594,6 +760,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Bitrise API MCP server',
     installCommand: 'gemini extensions install https://github.com/bitrise-io/bitrise-mcp',
     category: 'DevOps',
+    author: 'Bitrise',
+    githubUrl: 'https://github.com/bitrise-io/bitrise-mcp',
   },
   {
     id: 'vault',
@@ -601,6 +769,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'HashiCorp Vault MCP',
     installCommand: 'gemini extensions install https://github.com/hashicorp/vault-mcp-server',
     category: 'Security',
+    author: 'HashiCorp',
+    githubUrl: 'https://github.com/hashicorp/vault-mcp-server',
   },
   {
     id: 'gemini-plan-commands',
@@ -608,6 +778,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Create, implement, deploy plans',
     installCommand: 'gemini extensions install https://github.com/ddobrin/gemini-plan-commands',
     category: 'Development',
+    author: 'ddobrin',
+    githubUrl: 'https://github.com/ddobrin/gemini-plan-commands',
   },
   {
     id: 'file-search',
@@ -615,6 +787,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Cloud RAG via Gemini File Search',
     installCommand: 'gemini extensions install https://github.com/automateyournetwork/GeminiCLI_File_Search_Extension',
     category: 'Search',
+    author: 'automateyournetwork',
+    githubUrl: 'https://github.com/automateyournetwork/GeminiCLI_File_Search_Extension',
   },
   {
     id: 'looker',
@@ -622,6 +796,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Connect to Looker',
     installCommand: 'gemini extensions install https://github.com/gemini-cli-extensions/looker',
     category: 'Data',
+    author: 'gemini-cli-extensions',
+    githubUrl: 'https://github.com/gemini-cli-extensions/looker',
   },
   {
     id: 'swiftwasm-skills',
@@ -629,6 +805,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'SwiftWasm Skills',
     installCommand: 'gemini extensions install https://github.com/swiftwasm/skills',
     category: 'Development',
+    author: 'SwiftWasm',
+    githubUrl: 'https://github.com/swiftwasm/skills',
   },
   {
     id: 'youtube-to-docs',
@@ -636,6 +814,8 @@ const extensionsData: GalleryExtension[] = [
     description: 'Convert YouTube videos to docs',
     installCommand: 'gemini extensions install https://github.com/DoIT-Artificial-Intelligence/youtube-to-docs',
     category: 'Documentation',
+    author: 'DoIT Artificial Intelligence',
+    githubUrl: 'https://github.com/DoIT-Artificial-Intelligence/youtube-to-docs',
   },
 ];
 
