@@ -34,6 +34,15 @@ export interface AppConfig {
     geminiIgnore: GeminiIgnoreConfig;
     trustedFolders: TrustedFolder[];
     customCommands: CustomCommand[];
+    mcpSecurity: McpSecurityConfig;
+}
+
+export interface McpSecurityConfig {
+    enabled: boolean;
+    allowedServerNames: string[];
+    allowedCommandRegex: string[];
+    blockedCommandRegex: string[];
+    allowedRepoPatterns: string[];
 }
 
 // ─── Database Operations ─────────────────────────────────
@@ -224,6 +233,37 @@ export async function getCustomCommands(): Promise<CustomCommand[]> {
     return [];
 }
 
+// ─── MCP Security (Allowlist / Blocklist) ───────────────
+
+const DEFAULT_MCP_SECURITY_CONFIG: McpSecurityConfig = {
+    enabled: false,
+    allowedServerNames: [],
+    allowedCommandRegex: [],
+    blockedCommandRegex: [],
+    allowedRepoPatterns: [],
+};
+
+export async function getMcpSecurityConfig(): Promise<McpSecurityConfig> {
+    const stored = getConfigRow('mcp_security');
+    if (!stored) return DEFAULT_MCP_SECURITY_CONFIG;
+    try {
+        const parsed = JSON.parse(stored) as Partial<McpSecurityConfig>;
+        return {
+            enabled: parsed.enabled ?? DEFAULT_MCP_SECURITY_CONFIG.enabled,
+            allowedServerNames: Array.isArray(parsed.allowedServerNames) ? parsed.allowedServerNames : [],
+            allowedCommandRegex: Array.isArray(parsed.allowedCommandRegex) ? parsed.allowedCommandRegex : [],
+            blockedCommandRegex: Array.isArray(parsed.blockedCommandRegex) ? parsed.blockedCommandRegex : [],
+            allowedRepoPatterns: Array.isArray(parsed.allowedRepoPatterns) ? parsed.allowedRepoPatterns : [],
+        };
+    } catch {
+        return DEFAULT_MCP_SECURITY_CONFIG;
+    }
+}
+
+export async function saveMcpSecurityConfig(config: McpSecurityConfig): Promise<void> {
+    setConfigRow('mcp_security', JSON.stringify(config));
+}
+
 export async function saveCustomCommands(commands: CustomCommand[]): Promise<void> {
     setConfigRow('custom_commands', JSON.stringify(commands));
 }
@@ -268,16 +308,18 @@ export async function findCustomCommand(name: string): Promise<CustomCommand | n
 // ─── Full Config ────────────────────────────────────────
 
 export async function getFullConfig(): Promise<AppConfig> {
-    const [geminiIgnore, trustedFolders, customCommands] = await Promise.all([
+    const [geminiIgnore, trustedFolders, customCommands, mcpSecurity] = await Promise.all([
         getGeminiIgnoreConfig(),
         getTrustedFolders(),
         getCustomCommands(),
+        getMcpSecurityConfig(),
     ]);
 
     return {
         geminiIgnore,
         trustedFolders,
         customCommands,
+        mcpSecurity,
     };
 }
 
@@ -290,6 +332,9 @@ export async function saveFullConfig(config: Partial<AppConfig>): Promise<AppCon
     }
     if (config.customCommands) {
         await saveCustomCommands(config.customCommands);
+    }
+    if (config.mcpSecurity) {
+        await saveMcpSecurityConfig(config.mcpSecurity);
     }
 
     return getFullConfig();

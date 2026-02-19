@@ -25,6 +25,14 @@ interface CustomCommand {
     createdAt: number;
 }
 
+interface McpSecurityConfig {
+  enabled: boolean;
+  allowedServerNames: string[];
+  allowedCommandRegex: string[];
+  blockedCommandRegex: string[];
+  allowedRepoPatterns: string[];
+}
+
 // Types for presets and custom tools
 interface ModelPreset {
   id: string;
@@ -91,7 +99,7 @@ const FALLBACK_MODELS = [
 export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDialogProps) {
   const [localSettings, setLocalSettings] = useState<ChatSettings>(settings);
   const [models, setModels] = useState<typeof FALLBACK_MODELS>(FALLBACK_MODELS);
-  const [defaultModel, setDefaultModel] = useState('gemini-2.5-pro');
+  const [defaultModel, setDefaultModel] = useState('gemini-3-pro-preview');
   const [presets, setPresets] = useState<ModelPreset[]>([]);
   const [customTools, setCustomTools] = useState<CustomTool[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<string>('balanced');
@@ -105,25 +113,35 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
   const [newIgnorePattern, setNewIgnorePattern] = useState('');
   const [newFolderPath, setNewFolderPath] = useState('');
   const [newCommand, setNewCommand] = useState<Partial<CustomCommand>>({ name: '', description: '', command: '', enabled: true });
+  const [mcpSecurity, setMcpSecurity] = useState<McpSecurityConfig>({
+    enabled: false,
+    allowedServerNames: [],
+    allowedCommandRegex: [],
+    blockedCommandRegex: [],
+    allowedRepoPatterns: [],
+  });
 
   // Fetch models, presets, custom tools, and config from API
   useEffect(() => {
     if (!open) return;
     Promise.all([
-      fetch('/api/models').then(r => r.json()).catch(() => ({ known: [], current: 'gemini-2.5-flash' })),
+      fetch('/api/models').then(r => r.json()).catch(() => ({ known: [], current: 'gemini-3-pro-preview' })),
       fetch('/api/presets').then(r => r.json()).catch(() => ({ presets: [] })),
       fetch('/api/custom-tools').then(r => r.json()).catch(() => ({ tools: [] })),
       fetch('/api/config').then(r => r.json()).catch(() => ({})),
     ]).then(([modelsData, presetsData, toolsData, configData]) => {
       // Set models
-      const modelList = (modelsData.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
+      const modelList: typeof FALLBACK_MODELS = (modelsData.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
         id: m.id,
         name: m.name || m.id,
         icon: m.tier === 'pro' ? Code2 : Zap,
       }));
-      if (modelList.length > 0) {
-        setModels(modelList);
-        setDefaultModel(modelsData.current || modelList[0].id);
+      const dedupedModels = modelList.filter(
+        (model, index, self) => self.findIndex((item) => item.id === model.id) === index
+      );
+      if (dedupedModels.length > 0) {
+        setModels(dedupedModels);
+        setDefaultModel(modelsData.current || dedupedModels[0].id);
       }
       // Set presets
       if (presetsData.presets) {
@@ -142,6 +160,9 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
       }
       if (configData.customCommands) {
         setCustomCommands(configData.customCommands);
+      }
+      if (configData.mcpSecurity) {
+        setMcpSecurity(configData.mcpSecurity);
       }
     }).catch(() => {});
   }, [open]);
@@ -181,6 +202,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
           geminiIgnore,
           trustedFolders,
           customCommands,
+          mcpSecurity,
         }),
       });
     } catch (error) {
@@ -777,6 +799,82 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
                 Add Custom Command
               </button>
             )}
+          </div>
+
+          {/* MCP Security */}
+          <div className="space-y-4 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                MCP Allowlist
+              </h3>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-muted-foreground">Enabled</label>
+                <input
+                  type="checkbox"
+                  checked={mcpSecurity.enabled}
+                  onChange={(e) => setMcpSecurity({ ...mcpSecurity, enabled: e.target.checked })}
+                  className="h-4 w-4"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Restrict MCP server creation/installation to allowed names, command patterns and repository sources.
+            </p>
+
+            <div className="grid gap-3">
+              <label className="grid gap-1">
+                <span className="text-xs text-muted-foreground">Allowed server names (one per line)</span>
+                <textarea
+                  rows={3}
+                  value={mcpSecurity.allowedServerNames.join('\n')}
+                  onChange={(e) => setMcpSecurity({
+                    ...mcpSecurity,
+                    allowedServerNames: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean),
+                  })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
+                />
+              </label>
+
+              <label className="grid gap-1">
+                <span className="text-xs text-muted-foreground">Allowed command regex (one per line)</span>
+                <textarea
+                  rows={3}
+                  value={mcpSecurity.allowedCommandRegex.join('\n')}
+                  onChange={(e) => setMcpSecurity({
+                    ...mcpSecurity,
+                    allowedCommandRegex: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean),
+                  })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
+                />
+              </label>
+
+              <label className="grid gap-1">
+                <span className="text-xs text-muted-foreground">Blocked command regex (one per line)</span>
+                <textarea
+                  rows={3}
+                  value={mcpSecurity.blockedCommandRegex.join('\n')}
+                  onChange={(e) => setMcpSecurity({
+                    ...mcpSecurity,
+                    blockedCommandRegex: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean),
+                  })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
+                />
+              </label>
+
+              <label className="grid gap-1">
+                <span className="text-xs text-muted-foreground">Allowed repo URL patterns (one per line)</span>
+                <textarea
+                  rows={3}
+                  value={mcpSecurity.allowedRepoPatterns.join('\n')}
+                  onChange={(e) => setMcpSecurity({
+                    ...mcpSecurity,
+                    allowedRepoPatterns: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean),
+                  })}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
+                />
+              </label>
+            </div>
           </div>
         </div>
 

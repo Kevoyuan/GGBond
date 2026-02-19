@@ -284,20 +284,24 @@ export async function listExtensions(): Promise<string> {
 // Known models - dynamically retrieved from gemini-cli-core if available
 // This list is used as fallback when CoreService is not available
 const FALLBACK_MODELS = [
+    { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', tier: 'pro', contextWindow: '1M' },
+    { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', tier: 'flash', contextWindow: '1M' },
+    { id: 'gemini-3-pro', name: 'gemini-3-pro', tier: 'pro', contextWindow: '1M' },
+    { id: 'gemini-3-flash', name: 'gemini-3-flash', tier: 'flash', contextWindow: '1M' },
     { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro', tier: 'pro', contextWindow: '2M' },
     { id: 'gemini-2.5-flash', name: 'gemini-2.5-flash', tier: 'flash', contextWindow: '1M' },
     { id: 'gemini-2.5-flash-lite', name: 'gemini-2.5-flash-lite', tier: 'lite', contextWindow: '1M' },
-    { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', tier: 'pro', contextWindow: '1M' },
-    { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', tier: 'flash', contextWindow: '1M' },
 ];
 
 // Model metadata including context window and tier (not available from gemini-cli-core)
 const MODEL_METADATA: Record<string, { tier: string; contextWindow: string }> = {
+    'gemini-3-pro-preview': { tier: 'pro', contextWindow: '1M' },
+    'gemini-3-flash-preview': { tier: 'flash', contextWindow: '1M' },
+    'gemini-3-pro': { tier: 'pro', contextWindow: '1M' },
+    'gemini-3-flash': { tier: 'flash', contextWindow: '1M' },
     'gemini-2.5-pro': { tier: 'pro', contextWindow: '2M' },
     'gemini-2.5-flash': { tier: 'flash', contextWindow: '1M' },
     'gemini-2.5-flash-lite': { tier: 'lite', contextWindow: '1M' },
-    'gemini-3-pro-preview': { tier: 'pro', contextWindow: '1M' },
-    'gemini-3-flash-preview': { tier: 'flash', contextWindow: '1M' },
 };
 
 export async function getKnownModels() {
@@ -353,7 +357,7 @@ export async function getModelConfig(): Promise<{
     const settings = await readSettings();
     const knownModels = await getKnownModels();
     return {
-        current: settings.model?.name || process.env.GEMINI_MODEL || 'gemini-2.5-pro',
+        current: settings.model?.name || process.env.GEMINI_MODEL || 'gemini-3-pro-preview',
         customAliases: settings.modelConfigs?.customAliases || {},
         known: knownModels,
     };
