@@ -16,7 +16,7 @@ export const PRICING_RATES: Record<string, ModelPricing> = {
     input: 2.00 / 1_000_000,
     output: 12.00 / 1_000_000,
     cached: 0.20 / 1_000_000,
-    contextWindow: 1_048_576, // 1M tokens
+    contextWindow: 1_000_000, // 1M tokens (decimal, matching Google's advertised value)
   },
   // Gemini 3 Flash (Preview)
   // Input: $0.50 / 1M
@@ -26,7 +26,7 @@ export const PRICING_RATES: Record<string, ModelPricing> = {
     input: 0.50 / 1_000_000,
     output: 3.00 / 1_000_000,
     cached: 0.05 / 1_000_000,
-    contextWindow: 1_048_576, // 1M tokens
+    contextWindow: 1_000_000, // 1M tokens
   },
   // Gemini 2.5 Pro
   // Context: 2M
@@ -34,7 +34,7 @@ export const PRICING_RATES: Record<string, ModelPricing> = {
     input: 3.50 / 1_000_000, // Assuming similar to 1.5 Pro
     output: 10.50 / 1_000_000,
     cached: 0.875 / 1_000_000,
-    contextWindow: 2_097_152, // 2M tokens
+    contextWindow: 2_000_000, // 2M tokens
   },
   // Gemini 2.5 Flash
   // Context: 1M
@@ -42,7 +42,7 @@ export const PRICING_RATES: Record<string, ModelPricing> = {
     input: 0.35 / 1_000_000, // Assuming similar to 1.5 Flash
     output: 1.05 / 1_000_000,
     cached: 0.0875 / 1_000_000,
-    contextWindow: 1_048_576, // 1M tokens
+    contextWindow: 1_000_000, // 1M tokens
   },
   // Gemini 2.5 Flash Lite
   // Context: 1M
@@ -50,7 +50,7 @@ export const PRICING_RATES: Record<string, ModelPricing> = {
     input: 0.15 / 1_000_000, // Assuming cheaper
     output: 0.60 / 1_000_000,
     cached: 0.04 / 1_000_000,
-    contextWindow: 1_048_576, // 1M tokens
+    contextWindow: 1_000_000, // 1M tokens
   },
 };
 
