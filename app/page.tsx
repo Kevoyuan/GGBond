@@ -452,6 +452,16 @@ export default function Home() {
   const loadSessionTree = useCallback(async (sessionId: string) => {
     const res = await fetch(`/api/sessions/${sessionId}`);
     if (!res.ok) {
+      // Session might not exist in database (e.g., stale core session)
+      // Return empty state instead of throwing error
+      if (res.status === 404) {
+        console.warn(`Session not found: ${sessionId}, clearing session ID`);
+        setCurrentSessionId(null);
+        setMessagesMap(new Map());
+        setHeadId(null);
+        headIdRef.current = null;
+        return null;
+      }
       throw new Error(`Failed to load session: ${sessionId}`);
     }
 
@@ -491,7 +501,8 @@ export default function Home() {
 
     try {
       const data = await loadSessionTree(id);
-      if (!session && data.session?.workspace) {
+      // data is null if session was not found (404)
+      if (data && !session && data.session?.workspace) {
         setCurrentWorkspace(data.session.workspace || null);
       }
     } catch (error) {
@@ -618,6 +629,10 @@ export default function Home() {
       // Load the session first and get the latest headId synchronously
       if (loadSessionTreeRef.current) {
         const data = await loadSessionTreeRef.current(nextMsg.sessionId);
+        // If session not found (null), skip switching
+        if (!data) {
+          return;
+        }
         setCurrentSessionId(nextMsg.sessionId);
         effectiveHeadId = data.nextHeadId;
 

@@ -11,24 +11,36 @@ interface ModuleCardProps {
   actions?: React.ReactNode;
 }
 
-export function ModuleCard({ title, description, icon: Icon, className, children, actions }: ModuleCardProps) {
+export const ModuleCard = React.memo(function ModuleCard({ title, description, icon: Icon, className, children, actions }: ModuleCardProps) {
   return (
-    <div className={cn("bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden flex flex-col h-full", className)}>
-      <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-800/50">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-500/10 rounded-lg text-blue-600 dark:text-blue-400">
-            <Icon size={20} />
+    <div className={cn(
+      "group relative flex flex-col h-full overflow-hidden rounded-xl transition-all duration-300",
+      "bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md",
+      "border border-zinc-200/50 dark:border-zinc-800/50",
+      "shadow-sm hover:shadow-md dark:shadow-none",
+      className
+    )}>
+      <div className="flex items-center justify-between p-4 border-b border-zinc-200/50 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/50">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={cn(
+            "p-2 rounded-lg transition-colors duration-300",
+            "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
+            "group-hover:bg-blue-500/10 group-hover:text-blue-600 dark:group-hover:text-blue-400"
+          )}>
+            <Icon size={18} strokeWidth={2} />
           </div>
-          <div>
-            <h3 className="font-semibold text-lg leading-none text-zinc-900 dark:text-zinc-100">{title}</h3>
-            {description && <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{description}</p>}
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate">{title}</h3>
+            {description && (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5 font-medium">{description}</p>
+            )}
           </div>
         </div>
-        {actions && <div className="flex items-center gap-2">{actions}</div>}
+        {actions && <div className="flex items-center gap-1 pl-2 shrink-0">{actions}</div>}
       </div>
-      <div className="flex-1 p-4 overflow-auto">
+      <div className="flex-1 min-h-0 p-4 overflow-auto scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800 scrollbar-track-transparent">
         {children}
       </div>
     </div>
   );
-}
+});
