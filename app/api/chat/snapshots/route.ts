@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { chatSnapshots } from '@/lib/db';
+import { chatSnapshots, ChatSnapshot } from '@/lib/db';
+
+interface SnapshotWithSessionTitle extends ChatSnapshot {
+  session_title: string;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +19,7 @@ export async function GET(request: NextRequest) {
         tag: s.tag,
         title: s.title,
         message_count: s.message_count,
-        session_title: (s as any).session_title,
+        session_title: (s as SnapshotWithSessionTitle).session_title,
         created_at: s.created_at,
         created_at_formatted: new Date(s.created_at).toLocaleString()
       }))
@@ -85,7 +89,7 @@ export async function POST(request: NextRequest) {
             tag: s.tag,
             title: s.title,
             message_count: s.message_count,
-            session_title: (s as any).session_title,
+            session_title: (s as SnapshotWithSessionTitle).session_title,
             created_at: s.created_at,
             created_at_formatted: new Date(s.created_at).toLocaleString()
           }))
