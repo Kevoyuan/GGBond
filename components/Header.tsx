@@ -29,6 +29,8 @@ export function Header({
               stats={stats}
               compact={true}
               floating={true}
+              label="Session"
+              hideContextPercentage={true}
               className="mr-2"
             />
           )}

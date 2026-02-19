@@ -19,6 +19,7 @@ interface TokenUsageDisplayProps {
   stats: TokenStats;
   compact?: boolean;
   className?: string;
+  label?: string;
   hideModelInfo?: boolean;
   hideContextPercentage?: boolean;
   showMemoryUsage?: boolean;
@@ -34,7 +35,7 @@ function formatTokensK(count: number): string {
   return count.toString();
 }
 
-export function TokenUsageDisplay({ stats, compact = true, className, hideModelInfo = false, hideContextPercentage = false, showMemoryUsage = true, floating = false, hover = false }: TokenUsageDisplayProps) {
+export function TokenUsageDisplay({ stats, compact = true, className, label, hideModelInfo = false, hideContextPercentage = false, showMemoryUsage = true, floating = false, hover = false }: TokenUsageDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(!compact);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -75,6 +76,7 @@ export function TokenUsageDisplay({ stats, compact = true, className, hideModelI
       >
         <div className="flex items-center gap-1.5">
           <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+          {label && <span className="uppercase tracking-wider text-[9px] text-muted-foreground/80">{label}</span>}
           <span className="font-medium">{formatTokensK(totalTokens)} tokens</span>
         </div>
 
