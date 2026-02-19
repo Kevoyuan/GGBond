@@ -31,6 +31,7 @@ interface ToolCallCardProps {
     result?: string;
     resultData?: unknown;
     duration?: string;
+    liveOutput?: string;
     onUndo?: (restoreId: string) => Promise<void> | void;
     onRetry?: (mode: 'once' | 'session') => void;
     onCancel?: () => void;
@@ -148,12 +149,14 @@ export const ToolCallCard = React.memo(function ToolCallCard({
     result,
     resultData,
     duration,
+    liveOutput,
     onUndo,
     onRetry,
     onCancel
 }: ToolCallCardProps) {
     const isReadTool = toolName.toLowerCase().includes('read') || toolName.toLowerCase().includes('view') || toolName.toLowerCase().includes('cat') || toolName.toLowerCase().includes('fetch');
-    const [expanded, setExpanded] = useState(isReadTool);
+    const isShellTool = toolName.toLowerCase().includes('run_shell_command') || toolName.toLowerCase().includes('execute') || toolName.toLowerCase().includes('shell') || toolName.toLowerCase().includes('bash');
+    const [expanded, setExpanded] = useState(isReadTool || (status === 'running' && isShellTool));
     const [todoExpanded, setTodoExpanded] = useState(false);
     const [isUndoing, setIsUndoing] = useState(false);
 
@@ -381,6 +384,19 @@ export const ToolCallCard = React.memo(function ToolCallCard({
                         <ReadToolView args={args} result={result} />
                     ) : (
                         <DefaultToolView args={args} result={result} status={status} />
+                    )}
+
+                    {/* Real-time Output Display */}
+                    {isShellTool && liveOutput && status === 'running' && (
+                        <div>
+                            <div className="text-[10px] uppercase tracking-wider text-blue-500/70 mb-1 font-semibold flex items-center gap-1">
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                <span>Live Output</span>
+                            </div>
+                            <div className="font-mono bg-blue-950/30 rounded px-2 py-1.5 text-foreground/90 whitespace-pre-wrap break-words border border-blue-500/20 max-h-[200px] overflow-y-auto text-[11px]">
+                                {liveOutput}
+                            </div>
+                        </div>
                     )}
 
                     {/* Action Bar for Permissions/Errors - Copied from Block logic but styled better */}

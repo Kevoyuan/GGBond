@@ -112,6 +112,15 @@ export interface HookEventPayload {
     sessionId?: string;
 }
 
+// Tool execution real-time output payload
+export interface ToolExecutionOutputPayload {
+    toolCallId: string;
+    toolName: string;
+    output: string;
+    isStderr: boolean;
+    timestamp: number;
+}
+
 export class CoreService {
     private static _instance: CoreService;
     private static readonly SERVICE_VERSION = 3;
@@ -140,6 +149,8 @@ export class CoreService {
     } | null = null;
     // Hook event subscribers
     private hookEventSubscribers = new Set<(payload: HookEventPayload) => void>();
+    // Tool execution output subscribers
+    private toolExecutionOutputSubscribers = new Set<(payload: ToolExecutionOutputPayload) => void>();
 
     private constructor() { }
 
@@ -547,6 +558,25 @@ export class CoreService {
         }
     }
 
+    // Subscribe to real-time tool execution output
+    public subscribeToolExecutionOutput(callback: (payload: ToolExecutionOutputPayload) => void): () => void {
+        this.toolExecutionOutputSubscribers.add(callback);
+        return () => {
+            this.toolExecutionOutputSubscribers.delete(callback);
+        };
+    }
+
+    private emitToolExecutionOutput(payload: ToolExecutionOutputPayload) {
+        for (const listener of Array.from(this.toolExecutionOutputSubscribers)) {
+            try {
+                listener(payload);
+            } catch (error) {
+                console.error('[CoreService] Tool execution output subscriber error:', error);
+                this.toolExecutionOutputSubscribers.delete(listener);
+            }
+        }
+    }
+
     private toSerializableConfirmationDetails(
         details: unknown,
         request: ToolCallRequestInfo
@@ -836,6 +866,9 @@ export class CoreService {
             schedulerId: ROOT_SCHEDULER_ID,
         });
 
+        // Track previous tool call states to detect changes
+        const previousToolCalls = new Map<string, ToolCall>();
+
         const onToolCallsUpdate = (message: {
             toolCalls: ToolCall[];
             schedulerId: string;
@@ -844,6 +877,37 @@ export class CoreService {
                 return;
             }
             this.syncPendingConfirmations(message.toolCalls);
+
+            // Emit real-time output updates for tool execution
+            for (const toolCall of message.toolCalls) {
+                const prevCall = previousToolCalls.get(toolCall.request.callId);
+                const currentCall = toolCall;
+
+                // Check if there's new live output
+                if (currentCall.status === 'executing' && 'liveOutput' in currentCall && currentCall.liveOutput) {
+                    const outputStr = typeof currentCall.liveOutput === 'string'
+                        ? currentCall.liveOutput
+                        : (currentCall.liveOutput as { text?: string }).text || JSON.stringify(currentCall.liveOutput);
+
+                    // Only emit if output is new
+                    const prevOutput = prevCall && 'liveOutput' in prevCall ? prevCall.liveOutput : null;
+                    const prevOutputStr = prevOutput
+                        ? (typeof prevOutput === 'string' ? prevOutput : (prevOutput as { text?: string }).text || JSON.stringify(prevOutput))
+                        : '';
+
+                    if (outputStr !== prevOutputStr) {
+                        this.emitToolExecutionOutput({
+                            toolCallId: toolCall.request.callId,
+                            toolName: toolCall.request.name,
+                            output: outputStr,
+                            isStderr: false,
+                            timestamp: Date.now(),
+                        });
+                    }
+                }
+
+                previousToolCalls.set(toolCall.request.callId, toolCall);
+            }
         };
 
         this.messageBus.subscribe(
