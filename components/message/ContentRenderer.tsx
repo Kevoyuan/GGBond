@@ -14,6 +14,7 @@ import {
     parseSkillFrontmatter
 } from './SkillBadge';
 import { CodeCopyButton } from './CopyButtons';
+import { useToolExecutionOutputContext } from '../ToolExecutionOutputProvider';
 
 interface ContentRendererProps {
     content: string;
@@ -32,6 +33,9 @@ export const ContentRenderer = React.memo(function ContentRenderer({
     onCancel,
     hideTodoToolCalls = false
 }: ContentRendererProps) {
+    // Use context for live tool outputs
+    const { getOutput } = useToolExecutionOutputContext();
+
     const [skillMetaMap, setSkillMetaMap] = useState<SkillMetaMap>({});
     const skillSpans = useMemo(() => collectSkillSpans(content, skillMetaMap), [content, skillMetaMap]);
     const attemptedSkillPathRef = useRef<Set<string>>(new Set());
@@ -238,6 +242,9 @@ export const ContentRenderer = React.memo(function ContentRenderer({
                     let args = {};
                     try { args = JSON.parse(argsStr); } catch { args = { raw: argsStr }; }
 
+                    // Get live output for this tool call
+                    const liveOutput = toolId && getOutput ? getOutput(toolId) : undefined;
+
                     return (
                         <ToolCallCard
                             key={index}
@@ -248,6 +255,7 @@ export const ContentRenderer = React.memo(function ContentRenderer({
                             status={status}
                             result={result}
                             resultData={resultData}
+                            liveOutput={liveOutput}
                             onUndo={handleUndoFromTool}
                             onRetry={onRetry}
                             onCancel={onCancel}
