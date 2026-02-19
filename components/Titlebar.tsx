@@ -97,6 +97,8 @@ export const Titlebar = React.memo(function Titlebar({
                                 compact={true}
                                 floating={true}
                                 hover={true}
+                                label="Session"
+                                hideContextPercentage={true}
                                 className="relative"
                             />
                         </div>

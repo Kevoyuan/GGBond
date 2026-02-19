@@ -827,7 +827,7 @@ export class CoreService {
         if (!this.config) throw new Error('Config not initialized');
         this.pendingConfirmations.clear();
         this.pendingConfirmationByCallId.clear();
-        const geminiClient = this.config.getGeminiClient();
+        let geminiClient = this.config.getGeminiClient();
         const promptId = crypto.randomUUID();
         const displayContent = message;
         const abortSignal = signal || new AbortController().signal;
@@ -872,14 +872,29 @@ export class CoreService {
             };
             const message = `${err?.message || ''} ${err?.response?.error?.message || ''}`.toLowerCase();
             const reason = err?.response?.error?.details?.[0]?.reason || '';
+            const hasCapacitySignal =
+                message.includes('no capacity available') ||
+                message.includes('model_capacity_exhausted') ||
+                message.includes('resource_exhausted') ||
+                reason === 'MODEL_CAPACITY_EXHAUSTED' ||
+                err?.response?.error?.status === 'RESOURCE_EXHAUSTED';
+
+            // Some SDK retries wrap the final error and lose numeric status.
+            return (err?.status === 429) || hasCapacitySignal;
+        };
+        const isModelNotFoundError = (error: unknown) => {
+            const err = error as {
+                code?: number | string;
+                status?: number;
+                message?: string;
+                response?: { error?: { message?: string } };
+            };
+            const message = `${err?.message || ''} ${err?.response?.error?.message || ''}`.toLowerCase();
             return (
-                err?.status === 429 &&
-                (
-                    message.includes('no capacity available') ||
-                    message.includes('model_capacity_exhausted') ||
-                    err?.response?.error?.status === 'RESOURCE_EXHAUSTED' ||
-                    reason === 'MODEL_CAPACITY_EXHAUSTED'
-                )
+                err?.code === 404 ||
+                err?.status === 404 ||
+                message.includes('modelnotfounderror') ||
+                message.includes('requested entity was not found')
             );
         };
         const fallbackModelForCapacity = () => {
@@ -938,9 +953,30 @@ export class CoreService {
                             `[CoreService] Model capacity exhausted for ${this.config.getModel()}. Falling back to ${fallbackModel}.`
                         );
                         this.config.setModel(fallbackModel);
+                        geminiClient = this.config.getGeminiClient();
                         // Retry the same turn with fallback model.
                         turnCount -= 1;
                         continue;
+                    }
+                    if (isModelNotFoundError(error)) {
+                        const currentModel = this.config.getModel();
+                        let fallbackModel: string | null = null;
+                        if (currentModel === 'gemini-3.1-pro-preview') {
+                            fallbackModel = 'gemini-3-pro-preview';
+                        } else if (currentModel === 'gemini-3-pro-preview') {
+                            fallbackModel = 'gemini-3-flash-preview';
+                        } else if (currentModel === 'gemini-3-flash-preview') {
+                            fallbackModel = 'gemini-2.5-pro';
+                        }
+                        if (fallbackModel) {
+                            console.warn(
+                                `[CoreService] Model not found for ${currentModel}. Falling back to ${fallbackModel}.`
+                            );
+                            this.config.setModel(fallbackModel);
+                            geminiClient = this.config.getGeminiClient();
+                            turnCount -= 1;
+                            continue;
+                        }
                     }
                     throw error;
                 }

@@ -321,12 +321,21 @@ export default function Home() {
 
   const currentContextUsage = useMemo(() => {
     if (messages.length === 0) return 0;
-    // Simplified context usage calculation for tree structure
-    // We basically just take the stats from the last message that has them in the current branch
+    // Use the latest turn's input-side tokens as context occupancy proxy.
+    // This avoids mixing output/cumulative tokens into context usage.
     for (let i = messages.length - 1; i >= 0; i--) {
       const stats = messages[i].stats;
       if (stats) {
-        // Robust calculation matching TokenUsageDisplay logic
+        const promptTokens =
+          stats.promptTokenCount ||
+          stats.prompt_tokens ||
+          stats.inputTokenCount ||
+          stats.input_tokens ||
+          0;
+
+        if (promptTokens > 0) return promptTokens;
+
+        // Backward compatibility fallback when only total exists in old records.
         const inputTokens = stats.inputTokenCount || stats.input_tokens || 0;
         const outputTokens = stats.outputTokenCount || stats.output_tokens || 0;
         return stats.totalTokenCount || stats.total_tokens || (inputTokens + outputTokens);
@@ -372,6 +381,9 @@ export default function Home() {
         const parsed = JSON.parse(saved) as Partial<ChatSettings>;
         let migrated = false;
         if (parsed.model === 'gemini-3-pro') {
+          parsed.model = 'gemini-3-pro-preview';
+          migrated = true;
+        } else if (parsed.model === 'gemini-3.1-pro-preview') {
           parsed.model = 'gemini-3-pro-preview';
           migrated = true;
         } else if (parsed.model === 'gemini-3-flash') {
