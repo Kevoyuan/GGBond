@@ -31,6 +31,9 @@ import {
   buildTreeFromApiMessages,
 } from '@/app/page/types';
 
+// Import hooks
+import { useChatCommands } from '@/app/page/hooks/useChatCommands';
+
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -614,6 +617,15 @@ export default function Home() {
     });
   }, []);
 
+  // Chat commands hook (needs addMessageToTree to be defined)
+  const { handleChatList, handleChatSave, handleChatResume, handleChatDelete } = useChatCommands({
+    currentSessionId,
+    headId,
+    messages,
+    sessions,
+    addMessageToTree,
+  });
+
   const handleStopMessage = useCallback(() => {
     const activeAbort = activeChatAbortRef.current;
     if (!activeAbort || activeAbort.signal.aborted) return;
@@ -1008,39 +1020,8 @@ export default function Home() {
 
       // /chat list - List all saved snapshots
       if (chatCmd === 'list') {
-        try {
-          const res = await fetch(`/api/chat/snapshots?session_id=${encodeURIComponent(currentSessionId)}`);
-          const data = await res.json();
-
-          if (!res.ok) {
-            addMessageToTree({ role: 'model', content: `⚠️ Failed to list snapshots: ${data.error || 'Unknown error'}` }, headId);
-            return;
-          }
-
-          const snapshots = data.snapshots || [];
-          if (snapshots.length === 0) {
-            addMessageToTree({ role: 'model', content: '📋 No saved snapshots found for this session.' }, headId);
-            return;
-          }
-
-          const listContent = [
-            '## Chat Snapshots',
-            '',
-            ...snapshots.map((s: ChatSnapshot) =>
-              `- **${s.tag}**${s.title ? ` - ${s.title}` : ''} (${s.message_count} messages, ${s.created_at_formatted})`
-            ),
-            '',
-            'Use `/chat save <tag>` to save current session state',
-            'Use `/chat resume <tag>` to restore a snapshot'
-          ].join('\n');
-
-          addMessageToTree({ role: 'model', content: listContent }, headId);
-          return;
-        } catch (error) {
-          console.error('[chat] Failed to list snapshots:', error);
-          addMessageToTree({ role: 'model', content: '⚠️ Failed to list snapshots' }, headId);
-          return;
-        }
+        await handleChatList();
+        return;
       }
 
       // /chat save <tag> - Save current session as snapshot
@@ -1052,50 +1033,8 @@ export default function Home() {
           }, headId);
           return;
         }
-
-        // Validate tag format
-        if (!/^[a-zA-Z0-9_-]+$/.test(chatArg)) {
-          addMessageToTree({
-            role: 'model',
-            content: '⚠️ Tag must contain only alphanumeric characters, dashes, and underscores.'
-          }, headId);
-          return;
-        }
-
-        try {
-          const messageCount = messages.length;
-          const sessionTitle = sessions.find(s => s.id === currentSessionId)?.title || 'Untitled';
-
-          const res = await fetch('/api/chat/snapshots', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'save',
-              session_id: currentSessionId,
-              tag: chatArg,
-              title: sessionTitle,
-              message_count: messageCount
-            })
-          });
-
-          const data = await res.json();
-
-          if (!res.ok) {
-            addMessageToTree({ role: 'model', content: `⚠️ Failed to save snapshot: ${data.error || 'Unknown error'}` }, headId);
-            return;
-          }
-
-          addMessageToTree({
-            role: 'model',
-            content: `✅ Snapshot saved: **${chatArg}**\n\n- Session: ${sessionTitle}\n- Messages: ${messageCount}\n\nUse \`/chat resume ${chatArg}\` to restore this snapshot later.`
-          }, headId);
-          console.info(`[chat] Snapshot saved: ${chatArg} for session ${currentSessionId}`);
-          return;
-        } catch (error) {
-          console.error('[chat] Failed to save snapshot:', error);
-          addMessageToTree({ role: 'model', content: '⚠️ Failed to save snapshot' }, headId);
-          return;
-        }
+        await handleChatSave(chatArg);
+        return;
       }
 
       // /chat resume <tag> - Resume a saved snapshot
