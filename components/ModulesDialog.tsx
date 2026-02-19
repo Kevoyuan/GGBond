@@ -12,7 +12,6 @@ const PerformancePanel = lazy(() => import('./modules/analytics/PerformancePanel
 const ToolStatsPanel = lazy(() => import('./modules/analytics/ToolStatsPanel').then(m => ({ default: m.ToolStatsPanel })));
 const FileHeatmapPanel = lazy(() => import('./modules/analytics/FileHeatmapPanel').then(m => ({ default: m.FileHeatmapPanel })));
 const SessionTimeline = lazy(() => import('./modules/timeline/SessionTimeline').then(m => ({ default: m.SessionTimeline })));
-const ProjectContext = lazy(() => import('./modules/project/ProjectContext').then(m => ({ default: m.ProjectContext })));
 const ChatManager = lazy(() => import('./modules/ChatModules').then(m => ({ default: m.ChatManager })));
 const CheckpointManager = lazy(() => import('./modules/SessionModules').then(m => ({ default: m.CheckpointManager })));
 const ToolManager = lazy(() => import('./modules/SystemModules').then(m => ({ default: m.ToolManager })));
@@ -316,7 +315,6 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }:
                       <Suspense fallback={<ModuleLoader />}><MemoryManager /></Suspense>
                       <Suspense fallback={<ModuleLoader />}><DirectoryManager /></Suspense>
                       <Suspense fallback={<ModuleLoader />}><HooksManager /></Suspense>
-                      <Suspense fallback={<ModuleLoader />}><ProjectContext /></Suspense>
                     </div>
                   </section>
                 )}
