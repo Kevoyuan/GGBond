@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useTheme } from 'next-themes';
+import db from '@/lib/db';
 import { Sidebar } from '../components/Sidebar';
 import { Titlebar } from '../components/Titlebar';
 import { Message } from '../components/MessageBubble';
@@ -975,6 +976,209 @@ export default function Home() {
         : restoreId;
       addMessageToTree({ role: 'model', content: `✅ Restored checkpoint: \`${restoredCheckpoint}\`` }, headId);
       console.info(`[chat] restored checkpoint ${restoredCheckpoint}`);
+      return;
+    }
+
+    // Handle /chat command (save, list, resume)
+    if (trimmedInput.startsWith('/chat')) {
+      const chatParts = trimmedInput.split(/\s+/);
+      const chatCmd = chatParts[1];
+      const chatArg = chatParts[2];
+
+      if (!currentSessionId) {
+        addMessageToTree({ role: 'model', content: '⚠️ No active session. Start a conversation first.' }, headId);
+        return;
+      }
+
+      // /chat list - List all saved snapshots
+      if (chatCmd === 'list') {
+        try {
+          const res = await fetch(`/api/chat/snapshots?session_id=${encodeURIComponent(currentSessionId)}`);
+          const data = await res.json();
+
+          if (!res.ok) {
+            addMessageToTree({ role: 'model', content: `⚠️ Failed to list snapshots: ${data.error || 'Unknown error'}` }, headId);
+            return;
+          }
+
+          const snapshots = data.snapshots || [];
+          if (snapshots.length === 0) {
+            addMessageToTree({ role: 'model', content: '📋 No saved snapshots found for this session.' }, headId);
+            return;
+          }
+
+          const listContent = [
+            '## Chat Snapshots',
+            '',
+            ...snapshots.map((s: any) =>
+              `- **${s.tag}**${s.title ? ` - ${s.title}` : ''} (${s.message_count} messages, ${s.created_at_formatted})`
+            ),
+            '',
+            'Use `/chat save <tag>` to save current session state',
+            'Use `/chat resume <tag>` to restore a snapshot'
+          ].join('\n');
+
+          addMessageToTree({ role: 'model', content: listContent }, headId);
+          return;
+        } catch (error) {
+          console.error('[chat] Failed to list snapshots:', error);
+          addMessageToTree({ role: 'model', content: '⚠️ Failed to list snapshots' }, headId);
+          return;
+        }
+      }
+
+      // /chat save <tag> - Save current session as snapshot
+      if (chatCmd === 'save') {
+        if (!chatArg) {
+          addMessageToTree({
+            role: 'model',
+            content: '⚠️ Usage: `/chat save <tag>`\n\nExample: `/chat save my-feature-work`'
+          }, headId);
+          return;
+        }
+
+        // Validate tag format
+        if (!/^[a-zA-Z0-9_-]+$/.test(chatArg)) {
+          addMessageToTree({
+            role: 'model',
+            content: '⚠️ Tag must contain only alphanumeric characters, dashes, and underscores.'
+          }, headId);
+          return;
+        }
+
+        try {
+          const messageCount = messages.length;
+          const sessionTitle = sessions.find(s => s.id === currentSessionId)?.title || 'Untitled';
+
+          const res = await fetch('/api/chat/snapshots', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'save',
+              session_id: currentSessionId,
+              tag: chatArg,
+              title: sessionTitle,
+              message_count: messageCount
+            })
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            addMessageToTree({ role: 'model', content: `⚠️ Failed to save snapshot: ${data.error || 'Unknown error'}` }, headId);
+            return;
+          }
+
+          addMessageToTree({
+            role: 'model',
+            content: `✅ Snapshot saved: **${chatArg}**\n\n- Session: ${sessionTitle}\n- Messages: ${messageCount}\n\nUse \`/chat resume ${chatArg}\` to restore this snapshot later.`
+          }, headId);
+          console.info(`[chat] Snapshot saved: ${chatArg} for session ${currentSessionId}`);
+          return;
+        } catch (error) {
+          console.error('[chat] Failed to save snapshot:', error);
+          addMessageToTree({ role: 'model', content: '⚠️ Failed to save snapshot' }, headId);
+          return;
+        }
+      }
+
+      // /chat resume <tag> - Resume a saved snapshot
+      if (chatCmd === 'resume') {
+        if (!chatArg) {
+          addMessageToTree({
+            role: 'model',
+            content: '⚠️ Usage: `/chat resume <tag>`\n\nUse `/chat list` to see available snapshots.'
+          }, headId);
+          return;
+        }
+
+        try {
+          // First, get the snapshot info
+          const listRes = await fetch(`/api/chat/snapshots?session_id=${encodeURIComponent(currentSessionId)}`);
+          const listData = await listRes.json();
+
+          if (!listRes.ok) {
+            addMessageToTree({ role: 'model', content: `⚠️ Failed to find snapshot: ${listData.error || 'Unknown error'}` }, headId);
+            return;
+          }
+
+          const snapshot = (listData.snapshots || []).find((s: any) => s.tag === chatArg);
+
+          if (!snapshot) {
+            addMessageToTree({
+              role: 'model',
+              content: `⚠️ Snapshot **${chatArg}** not found.\n\nUse \`/chat list\` to see available snapshots.`
+            }, headId);
+            return;
+          }
+
+          // Create a new session and copy messages from the snapshot's session
+          const newSessionId = crypto.randomUUID();
+          const now = Date.now();
+
+          // Insert new session
+          db.prepare(`
+            INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
+            SELECT ?, ?, ?, updated_at, workspace, branch
+            FROM sessions WHERE id = ?
+          `).run(newSessionId, `[Resume] ${snapshot.title || snapshot.tag}`, now, snapshot.session_id);
+
+          // Copy messages from the original session to the new session
+          db.prepare(`
+            INSERT INTO messages (session_id, role, content, stats, thought, citations, images, parent_id, created_at)
+            SELECT ?, role, content, stats, thought, citations, images, parent_id, created_at
+            FROM messages WHERE session_id = ?
+          `).run(newSessionId, snapshot.session_id);
+
+          // Switch to the new session
+          setCurrentSessionId(newSessionId);
+          setMessagesMap(new Map());
+          setHeadId(null);
+
+          // Reload the new session
+          await loadSessionTree(newSessionId);
+          await fetchSessions();
+
+          addMessageToTree({
+            role: 'model',
+            content: `✅ Resumed snapshot: **${chatArg}**\n\n- Original session: ${snapshot.session_title || snapshot.session_id}\n- Messages: ${snapshot.message_count}\n- Saved at: ${snapshot.created_at_formatted}\n\nNew session created: \`[Resume] ${snapshot.title || snapshot.tag}\``
+          }, headId);
+          console.info(`[chat] Resumed snapshot: ${chatArg} -> new session ${newSessionId}`);
+          return;
+        } catch (error) {
+          console.error('[chat] Failed to resume snapshot:', error);
+          addMessageToTree({ role: 'model', content: '⚠️ Failed to resume snapshot' }, headId);
+          return;
+        }
+      }
+
+      // /chat without subcommand - Show help
+      if (!chatCmd) {
+        addMessageToTree({
+          role: 'model',
+          content: `## Chat Session Management
+
+### Commands:
+- \`/chat save <tag>\` - Save current session as a named snapshot
+- \`/chat list\` - List all saved snapshots for current session
+- \`/chat resume <tag>\` - Resume a saved snapshot (creates new session)
+
+### Examples:
+\`\`\`
+/chat save my-feature-work
+/chat list
+/chat resume my-feature-work
+\`\`\`
+`
+        }, headId);
+        return;
+      }
+
+      // Unknown subcommand
+      addMessageToTree({
+        role: 'model',
+        content: `⚠️ Unknown /chat subcommand: ${chatCmd}\n\nUse \`/chat\` without arguments to see available commands.`
+      }, headId);
       return;
     }
 
