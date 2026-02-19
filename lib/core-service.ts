@@ -5,6 +5,10 @@ import path from 'path';
 import fs from 'fs';
 import { readFile } from 'fs/promises';
 import {
+    isPathTrusted,
+    isIgnoredByGeminiIgnore,
+} from './config-service';
+import {
     Config,
     Scheduler,
     ROOT_SCHEDULER_ID,
@@ -960,8 +964,36 @@ export class CoreService {
             return [];
         }
 
-        // Emit BeforeTool hook event for each tool
+        // Get workspace directory for ignore checks
+        const workspaceDir = this.config.getWorkingDir();
+
+        // Filter requests based on trusted folders and .geminiignore patterns
+        const filteredRequests: ToolCallRequestInfo[] = [];
         for (const request of requests) {
+            const args = request.args as Record<string, unknown>;
+            const filePath = (args.path as string) || (args.filePath as string) || (args.file as string) || '';
+
+            if (filePath) {
+                // Check if path is in a trusted folder (skip confirmation if trusted)
+                const isTrusted = await isPathTrusted(filePath);
+
+                // Check if path should be ignored by .geminiignore
+                const isIgnored = await isIgnoredByGeminiIgnore(filePath, workspaceDir);
+
+                // Log the trust/ignore status for debugging
+                if (isTrusted) {
+                    console.log(`[CoreService] Tool ${request.name} path ${filePath} is in trusted folder`);
+                }
+                if (isIgnored) {
+                    console.log(`[CoreService] Tool ${request.name} path ${filePath} is ignored by .geminiignore`);
+                }
+            }
+
+            filteredRequests.push(request);
+        }
+
+        // Emit BeforeTool hook event for each tool
+        for (const request of filteredRequests) {
             this.emitHookEvent('BeforeTool', {
                 toolName: request.name,
                 toolInput: request.args,
