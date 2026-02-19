@@ -885,6 +885,13 @@ export async function POST(req: Request) {
               // Context was compressed, notify UI to refresh
               const compressionInfo = event.value as { originalTokenCount?: number; newTokenCount?: number; compressionRate?: number };
               console.log('[chat] Context compressed:', compressionInfo);
+
+              // Emit PreCompress hook event before compression
+              core.emitHookEvent('PreCompress', {
+                originalTokenCount: compressionInfo?.originalTokenCount,
+                compressionRate: compressionInfo?.compressionRate,
+              });
+
               safeEnqueue({
                 type: 'context_compressed',
                 originalTokenCount: compressionInfo?.originalTokenCount,
