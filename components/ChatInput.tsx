@@ -251,12 +251,19 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
 
   const currentMode = MODE_OPTIONS.find(m => m.value === mode) || MODE_OPTIONS[0];
 
-  // Calculate context usage
+  // Calculate context usage - use cumulative session stats to match TokenUsageDisplay behavior
   const { pricing } = getModelInfo(currentModel);
   const contextLimit = pricing.contextWindow;
-  // Use currentContextUsage if available, otherwise fallback to sessionStats.totalTokens (legacy) or 0
-  const usedTokens = currentContextUsage !== undefined ? currentContextUsage : (sessionStats?.totalTokens || 0);
+  // Use sessionStats.totalTokens (cumulative) to match TokenUsageDisplay and Claude Code behavior
+  const usedTokens = sessionStats?.totalTokens || 0;
+  const inputTokens = sessionStats?.inputTokens || 0;
+  const outputTokens = sessionStats?.outputTokens || 0;
+  const cachedTokens = sessionStats?.cachedTokens || 0;
   const contextPercent = Math.min((usedTokens / contextLimit) * 100, 100);
+
+  // Calculate input/output percentages for visualization
+  const inputPercent = usedTokens > 0 ? (inputTokens / usedTokens) * 100 : 0;
+  const outputPercent = usedTokens > 0 ? (outputTokens / usedTokens) * 100 : 0;
 
   // Ring calculations
   const radius = 7;
@@ -1598,11 +1605,11 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                       </div>
 
                       {/* Stats */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2">
                         <div className="flex flex-col gap-1 p-2 rounded-lg bg-muted/40 border border-border/20">
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground/70 tracking-wider">Used</span>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground/70 tracking-wider">Cached</span>
                           <span className="text-sm font-bold font-mono text-foreground flex items-center gap-1">
-                            {usedTokens.toLocaleString()}
+                            {cachedTokens.toLocaleString()}
                             <span className="text-[10px] font-normal text-muted-foreground">tok</span>
                           </span>
                         </div>
@@ -1611,6 +1618,44 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                           <span className="text-sm font-bold font-mono text-foreground flex items-center gap-1">
                             {(contextLimit - usedTokens).toLocaleString()}
                             <span className="text-[10px] font-normal text-muted-foreground">tok</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Input/Output Visual Bar */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-[10px] uppercase tracking-widest font-bold text-muted-foreground/80">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+                            Input
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            Output
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                          </span>
+                        </div>
+                        <div className="h-2.5 w-full bg-muted/40 rounded-full overflow-hidden flex ring-1 ring-black/5 dark:ring-white/5">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${inputPercent}%` }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                            className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500"
+                          />
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${outputPercent}%` }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-500"
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs font-semibold text-foreground">
+                          <span className="flex items-center gap-1">
+                            {inputTokens >= 1000 ? `${(inputTokens / 1000).toFixed(1)}k` : inputTokens}
+                            <span className="text-[10px] text-muted-foreground font-normal">tokens</span>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            {outputTokens >= 1000 ? `${(outputTokens / 1000).toFixed(1)}k` : outputTokens}
+                            <span className="text-[10px] text-muted-foreground font-normal">tokens</span>
                           </span>
                         </div>
                       </div>
