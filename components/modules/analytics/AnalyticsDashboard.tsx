@@ -138,9 +138,9 @@ export function AnalyticsDashboard() {
     return totalB - totalA;
   })[0]?.[0] || 'gemini-3-pro-preview';
   const { pricing } = getModelInfo(dominantModel);
-  // Show average request size relative to context window (more meaningful than cumulative)
-  const avgTokensPerRequest = current.count > 0 ? current.totalTokens / current.count : 0;
-  const contextUsagePercent = Math.min((avgTokensPerRequest / pricing.contextWindow) * 100, 100);
+  // Show cumulative context usage (matching TokenUsageDisplay behavior)
+  const cumulativeTokens = current.totalTokens;
+  const contextUsagePercent = Math.min((cumulativeTokens / pricing.contextWindow) * 100, 100);
   const cacheHitRate = current.inputTokens > 0 ? (current.cachedTokens / current.inputTokens) * 100 : 0;
   const avgCostPerRequest = current.count > 0 ? current.cost / current.count : 0;
   const costPer1k = current.totalTokens > 0 ? (current.cost / current.totalTokens) * 1000 : 0;
@@ -150,8 +150,8 @@ export function AnalyticsDashboard() {
   const rateLimit = quotaBuckets.find(bucket => /minute|second|rate/i.test(bucket.tokenType || ''));
   const dailyQuotaPercent = dailyQuota?.remainingFraction !== undefined ? dailyQuota.remainingFraction * 100 : null;
   const rateLimitPercent = rateLimit?.remainingFraction !== undefined ? rateLimit.remainingFraction * 100 : null;
-  // Only warn if avg request uses more than 50% of context window
-  const shouldWarnCompression = avgTokensPerRequest > pricing.contextWindow * 0.5;
+  // Only warn if cumulative context uses more than 90% of context window
+  const shouldWarnCompression = cumulativeTokens > pricing.contextWindow * 0.9;
   const timelinePeriod: 'today' | 'week' | 'month' = period === 'daily'
     ? 'today'
     : period === 'weekly'
@@ -456,8 +456,8 @@ export function AnalyticsDashboard() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-muted-foreground">Avg Request Size</h4>
-              <span className="text-[10px] text-muted-foreground">/{(pricing.contextWindow / 1024 / 1024).toFixed(0)}k</span>
+              <h4 className="text-xs font-semibold text-muted-foreground">Context Usage</h4>
+              <span className="text-[10px] text-muted-foreground">/{(pricing.contextWindow / 1000 / 1000).toFixed(0)}M</span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
               <div
@@ -467,7 +467,7 @@ export function AnalyticsDashboard() {
             </div>
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
               <span className="flex items-center gap-1"><Gauge size={12} /> {contextUsagePercent.toFixed(1)}% of context</span>
-              <span>{formatCompactTokens(avgTokensPerRequest)} avg</span>
+              <span>{formatCompactTokens(cumulativeTokens)} total</span>
             </div>
           </div>
 
@@ -508,7 +508,7 @@ export function AnalyticsDashboard() {
         {shouldWarnCompression && (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
             <div className="flex items-center gap-2 font-medium">
-              <AlertTriangle size={14} /> High Context Usage: Average request uses {contextUsagePercent.toFixed(0)}% of context window. Consider using /compress or shorter prompts.
+              <AlertTriangle size={14} /> High Context Usage: Cumulative context uses {contextUsagePercent.toFixed(0)}% of context window. Consider using /compress or starting a new session.
             </div>
           </div>
         )}

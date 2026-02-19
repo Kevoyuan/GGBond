@@ -316,7 +316,10 @@ export default function Home() {
     for (let i = messages.length - 1; i >= 0; i--) {
       const stats = messages[i].stats;
       if (stats) {
-        return (stats.totalTokenCount || stats.total_tokens || 0);
+        // Robust calculation matching TokenUsageDisplay logic
+        const inputTokens = stats.inputTokenCount || stats.input_tokens || 0;
+        const outputTokens = stats.outputTokenCount || stats.output_tokens || 0;
+        return stats.totalTokenCount || stats.total_tokens || (inputTokens + outputTokens);
       }
     }
     return 0;
