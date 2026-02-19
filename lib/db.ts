@@ -136,6 +136,13 @@ db.exec(`
     FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE,
     UNIQUE(session_id, tag)
   );
+
+  -- App configuration (geminiignore, trusted folders, custom commands)
+  CREATE TABLE IF NOT EXISTS app_config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
 `);
 
 // Migration: Add workspace column if it doesn't exist

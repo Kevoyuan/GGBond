@@ -1,7 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import { X, Settings, Save, RotateCcw, Shield, Zap, Code2, Plus, Trash2, Tool } from 'lucide-react';
+import { X, Settings, Save, RotateCcw, Shield, Zap, Code2, Plus, Trash2, Wrench, Folder, FolderOpen, Terminal, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Select } from '@/components/ui/Select';
+
+// Types for config
+interface GeminiIgnoreConfig {
+    patterns: string[];
+    enabled: boolean;
+}
+
+interface TrustedFolder {
+    id: string;
+    path: string;
+    description?: string;
+    addedAt: number;
+}
+
+interface CustomCommand {
+    id: string;
+    name: string;
+    description: string;
+    command: string;
+    enabled: boolean;
+    createdAt: number;
+}
 
 // Types for presets and custom tools
 interface ModelPreset {
@@ -74,14 +96,23 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
   const [showAddTool, setShowAddTool] = useState(false);
   const [newTool, setNewTool] = useState<Partial<CustomTool>>({ name: '', description: '', enabled: true });
 
-  // Fetch models, presets, and custom tools from API
+  // Config state for new features
+  const [geminiIgnore, setGeminiIgnore] = useState<GeminiIgnoreConfig>({ patterns: [], enabled: true });
+  const [trustedFolders, setTrustedFolders] = useState<TrustedFolder[]>([]);
+  const [customCommands, setCustomCommands] = useState<CustomCommand[]>([]);
+  const [newIgnorePattern, setNewIgnorePattern] = useState('');
+  const [newFolderPath, setNewFolderPath] = useState('');
+  const [newCommand, setNewCommand] = useState<Partial<CustomCommand>>({ name: '', description: '', command: '', enabled: true });
+
+  // Fetch models, presets, custom tools, and config from API
   useEffect(() => {
     if (!open) return;
     Promise.all([
       fetch('/api/models').then(r => r.json()).catch(() => ({ known: [], current: 'gemini-2.5-flash' })),
       fetch('/api/presets').then(r => r.json()).catch(() => ({ presets: [] })),
       fetch('/api/custom-tools').then(r => r.json()).catch(() => ({ tools: [] })),
-    ]).then(([modelsData, presetsData, toolsData]) => {
+      fetch('/api/config').then(r => r.json()).catch(() => ({})),
+    ]).then(([modelsData, presetsData, toolsData, configData]) => {
       // Set models
       const modelList = (modelsData.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
         id: m.id,
@@ -99,6 +130,16 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
       // Set custom tools
       if (toolsData.tools) {
         setCustomTools(toolsData.tools);
+      }
+      // Set config (new features)
+      if (configData.geminiIgnore) {
+        setGeminiIgnore(configData.geminiIgnore);
+      }
+      if (configData.trustedFolders) {
+        setTrustedFolders(configData.trustedFolders);
+      }
+      if (configData.customCommands) {
+        setCustomCommands(configData.customCommands);
       }
     }).catch(() => {});
   }, [open]);
@@ -123,8 +164,25 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
     });
   }, [settings, open]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // Save chat settings
     onSave(localSettings);
+
+    // Save new config (geminiignore, trusted folders, custom commands)
+    try {
+      await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          geminiIgnore,
+          trustedFolders,
+          customCommands,
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to save config:', error);
+    }
+
     onClose();
   };
 
@@ -329,7 +387,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
                 {customTools.map(tool => (
                   <div key={tool.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
                     <div className="flex items-center gap-2">
-                      <Tool className="w-4 h-4 text-muted-foreground" />
+                      <Wrench className="w-4 h-4 text-muted-foreground" />
                       <div>
                         <div className="text-sm font-medium">{tool.name}</div>
                         <div className="text-xs text-muted-foreground">{tool.description}</div>
@@ -424,6 +482,267 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
               >
                 <Plus className="w-4 h-4" />
                 Add Custom Tool
+              </button>
+            )}
+          </div>
+
+          {/* GeminiIgnore */}
+          <div className="space-y-4 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Eye className="w-4 h-4" />
+                .geminiignore
+              </h3>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-muted-foreground">Enabled</label>
+                <input
+                  type="checkbox"
+                  checked={geminiIgnore.enabled}
+                  onChange={(e) => setGeminiIgnore({ ...geminiIgnore, enabled: e.target.checked })}
+                  className="h-4 w-4"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Configure patterns to ignore files during AI operations.
+            </p>
+
+            {geminiIgnore.patterns.length > 0 && (
+              <div className="space-y-2">
+                {geminiIgnore.patterns.map((pattern, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                    <code className="text-sm font-mono">{pattern}</code>
+                    <button
+                      onClick={() => {
+                        const newPatterns = geminiIgnore.patterns.filter((_, i) => i !== index);
+                        setGeminiIgnore({ ...geminiIgnore, patterns: newPatterns });
+                      }}
+                      className="p-1 hover:bg-destructive/20 rounded text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Add pattern (e.g., *.log, node_modules/, **/dist)"
+                value={newIgnorePattern}
+                onChange={(e) => setNewIgnorePattern(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newIgnorePattern.trim()) {
+                    setGeminiIgnore({
+                      ...geminiIgnore,
+                      patterns: [...geminiIgnore.patterns, newIgnorePattern.trim()]
+                    });
+                    setNewIgnorePattern('');
+                  }
+                }}
+                className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+              />
+              <button
+                onClick={() => {
+                  if (newIgnorePattern.trim()) {
+                    setGeminiIgnore({
+                      ...geminiIgnore,
+                      patterns: [...geminiIgnore.patterns, newIgnorePattern.trim()]
+                    });
+                    setNewIgnorePattern('');
+                  }
+                }}
+                className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Trusted Folders */}
+          <div className="space-y-4 pt-4 border-t">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <FolderOpen className="w-4 h-4" />
+              Trusted Folders
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Mark folders as trusted for file operations without confirmation.
+            </p>
+
+            {trustedFolders.length > 0 && (
+              <div className="space-y-2">
+                {trustedFolders.map((folder) => (
+                  <div key={folder.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                    <div className="flex items-center gap-2">
+                      <Folder className="w-4 h-4 text-muted-foreground" />
+                      <div>
+                        <div className="text-sm font-medium">{folder.path}</div>
+                        {folder.description && (
+                          <div className="text-xs text-muted-foreground">{folder.description}</div>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        await fetch(`/api/config/trusted-folders?id=${folder.id}`, { method: 'DELETE' });
+                        setTrustedFolders(trustedFolders.filter(f => f.id !== folder.id));
+                      }}
+                      className="p-1 hover:bg-destructive/20 rounded text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Folder path (e.g., /Users/me/projects)"
+                value={newFolderPath}
+                onChange={(e) => setNewFolderPath(e.target.value)}
+                className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+              />
+              <button
+                onClick={async () => {
+                  if (newFolderPath.trim()) {
+                    const res = await fetch('/api/config/trusted-folders', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ path: newFolderPath.trim(), description: '' }),
+                    });
+                    const data = await res.json();
+                    if (data.folder) {
+                      setTrustedFolders([...trustedFolders, data.folder]);
+                      setNewFolderPath('');
+                    }
+                  }
+                }}
+                className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Custom Commands */}
+          <div className="space-y-4 pt-4 border-t">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Terminal className="w-4 h-4" />
+              Custom Commands
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Define slash commands (e.g., /build, /test) to run custom actions.
+            </p>
+
+            {customCommands.length > 0 && (
+              <div className="space-y-2">
+                {customCommands.map((cmd) => (
+                  <div key={cmd.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="w-4 h-4 text-muted-foreground" />
+                      <div>
+                        <div className="text-sm font-medium">/{cmd.name}</div>
+                        <div className="text-xs text-muted-foreground">{cmd.description}</div>
+                        <code className="text-xs text-primary">{cmd.command}</code>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={cmd.enabled}
+                        onChange={async (e) => {
+                          const updated = customCommands.map(c =>
+                            c.id === cmd.id ? { ...c, enabled: e.target.checked } : c
+                          );
+                          setCustomCommands(updated);
+                          await fetch('/api/config/custom-commands', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: cmd.id, enabled: e.target.checked }),
+                          });
+                        }}
+                        className="h-4 w-4"
+                      />
+                      <button
+                        onClick={async () => {
+                          await fetch(`/api/config/custom-commands?id=${cmd.id}`, { method: 'DELETE' });
+                          setCustomCommands(customCommands.filter(c => c.id !== cmd.id));
+                        }}
+                        className="p-1 hover:bg-destructive/20 rounded text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {newCommand.name !== undefined && newCommand.name !== '' ? (
+              <div className="space-y-2 p-3 border rounded-md">
+                <div className="flex gap-2">
+                  <span className="text-sm font-medium self-center">/</span>
+                  <input
+                    type="text"
+                    placeholder="Command name"
+                    value={newCommand.name}
+                    onChange={(e) => setNewCommand({ ...newCommand, name: e.target.value })}
+                    className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Description"
+                  value={newCommand.description || ''}
+                  onChange={(e) => setNewCommand({ ...newCommand, description: e.target.value })}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                />
+                <input
+                  type="text"
+                  placeholder="Command to run (e.g., npm run build)"
+                  value={newCommand.command || ''}
+                  onChange={(e) => setNewCommand({ ...newCommand, command: e.target.value })}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm font-mono"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      if (!newCommand.name || !newCommand.command) return;
+                      const res = await fetch('/api/config/custom-commands', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newCommand),
+                      });
+                      const data = await res.json();
+                      if (data.command) {
+                        setCustomCommands([...customCommands, data.command]);
+                        setNewCommand({ name: '', description: '', command: '', enabled: true });
+                      }
+                    }}
+                    className="flex-1 px-3 py-1 bg-primary text-primary-foreground rounded text-sm"
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => {
+                      setNewCommand({ name: '', description: '', command: '', enabled: true });
+                    }}
+                    className="flex-1 px-3 py-1 border rounded text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setNewCommand({ name: '', description: '', command: '', enabled: true })}
+                className="flex items-center gap-2 text-sm text-primary hover:underline"
+              >
+                <Plus className="w-4 h-4" />
+                Add Custom Command
               </button>
             )}
           </div>
