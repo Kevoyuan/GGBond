@@ -80,6 +80,8 @@ interface SidebarProps {
   // External view control - allows parent to set active view
   sidebarView?: string | null;
   onSetSidebarView?: (view: string | null) => void;
+  showExtensionsDialog?: boolean;
+  onOpenExtensions?: () => void;
 }
 
 type SidebarView = 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory';
@@ -158,6 +160,8 @@ export const Sidebar = React.memo(function Sidebar({
   },
   sidebarView,
   onSetSidebarView,
+  showExtensionsDialog,
+  onOpenExtensions,
 }: SidebarProps) {
 
 
@@ -331,6 +335,18 @@ export const Sidebar = React.memo(function Sidebar({
                 )}
               >
                 <Boxes className="w-4 h-4" />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Extensions" side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={onOpenExtensions}
+                className={cn(
+                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                <Puzzle className="w-4 h-4" />
               </button>
             </Tooltip>
           </div>
