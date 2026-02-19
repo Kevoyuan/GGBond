@@ -1,87 +1,170 @@
+// Updated: 2026-02-19 based on Google AI official pricing
+// Note: Prices shown are for standard context (< 200k tokens for 3 series, < 128k for 1.5 series)
+// Long context requests have higher prices (2x for most models)
 
 export interface ModelPricing {
   input: number;
   output: number;
   cached: number;
   contextWindow: number;
+  maxOutputTokens: number;
 }
 
 export const PRICING_RATES: Record<string, ModelPricing> = {
-  // Gemini 3 Pro (Preview)
-  // Input: $2.00 / 1M (<= 200k context)
-  // Output: $12.00 / 1M
-  // Cached: $0.20 / 1M
-  // Context: 1M (Preview)
+  // ============ Gemini 3 Series (Latest Flagship) ============
+  // Input: $2.00 / 1M (<= 200k), $4.00 / 1M (> 200k)
+  // Output: $12.00 / 1M (<= 200k), $18.00 / 1M (> 200k)
+  // Context: 1M input, 65,536 output
+  'gemini-3-pro': {
+    input: 2.00 / 1_000_000,
+    output: 12.00 / 1_000_000,
+    cached: 0.50 / 1_000_000, // ~1/4 of input
+    contextWindow: 1_000_000,
+    maxOutputTokens: 65_536,
+  },
   'gemini-3-pro-preview': {
     input: 2.00 / 1_000_000,
     output: 12.00 / 1_000_000,
-    cached: 0.20 / 1_000_000,
-    contextWindow: 1_000_000, // 1M tokens (decimal, matching Google's advertised value)
+    cached: 0.50 / 1_000_000,
+    contextWindow: 1_000_000,
+    maxOutputTokens: 65_536,
   },
-  // Gemini 3 Flash (Preview)
   // Input: $0.50 / 1M
   // Output: $3.00 / 1M
-  // Context: 1M
+  // Context: 1M input, 65,536 output
+  'gemini-3-flash': {
+    input: 0.50 / 1_000_000,
+    output: 3.00 / 1_000_000,
+    cached: 0.125 / 1_000_000,
+    contextWindow: 1_000_000,
+    maxOutputTokens: 65_536,
+  },
   'gemini-3-flash-preview': {
     input: 0.50 / 1_000_000,
     output: 3.00 / 1_000_000,
-    cached: 0.05 / 1_000_000,
-    contextWindow: 1_000_000, // 1M tokens
+    cached: 0.125 / 1_000_000,
+    contextWindow: 1_000_000,
+    maxOutputTokens: 65_536,
   },
-  // Gemini 2.5 Pro
-  // Context: 2M
+
+  // ============ Gemini 2.5 Series (Current Production主力) ============
+  // Input: $1.25 / 1M (<= 200k), $2.50 / 1M (> 200k)
+  // Output: $10.00 / 1M (<= 200k), $15.00 / 1M (> 200k)
+  // Context: 2M input, 65,536 output
   'gemini-2.5-pro': {
-    input: 3.50 / 1_000_000, // Assuming similar to 1.5 Pro
-    output: 10.50 / 1_000_000,
-    cached: 0.875 / 1_000_000,
-    contextWindow: 2_000_000, // 2M tokens
+    input: 1.25 / 1_000_000,
+    output: 10.00 / 1_000_000,
+    cached: 0.3125 / 1_000_000, // ~1/4 of input
+    contextWindow: 2_000_000,
+    maxOutputTokens: 65_536,
   },
-  // Gemini 2.5 Flash
-  // Context: 1M
+  // Input: $0.30 / 1M
+  // Output: $2.50 / 1M
+  // Context: 1M input, 65,536 output
   'gemini-2.5-flash': {
-    input: 0.35 / 1_000_000, // Assuming similar to 1.5 Flash
-    output: 1.05 / 1_000_000,
-    cached: 0.0875 / 1_000_000,
-    contextWindow: 1_000_000, // 1M tokens
+    input: 0.30 / 1_000_000,
+    output: 2.50 / 1_000_000,
+    cached: 0.075 / 1_000_000,
+    contextWindow: 1_000_000,
+    maxOutputTokens: 65_536,
   },
-  // Gemini 2.5 Flash Lite
-  // Context: 1M
+  // Input: $0.10 / 1M
+  // Output: $0.40 / 1M
+  // Context: 1M input, 65,536 output
   'gemini-2.5-flash-lite': {
-    input: 0.15 / 1_000_000, // Assuming cheaper
-    output: 0.60 / 1_000_000,
-    cached: 0.04 / 1_000_000,
-    contextWindow: 1_000_000, // 1M tokens
+    input: 0.10 / 1_000_000,
+    output: 0.40 / 1_000_000,
+    cached: 0.025 / 1_000_000,
+    contextWindow: 1_000_000,
+    maxOutputTokens: 65_536,
+  },
+
+  // ============ Gemini 1.5 Series (Stable/Classic) ============
+  // Input: $1.25 / 1M (<= 128k), $2.50 / 1M (> 128k)
+  // Output: $5.00 / 1M (<= 128k), $10.00 / 1M (> 128k)
+  // Context: 2M input, 8,192 output
+  'gemini-1.5-pro': {
+    input: 1.25 / 1_000_000,
+    output: 5.00 / 1_000_000,
+    cached: 0.3125 / 1_000_000,
+    contextWindow: 2_000_000,
+    maxOutputTokens: 8_192,
+  },
+  // Input: $0.075 / 1M (<= 128k), $0.15 / 1M (> 128k)
+  // Output: $0.30 / 1M (<= 128k), $0.60 / 1M (> 128k)
+  // Context: 1M input, 8,192 output
+  'gemini-1.5-flash': {
+    input: 0.075 / 1_000_000,
+    output: 0.30 / 1_000_000,
+    cached: 0.01875 / 1_000_000,
+    contextWindow: 1_000_000,
+    maxOutputTokens: 8_192,
+  },
+  // Input: $0.0375 / 1M
+  // Output: $0.15 / 1M
+  // Context: 1M input, 8,192 output
+  'gemini-1.5-flash-8b': {
+    input: 0.0375 / 1_000_000,
+    output: 0.15 / 1_000_000,
+    cached: 0.009375 / 1_000_000,
+    contextWindow: 1_000_000,
+    maxOutputTokens: 8_192,
   },
 };
 
-export const DEFAULT_PRICING = PRICING_RATES['gemini-3-pro-preview'];
+// Default to Gemini 3 Pro (latest flagship)
+export const DEFAULT_PRICING = PRICING_RATES['gemini-3-pro'];
 
 export function getModelInfo(modelName?: string): { pricing: ModelPricing, name: string } {
   let pricing = DEFAULT_PRICING;
-  let name = 'gemini-3-pro-preview';
+  let name = 'gemini-3-pro';
 
   if (modelName) {
-    const normalizedModel = modelName.toLowerCase();
-    const resolvedModel = normalizedModel;
-    if (PRICING_RATES[resolvedModel]) {
-      pricing = PRICING_RATES[resolvedModel];
-      name = resolvedModel;
+    const normalizedModel = modelName.toLowerCase().replace(/ /g, '-');
+
+    // Exact match first
+    if (PRICING_RATES[normalizedModel]) {
+      pricing = PRICING_RATES[normalizedModel];
+      name = normalizedModel;
+      return { pricing, name };
     }
-    // Fallbacks
-    else if (normalizedModel.includes('flash') && normalizedModel.includes('3')) {
-      pricing = PRICING_RATES['gemini-3-flash-preview'];
-      name = 'gemini-3-flash-preview';
-    } else if (normalizedModel.includes('pro') && normalizedModel.includes('3')) {
-      pricing = PRICING_RATES['gemini-3-pro-preview'];
-      name = 'gemini-3-pro-preview';
+
+    // Fallback matching
+    if (normalizedModel.includes('3') && normalizedModel.includes('pro')) {
+      pricing = PRICING_RATES['gemini-3-pro'];
+      name = 'gemini-3-pro';
+    } else if (normalizedModel.includes('3') && normalizedModel.includes('flash')) {
+      pricing = PRICING_RATES['gemini-3-flash'];
+      name = 'gemini-3-flash';
     } else if (normalizedModel.includes('2.5') && normalizedModel.includes('pro')) {
       pricing = PRICING_RATES['gemini-2.5-pro'];
       name = 'gemini-2.5-pro';
+    } else if (normalizedModel.includes('2.5') && normalizedModel.includes('flash-lite')) {
+      pricing = PRICING_RATES['gemini-2.5-flash-lite'];
+      name = 'gemini-2.5-flash-lite';
     } else if (normalizedModel.includes('2.5') && normalizedModel.includes('flash')) {
       pricing = PRICING_RATES['gemini-2.5-flash'];
       name = 'gemini-2.5-flash';
+    } else if (normalizedModel.includes('1.5') && normalizedModel.includes('pro')) {
+      pricing = PRICING_RATES['gemini-1.5-pro'];
+      name = 'gemini-1.5-pro';
+    } else if (normalizedModel.includes('1.5') && normalizedModel.includes('flash-8b')) {
+      pricing = PRICING_RATES['gemini-1.5-flash-8b'];
+      name = 'gemini-1.5-flash-8b';
+    } else if (normalizedModel.includes('1.5') && normalizedModel.includes('flash')) {
+      pricing = PRICING_RATES['gemini-1.5-flash'];
+      name = 'gemini-1.5-flash';
+    } else if (normalizedModel.includes('flash')) {
+      // Generic flash fallback - use 2.5 flash
+      pricing = PRICING_RATES['gemini-2.5-flash'];
+      name = 'gemini-2.5-flash';
+    } else if (normalizedModel.includes('pro')) {
+      // Generic pro fallback - use 3 pro
+      pricing = PRICING_RATES['gemini-3-pro'];
+      name = 'gemini-3-pro';
     }
   }
+
   return { pricing, name };
 }
 

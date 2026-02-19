@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, memo, useCallback } from 'react';
 import { ModuleCard } from '../ModuleCard';
 import { Activity, Loader2, RefreshCw, TrendingUp, AlertTriangle, Wrench } from 'lucide-react';
 
@@ -21,20 +21,20 @@ interface TelemetryData {
     dataSource?: 'telemetry' | 'db_fallback';
 }
 
-export function PerformancePanel() {
+export const PerformancePanel = memo(function PerformancePanel() {
     const [data, setData] = useState<TelemetryData | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const fetchTelemetry = () => {
+    const fetchTelemetry = useCallback(() => {
         setLoading(true);
         fetch('/api/telemetry')
             .then(r => r.json())
             .then(setData)
             .catch(console.error)
             .finally(() => setLoading(false));
-    };
+    }, []);
 
-    useEffect(() => { fetchTelemetry(); }, []);
+    useEffect(() => { fetchTelemetry(); }, [fetchTelemetry]);
 
     if (loading) {
         return (
@@ -170,4 +170,4 @@ export function PerformancePanel() {
             </div>
         </ModuleCard>
     );
-}
+});
