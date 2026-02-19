@@ -131,9 +131,6 @@ export const ContentRenderer = React.memo(function ContentRenderer({
         p({ children, ...props }) {
             return <p {...props}>{injectSkillRefs(children, skillMetaMap)}</p>;
         },
-        li({ children, ...props }) {
-            return <li {...props}>{injectSkillRefs(children, skillMetaMap)}</li>;
-        },
         strong({ children, ...props }) {
             return <strong {...props} className="font-bold text-zinc-900 dark:text-white">{children}</strong>;
         },
@@ -160,6 +157,98 @@ export const ContentRenderer = React.memo(function ContentRenderer({
         },
         blockquote({ children, ...props }) {
             return <blockquote {...props} className="border-l-2 border-zinc-300 dark:border-zinc-600 pl-4 py-1 my-2 text-zinc-600 dark:text-zinc-300 italic">{children}</blockquote>;
+        },
+        ul({ children, ...props }) {
+            // Check if this is a task list (contains checkbox items)
+            const hasCheckboxes = React.Children.toArray(children).some((child) => {
+                if (React.isValidElement(child) && (child.props as { className?: string })?.className?.includes('task-list-item')) {
+                    return true;
+                }
+                // Also check for checkbox pattern in string representation
+                const childStr = String(child);
+                return childStr.includes('[ ]') || childStr.includes('[x]') || childStr.includes('[X]');
+            });
+
+            if (hasCheckboxes) {
+                return (
+                    <ul {...props} className="list-none space-y-2 my-4 pl-0">
+                        {children}
+                    </ul>
+                );
+            }
+
+            return <ul {...props} className="list-disc list-inside my-2 space-y-1">{children}</ul>;
+        },
+        ol({ children, ...props }) {
+            // Check if this looks like a plan with numbered steps
+            return <ol {...props} className="list-decimal list-inside my-2 space-y-2">{children}</ol>;
+        },
+        li({ children, ...props }) {
+            // Check if this is a task list item
+            const childStr = String(children);
+            const isCheckbox = /^\s*\[(\s|x|X|~|\/)\]/.test(childStr);
+            const checkboxMatch = childStr.match(/^\s*\[(\s|x|X|~|\/)\]\s*(.*)$/);
+
+            if (isCheckbox && checkboxMatch) {
+                const status = checkboxMatch[1].trim();
+                const content = checkboxMatch[2];
+                let statusClass = 'border-zinc-300 dark:border-zinc-600 text-muted-foreground';
+                let icon = null;
+
+                if (status === 'x' || status === 'X') {
+                    statusClass = 'bg-green-500/20 border-green-500 text-green-500';
+                    icon = (
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                    );
+                } else if (status === '/') {
+                    statusClass = 'bg-blue-500/20 border-blue-500 text-blue-500 animate-pulse';
+                    icon = (
+                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    );
+                } else if (status === '~') {
+                    statusClass = 'bg-amber-500/20 border-amber-500 text-amber-500';
+                    icon = (
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                    );
+                } else {
+                    statusClass = 'border-zinc-300 dark:border-zinc-600 text-muted-foreground';
+                }
+
+                return (
+                    <li {...props} className="flex items-start gap-3 group">
+                        <div className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center shrink-0 ${statusClass}`}>
+                            {icon}
+                        </div>
+                        <div className={`flex-1 pt-0.5 ${status === 'x' || status === 'X' ? 'line-through text-muted-foreground' : ''}`}>
+                            {content}
+                        </div>
+                    </li>
+                );
+            }
+
+            // Check if this looks like a plan step (numbered with period or similar pattern)
+            const isPlanStep = /^\d+[\.\)]\s+/.test(childStr);
+
+            if (isPlanStep) {
+                return (
+                    <li {...props} className="flex items-start gap-3 group">
+                        <div className="mt-0.5 w-6 h-6 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center shrink-0 text-xs font-bold">
+                            {childStr.match(/^(\d+)/)?.[1] || '?'}
+                        </div>
+                        <div className="flex-1 pt-0.5">
+                            {childStr.replace(/^\d+[\.\)]\s*/, '')}
+                        </div>
+                    </li>
+                );
+            }
+
+            return <li {...props}>{injectSkillRefs(children, skillMetaMap)}</li>;
         },
         code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '')
