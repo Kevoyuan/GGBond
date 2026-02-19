@@ -76,6 +76,10 @@ export async function POST(req: Request) {
       images
     } = await req.json();
 
+    // Debug: Log modelSettings to verify compression settings are received
+    console.log('[chat] Received modelSettings:', JSON.stringify(modelSettings));
+    console.log('[chat] compressionThreshold:', modelSettings?.compressionThreshold, 'tokenBudget:', modelSettings?.tokenBudget);
+
     if (!prompt && (!images || images.length === 0)) {
       return NextResponse.json({ error: 'Prompt or images are required' }, { status: 400 });
     }
@@ -501,6 +505,10 @@ export async function POST(req: Request) {
         const checkpointByCallId = new Map<string, string>();
         const toolStartTimeByCallId = new Map<string, number>();
         const pendingHookByKey = new Map<string, Array<{ id: string; startedAt: number }>>();
+
+        // Batch database operations for performance
+        const pendingToolStats: Array<{ tool_name: string; session_id: string | null; status: string; error_message: string | null; duration_ms: number; created_at: number }> = [];
+        const pendingFileOps: Array<{ file_path: string; operation: string; session_id: string | null; workspace: string | null; created_at: number }> = [];
         let hookCounter = 0;
         let isPollingConfirmationQueue = false;
         let confirmationQueuePollTimer: ReturnType<typeof setInterval> | null = null;
@@ -780,45 +788,31 @@ export async function POST(req: Request) {
                 error
               });
 
-              // Record tool stats for analytics
-              try {
-                const startTime = toolStartTimeByCallId.get(info.callId) || Date.now();
-                const durationMs = Date.now() - startTime;
-                db.prepare(`
-                  INSERT INTO tool_stats (tool_name, session_id, status, error_message, duration_ms, created_at)
-                  VALUES (?, ?, ?, ?, ?, ?)
-                `).run(
-                  toolName || 'unknown',
-                  sessionId || null,
-                  info.error ? 'failed' : 'success',
-                  info.error?.message || null,
-                  durationMs,
-                  Date.now()
-                );
-              } catch (err) {
-                console.error('[DB] Failed to record tool stats:', err);
-              }
+              // Collect tool stats for batch insert
+              const startTime = toolStartTimeByCallId.get(info.callId) || Date.now();
+              const durationMs = Date.now() - startTime;
+              pendingToolStats.push({
+                tool_name: toolName || 'unknown',
+                session_id: sessionId || null,
+                status: info.error ? 'failed' : 'success',
+                error_message: info.error?.message || null,
+                duration_ms: durationMs,
+                created_at: Date.now()
+              });
 
-              // Record file operations for heatmap
+              // Collect file operations for batch insert
               if (resultData && typeof resultData === 'object') {
                 const rd = resultData as Record<string, unknown>;
                 const filePath = (rd.file_path as string) || (rd.path as string);
                 const operation = (rd.operation as string) || (rd.tool as string) || toolName;
                 if (filePath && operation) {
-                  try {
-                    db.prepare(`
-                      INSERT INTO file_ops (file_path, operation, session_id, workspace, created_at)
-                      VALUES (?, ?, ?, ?, ?)
-                    `).run(
-                      filePath,
-                      operation,
-                      sessionId || null,
-                      workspace || null,
-                      Date.now()
-                    );
-                  } catch (err) {
-                    console.error('[DB] Failed to record file ops:', err);
-                  }
+                  pendingFileOps.push({
+                    file_path: filePath,
+                    operation: operation,
+                    session_id: sessionId || null,
+                    workspace: workspace || null,
+                    created_at: Date.now()
+                  });
                 }
               }
             }
@@ -878,6 +872,18 @@ export async function POST(req: Request) {
                 totalTokenCount,
                 durationMs
               };
+            }
+
+            else if (event.type === GeminiEventType.ChatCompressed) {
+              // Context was compressed, notify UI to refresh
+              const compressionInfo = event.value as { originalTokenCount?: number; newTokenCount?: number; compressionRate?: number };
+              console.log('[chat] Context compressed:', compressionInfo);
+              safeEnqueue({
+                type: 'context_compressed',
+                originalTokenCount: compressionInfo?.originalTokenCount,
+                newTokenCount: compressionInfo?.newTokenCount,
+                compressionRate: compressionInfo?.compressionRate
+              });
             }
 
             else if (event.type === GeminiEventType.Error) {
@@ -1012,6 +1018,39 @@ export async function POST(req: Request) {
           }
         } finally {
           persistUndoSnapshot();
+
+          // Batch insert collected tool stats and file operations
+          if (pendingToolStats.length > 0 || pendingFileOps.length > 0) {
+            try {
+              const batchInsertTx = db.transaction(() => {
+                // Batch insert tool stats
+                if (pendingToolStats.length > 0) {
+                  const toolStmt = db.prepare(`
+                    INSERT INTO tool_stats (tool_name, session_id, status, error_message, duration_ms, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                  `);
+                  for (const stat of pendingToolStats) {
+                    toolStmt.run(stat.tool_name, stat.session_id, stat.status, stat.error_message, stat.duration_ms, stat.created_at);
+                  }
+                }
+
+                // Batch insert file operations
+                if (pendingFileOps.length > 0) {
+                  const fileStmt = db.prepare(`
+                    INSERT INTO file_ops (file_path, operation, session_id, workspace, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                  `);
+                  for (const op of pendingFileOps) {
+                    fileStmt.run(op.file_path, op.operation, op.session_id, op.workspace, op.created_at);
+                  }
+                }
+              });
+              batchInsertTx();
+            } catch (err) {
+              console.error('[DB] Failed to batch insert stats:', err);
+            }
+          }
+
           cleanupStream();
           if (!streamClosed) {
             streamClosed = true;
