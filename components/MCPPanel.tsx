@@ -13,11 +13,10 @@ import {
     Plus,
     X,
     Loader2,
-    Sparkles
+    Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './sidebar/PanelHeader';
-import { ExtensionsGalleryDialog } from './ExtensionsGalleryDialog';
 
 type ServerStatus = 'connected' | 'connecting' | 'disconnected' | 'disconnecting' | 'error';
 
@@ -82,7 +81,7 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
     const [urlInput, setUrlInput] = useState('');
     const [description, setDescription] = useState('');
     const [isSavingServer, setIsSavingServer] = useState(false);
-    const [showGallery, setShowGallery] = useState(false);
+    const [deletingServer, setDeletingServer] = useState<string | null>(null);
 
     const orderedServers = useMemo(
         () => Object.entries(servers).sort((a, b) => a[0].localeCompare(b[0])),
@@ -221,6 +220,33 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
         }
     };
 
+    const handleDelete = async (name: string) => {
+        if (!confirm(`Are you sure you want to delete "${name}"?`)) {
+            return;
+        }
+
+        setDeletingServer(name);
+        setError(null);
+        try {
+            const res = await fetch('/api/mcp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'delete', name }),
+            });
+
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || `Failed to delete "${name}"`);
+            }
+
+            await loadServers();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to delete MCP server');
+        } finally {
+            setDeletingServer(null);
+        }
+    };
+
     return (
         <div className={cn("flex flex-col h-full bg-card/30", className)}>
             <PanelHeader
@@ -229,13 +255,6 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
                 badge={discoveryState === 'started' ? 'Scanning' : undefined}
                 actions={
                     <div className="flex items-center gap-1">
-                        <button
-                            onClick={() => setShowGallery(true)}
-                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                            title="Browse Extensions Gallery"
-                        >
-                            <Sparkles className="w-3.5 h-3.5" />
-                        </button>
                         <button
                             onClick={loadServers}
                             disabled={isLoading}
@@ -384,6 +403,16 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
                                     <ExternalLink className="w-3 h-3" />
                                     Details
                                 </button>
+                                <button
+                                    onClick={() => handleDelete(name)}
+                                    disabled={deletingServer === name}
+                                    className="py-1.5 px-2 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[11px] font-bold uppercase tracking-wider transition-colors border border-red-500/20 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                    title="Delete server"
+                                >
+                                    {deletingServer === name
+                                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                                        : <Trash2 className="w-3 h-3" />}
+                                </button>
                             </div>
                         </div>
                     );
@@ -440,12 +469,6 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
                     </div>
                 </div>
             )}
-
-            <ExtensionsGalleryDialog
-                open={showGallery}
-                onClose={() => setShowGallery(false)}
-                onInstalled={loadServers}
-            />
         </div>
     );
 });

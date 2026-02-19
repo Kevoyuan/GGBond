@@ -3,12 +3,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { CoreService } from '@/lib/core-service';
 import { getGeminiEnv } from '@/lib/gemini-utils';
+import { getMcpSecurityConfig } from '@/lib/config-service';
 
 type JsonRecord = Record<string, unknown>;
 
 type McpAction =
   | { action: 'restart'; name?: string }
   | { action: 'add'; name: string; config: JsonRecord }
+  | { action: 'delete'; name: string }
   | { action: 'details'; name: string }
   | { action: 'installExtension'; name: string; repoUrl: string };
 
@@ -83,6 +85,57 @@ const normalizeServerConfig = (rawConfig: JsonRecord): JsonRecord => {
   return config;
 };
 
+const compileRegexList = (patterns: string[]) => {
+  return patterns
+    .map((pattern) => {
+      try {
+        return new RegExp(pattern);
+      } catch (error) {
+        console.warn('[mcp] Invalid MCP security regex pattern:', pattern, error);
+        return null;
+      }
+    })
+    .filter((item): item is RegExp => Boolean(item));
+};
+
+const isMcpAddAllowed = async (name: string, config: JsonRecord) => {
+  const security = await getMcpSecurityConfig();
+  if (!security.enabled) return { allowed: true };
+
+  if (security.allowedServerNames.length > 0 && !security.allowedServerNames.includes(name)) {
+    return { allowed: false, reason: `MCP server "${name}" is not in allowlist` };
+  }
+
+  const commandString = `${typeof config.command === 'string' ? config.command : ''} ${Array.isArray(config.args) ? config.args.join(' ') : ''}`.trim();
+  const blockedRegex = compileRegexList(security.blockedCommandRegex);
+  if (commandString && blockedRegex.some((regex) => regex.test(commandString))) {
+    return { allowed: false, reason: 'MCP command matched blocked pattern' };
+  }
+
+  const allowedRegex = compileRegexList(security.allowedCommandRegex);
+  if (allowedRegex.length > 0 && commandString && !allowedRegex.some((regex) => regex.test(commandString))) {
+    return { allowed: false, reason: 'MCP command does not match any allowed pattern' };
+  }
+
+  return { allowed: true };
+};
+
+const isExtensionInstallAllowed = async (name: string, repoUrl: string) => {
+  const security = await getMcpSecurityConfig();
+  if (!security.enabled) return { allowed: true };
+
+  if (security.allowedServerNames.length > 0 && !security.allowedServerNames.includes(name)) {
+    return { allowed: false, reason: `Extension "${name}" is not in allowlist` };
+  }
+
+  const allowedRepoRegex = compileRegexList(security.allowedRepoPatterns);
+  if (allowedRepoRegex.length > 0 && !allowedRepoRegex.some((regex) => regex.test(repoUrl))) {
+    return { allowed: false, reason: 'Repository URL is not allowlisted' };
+  }
+
+  return { allowed: true };
+};
+
 const mapSettingsServers = (settings: JsonRecord) => {
   const settingsServers = ((settings.mcpServers ?? {}) as Record<string, JsonRecord>) || {};
   const mapped: Record<string, JsonRecord> = {};
@@ -128,6 +181,10 @@ export async function POST(req: Request) {
     if (body.action === 'restart') {
       try {
         const name = (body.name || '').trim();
+        const security = await getMcpSecurityConfig();
+        if (security.enabled && name && security.allowedServerNames.length > 0 && !security.allowedServerNames.includes(name)) {
+          return NextResponse.json({ error: `MCP server "${name}" is not in allowlist` }, { status: 403 });
+        }
 
         // Read settings to get server config
         const settings = await readSettings();
@@ -192,6 +249,10 @@ export async function POST(req: Request) {
           error: 'Server config must include command (stdio) or url/httpUrl (network transport)',
         }, { status: 400 });
       }
+      const allowResult = await isMcpAddAllowed(name, normalizedConfig);
+      if (!allowResult.allowed) {
+        return NextResponse.json({ error: allowResult.reason || 'MCP server blocked by allowlist' }, { status: 403 });
+      }
 
       const settings = await readSettings();
       const existingServers = ((settings.mcpServers as Record<string, JsonRecord> | undefined) ?? {});
@@ -211,6 +272,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
+    if (body.action === 'delete') {
+      const name = (body.name || '').trim();
+      if (!name) {
+        return NextResponse.json({ error: 'Server name is required' }, { status: 400 });
+      }
+
+      const settings = await readSettings();
+      const mcpServers = ((settings.mcpServers as Record<string, JsonRecord> | undefined) ?? {});
+
+      if (!mcpServers[name]) {
+        return NextResponse.json({ error: `MCP server "${name}" not found in settings` }, { status: 404 });
+      }
+
+      // Remove the server from settings
+      const { [name]: removed, ...remainingServers } = mcpServers;
+      settings.mcpServers = remainingServers;
+      await writeSettings(settings);
+
+      // Try to stop the server in runtime if possible
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const coreAny = core as any;
+        if (typeof coreAny.removeMcpServer === 'function') {
+          await coreAny.removeMcpServer(name);
+        }
+      } catch (error) {
+        console.warn(`[mcp] Runtime remove skipped for "${name}":`, error);
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
     if (body.action === 'installExtension') {
       const name = (body.name || '').trim();
       const repoUrl = (body.repoUrl || '').trim();
@@ -221,6 +314,10 @@ export async function POST(req: Request) {
 
       if (!repoUrl) {
         return NextResponse.json({ error: 'Repository URL is required' }, { status: 400 });
+      }
+      const allowResult = await isExtensionInstallAllowed(name, repoUrl);
+      if (!allowResult.allowed) {
+        return NextResponse.json({ error: allowResult.reason || 'Extension blocked by allowlist' }, { status: 403 });
       }
 
       try {
