@@ -81,14 +81,186 @@ interface TimelineHoverState {
   rows: Array<{ model: string; tokens: number; color: string }>;
 }
 
+const TokenTimelineChart = memo(function TokenTimelineChart({
+  buckets,
+  period,
+  timelineModeLabel,
+  maxToken,
+  chartModels,
+  primaryModels,
+  modelColorMap,
+  formatCompactTokens,
+  chartHeightPx = 140,
+  shouldRenderDenseLabels
+}: {
+  buckets: any[];
+  period: string;
+  timelineModeLabel: string;
+  maxToken: number;
+  chartModels: string[];
+  primaryModels: string[];
+  modelColorMap: Map<string, string>;
+  formatCompactTokens: (v: number) => string;
+  chartHeightPx?: number;
+  shouldRenderDenseLabels: boolean;
+}) {
+  const [hover, setHover] = useState<TimelineHoverState | null>(null);
+  const chartRef = useRef<HTMLDivElement | null>(null);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!chartRef.current) return;
+    const rect = chartRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = Math.max(e.clientY - rect.top, 0);
+
+    // Find closest bucket based on cursor X
+    // Simple approximation: check which column element includes x
+    // But since we are rendering flex columns, we can just rely on the column's onMouseMove 
+    // However, to avoid individual listeners, we can do global calculation or keep the per-column
+    // logic but ensure it doesn't cause parent re-renders suitable for the chart only.
+    // The current implementation uses per-column onMouseMove, which is fine if THIS component is isolated.
+  }, []);
+
+  if (buckets.length === 0) return null;
+
+  return (
+    <div className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/30 p-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Token Timeline (Stacked by Model)</h4>
+        <span className="text-[10px] px-2 py-1 rounded-full border border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-800/50 text-zinc-500 backdrop-blur-sm">
+          {timelineModeLabel}
+        </span>
+      </div>
+
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-44 flex flex-col justify-between">
+          {[0, 1, 2, 3].map((line) => (
+            <div key={line} className="border-t border-dashed border-zinc-200 dark:border-zinc-800" />
+          ))}
+        </div>
+        <div className="pointer-events-none absolute right-0 top-0 text-[10px] text-zinc-400 bg-white/80 dark:bg-zinc-900/80 px-1 rounded z-10 backdrop-blur-sm">
+          {formatCompactTokens(maxToken)}
+        </div>
+
+        <div
+          ref={chartRef}
+          className="relative flex h-52 items-end gap-1 overflow-x-auto pb-1 scrollbar-none"
+          onMouseLeave={() => setHover(null)}
+        >
+          {buckets.map((bucket, index) => {
+            const othersValue = Object.entries(bucket.models || {}).reduce((sum: number, [model, value]: [string, any]) => {
+              if (primaryModels.includes(model)) return sum;
+              return sum + (value as number);
+            }, 0);
+
+            const normalizedModels = chartModels
+              .map((model) => ({
+                model,
+                tokens: model === 'Others' ? othersValue : (bucket.models?.[model] || 0),
+              }))
+              .filter((item) => item.tokens > 0);
+
+            const columnHeightPx = bucket.totalTokens > 0
+              ? Math.max((bucket.totalTokens / maxToken) * chartHeightPx, 6)
+              : 2;
+
+            const tooltipRows = normalizedModels
+              .sort((a, b) => b.tokens - a.tokens)
+              .map((item) => ({
+                model: item.model,
+                tokens: item.tokens,
+                color: modelColorMap.get(item.model) || '#6b7280',
+              }));
+
+            const showLabel = period === 'daily' // is today
+              ? index % 2 === 0
+              : shouldRenderDenseLabels
+                ? (index === 0 || index === buckets.length - 1 || index % 3 === 0)
+                : true;
+
+            return (
+              <div key={bucket.key} className="group relative flex min-w-[18px] flex-1 flex-col items-center justify-end gap-2">
+                <div
+                  className="relative flex w-full max-w-[32px] flex-col justify-end overflow-hidden rounded-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 transition-all duration-200 hover:ring-2 hover:ring-primary/50 cursor-crosshair hover:scale-[1.02]"
+                  style={{ height: `${columnHeightPx}px` }}
+                  onMouseMove={(event) => {
+                    if (!chartRef.current) return;
+                    const rect = chartRef.current.getBoundingClientRect();
+                    setHover({
+                      x: event.clientX - rect.left,
+                      y: Math.max(event.clientY - rect.top, 0),
+                      label: bucket.label,
+                      total: bucket.totalTokens,
+                      rows: tooltipRows,
+                    });
+                  }}
+                >
+                  <div className="absolute inset-0 bg-zinc-200/40 dark:bg-zinc-800/40" />
+                  {normalizedModels.map((item) => {
+                    const pct = bucket.totalTokens > 0 ? (item.tokens / bucket.totalTokens) * 100 : 0;
+                    return (
+                      <div
+                        key={`${bucket.key}-${item.model}`}
+                        style={{
+                          height: `${Math.max(pct, 2)}%`,
+                          backgroundColor: modelColorMap.get(item.model),
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                {showLabel ? (
+                  <span className="text-[9px] text-zinc-400 font-mono tracking-tight">{bucket.label}</span>
+                ) : (
+                  <span className="h-3 text-[9px] text-transparent">.</span>
+                )}
+              </div>
+            );
+          })}
+
+          {hover && (
+            <div
+              className="pointer-events-none absolute z-50 w-56 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 bg-white/95 dark:bg-zinc-900/95 p-3 shadow-xl backdrop-blur-md"
+              style={{
+                left: `${hover.x}px`,
+                top: `${Math.max(hover.y - 10, 8)}px`,
+                transform: 'translate(-50%, -100%)',
+              }}
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{hover.label}</span>
+                <span className="text-[10px] font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-600 dark:text-zinc-400">
+                  {formatCompactTokens(hover.total)}
+                </span>
+              </div>
+              <div className="space-y-1">
+                {hover.rows.slice(0, 6).map((row) => (
+                  <div key={row.model} className="flex items-center justify-between text-[10px]">
+                    <span className="inline-flex min-w-0 items-center gap-1.5 text-zinc-500">
+                      <span className="h-2 w-2 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: row.color }} />
+                      <span className="truncate max-w-[100px]">{row.model}</span>
+                    </span>
+                    <span className="tabular-nums font-mono text-zinc-700 dark:text-zinc-300">{formatCompactTokens(row.tokens)}</span>
+                  </div>
+                ))}
+                {hover.rows.length > 6 && (
+                  <div className="text-[10px] text-zinc-400 italic pl-3.5">+{hover.rows.length - 6} more models</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
+
 export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryResponse | null>(null);
   const [quota, setQuota] = useState<QuotaResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
-  const [timelineHover, setTimelineHover] = useState<TimelineHoverState | null>(null);
-  const timelineChartRef = useRef<HTMLDivElement | null>(null);
 
   // Stable fetch function
   const fetchData = useCallback(() => {
@@ -114,8 +286,9 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
   if (loading) {
     return (
       <ModuleCard title="Analytics" description="Usage & Cost Tracking" icon={BarChart}>
-        <div className="flex items-center justify-center py-12">
-          <Loader2 size={20} className="animate-spin text-muted-foreground" />
+        <div className="flex flex-col items-center justify-center py-20 opacity-50 space-y-3">
+          <Loader2 size={24} className="animate-spin text-blue-500" />
+          <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">Loading Data...</span>
         </div>
       </ModuleCard>
     );
@@ -192,217 +365,89 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
   const timelineGrandTotal = useMemo(() => Object.values(modelTotals).reduce((sum, value) => sum + value, 0), [modelTotals]);
   const topModelsTotal = useMemo(() => primaryModels.reduce((sum, model) => sum + (modelTotals[model] || 0), 0), [primaryModels, modelTotals]);
   const othersTotal = useMemo(() => Math.max(timelineGrandTotal - topModelsTotal, 0), [timelineGrandTotal, topModelsTotal]);
-  const chartHeightPx = 140;
   const shouldRenderDenseLabels = timelinePeriod === 'month';
 
   return (
     <ModuleCard title="Analytics" description="Usage & Cost Tracking" icon={BarChart}>
-      <div className="space-y-5">
+      <div className="space-y-6">
         {/* Period Selector */}
-        <div className="flex gap-1">
+        <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg w-max relative">
           {(['daily', 'weekly', 'monthly'] as const).map(p => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
-              className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${p === period
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              className={`relative px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 z-10 ${p === period
+                ? 'text-white'
+                : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
                 }`}
             >
-              {p === 'daily' ? 'Today' : p === 'weekly' ? 'This Week' : 'This Month'}
+              <span className="relative z-10">{p === 'daily' ? 'Today' : p === 'weekly' ? 'This Week' : 'This Month'}</span>
+              {p === period && (
+                <div className="absolute inset-0 bg-zinc-900 dark:bg-zinc-600 rounded-md shadow-sm" />
+              )}
             </button>
           ))}
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-800">
-            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <DollarSign size={14} />
-              <span className="text-xs font-medium">Est. Cost</span>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="group p-4 bg-white/50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 hover:border-blue-500/20 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-300">
+            <div className="flex items-center gap-2 text-zinc-500 mb-2">
+              <div className="p-1.5 bg-green-500/10 rounded text-green-600 dark:text-green-400">
+                <DollarSign size={14} />
+              </div>
+              <span className="text-xs font-semibold uppercase tracking-wider">Est. Cost</span>
             </div>
-            <div className="text-xl font-bold text-foreground">${current.cost.toFixed(4)}</div>
-            <div className="text-[10px] text-muted-foreground">{current.count} requests</div>
+            <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 font-mono tracking-tight">${current.cost.toFixed(4)}</div>
+            <div className="text-xs text-zinc-500 mt-1">{current.count} requests</div>
           </div>
 
-          <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-800">
-            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <Zap size={14} />
-              <span className="text-xs font-medium">Tokens</span>
+          <div className="group p-4 bg-white/50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 hover:border-purple-500/20 hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-300">
+            <div className="flex items-center gap-2 text-zinc-500 mb-2">
+              <div className="p-1.5 bg-purple-500/10 rounded text-purple-600 dark:text-purple-400">
+                <Zap size={14} />
+              </div>
+              <span className="text-xs font-semibold uppercase tracking-wider">Tokens</span>
             </div>
-            <div className="text-xl font-bold text-foreground">
-              {current.totalTokens >= 1_000_000
-                ? `${(current.totalTokens / 1_000_000).toFixed(1)}M`
-                : current.totalTokens >= 1_000
-                  ? `${(current.totalTokens / 1_000).toFixed(0)}k`
-                  : current.totalTokens}
+            <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 font-mono tracking-tight">
+              {formatCompactTokens(current.totalTokens)}
             </div>
-            <div className="text-[10px] text-muted-foreground">
-              In: {(current.inputTokens / 1000).toFixed(0)}k / Out: {(current.outputTokens / 1000).toFixed(0)}k
+            <div className="text-xs text-zinc-500 mt-1 flex gap-2">
+              <span><span className="text-blue-500">In:</span> {(current.inputTokens / 1000).toFixed(0)}k</span>
+              <span><span className="text-green-500">Out:</span> {(current.outputTokens / 1000).toFixed(0)}k</span>
             </div>
           </div>
         </div>
 
+        {/* Timeline Chart Component */}
         {timelineBuckets.length > 0 && (
-          <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-muted-foreground">Token Timeline (Stacked by Model)</h4>
-              <span className="text-[10px] px-2 py-1 rounded-full border border-border/50 bg-muted/40 text-muted-foreground">
-                Follows period · {timelineModeLabel}
-              </span>
-            </div>
-
-            {timelineGrandTotal === 0 ? (
-              <div className="h-40 rounded-lg border border-dashed border-border/60 bg-background/30 flex items-center justify-center text-xs text-muted-foreground">
-                No token usage in selected period
-              </div>
-            ) : (
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-44 flex flex-col justify-between">
-                  {[0, 1, 2, 3].map((line) => (
-                    <div key={line} className="border-t border-dashed border-border/40" />
-                  ))}
-                </div>
-                <div className="pointer-events-none absolute right-0 top-0 text-[10px] text-muted-foreground bg-background/70 px-1 rounded">
-                  {formatCompactTokens(maxTimelineToken)}
-                </div>
-                <div
-                  ref={timelineChartRef}
-                  className="relative flex h-52 items-end gap-1 overflow-x-auto pb-1"
-                  onMouseLeave={() => setTimelineHover(null)}
-                >
-                  {timelineBuckets.map((bucket, index) => {
-                    const othersValue = Object.entries(bucket.models || {}).reduce((sum, [model, value]) => {
-                      if (primaryModels.includes(model)) return sum;
-                      return sum + value;
-                    }, 0);
-
-                    const normalizedModels = chartModels
-                      .map((model) => ({
-                        model,
-                        tokens: model === 'Others' ? othersValue : (bucket.models?.[model] || 0),
-                      }))
-                      .filter((item) => item.tokens > 0);
-
-                    const columnHeightPx = bucket.totalTokens > 0
-                      ? Math.max((bucket.totalTokens / maxTimelineToken) * chartHeightPx, 6)
-                      : 2;
-                    const tooltipRows = normalizedModels
-                      .sort((a, b) => b.tokens - a.tokens)
-                      .map((item) => ({
-                        model: item.model,
-                        tokens: item.tokens,
-                        color: modelColorMap.get(item.model) || '#6b7280',
-                      }));
-                    const showLabel = timelinePeriod === 'today'
-                      ? index % 2 === 0
-                      : shouldRenderDenseLabels
-                        ? (index === 0 || index === timelineBuckets.length - 1 || index % 3 === 0)
-                        : true;
-
-                    return (
-                      <div key={bucket.key} className="group relative flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1">
-                        <div
-                          className="relative flex w-full max-w-[32px] flex-col justify-end overflow-hidden rounded-sm border border-border/40 bg-zinc-200/40 dark:bg-zinc-800/50"
-                          style={{ height: `${columnHeightPx}px` }}
-                          onMouseMove={(event) => {
-                            if (!timelineChartRef.current) return;
-                            const rect = timelineChartRef.current.getBoundingClientRect();
-                            setTimelineHover({
-                              x: event.clientX - rect.left,
-                              y: Math.max(event.clientY - rect.top, 0),
-                              label: bucket.label,
-                              total: bucket.totalTokens,
-                              rows: tooltipRows,
-                            });
-                          }}
-                        >
-                          {normalizedModels.map((item) => {
-                            const pct = bucket.totalTokens > 0 ? (item.tokens / bucket.totalTokens) * 100 : 0;
-                            return (
-                              <div
-                                key={`${bucket.key}-${item.model}`}
-                                style={{
-                                  height: `${Math.max(pct, 2)}%`,
-                                  backgroundColor: modelColorMap.get(item.model),
-                                }}
-                              />
-                            );
-                          })}
-                        </div>
-                        {showLabel ? (
-                          <span className="text-[10px] text-muted-foreground">{bucket.label}</span>
-                        ) : (
-                          <span className="h-3 text-[10px] text-transparent">.</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {timelineHover && (
-                    <div
-                      className="pointer-events-none absolute z-20 w-52 rounded-lg border border-border/60 bg-background/95 p-2 shadow-lg backdrop-blur"
-                      style={{
-                        left: `${timelineHover.x}px`,
-                        top: `${Math.max(timelineHover.y - 10, 8)}px`,
-                        transform: 'translate(-50%, -100%)',
-                      }}
-                    >
-                      <div className="mb-1 flex items-center justify-between text-[10px]">
-                        <span className="font-semibold text-foreground">{timelineHover.label}</span>
-                        <span className="text-muted-foreground">{formatCompactTokens(timelineHover.total)}</span>
-                      </div>
-                      <div className="space-y-1">
-                        {timelineHover.rows.slice(0, 6).map((row) => (
-                          <div key={row.model} className="flex items-center justify-between text-[10px]">
-                            <span className="inline-flex min-w-0 items-center gap-1 text-muted-foreground">
-                              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
-                              <span className="truncate">{row.model}</span>
-                            </span>
-                            <span className="tabular-nums text-foreground">{formatCompactTokens(row.tokens)}</span>
-                          </div>
-                        ))}
-                        {timelineHover.rows.length > 6 && (
-                          <div className="text-[10px] text-muted-foreground">+{timelineHover.rows.length - 6} more models</div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              {chartModels.map((model) => {
-                const value = model === 'Others'
-                  ? othersTotal
-                  : (modelTotals[model] || 0);
-                const ratio = timelineGrandTotal > 0 ? (value / timelineGrandTotal) * 100 : 0;
-                return (
-                  <div key={model} className="inline-flex items-center gap-1.5 rounded-md border border-border/50 px-2 py-1 text-[10px]">
-                    <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: modelColorMap.get(model) }} />
-                    <span className="font-medium text-foreground">{model}</span>
-                    <span className="text-muted-foreground">{formatCompactTokens(value)} ({ratio.toFixed(1)}%)</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <TokenTimelineChart
+            buckets={timelineBuckets}
+            period={period}
+            timelineModeLabel={timelineModeLabel}
+            maxToken={maxTimelineToken}
+            chartModels={chartModels}
+            primaryModels={primaryModels}
+            modelColorMap={modelColorMap}
+            formatCompactTokens={formatCompactTokens}
+            shouldRenderDenseLabels={shouldRenderDenseLabels}
+          />
         )}
 
         {/* Realtime token flow */}
         {tokenSeries.length > 0 && (
-          <div className="space-y-2 rounded-lg border border-border/60 bg-muted/30 p-3">
+          <div className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/30 p-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-muted-foreground">Realtime Token Flow</h4>
-              <span className="text-[10px] text-muted-foreground">last {tokenSeries.length} responses</span>
+              <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Realtime Token Flow</h4>
+              <span className="text-[10px] text-zinc-400 font-mono">live {tokenSeries.length} reqs</span>
             </div>
             <div className="flex h-16 items-end gap-1.5">
               {tokenSeries.map((point, index) => (
-                <div key={index} className="group relative flex-1">
+                <div key={index} className="group relative flex-1 h-full flex flex-col justify-end">
                   <div
-                    className="w-full rounded-sm bg-primary/80 transition-colors duration-200 group-hover:bg-primary"
-                    style={{ height: `${Math.max((point.total / maxSeriesToken) * 100, 6)}%` }}
-                    title={`Total: ${point.total.toLocaleString()} | In: ${point.input.toLocaleString()} | Out: ${point.output.toLocaleString()}`}
+                    className="w-full rounded-sm bg-blue-500/80 hover:bg-blue-500 transition-all duration-200 shadow-[0_0_10px_rgba(59,130,246,0.2)]"
+                    style={{ height: `${Math.max((point.total / maxSeriesToken) * 100, 10)}%` }}
+                    title={`Total: ${point.total.toLocaleString()}`}
                   />
                 </div>
               ))}
@@ -413,114 +458,109 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
         {/* Breakdown Bar */}
         {current.totalTokens > 0 && (
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-muted-foreground">Token Distribution</h4>
-            <div className="flex h-3 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-              <div
-                className="bg-blue-500 transition-colors duration-300"
-                style={{ width: `${(current.inputTokens / current.totalTokens) * 100}%` }}
-                title={`Input: ${current.inputTokens.toLocaleString()}`}
-              />
-              <div
-                className="bg-emerald-500 transition-colors duration-300"
-                style={{ width: `${(current.outputTokens / current.totalTokens) * 100}%` }}
-                title={`Output: ${current.outputTokens.toLocaleString()}`}
-              />
+            <div className="flex justify-between items-center text-xs font-semibold text-zinc-500">
+              <span>Distribution</span>
+              <span className="font-mono text-zinc-400">{current.totalTokens.toLocaleString()} total</span>
+            </div>
+            <div className="flex h-4 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800 shadow-inner">
+              <div className="bg-blue-500 transition-all duration-500" style={{ width: `${(current.inputTokens / current.totalTokens) * 100}%` }} />
+              <div className="bg-emerald-500 transition-all duration-500" style={{ width: `${(current.outputTokens / current.totalTokens) * 100}%` }} />
               {current.cachedTokens > 0 && (
-                <div
-                  className="bg-amber-500 transition-colors duration-300"
-                  style={{ width: `${(current.cachedTokens / current.totalTokens) * 100}%` }}
-                  title={`Cached: ${current.cachedTokens.toLocaleString()}`}
-                />
+                <div className="bg-amber-500 transition-all duration-500" style={{ width: `${(current.cachedTokens / current.totalTokens) * 100}%` }} />
               )}
             </div>
-            <div className="flex gap-4 text-[10px] text-muted-foreground">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />Input</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />Output</span>
+            <div className="flex gap-4 text-[10px] text-zinc-500 font-medium justify-center pt-1">
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500 shadow-sm" />Input</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm" />Output</span>
               {current.cachedTokens > 0 && (
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" />Cached</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 shadow-sm" />Cached</span>
               )}
             </div>
           </div>
         )}
 
-        {/* Advanced token monitor */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+        {/* Advanced token monitor & Quota */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Context Usage */}
+          <div className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 p-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-muted-foreground">Context Usage</h4>
-              <span className="text-[10px] text-muted-foreground">/{(pricing.contextWindow / 1000 / 1000).toFixed(0)}M</span>
+              <div className="flex items-center gap-2">
+                <Gauge size={14} className="text-zinc-400" />
+                <h4 className="text-xs font-semibold text-zinc-500">Context Window</h4>
+              </div>
+              <span className="text-[10px] font-mono text-zinc-400">{(pricing.contextWindow / 1000).toFixed(0)}k</span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+            <div className="relative h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
               <div
-                className={`h-full transition-all duration-300 ${contextUsagePercent > 85 ? 'bg-red-500' : contextUsagePercent > 65 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                className={`h-full transition-all duration-500 rounded-full ${contextUsagePercent > 85 ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]' : contextUsagePercent > 65 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                 style={{ width: `${Math.max(contextUsagePercent, 1)}%` }}
               />
             </div>
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span className="flex items-center gap-1"><Gauge size={12} /> {contextUsagePercent.toFixed(1)}% of context</span>
-              <span>{formatCompactTokens(cumulativeTokens)} total</span>
+            <div className="text-[11px] text-zinc-500 text-right font-medium">
+              {contextUsagePercent.toFixed(1)}% used
             </div>
           </div>
 
-          <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
-            <h4 className="text-xs font-semibold text-muted-foreground">Cache Efficiency</h4>
-            <div className="text-xl font-bold">{cacheHitRate.toFixed(1)}%</div>
-            <div className="text-[11px] text-muted-foreground flex items-center gap-1">
-              <Database size={12} /> {current.cachedTokens.toLocaleString()} cached / {current.inputTokens.toLocaleString()} input
+          {/* Cache Efficiency */}
+          <div className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Database size={14} className="text-zinc-400" />
+              <h4 className="text-xs font-semibold text-zinc-500">Cache Hit Rate</h4>
             </div>
-          </div>
-        </div>
-
-        {/* Quota + cost estimator */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
-            <h4 className="text-xs font-semibold text-muted-foreground">Live Quota Signals</h4>
-            <div className="space-y-1.5 text-[11px]">
-              <div className="flex items-center justify-between"><span>Daily Quota</span><span>{dailyQuotaPercent === null ? 'N/A' : `${dailyQuotaPercent.toFixed(0)}%`}</span></div>
-              <div className="flex items-center justify-between"><span>Rate Limit</span><span>{rateLimitPercent === null ? 'N/A' : `${rateLimitPercent.toFixed(0)}%`}</span></div>
+            <div className="flex items-baseline gap-2">
+              <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{cacheHitRate.toFixed(1)}%</div>
+              <div className="text-[10px] text-zinc-400">efficiency</div>
+            </div>
+            <div className="text-[10px] text-zinc-400 truncate">
+              {formatCompactTokens(current.cachedTokens)} cached tokens
             </div>
           </div>
 
-          <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
-            <h4 className="text-xs font-semibold text-muted-foreground">Cost Estimator</h4>
-            <div className="flex items-end justify-between">
+          {/* Quota */}
+          <div className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+              <h4 className="text-xs font-semibold text-zinc-500">Live Quota</h4>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded border border-zinc-100 dark:border-zinc-800">
+                <div className="text-zinc-400 text-[9px] uppercase font-bold tracking-wider mb-0.5">Daily</div>
+                <div className="font-mono font-medium text-zinc-700 dark:text-zinc-300">{dailyQuotaPercent === null ? 'N/A' : `${dailyQuotaPercent.toFixed(0)}%`}</div>
+              </div>
+              <div className="p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded border border-zinc-100 dark:border-zinc-800">
+                <div className="text-zinc-400 text-[9px] uppercase font-bold tracking-wider mb-0.5">Rate</div>
+                <div className="font-mono font-medium text-zinc-700 dark:text-zinc-300">{rateLimitPercent === null ? 'N/A' : `${rateLimitPercent.toFixed(0)}%`}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Cost Est */}
+          <div className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <h4 className="text-xs font-semibold text-zinc-500">Unit Costs</h4>
+            </div>
+            <div className="flex justify-between items-end">
               <div>
-                <div className="text-lg font-bold">${avgCostPerRequest.toFixed(4)}</div>
-                <div className="text-[10px] text-muted-foreground">avg / request</div>
+                <div className="text-base font-bold text-zinc-900 dark:text-zinc-100">${avgCostPerRequest.toFixed(4)}</div>
+                <div className="text-[9px] text-zinc-400 uppercase tracking-wide font-medium">Avg / Req</div>
               </div>
               <div className="text-right">
-                <div className="text-base font-semibold">${costPer1k.toFixed(4)}</div>
-                <div className="text-[10px] text-muted-foreground">per 1k tokens</div>
+                <div className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">${costPer1k.toFixed(3)}</div>
+                <div className="text-[9px] text-zinc-400 uppercase tracking-wide font-medium">Per 1k</div>
               </div>
             </div>
           </div>
         </div>
 
         {shouldWarnCompression && (
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400 animate-in fade-in slide-in-from-bottom-2">
             <div className="flex items-center gap-2 font-medium">
-              <AlertTriangle size={14} /> High Context Usage: Cumulative context uses {contextUsagePercent.toFixed(0)}% of context window. Consider using /compress or starting a new session.
+              <AlertTriangle size={14} />
+              <span>High Context Usage ({contextUsagePercent.toFixed(0)}%). Consider using <span className="font-mono bg-amber-500/20 px-1 rounded">/compress</span> or resetting.</span>
             </div>
           </div>
         )}
 
-        {/* Total Stats */}
-        <div className="pt-3 border-t border-border grid grid-cols-3 gap-2 text-center">
-          <div>
-            <div className="text-lg font-bold text-foreground">${total.cost.toFixed(2)}</div>
-            <div className="text-[10px] text-muted-foreground">Total Cost</div>
-          </div>
-          <div>
-            <div className="text-lg font-bold text-foreground">
-              {total.totalTokens >= 1_000_000 ? `${(total.totalTokens / 1_000_000).toFixed(1)}M` : `${(total.totalTokens / 1_000).toFixed(0)}k`}
-            </div>
-            <div className="text-[10px] text-muted-foreground">Total Tokens</div>
-          </div>
-          <div>
-            <div className="text-lg font-bold text-foreground">{total.count}</div>
-            <div className="text-[10px] text-muted-foreground">Total Requests</div>
-          </div>
-        </div>
       </div>
     </ModuleCard>
   );
