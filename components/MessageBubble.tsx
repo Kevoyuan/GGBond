@@ -144,7 +144,7 @@ export const MessageBubble = React.memo(function MessageBubble({
           >
             {!isUser ? (
               <div className="flex flex-col gap-2">
-                {message.hooks && message.hooks.length > 0 && (
+                {settings?.ui?.advancedMode && message.hooks && message.hooks.length > 0 && (
                   <ExecutionStatusBlock hooks={message.hooks} defaultExpanded={!message.content && !message.thought} />
                 )}
                 {message.thought && <ThinkingBlock content={message.thought} />}

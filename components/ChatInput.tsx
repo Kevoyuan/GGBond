@@ -120,14 +120,12 @@ interface ModeOption {
   icon: React.ElementType;
   description: string;
   shortcut?: string;
-  color: string;
-  bgColor: string;
 }
 
 const MODE_OPTIONS: ModeOption[] = [
-  { value: 'code', label: 'Code', icon: Code2, description: 'Read/Write files & Execute commands', shortcut: 'Ctrl+1', color: 'text-blue-500', bgColor: 'bg-blue-500/10' },
-  { value: 'plan', label: 'Plan', icon: ClipboardList, description: 'Analyze & Plan, no execution', shortcut: 'Ctrl+2', color: 'text-amber-500', bgColor: 'bg-amber-500/10' },
-  { value: 'ask', label: 'Ask', icon: HelpCircle, description: 'Answer questions only', shortcut: 'Ctrl+3', color: 'text-emerald-500', bgColor: 'bg-emerald-500/10' },
+  { value: 'code', label: 'Code', icon: Code2, description: 'Read/Write files & Execute commands', shortcut: 'Ctrl+1' },
+  { value: 'plan', label: 'Plan', icon: ClipboardList, description: 'Analyze & Plan, no execution', shortcut: 'Ctrl+2' },
+  { value: 'ask', label: 'Ask', icon: HelpCircle, description: 'Answer questions only', shortcut: 'Ctrl+3' },
 ];
 
 
@@ -1457,17 +1455,13 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
 
               <div className="w-px h-4 bg-border mx-1" />
 
-              {/* Mode Selector - Enhanced with color coding */}
+              {/* Mode Selector */}
               <div className="relative" ref={modeMenuRef}>
                 <button
                   onClick={() => setShowModeMenu(!showModeMenu)}
                   className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 cursor-pointer z-20 relative border",
-                    mode === 'code'
-                      ? "bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500/20"
-                      : mode === 'plan'
-                        ? "bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20"
-                        : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20"
+                    "w-20 h-8 flex items-center justify-between gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 cursor-pointer z-20 relative border",
+                    "bg-background text-foreground border-border hover:bg-accent/50"
                   )}
                   title={`Mode: ${currentMode.label}`}
                 >
@@ -1495,16 +1489,15 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                             className={cn(
                               "w-full text-left px-3 py-2.5 text-xs flex items-center gap-3 transition-all relative",
                               isActive
-                                ? `${opt.bgColor} ${opt.color}`
+                                ? "bg-accent text-foreground"
                                 : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                             )}
                           >
-                            {!isActive && <div className={cn("absolute left-0 top-0 bottom-0 w-0.5 bg-transparent", isActive ? opt.color.replace('text-', 'bg-') : "")} />}
                             <div className={cn(
                               "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                              isActive ? opt.bgColor : "bg-muted"
+                              isActive ? "bg-accent-foreground/10" : "bg-muted"
                             )}>
-                              <opt.icon className={cn("w-4 h-4", isActive ? opt.color : "text-muted-foreground")} />
+                              <opt.icon className={cn("w-4 h-4", isActive ? "text-foreground" : "text-muted-foreground")} />
                             </div>
                             <div className="flex flex-col min-w-0 flex-1">
                               <span className="font-semibold">{opt.label}</span>
@@ -1519,7 +1512,7 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                               </span>
                             )}
                             {isActive && (
-                              <div className={cn("ml-auto w-2 h-2 rounded-full", opt.color.replace('text-', 'bg-'))} />
+                              <div className="ml-auto w-2 h-2 rounded-full bg-foreground/70" />
                             )}
                           </button>
                         );
