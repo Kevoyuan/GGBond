@@ -14,6 +14,7 @@ import { ConfirmationDetails } from '../components/ConfirmationDialog';
 import { QuestionPanel, Question } from '../components/QuestionPanel';
 import { HookEvent } from '../components/HooksPanel';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
+import { ExtensionsGalleryDialog } from '../components/ExtensionsGalleryDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 import { TerminalPanel } from '../components/TerminalPanel';
 import { UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
@@ -69,6 +70,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showUsageStats, setShowUsageStats] = useState(false);
+  const [showExtensionsDialog, setShowExtensionsDialog] = useState(false);
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
   const [mode, setMode] = useState<'code' | 'plan' | 'ask'>('code');
   const { theme, setTheme, resolvedTheme } = useTheme();
@@ -2688,6 +2690,7 @@ export default function Home() {
               setIsSidebarCollapsed(false);
             }
           }}
+          onOpenExtensions={() => setShowExtensionsDialog(true)}
         />
 
         {/* Chat Content */}
@@ -2763,6 +2766,11 @@ export default function Home() {
       <UsageStatsDialog
         open={showUsageStats}
         onClose={() => setShowUsageStats(false)}
+      />
+
+      <ExtensionsGalleryDialog
+        open={showExtensionsDialog}
+        onClose={() => setShowExtensionsDialog(false)}
       />
 
       <AddWorkspaceDialog
