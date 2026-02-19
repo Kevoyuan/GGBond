@@ -28,7 +28,7 @@ interface SettingsDialogProps {
   onSave: (settings: ChatSettings) => void;
 }
 
-const MODELS = [
+const FALLBACK_MODELS = [
   { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', icon: Code2 },
   { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', icon: Zap },
   { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro', icon: Code2 },
@@ -38,6 +38,27 @@ const MODELS = [
 
 export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDialogProps) {
   const [localSettings, setLocalSettings] = useState<ChatSettings>(settings);
+  const [models, setModels] = useState<typeof FALLBACK_MODELS>(FALLBACK_MODELS);
+  const [defaultModel, setDefaultModel] = useState('gemini-2.5-pro');
+
+  // Fetch models from API
+  useEffect(() => {
+    if (!open) return;
+    fetch('/api/models')
+      .then(r => r.json())
+      .then(data => {
+        const modelList = (data.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
+          id: m.id,
+          name: m.name || m.id,
+          icon: m.tier === 'pro' ? Code2 : Zap,
+        }));
+        if (modelList.length > 0) {
+          setModels(modelList);
+          setDefaultModel(data.current || modelList[0].id);
+        }
+      })
+      .catch(() => {});
+  }, [open]);
 
   useEffect(() => {
     // Merge provided settings with defaults to ensure all fields exist
@@ -66,7 +87,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
 
   const handleReset = () => {
     setLocalSettings({
-        model: 'gemini-3-pro-preview',
+        model: defaultModel,
         systemInstruction: '',
         toolPermissionStrategy: 'safe',
         ui: {
@@ -112,7 +133,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
             label="Model"
             value={localSettings.model}
             onChange={(value) => setLocalSettings(s => ({ ...s, model: value }))}
-            options={MODELS}
+            options={models}
             description="Select the AI model to use."
           />
 
