@@ -370,9 +370,20 @@ export default function Home() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as Partial<ChatSettings>;
+        let migrated = false;
+        if (parsed.model === 'gemini-3-pro') {
+          parsed.model = 'gemini-3-pro-preview';
+          migrated = true;
+        } else if (parsed.model === 'gemini-3-flash') {
+          parsed.model = 'gemini-3-flash-preview';
+          migrated = true;
+        }
         const normalized = normalizeChatSettings(parsed);
         setSettings(normalized);
         setApprovalMode(normalized.toolPermissionStrategy);
+        if (migrated) {
+          localStorage.setItem('ggbond-settings', JSON.stringify(normalized));
+        }
       } catch (e) { console.error('Failed to parse settings', e); }
     }
   }, []);

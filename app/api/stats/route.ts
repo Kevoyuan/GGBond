@@ -109,7 +109,7 @@ export async function GET() {
         const output = data.output_tokens || data.outputTokenCount || 0;
         const cached = data.cached_content_token_count || data.cached || data.cachedContentTokenCount || 0;
         const total = data.total_tokens || data.totalTokenCount || (input + output);
-        const modelName = data.model || 'gemini-3-pro-preview';
+        const modelName = data.model || 'gemini-3-pro';
 
         // Use provided cost or calculate it
         const cost = data.totalCost || calculateCost(input, output, cached, modelName);

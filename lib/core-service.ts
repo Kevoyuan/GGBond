@@ -884,10 +884,10 @@ export class CoreService {
         };
         const fallbackModelForCapacity = () => {
             const currentModel = this.config?.getModel() || '';
-            if (currentModel === 'gemini-3-pro-preview') {
+            if (currentModel === 'gemini-3-pro' || currentModel === 'gemini-3-pro-preview') {
                 return 'gemini-3-flash-preview';
             }
-            if (currentModel === 'gemini-3-flash-preview') {
+            if (currentModel === 'gemini-3-flash' || currentModel === 'gemini-3-flash-preview') {
                 return 'gemini-2.5-pro';
             }
             return null;

@@ -14,7 +14,8 @@ import {
   ToolConfirmationOutcome,
   ToolConfirmationPayload,
   CoreEvent,
-  coreEvents
+  coreEvents,
+  ApprovalMode,
 } from '@google/gemini-cli-core';
 
 type AgentDefinitionLike = {
@@ -88,8 +89,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Prompt or images are required' }, { status: 400 });
     }
 
-    // Respect the model selected by UI/caller; do not silently downgrade preview models.
-    let targetModel = model || 'gemini-2.5-pro';
+    // Respect the model selected by UI/caller; do not silently downgrade.
+    let targetModel = model || 'gemini-3-pro-preview';
 
     // Keep CoreService runtime home aligned with CLI env selection logic (skills/auth consistency).
     const env = getGeminiEnv();
@@ -103,7 +104,15 @@ export async function POST(req: Request) {
     // Use provided sessionId or generate new one
     const finalSessionId = sessionId || crypto.randomUUID();
 
-    const coreApprovalMode = approvalMode === 'auto' ? 'yolo' : 'default';
+    const coreApprovalMode = (() => {
+      if (mode === 'plan') return ApprovalMode.PLAN;
+      if (approvalMode === 'auto') return ApprovalMode.YOLO;
+      if (approvalMode === 'safe') return ApprovalMode.DEFAULT;
+      if (approvalMode === ApprovalMode.AUTO_EDIT) return ApprovalMode.AUTO_EDIT;
+      if (approvalMode === ApprovalMode.YOLO) return ApprovalMode.YOLO;
+      if (approvalMode === ApprovalMode.PLAN) return ApprovalMode.PLAN;
+      return ApprovalMode.DEFAULT;
+    })();
     if (!isLowLatencyMode) {
       console.log('[chat] approval mode', { requested: approvalMode, resolved: coreApprovalMode });
     }
@@ -152,17 +161,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // Mode specific instructions
-    const MODE_INSTRUCTIONS: Record<string, string> = {
-      plan: 'You are in PLAN mode. Analyze and plan only — do NOT modify files or run commands.',
-      ask: 'You are in ASK mode. Answer questions only — do NOT modify files.'
-    };
-
     let finalPrompt = prompt;
-    if (mode && MODE_INSTRUCTIONS[mode]) {
-      // We can prepend this to prompt or set as system instruction update
-      // For now, prepend to prompt to be safe as system instruction is set in init
-      finalPrompt = `[SYSTEM: ${MODE_INSTRUCTIONS[mode]}]\n\n${prompt}`;
+    if (mode === 'ask') {
+      finalPrompt = `[SYSTEM: You are in ASK mode. Answer questions only — do NOT modify files.]\n\n${prompt}`;
     }
 
     // DB Logging Setup
