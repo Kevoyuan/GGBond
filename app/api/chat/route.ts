@@ -16,6 +16,7 @@ import {
   CoreEvent,
   coreEvents,
   ApprovalMode,
+  VALID_GEMINI_MODELS,
 } from '@google/gemini-cli-core';
 
 type AgentDefinitionLike = {
@@ -59,6 +60,28 @@ function isSameOrChildPath(candidatePath: string, parentPath: string) {
   return candidate === parent || candidate.startsWith(`${parent}${path.sep}`);
 }
 
+const DEFAULT_MODEL_FALLBACK_CHAIN = [
+  'gemini-3-pro-preview',
+  'gemini-3-flash-preview',
+  'gemini-2.5-pro',
+];
+
+function resolveSupportedModel(requestedModel: string | undefined): string {
+  const requested = (requestedModel || '').trim();
+  if (requested && VALID_GEMINI_MODELS.has(requested)) {
+    return requested;
+  }
+  if (requested) {
+    console.warn(`[chat] Unsupported model requested: ${requested}. Falling back to first available default.`);
+  }
+  for (const candidate of DEFAULT_MODEL_FALLBACK_CHAIN) {
+    if (VALID_GEMINI_MODELS.has(candidate)) {
+      return candidate;
+    }
+  }
+  return requested || 'gemini-2.5-pro';
+}
+
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
 
@@ -90,7 +113,7 @@ export async function POST(req: Request) {
     }
 
     // Respect the model selected by UI/caller; do not silently downgrade.
-    let targetModel = model || 'gemini-3-pro-preview';
+    let targetModel = resolveSupportedModel(model || 'gemini-3-pro-preview');
 
     // Keep CoreService runtime home aligned with CLI env selection logic (skills/auth consistency).
     const env = getGeminiEnv();
@@ -142,8 +165,9 @@ export async function POST(req: Request) {
       const agent = core.getAgentDefinition(selectedAgentName) as AgentDefinitionLike | null;
       if (agent) {
         const agentModel = agent.modelConfig?.model;
-        if (agentModel && agentModel !== targetModel) {
-          targetModel = agentModel;
+        const supportedAgentModel = resolveSupportedModel(agentModel);
+        if (supportedAgentModel && supportedAgentModel !== targetModel) {
+          targetModel = supportedAgentModel;
           await core.initialize({
             sessionId: finalSessionId,
             model: targetModel,
