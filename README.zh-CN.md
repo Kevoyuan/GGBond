@@ -55,6 +55,8 @@ GGBond 是一款由 AI 驱动的智能编程助手桌面应用，基于 Google G
 - 系统托盘，支持显示/隐藏切换
 - 全局快捷键：`Ctrl+Shift+Space` 唤起应用
 - 原生窗口控制
+- **极致性能**：全面启用硬件加速和会话缓存，UI 流畅如丝
+- **体积优化**：配置 Next.js `optimizePackageImports` 以加快加载速度
 
 ## 技术栈
 
