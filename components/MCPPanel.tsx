@@ -12,7 +12,11 @@ import {
     Globe,
     Plus,
     X,
-    Loader2
+    Loader2,
+    Search,
+    Download,
+    Tag,
+    Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './sidebar/PanelHeader';
@@ -36,6 +40,14 @@ interface MCPServerRecord {
 interface MCPResponse {
     discoveryState?: string;
     servers?: Record<string, MCPServerRecord>;
+}
+
+interface GalleryExtension {
+    id: string;
+    name: string;
+    description: string;
+    installCommand: string;
+    category?: string;
 }
 
 interface MCPPanelProps {
@@ -80,6 +92,14 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
     const [urlInput, setUrlInput] = useState('');
     const [description, setDescription] = useState('');
     const [isSavingServer, setIsSavingServer] = useState(false);
+    const [showGallery, setShowGallery] = useState(false);
+    const [galleryExtensions, setGalleryExtensions] = useState<GalleryExtension[]>([]);
+    const [galleryCategories, setGalleryCategories] = useState<string[]>([]);
+    const [isLoadingGallery, setIsLoadingGallery] = useState(false);
+    const [galleryError, setGalleryError] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [installingExtension, setInstallingExtension] = useState<string | null>(null);
 
     const orderedServers = useMemo(
         () => Object.entries(servers).sort((a, b) => a[0].localeCompare(b[0])),
@@ -107,6 +127,86 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
     useEffect(() => {
         loadServers();
     }, []);
+
+    const loadGallery = async () => {
+        setIsLoadingGallery(true);
+        setGalleryError(null);
+        try {
+            const res = await fetch('/api/mcp/gallery');
+            if (!res.ok) {
+                throw new Error('Failed to load extensions gallery');
+            }
+            const data = await res.json() as { extensions: GalleryExtension[]; categories: string[] };
+            setGalleryExtensions(data.extensions);
+            setGalleryCategories(data.categories);
+        } catch (err) {
+            setGalleryError(err instanceof Error ? err.message : 'Failed to load gallery');
+        } finally {
+            setIsLoadingGallery(false);
+        }
+    };
+
+    const openGallery = () => {
+        setShowGallery(true);
+        if (galleryExtensions.length === 0) {
+            loadGallery();
+        }
+    };
+
+    const handleInstallExtension = async (extension: GalleryExtension) => {
+        setInstallingExtension(extension.id);
+        try {
+            // Extract repo URL from install command
+            const urlMatch = extension.installCommand.match(/https:\/\/[^\s]+/);
+            if (!urlMatch) {
+                throw new Error('Invalid install command');
+            }
+            const repoUrl = urlMatch[0];
+
+            // Call API to install extension
+            const res = await fetch('/api/mcp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'installExtension',
+                    name: extension.name,
+                    repoUrl,
+                }),
+            });
+
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || 'Failed to install extension');
+            }
+
+            // Reload servers after installation
+            await loadServers();
+            setShowGallery(false);
+        } catch (err) {
+            setGalleryError(err instanceof Error ? err.message : 'Failed to install extension');
+        } finally {
+            setInstallingExtension(null);
+        }
+    };
+
+    const filteredExtensions = useMemo(() => {
+        let filtered = galleryExtensions;
+
+        if (selectedCategory) {
+            filtered = filtered.filter(ext => ext.category === selectedCategory);
+        }
+
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter(
+                ext =>
+                    ext.name.toLowerCase().includes(query) ||
+                    ext.description.toLowerCase().includes(query)
+            );
+        }
+
+        return filtered;
+    }, [galleryExtensions, searchQuery, selectedCategory]);
 
     const handleRestart = async (name: string) => {
         setRestartingServer(name);
@@ -225,14 +325,23 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
                 icon={Plug}
                 badge={discoveryState === 'started' ? 'Scanning' : undefined}
                 actions={
-                    <button
-                        onClick={loadServers}
-                        disabled={isLoading}
-                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-                        title="Refresh Servers"
-                    >
-                        <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={openGallery}
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                            title="Browse Extensions Gallery"
+                        >
+                            <Sparkles className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            onClick={loadServers}
+                            disabled={isLoading}
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                            title="Refresh Servers"
+                        >
+                            <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
+                        </button>
+                    </div>
                 }
             />
 
@@ -424,6 +533,141 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
                             <pre className="text-[12px] leading-relaxed font-mono whitespace-pre-wrap break-all rounded-lg border border-border/80 bg-muted/30 p-4 text-foreground/90 selection:bg-primary/30">
                                 {JSON.stringify(activeDetails.server, null, 2)}
                             </pre>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showGallery && (
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-md z-30 flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="w-full max-w-4xl rounded-xl border border-primary/20 bg-background/95 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-primary/10 to-purple-500/10">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-lg">
+                                    <Sparkles className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold">Extensions Gallery</h3>
+                                    <p className="text-xs text-muted-foreground">Browse and install Gemini CLI extensions</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowGallery(false)}
+                                className="p-2 rounded-md hover:bg-muted text-muted-foreground transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Search and Filter */}
+                        <div className="p-4 border-b bg-card/30 space-y-3">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                <input
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search extensions..."
+                                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border/60 bg-background/80 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-colors"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                    onClick={() => setSelectedCategory(null)}
+                                    className={cn(
+                                        "px-3 py-1 rounded-full text-xs font-medium transition-colors",
+                                        selectedCategory === null
+                                            ? "bg-primary text-primary-foreground"
+                                            : "bg-muted/50 hover:bg-muted text-muted-foreground"
+                                    )}
+                                >
+                                    All
+                                </button>
+                                {galleryCategories.map((category) => (
+                                    <button
+                                        key={category}
+                                        onClick={() => setSelectedCategory(category)}
+                                        className={cn(
+                                            "px-3 py-1 rounded-full text-xs font-medium transition-colors",
+                                            selectedCategory === category
+                                                ? "bg-primary text-primary-foreground"
+                                                : "bg-muted/50 hover:bg-muted text-muted-foreground"
+                                        )}
+                                    >
+                                        {category}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Extensions List */}
+                        <div className="flex-1 overflow-auto p-4">
+                            {galleryError && (
+                                <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300 mb-4">
+                                    {galleryError}
+                                </div>
+                            )}
+
+                            {isLoadingGallery ? (
+                                <div className="flex flex-col items-center justify-center h-48 opacity-60">
+                                    <Loader2 className="w-8 h-8 animate-spin mb-3 text-primary" />
+                                    <p className="text-sm text-muted-foreground">Loading extensions...</p>
+                                </div>
+                            ) : filteredExtensions.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-48 opacity-40">
+                                    <Search className="w-10 h-10 mb-3" />
+                                    <p className="text-sm">No extensions found</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {filteredExtensions.map((ext) => (
+                                        <div
+                                            key={ext.id}
+                                            className="group p-4 rounded-xl border border-border/50 bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-all duration-200"
+                                        >
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 className="text-sm font-semibold truncate">{ext.name}</h4>
+                                                    {ext.category && (
+                                                        <div className="flex items-center gap-1 mt-1">
+                                                            <Tag className="w-3 h-3 text-muted-foreground" />
+                                                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                                                                {ext.category}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mb-3">
+                                                {ext.description}
+                                            </p>
+                                            <button
+                                                onClick={() => handleInstallExtension(ext)}
+                                                disabled={installingExtension === ext.id}
+                                                className="w-full py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold uppercase tracking-wider transition-colors border border-primary/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                                            >
+                                                {installingExtension === ext.id ? (
+                                                    <>
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        Installing...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Download className="w-3.5 h-3.5" />
+                                                        Install
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-3 border-t bg-card/30 text-center">
+                            <p className="text-[10px] text-muted-foreground">
+                                {filteredExtensions.length} of {galleryExtensions.length} extensions
+                            </p>
                         </div>
                     </div>
                 </div>
