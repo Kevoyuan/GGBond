@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User, Info, BookOpen, Layout, Laptop, Keyboard, Monitor } from 'lucide-react';
+import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User, Info, BookOpen, Layout, Laptop, Keyboard, Monitor, Key, Bug, Github, FileCode, Eye, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -104,6 +104,12 @@ const BASE_COMMANDS: CommandItem[] = [
   { command: '/shells', description: 'Show configured shells', icon: TerminalSquare, group: 'Built-in' },
   { command: '/terminal-setup', description: 'Open terminal settings', icon: Settings, group: 'Built-in' },
   { command: '/ide', description: 'IDE integration settings', icon: Monitor, group: 'Built-in' },
+  { command: '/auth', description: 'Manage authentication', icon: Key, group: 'Built-in' },
+  { command: '/bug', description: 'Report a bug', icon: Bug, group: 'Built-in' },
+  { command: '/setup-github', description: 'Setup GitHub integration', icon: Github, group: 'Built-in' },
+  { command: '/policies', description: 'Show security policies', icon: Shield, group: 'Built-in' },
+  { command: '/privacy', description: 'Show privacy settings', icon: Eye, group: 'Built-in' },
+  { command: '/quit', description: 'Quit application', icon: LogOut, group: 'Built-in' },
   { command: '/about', description: 'Show GGBond information', icon: Info, group: 'Built-in' },
   { command: '/docs', description: 'Show help documentation', icon: BookOpen, group: 'Built-in' },
 ];
