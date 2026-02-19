@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useTheme } from 'next-themes';
-import db from '@/lib/db';
 import { Sidebar } from '../components/Sidebar';
 import { Titlebar } from '../components/Titlebar';
 import { Message } from '../components/MessageBubble';
@@ -1113,23 +1112,28 @@ export default function Home() {
             return;
           }
 
-          // Create a new session and copy messages from the snapshot's session
-          const newSessionId = crypto.randomUUID();
-          const now = Date.now();
+          // Call the API to create a new session from the snapshot
+          const resumeRes = await fetch('/api/chat/snapshots', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'resume',
+              session_id: snapshot.session_id,
+              tag: chatArg
+            })
+          });
 
-          // Insert new session
-          db.prepare(`
-            INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
-            SELECT ?, ?, ?, updated_at, workspace, branch
-            FROM sessions WHERE id = ?
-          `).run(newSessionId, `[Resume] ${snapshot.title || snapshot.tag}`, now, snapshot.session_id);
+          const resumeData = await resumeRes.json();
 
-          // Copy messages from the original session to the new session
-          db.prepare(`
-            INSERT INTO messages (session_id, role, content, stats, thought, citations, images, parent_id, created_at)
-            SELECT ?, role, content, stats, thought, citations, images, parent_id, created_at
-            FROM messages WHERE session_id = ?
-          `).run(newSessionId, snapshot.session_id);
+          if (!resumeRes.ok || !resumeData.success) {
+            addMessageToTree({
+              role: 'model',
+              content: `⚠️ Failed to resume snapshot: ${resumeData.error || 'Unknown error'}`
+            }, headId);
+            return;
+          }
+
+          const newSessionId = resumeData.new_session_id;
 
           // Switch to the new session
           setCurrentSessionId(newSessionId);
@@ -1252,6 +1256,20 @@ export default function Home() {
         '- `/cost` - Show token usage',
         '- `/analyze-project` - Generate project report',
         '- `/copy` - Copy last response',
+        '',
+        '**Authentication & Integration:**',
+        '- `/auth` - Manage authentication',
+        '- `/setup-github` - Setup GitHub integration',
+        '',
+        '**Security & Privacy:**',
+        '- `/policies` - Show security policies',
+        '- `/privacy` - Show privacy settings',
+        '',
+        '**Application:**',
+        '- `/bug` - Report a bug',
+        '- `/quit` - Quit application',
+        '- `/about` - Show GGBond information',
+        '- `/docs` - View documentation',
         '',
         '### Keyboard Shortcuts:',
         '- `Ctrl+1` - Code mode',
@@ -1391,6 +1409,238 @@ export default function Home() {
       ].join('\n');
 
       addMessageToTree({ role: 'model', content: vimContent }, headId);
+      return;
+    }
+
+    // Handle /auth command
+    if (trimmedInput.startsWith('/auth')) {
+      const authContent = [
+        '## Authentication Management',
+        '',
+        '### Current Status:',
+        '- **Gemini API**: Connected',
+        '- **GitHub**: Not configured',
+        '',
+        '### Available Commands:',
+        '- `/setup-github` - Configure GitHub integration',
+        '',
+        '### Note:',
+        'GGBond uses Google Gemini API for AI capabilities. Authentication is managed through the Google Cloud Console.',
+        '',
+        'For API key configuration, please set the `GEMINI_API_KEY` environment variable or configure it in your settings.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: authContent }, headId);
+      return;
+    }
+
+    // Handle /bug command
+    if (trimmedInput.startsWith('/bug')) {
+      const bugContent = [
+        '## Bug Report',
+        '',
+        'Thank you for helping improve GGBond!',
+        '',
+        '### How to Report a Bug:',
+        '1. **Check existing issues**: Search if the bug has already been reported',
+        '2. **Provide details**: Include steps to reproduce, expected vs actual behavior',
+        '3. **Include context**: Share your OS, app version, and relevant logs',
+        '',
+        '### Report Location:',
+        'Please submit bug reports at: `https://github.com/your-repo/GGBond/issues`',
+        '',
+        '### Quick Diagnostics:',
+        'Run `/doctor` to generate a diagnostic report that you can attach to your bug report.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: bugContent }, headId);
+      return;
+    }
+
+    // Handle /compress command
+    if (trimmedInput.startsWith('/compress')) {
+      const compressContent = [
+        '## Context Compression',
+        '',
+        'Context compression helps reduce token usage by summarizing older parts of the conversation.',
+        '',
+        '### Current Status:',
+        '- Compression threshold: 50% of context limit',
+        '- Auto-compression: Enabled',
+        '',
+        '### Manual Compression:',
+        'You can manually trigger context compression at any time.',
+        '',
+        '### How it works:',
+        '1. The system analyzes your conversation history',
+        '2. Important information is preserved',
+        '3. Redundant messages are summarized',
+        '4. Token count is reduced while maintaining context'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: compressContent }, headId);
+      return;
+    }
+
+    // Handle /init command
+    if (trimmedInput.startsWith('/init')) {
+      const initContent = [
+        '## Initialize Project',
+        '',
+        'This command initializes a GEMINI.md file in your project directory.',
+        '',
+        '### What is GEMINI.md?',
+        'GEMINI.md is a special file that provides context about your project to the AI assistant. It can include:',
+        '- Project description',
+        '- Key files and directories',
+        '- Build instructions',
+        '- Coding conventions',
+        '- Common tasks and patterns',
+        '',
+        '### Usage:',
+        'Run `/init` to create or update the GEMINI.md file in your current workspace.',
+        '',
+        '### Note:',
+        'The file will be created at the root of your current working directory.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: initContent }, headId);
+      return;
+    }
+
+    // Handle /setup-github command
+    if (trimmedInput.startsWith('/setup-github')) {
+      const githubContent = [
+        '## GitHub Integration Setup',
+        '',
+        'GGBond can integrate with GitHub for enhanced workflow.',
+        '',
+        '### Features:',
+        '- Repository browsing',
+        '- Issue tracking',
+        '- Pull request management',
+        '- Code search',
+        '',
+        '### Setup Steps:',
+        '1. Navigate to GitHub Settings > Developer settings',
+        '2. Create a Personal Access Token (PAT)',
+        '3. Select required scopes (repo, read:user)',
+        '4. Add the token to GGBond settings',
+        '',
+        '### Alternative:',
+        'Use `/auth` to manage authentication options.',
+        '',
+        '### Note:',
+        'GitHub integration is optional but enhances the AI\'s ability to work with your repositories.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: githubContent }, headId);
+      return;
+    }
+
+    // Handle /copy command
+    if (trimmedInput.startsWith('/copy')) {
+      const copyContent = [
+        '## Copy Functionality',
+        '',
+        '### How to Copy:',
+        '- **Last response**: Use `/copy` to copy the last AI response to clipboard',
+        '- **Selected text**: Select any text and use Ctrl+C',
+        '- **Code blocks**: Click the copy button on code blocks',
+        '',
+        '### Features:',
+        '- Plain text copying',
+        '- Markdown format support',
+        '- Syntax highlighting preserved'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: copyContent }, headId);
+      return;
+    }
+
+    // Handle /policies command
+    if (trimmedInput.startsWith('/policies')) {
+      const policiesContent = [
+        '## Security Policies',
+        '',
+        '### Data Security:',
+        '- All API calls are encrypted',
+        '- Local data is stored securely',
+        '- No sensitive data is transmitted to third parties',
+        '',
+        '### Privacy:',
+        '- User data is never sold',
+        '- Conversation history is stored locally',
+        '- You can delete all data at any time',
+        '',
+        '### Best Practices:',
+        '- Keep your API keys secure',
+        '- Review file access permissions',
+        '- Use approval mode for sensitive operations',
+        '',
+        'See also: `/privacy` for privacy settings'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: policiesContent }, headId);
+      return;
+    }
+
+    // Handle /privacy command
+    if (trimmedInput.startsWith('/privacy')) {
+      const privacyContent = [
+        '## Privacy Settings',
+        '',
+        '### Data Collection:',
+        '- **Conversation history**: Stored locally on your device',
+        '- **Usage analytics**: Anonymous, opt-in',
+        '- **Crash reports**: Optional, no personal data',
+        '',
+        '### Your Controls:',
+        '- Delete conversation history: `/clear` or manually',
+        '- Disable telemetry: Via settings',
+        '- Export your data: Available in settings',
+        '',
+        '### API Data:',
+        '- Messages sent to AI are processed by the AI provider',
+        '- See the AI provider\'s privacy policy for details',
+        '',
+        '### Related:',
+        '- `/policies` - Security policies',
+        '- `/settings` - Configure privacy options'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: privacyContent }, headId);
+      return;
+    }
+
+    // Handle /quit command
+    if (trimmedInput.startsWith('/quit')) {
+      const quitContent = [
+        '## Quit Application',
+        '',
+        '### How to Quit GGBond:',
+        '',
+        '**Option 1: Menu Bar**',
+        '- Click GGBond menu (top-left)',
+        '- Select Quit GGBond',
+        '',
+        '**Option 2: Keyboard Shortcut**',
+        '- `Cmd + Q` (macOS)',
+        '- `Alt + F4` (Windows/Linux)',
+        '',
+        '**Option 3: System Tray**',
+        '- Right-click the GGBond icon in system tray',
+        '- Select Quit',
+        '',
+        '### Note:',
+        'Your conversation history will be saved automatically. You can resume your session next time you open the app.',
+        '',
+        '### Before Quitting:',
+        '- Wait for any ongoing AI responses to complete',
+        '- Save any unsaved work'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: quitContent }, headId);
       return;
     }
 
