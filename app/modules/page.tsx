@@ -8,7 +8,6 @@ import { PerformancePanel } from '@/components/modules/analytics/PerformancePane
 import { ToolStatsPanel } from '@/components/modules/analytics/ToolStatsPanel';
 import { FileHeatmapPanel } from '@/components/modules/analytics/FileHeatmapPanel';
 import { SessionTimeline } from '@/components/modules/timeline/SessionTimeline';
-import { ProjectContext } from '@/components/modules/project/ProjectContext';
 import { ChatManager } from '@/components/modules/ChatModules';
 import { CheckpointManager } from '@/components/modules/SessionModules';
 import { ToolManager, MCPManager, ExtensionManager } from '@/components/modules/SystemModules';
@@ -165,7 +164,6 @@ export default function ModulesPage() {
                 <MemoryManager />
                 <DirectoryManager />
                 <HooksManager />
-                <ProjectContext />
               </div>
             </section>
           )}

@@ -44,6 +44,7 @@ interface Session {
   updated_at?: string | number;
   workspace?: string;
   branch?: string | null;
+  archived?: number | boolean;
   isCore?: boolean;
   lastUpdated?: string;
 }
@@ -56,6 +57,8 @@ interface SidebarProps {
   unreadSessionIds?: string[];
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
+  onRestoreSession?: (id: string) => void;
+  onArchiveWorkspace?: (workspace: string) => void;
   onNewChat: () => void;
   onNewChatInWorkspace?: (workspace: string) => void;
   onOpenSettings: () => void;
@@ -77,6 +80,11 @@ interface SidebarProps {
   onToggleCollapse?: () => void;
   workspaceBranchSummary?: Record<string, { label: string; title: string; mixed: boolean } | null>;
   formatSessionAge?: (session: Session) => string;
+  // External view control - allows parent to set active view
+  sidebarView?: string | null;
+  onSetSidebarView?: (view: string | null) => void;
+  showExtensionsDialog?: boolean;
+  onOpenExtensions?: () => void;
 }
 
 type SidebarView = 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory';
@@ -110,6 +118,8 @@ export const Sidebar = React.memo(function Sidebar({
   unreadSessionIds = [],
   onSelectSession,
   onDeleteSession,
+  onRestoreSession,
+  onArchiveWorkspace,
   onNewChatInWorkspace,
   onOpenSettings,
   isDark,
@@ -152,14 +162,24 @@ export const Sidebar = React.memo(function Sidebar({
 
     const diffInYears = Math.floor(diffInDays / 365);
     return `${diffInYears}y`;
-  }
+  },
+  sidebarView,
+  onSetSidebarView,
+  showExtensionsDialog,
+  onOpenExtensions,
 }: SidebarProps) {
 
 
-  const [activeView, setActiveView] = useState<SidebarView>('chat');
+  // Use external view if provided, otherwise use internal state
+  const [internalView, setInternalView] = useState<SidebarView>('chat');
+  const activeView = (sidebarView as SidebarView) || internalView;
   const handleViewClick = useCallback((view: SidebarView) => {
-    setActiveView(view);
-  }, []);
+    setInternalView(view);
+    // Notify parent if callback provided
+    if (onSetSidebarView) {
+      onSetSidebarView(view);
+    }
+  }, [onSetSidebarView]);
 
   // Stable callbacks for NavListItem to prevent re-renders
   const handleChatClick = useCallback(() => handleViewClick('chat'), [handleViewClick]);
@@ -262,6 +282,8 @@ export const Sidebar = React.memo(function Sidebar({
             unreadSessionIds={unreadSessionIds}
             onSelectSession={onSelectSession}
             onDeleteSession={onDeleteSession}
+            onRestoreSession={onRestoreSession}
+            onArchiveWorkspace={onArchiveWorkspace}
             onNewChatInWorkspace={onNewChatInWorkspace}
             onAddWorkspace={onAddWorkspace}
             onShowStats={onShowStats}
@@ -320,6 +342,18 @@ export const Sidebar = React.memo(function Sidebar({
                 )}
               >
                 <Boxes className="w-4 h-4" />
+              </button>
+            </Tooltip>
+
+            <Tooltip content="Extensions" side={isCollapsed ? "right" : "top"}>
+              <button
+                onClick={onOpenExtensions}
+                className={cn(
+                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                  isCollapsed && "w-9 h-9 flex items-center justify-center"
+                )}
+              >
+                <Puzzle className="w-4 h-4" />
               </button>
             </Tooltip>
           </div>
@@ -389,17 +423,6 @@ export const Sidebar = React.memo(function Sidebar({
           </div>
         </div>
 
-        {/* Info Bar */}
-        {!isCollapsed && (
-          <div className="flex items-center justify-between px-1.5 pt-1.5 border-t border-[var(--border-subtle)]/50">
-            <span className="text-[10px] text-[var(--text-tertiary)] font-mono opacity-60">v0.4.2</span>
-            <div className="flex items-center gap-1.5">
-              <span className="px-1 py-0.25 rounded-[3px] text-[9px] font-bold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 shadow-sm lowercase">
-                pro
-              </span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Horizontal Resizer (sidebar width) */}

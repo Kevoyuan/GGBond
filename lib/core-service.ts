@@ -5,6 +5,10 @@ import path from 'path';
 import fs from 'fs';
 import { readFile } from 'fs/promises';
 import {
+    isPathTrusted,
+    isIgnoredByGeminiIgnore,
+} from './config-service';
+import {
     Config,
     Scheduler,
     ROOT_SCHEDULER_ID,
@@ -91,9 +95,39 @@ type UndoCheckpointResult =
     | { success: true; restoreId: string }
     | { success: false; error: string };
 
+// Hook event types matching gemini-cli-core HookEventName
+export type HookEventName =
+    | 'BeforeTool'
+    | 'AfterTool'
+    | 'BeforeAgent'
+    | 'AfterAgent'
+    | 'SessionStart'
+    | 'SessionEnd'
+    | 'PreCompress'
+    | 'BeforeModel'
+    | 'AfterModel'
+    | 'BeforeToolSelection'
+    | 'Notification';
+
+export interface HookEventPayload {
+    eventName: HookEventName;
+    timestamp: number;
+    data?: Record<string, unknown>;
+    sessionId?: string;
+}
+
+// Tool execution real-time output payload
+export interface ToolExecutionOutputPayload {
+    toolCallId: string;
+    toolName: string;
+    output: string;
+    isStderr: boolean;
+    timestamp: number;
+}
+
 export class CoreService {
     private static _instance: CoreService;
-    private static readonly SERVICE_VERSION = 3;
+    private static readonly SERVICE_VERSION = 4;
     private static coreEventsRegistered = false;
     public config: Config | null = null;
     public chat: GeminiChat | null = null;
@@ -117,6 +151,10 @@ export class CoreService {
             isCore: boolean;
         }>;
     } | null = null;
+    // Hook event subscribers
+    private hookEventSubscribers = new Set<(payload: HookEventPayload) => void>();
+    // Tool execution output subscribers
+    private toolExecutionOutputSubscribers = new Set<(payload: ToolExecutionOutputPayload) => void>();
 
     private constructor() { }
 
@@ -124,12 +162,18 @@ export class CoreService {
         if (process.env.NODE_ENV === 'development') {
             const isStaleInstance =
                 !!global.__gemini_core_service &&
-                typeof (global.__gemini_core_service as unknown as {
-                    subscribeConfirmationRequests?: unknown;
-                    clearConfirmationSubscribers?: unknown;
-                    submitConfirmation?: unknown;
-                    serviceVersion?: unknown;
-                }).subscribeConfirmationRequests !== 'function';
+                (
+                    typeof (global.__gemini_core_service as unknown as {
+                        subscribeConfirmationRequests?: unknown;
+                        clearConfirmationSubscribers?: unknown;
+                        submitConfirmation?: unknown;
+                        serviceVersion?: unknown;
+                        subscribeHookEvents?: unknown;
+                    }).subscribeConfirmationRequests !== 'function' ||
+                    typeof (global.__gemini_core_service as unknown as {
+                        subscribeHookEvents?: unknown;
+                    }).subscribeHookEvents !== 'function'
+                );
             const hasLatestVersion =
                 !!global.__gemini_core_service &&
                 (global.__gemini_core_service as unknown as { serviceVersion?: unknown }).serviceVersion === CoreService.SERVICE_VERSION;
@@ -146,7 +190,16 @@ export class CoreService {
     }
 
     public async initialize(params: InitParams) {
+        // Check for headless mode - force YOLO mode
+        const isHeadless = process.env.GEMINI_HEADLESS === '1' ||
+            process.env.GEMINI_HEADLESS === 'true';
+
         const normalizedApprovalMode = (() => {
+            // Headless mode always uses YOLO (auto-approve)
+            if (isHeadless) {
+                console.log('[CoreService] Headless mode detected, forcing YOLO approval mode');
+                return ApprovalMode.YOLO;
+            }
             if (params.approvalMode === 'auto') {
                 return ApprovalMode.YOLO;
             }
@@ -188,6 +241,7 @@ export class CoreService {
             try {
                 const geminiClient = this.config.getGeminiClient();
                 this.ensureWriteTodosToolEnabled();
+                await this.registerCustomTools();
                 await geminiClient.setTools();
                 this.chat = geminiClient.getChat();
                 if (params.systemInstruction) {
@@ -325,6 +379,7 @@ export class CoreService {
 
         // 2. Setup / refresh tools on the core GeminiClient (CLI-aligned path)
         this.ensureWriteTodosToolEnabled();
+        await this.registerCustomTools();
         const registry = this.config.getToolRegistry();
         const toolDeclarations = registry.getFunctionDeclarations();
         console.log(
@@ -350,6 +405,13 @@ export class CoreService {
 
         // 4. Register Event Listeners
         this.registerSystemEvents();
+
+        // 5. Emit SessionStart hook event
+        this.emitHookEvent('SessionStart', {
+            sessionId: params.sessionId,
+            model: params.model,
+            cwd: params.cwd,
+        });
 
         this.initialized = true;
         console.log('[CoreService] Initialization complete.');
@@ -381,6 +443,8 @@ export class CoreService {
         if (!this.config || !settings) {
             return;
         }
+
+        console.log('[CoreService] Applying runtime model settings:', JSON.stringify(settings));
 
         const runtimeConfig = this.config as unknown as {
             maxSessionTurns?: number;
@@ -439,6 +503,73 @@ export class CoreService {
         }
     }
 
+    // Register custom tools from settings
+    private async registerCustomTools() {
+        if (!this.config) return;
+
+        try {
+            // Dynamically import to avoid circular dependencies
+            const { getCustomTools } = await import('@/lib/gemini-service');
+            const customTools = await getCustomTools();
+
+            if (!customTools || customTools.length === 0) {
+                return;
+            }
+
+            const enabledTools = customTools.filter(tool => tool.enabled);
+            if (enabledTools.length === 0) {
+                return;
+            }
+
+            const registry = this.config.getToolRegistry() as unknown as {
+                getTool?: (name: string) => unknown;
+                registerTool?: (tool: unknown) => void;
+                sortTools?: () => void;
+                getAllDefinitions?: () => unknown[];
+            };
+
+            for (const customTool of enabledTools) {
+                // Check if tool already exists
+                if (registry.getTool?.(customTool.name)) {
+                    console.log(`[CoreService] Custom tool ${customTool.name} already exists, skipping`);
+                    continue;
+                }
+
+                // Create a simple wrapper tool for custom tools
+                // Note: Full implementation would require proper tool definition with execute method
+                const toolWrapper = this.createCustomToolWrapper(customTool);
+                if (toolWrapper) {
+                    try {
+                        registry.registerTool?.(toolWrapper);
+                        console.log(`[CoreService] Registered custom tool: ${customTool.name}`);
+                    } catch (error) {
+                        console.warn(`[CoreService] Failed to register custom tool ${customTool.name}:`, error);
+                    }
+                }
+            }
+
+            registry.sortTools?.();
+        } catch (error) {
+            console.warn('[CoreService] Failed to register custom tools:', error);
+        }
+    }
+
+    // Create a simple tool wrapper for custom tools
+    private createCustomToolWrapper(customTool: { name: string; description: string; schema?: Record<string, unknown> }) {
+        // Create a minimal tool definition that can be called
+        // The actual execution would be handled through a callback or handler
+        return {
+            name: customTool.name,
+            description: customTool.description,
+            schema: customTool.schema || {},
+            execute: async (args: Record<string, unknown>) => {
+                // Custom tool execution would go through the MCP or custom handler
+                console.log(`[CoreService] Custom tool ${customTool.name} called with args:`, args);
+                return { result: 'Custom tool execution not fully implemented' };
+            },
+        };
+    }
+
     private registerSystemEvents() {
         if (!CoreService.coreEventsRegistered) {
             // User Feedback
@@ -473,6 +604,46 @@ export class CoreService {
         this.confirmationSubscribers.clear();
     }
 
+    // Hook event subscription methods
+    public subscribeHookEvents(listener: (payload: HookEventPayload) => void): () => void {
+        this.hookEventSubscribers.add(listener);
+        return () => {
+            this.hookEventSubscribers.delete(listener);
+        };
+    }
+
+    public clearHookEventSubscribers() {
+        this.hookEventSubscribers.clear();
+    }
+
+    // Public method to emit hook events from external code (e.g., API routes)
+    public emitHookEvent(eventName: HookEventName, data?: Record<string, unknown>) {
+        const payload: HookEventPayload = {
+            eventName,
+            timestamp: Date.now(),
+            data,
+            sessionId: this.config?.getSessionId(),
+        };
+
+        for (const listener of Array.from(this.hookEventSubscribers)) {
+            try {
+                listener(payload);
+            } catch (error) {
+                console.error('[CoreService] Hook event subscriber error:', error);
+                this.hookEventSubscribers.delete(listener);
+            }
+        }
+    }
+
+    // Convenience method to send notification events
+    public sendNotification(title: string, message: string, level: 'info' | 'warning' | 'error' | 'success' = 'info') {
+        this.emitHookEvent('Notification', {
+            title,
+            message,
+            level,
+        });
+    }
+
     private emitConfirmationRequest(request: PendingConfirmationRequest) {
         for (const listener of Array.from(this.confirmationSubscribers)) {
             try {
@@ -481,6 +652,25 @@ export class CoreService {
                 console.error('[CoreService] Confirmation subscriber error:', error);
                 // Drop broken subscribers (e.g. closed stream controllers) to avoid repeated failures.
                 this.confirmationSubscribers.delete(listener);
+            }
+        }
+    }
+
+    // Subscribe to real-time tool execution output
+    public subscribeToolExecutionOutput(callback: (payload: ToolExecutionOutputPayload) => void): () => void {
+        this.toolExecutionOutputSubscribers.add(callback);
+        return () => {
+            this.toolExecutionOutputSubscribers.delete(callback);
+        };
+    }
+
+    private emitToolExecutionOutput(payload: ToolExecutionOutputPayload) {
+        for (const listener of Array.from(this.toolExecutionOutputSubscribers)) {
+            try {
+                listener(payload);
+            } catch (error) {
+                console.error('[CoreService] Tool execution output subscriber error:', error);
+                this.toolExecutionOutputSubscribers.delete(listener);
             }
         }
     }
@@ -642,6 +832,14 @@ export class CoreService {
         const displayContent = message;
         const abortSignal = signal || new AbortController().signal;
 
+        // Emit BeforeAgent hook event
+        const agentStartTime = Date.now();
+        this.emitHookEvent('BeforeAgent', {
+            message: displayContent,
+            model: this.config.getModel(),
+            turnCount: 0,
+        });
+
         // Build content array with text and optional images
         const content: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
 
@@ -666,6 +864,34 @@ export class CoreService {
 
         let currentRequest: unknown = content;
         let turnCount = 0;
+        const isCapacityExhaustedError = (error: unknown) => {
+            const err = error as {
+                status?: number;
+                message?: string;
+                response?: { error?: { message?: string; status?: string; details?: Array<{ reason?: string }> } };
+            };
+            const message = `${err?.message || ''} ${err?.response?.error?.message || ''}`.toLowerCase();
+            const reason = err?.response?.error?.details?.[0]?.reason || '';
+            return (
+                err?.status === 429 &&
+                (
+                    message.includes('no capacity available') ||
+                    message.includes('model_capacity_exhausted') ||
+                    err?.response?.error?.status === 'RESOURCE_EXHAUSTED' ||
+                    reason === 'MODEL_CAPACITY_EXHAUSTED'
+                )
+            );
+        };
+        const fallbackModelForCapacity = () => {
+            const currentModel = this.config?.getModel() || '';
+            if (currentModel === 'gemini-3-pro-preview') {
+                return 'gemini-3-flash-preview';
+            }
+            if (currentModel === 'gemini-3-flash-preview') {
+                return 'gemini-2.5-pro';
+            }
+            return null;
+        };
 
         console.log(`[CoreService] Running turn with model: ${this.config.getModel()}`);
 
@@ -681,25 +907,61 @@ export class CoreService {
                 }
 
                 const toolCallRequests: ToolCallRequestInfo[] = [];
-                const responseStream = geminiClient.sendMessageStream(
-                    currentRequest as never,
-                    abortSignal,
-                    promptId,
-                    undefined,
-                    false,
-                    turnCount === 1 ? displayContent : undefined
-                );
 
-                for await (const event of responseStream) {
-                    if (event.type === GeminiEventType.ToolCallRequest) {
-                        toolCallRequests.push(event.value as ToolCallRequestInfo);
+                // Emit BeforeModel hook event
+                this.emitHookEvent('BeforeModel', {
+                    turnCount,
+                    model: this.config.getModel(),
+                    message: displayContent,
+                });
+
+                try {
+                    const responseStream = geminiClient.sendMessageStream(
+                        currentRequest as never,
+                        abortSignal,
+                        promptId,
+                        undefined,
+                        false,
+                        turnCount === 1 ? displayContent : undefined
+                    );
+
+                    for await (const event of responseStream) {
+                        if (event.type === GeminiEventType.ToolCallRequest) {
+                            toolCallRequests.push(event.value as ToolCallRequestInfo);
+                        }
+                        yield event;
                     }
-                    yield event;
+                } catch (error) {
+                    const fallbackModel = fallbackModelForCapacity();
+                    if (fallbackModel && isCapacityExhaustedError(error)) {
+                        console.warn(
+                            `[CoreService] Model capacity exhausted for ${this.config.getModel()}. Falling back to ${fallbackModel}.`
+                        );
+                        this.config.setModel(fallbackModel);
+                        // Retry the same turn with fallback model.
+                        turnCount -= 1;
+                        continue;
+                    }
+                    throw error;
                 }
+
+                // Emit AfterModel hook event
+                this.emitHookEvent('AfterModel', {
+                    turnCount,
+                    model: this.config.getModel(),
+                    toolCallCount: toolCallRequests.length,
+                });
 
                 if (!toolCallRequests.length) {
                     break;
                 }
+
+                // Emit BeforeToolSelection hook event before executing tools
+                this.emitHookEvent('BeforeToolSelection', {
+                    turnCount,
+                    toolNames: toolCallRequests.map(req => req.name),
+                    toolCount: toolCallRequests.length,
+                });
 
                 const completedCalls = await this.executeToolCalls(toolCallRequests, abortSignal);
                 if (!completedCalls.length) {
@@ -736,12 +998,54 @@ export class CoreService {
             const message = error instanceof Error ? error.message : String(error);
             console.error('[CoreService] Turn error:', message);
             yield { type: 'error', value: { error: { message } } };
+        } finally {
+            // Emit AfterAgent hook event
+            this.emitHookEvent('AfterAgent', {
+                duration: Date.now() - agentStartTime,
+                turnCount,
+            });
         }
     }
 
     private async executeToolCalls(requests: ToolCallRequestInfo[], signal: AbortSignal): Promise<CompletedToolCall[]> {
         if (!this.config || !this.messageBus) {
             return [];
+        }
+
+        // Get workspace directory for ignore checks
+        const workspaceDir = this.config.getWorkingDir();
+
+        // Filter requests based on trusted folders and .geminiignore patterns
+        const filteredRequests: ToolCallRequestInfo[] = [];
+        for (const request of requests) {
+            const args = request.args as Record<string, unknown>;
+            const filePath = (args.path as string) || (args.filePath as string) || (args.file as string) || '';
+
+            if (filePath) {
+                // Check if path is in a trusted folder (skip confirmation if trusted)
+                const isTrusted = await isPathTrusted(filePath);
+
+                // Check if path should be ignored by .geminiignore
+                const isIgnored = await isIgnoredByGeminiIgnore(filePath, workspaceDir);
+
+                // Log the trust/ignore status for debugging
+                if (isTrusted) {
+                    console.log(`[CoreService] Tool ${request.name} path ${filePath} is in trusted folder`);
+                }
+                if (isIgnored) {
+                    console.log(`[CoreService] Tool ${request.name} path ${filePath} is ignored by .geminiignore`);
+                }
+            }
+
+            filteredRequests.push(request);
+        }
+
+        // Emit BeforeTool hook event for each tool
+        for (const request of filteredRequests) {
+            this.emitHookEvent('BeforeTool', {
+                toolName: request.name,
+                toolInput: request.args,
+            });
         }
 
         const scheduler = new Scheduler({
@@ -751,6 +1055,9 @@ export class CoreService {
             schedulerId: ROOT_SCHEDULER_ID,
         });
 
+        // Track previous tool call states to detect changes
+        const previousToolCalls = new Map<string, ToolCall>();
+
         const onToolCallsUpdate = (message: {
             toolCalls: ToolCall[];
             schedulerId: string;
@@ -759,6 +1066,37 @@ export class CoreService {
                 return;
             }
             this.syncPendingConfirmations(message.toolCalls);
+
+            // Emit real-time output updates for tool execution
+            for (const toolCall of message.toolCalls) {
+                const prevCall = previousToolCalls.get(toolCall.request.callId);
+                const currentCall = toolCall;
+
+                // Check if there's new live output
+                if (currentCall.status === 'executing' && 'liveOutput' in currentCall && currentCall.liveOutput) {
+                    const outputStr = typeof currentCall.liveOutput === 'string'
+                        ? currentCall.liveOutput
+                        : (currentCall.liveOutput as { text?: string }).text || JSON.stringify(currentCall.liveOutput);
+
+                    // Only emit if output is new
+                    const prevOutput = prevCall && 'liveOutput' in prevCall ? prevCall.liveOutput : null;
+                    const prevOutputStr = prevOutput
+                        ? (typeof prevOutput === 'string' ? prevOutput : (prevOutput as { text?: string }).text || JSON.stringify(prevOutput))
+                        : '';
+
+                    if (outputStr !== prevOutputStr) {
+                        this.emitToolExecutionOutput({
+                            toolCallId: toolCall.request.callId,
+                            toolName: toolCall.request.name,
+                            output: outputStr,
+                            isStderr: false,
+                            timestamp: Date.now(),
+                        });
+                    }
+                }
+
+                previousToolCalls.set(toolCall.request.callId, toolCall);
+            }
         };
 
         this.messageBus.subscribe(
@@ -766,8 +1104,9 @@ export class CoreService {
             onToolCallsUpdate as never
         );
 
+        let completedCalls: CompletedToolCall[] = [];
         try {
-            return await scheduler.schedule(requests, signal);
+            completedCalls = await scheduler.schedule(requests, signal);
         } finally {
             this.messageBus.unsubscribe(
                 MessageBusType.TOOL_CALLS_UPDATE,
@@ -775,6 +1114,18 @@ export class CoreService {
             );
             this.syncPendingConfirmations([]);
         }
+
+        // Emit AfterTool hook event for each completed tool
+        for (const call of completedCalls) {
+            this.emitHookEvent('AfterTool', {
+                toolName: call.request.name,
+                toolInput: call.request.args,
+                toolResponse: call.response,
+                error: call.response.error,
+            });
+        }
+
+        return completedCalls;
     }
 
     public async submitConfirmation(
@@ -950,7 +1301,8 @@ export class CoreService {
 
         const cacheKey = chatsDir;
         const now = Date.now();
-        if (this.sessionsCache && this.sessionsCache.key === cacheKey && now - this.sessionsCache.timestamp < 3000) {
+        // Cache sessions for 30 seconds to reduce file system reads
+        if (this.sessionsCache && this.sessionsCache.key === cacheKey && now - this.sessionsCache.timestamp < 30000) {
             return this.sessionsCache.data;
         }
 

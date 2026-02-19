@@ -499,9 +499,28 @@ interface RunAgentDialogProps {
 export function RunAgentDialog({ agentName, agentDisplayName, open, onOpenChange, onRun, workspaces = [] }: RunAgentDialogProps) {
   const [task, setTask] = useState('');
   const [workspace, setWorkspace] = useState('');
+  const [models, setModels] = useState<{ id: string; name: string }[]>([]);
   const [model, setModel] = useState('gemini-2.5-pro');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch models from API
+  useEffect(() => {
+    if (!open) return;
+    fetch('/api/models')
+      .then(r => r.json())
+      .then(data => {
+        const modelList = (data.known || []).map((m: { id: string; name: string }) => ({
+          id: m.id,
+          name: m.name || m.id,
+        }));
+        setModels(modelList);
+        if (data.current) {
+          setModel(data.current);
+        }
+      })
+      .catch(console.error);
+  }, [open]);
 
   const handleRun = async () => {
     if (!task.trim()) return;
@@ -611,9 +630,9 @@ export function RunAgentDialog({ agentName, agentDisplayName, open, onOpenChange
                 className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm"
                 disabled={loading}
               >
-                <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                {models.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
               </select>
             </div>
           </div>

@@ -63,7 +63,7 @@ export function UsageStatsDialog({ open, onClose }: UsageStatsDialogProps) {
                   Track your token usage and estimated costs across different time periods.
                 </p>
               </div>
-              <button 
+              <button
                 onClick={onClose}
                 className="p-2 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-foreground"
               >
@@ -81,25 +81,25 @@ export function UsageStatsDialog({ open, onClose }: UsageStatsDialogProps) {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <StatCard 
-                    title="Today" 
-                    icon={<Activity className="w-4 h-4 text-blue-500" />} 
-                    data={stats.daily} 
+                  <StatCard
+                    title="Today"
+                    icon={<Activity className="w-4 h-4 text-blue-500" />}
+                    data={stats.daily}
                   />
-                  <StatCard 
-                    title="This Week" 
-                    icon={<Calendar className="w-4 h-4 text-purple-500" />} 
-                    data={stats.weekly} 
+                  <StatCard
+                    title="This Week"
+                    icon={<Calendar className="w-4 h-4 text-purple-500" />}
+                    data={stats.weekly}
                   />
-                  <StatCard 
-                    title="This Month" 
-                    icon={<BarChart3 className="w-4 h-4 text-green-500" />} 
-                    data={stats.monthly} 
+                  <StatCard
+                    title="This Month"
+                    icon={<BarChart3 className="w-4 h-4 text-green-500" />}
+                    data={stats.monthly}
                   />
-                  <StatCard 
-                    title="All Time" 
-                    icon={<Layers className="w-4 h-4 text-orange-500" />} 
-                    data={stats.total} 
+                  <StatCard
+                    title="All Time"
+                    icon={<Layers className="w-4 h-4 text-orange-500" />}
+                    data={stats.total}
                   />
                 </div>
               )}
@@ -123,7 +123,7 @@ function StatCard({ title, icon, data }: { title: string, icon: React.ReactNode,
           <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
           {icon}
         </div>
-        
+
         <div className="space-y-1">
           <div className="text-2xl font-bold tracking-tight">
             ${data.cost.toFixed(4)}
@@ -145,12 +145,12 @@ function StatCard({ title, icon, data }: { title: string, icon: React.ReactNode,
           {/* Mini Bar Chart */}
           <div className="space-y-1.5">
             <div className="h-1.5 w-full bg-muted/50 rounded-full overflow-hidden flex">
-              <div 
-                className="h-full bg-blue-500/70" 
+              <div
+                className="h-full bg-blue-500/70"
                 style={{ width: `${inputPercent}%` }}
               />
-              <div 
-                className="h-full bg-green-500/70" 
+              <div
+                className="h-full bg-green-500/70"
                 style={{ width: `${outputPercent}%` }}
               />
             </div>

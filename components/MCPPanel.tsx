@@ -12,10 +12,12 @@ import {
     Globe,
     Plus,
     X,
-    Loader2
+    Loader2,
+    Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './sidebar/PanelHeader';
+import { ExtensionsGalleryDialog } from './ExtensionsGalleryDialog';
 
 type ServerStatus = 'connected' | 'connecting' | 'disconnected' | 'disconnecting' | 'error';
 
@@ -80,6 +82,7 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
     const [urlInput, setUrlInput] = useState('');
     const [description, setDescription] = useState('');
     const [isSavingServer, setIsSavingServer] = useState(false);
+    const [showGallery, setShowGallery] = useState(false);
 
     const orderedServers = useMemo(
         () => Object.entries(servers).sort((a, b) => a[0].localeCompare(b[0])),
@@ -225,14 +228,23 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
                 icon={Plug}
                 badge={discoveryState === 'started' ? 'Scanning' : undefined}
                 actions={
-                    <button
-                        onClick={loadServers}
-                        disabled={isLoading}
-                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-                        title="Refresh Servers"
-                    >
-                        <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setShowGallery(true)}
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                            title="Browse Extensions Gallery"
+                        >
+                            <Sparkles className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            onClick={loadServers}
+                            disabled={isLoading}
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                            title="Refresh Servers"
+                        >
+                            <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
+                        </button>
+                    </div>
                 }
             />
 
@@ -428,6 +440,12 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
                     </div>
                 </div>
             )}
+
+            <ExtensionsGalleryDialog
+                open={showGallery}
+                onClose={() => setShowGallery(false)}
+                onInstalled={loadServers}
+            />
         </div>
     );
 });

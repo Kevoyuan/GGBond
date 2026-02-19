@@ -13,6 +13,7 @@ export interface Session {
   updated_at: string | number;
   workspace?: string;
   branch?: string | null;
+  archived?: number | boolean;
   isCore?: boolean;
   lastUpdated?: string;
 }
@@ -48,6 +49,17 @@ export interface UploadedImage {
   dataUrl: string;
 }
 
+export interface ChatSnapshot {
+  id: number;
+  session_id: string;
+  tag: string;
+  title?: string;
+  message_count: number;
+  session_title?: string;
+  created_at: number;
+  created_at_formatted: string;
+}
+
 // ============================================================================
 // Constants
 // ============================================================================
@@ -67,6 +79,8 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   systemInstruction: '',
   toolPermissionStrategy: 'safe',
   ui: {
+    lowLatencyMode: true,
+    advancedMode: false,
     footer: {
       hideModelInfo: false,
       hideContextPercentage: false,
@@ -178,6 +192,8 @@ export const normalizeChatSettings = (input: Partial<ChatSettings> | null | unde
     systemInstruction: safeInput.systemInstruction ?? DEFAULT_CHAT_SETTINGS.systemInstruction,
     toolPermissionStrategy: safeInput.toolPermissionStrategy === 'auto' ? 'auto' : 'safe',
     ui: {
+      lowLatencyMode: safeInput.ui?.lowLatencyMode ?? DEFAULT_CHAT_SETTINGS.ui.lowLatencyMode,
+      advancedMode: safeInput.ui?.advancedMode ?? DEFAULT_CHAT_SETTINGS.ui.advancedMode,
       footer: {
         hideModelInfo: safeInput.ui?.footer?.hideModelInfo ?? DEFAULT_CHAT_SETTINGS.ui.footer.hideModelInfo,
         hideContextPercentage: safeInput.ui?.footer?.hideContextPercentage ?? DEFAULT_CHAT_SETTINGS.ui.footer.hideContextPercentage,

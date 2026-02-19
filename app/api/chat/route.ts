@@ -69,12 +69,20 @@ export async function POST(req: Request) {
       sessionId,
       workspace,
       mode,
+      lowLatencyMode,
       approvalMode,
       modelSettings,
       parentId,
       selectedAgent,
       images
     } = await req.json();
+
+    const isLowLatencyMode = lowLatencyMode !== false;
+    if (!isLowLatencyMode) {
+      // Debug: Log modelSettings to verify compression settings are received
+      console.log('[chat] Received modelSettings:', JSON.stringify(modelSettings));
+      console.log('[chat] compressionThreshold:', modelSettings?.compressionThreshold, 'tokenBudget:', modelSettings?.tokenBudget);
+    }
 
     if (!prompt && (!images || images.length === 0)) {
       return NextResponse.json({ error: 'Prompt or images are required' }, { status: 400 });
@@ -96,7 +104,9 @@ export async function POST(req: Request) {
     const finalSessionId = sessionId || crypto.randomUUID();
 
     const coreApprovalMode = approvalMode === 'auto' ? 'yolo' : 'default';
-    console.log('[chat] approval mode', { requested: approvalMode, resolved: coreApprovalMode });
+    if (!isLowLatencyMode) {
+      console.log('[chat] approval mode', { requested: approvalMode, resolved: coreApprovalMode });
+    }
 
     await core.initialize({
       sessionId: finalSessionId,
@@ -312,6 +322,9 @@ export async function POST(req: Request) {
     let persistedAssistantContent = '';
     let persistedAssistantThought = '';
     const persistedAssistantCitations: string[] = [];
+    let persistTimer: ReturnType<typeof setTimeout> | null = null;
+    let persistInFlight = false;
+    let persistDirty = false;
     let finalStats: {
       input_tokens: number;
       output_tokens: number;
@@ -326,6 +339,41 @@ export async function POST(req: Request) {
       totalTokenCount: number;
       durationMs: number;
     } | null = null;
+
+    const flushIncrementalPersistence = async () => {
+      if (persistInFlight) {
+        persistDirty = true;
+        while (persistInFlight) {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+        if (!persistDirty) {
+          return;
+        }
+      }
+      persistInFlight = true;
+      try {
+        do {
+          persistDirty = false;
+          await persistAssistantMessageIncremental(persistedAssistantContent, persistedAssistantThought);
+        } while (persistDirty);
+      } finally {
+        persistInFlight = false;
+      }
+    };
+
+    const scheduleIncrementalPersistence = () => {
+      if (!isLowLatencyMode) {
+        return flushIncrementalPersistence();
+      }
+      if (persistTimer) {
+        return Promise.resolve();
+      }
+      persistTimer = setTimeout(() => {
+        persistTimer = null;
+        void flushIncrementalPersistence();
+      }, 350);
+      return Promise.resolve();
+    };
 
     const captureFallbackFileUndo = (resultData: unknown) => {
       if (!resultData || typeof resultData !== 'object') {
@@ -501,6 +549,10 @@ export async function POST(req: Request) {
         const checkpointByCallId = new Map<string, string>();
         const toolStartTimeByCallId = new Map<string, number>();
         const pendingHookByKey = new Map<string, Array<{ id: string; startedAt: number }>>();
+
+        // Batch database operations for performance
+        const pendingToolStats: Array<{ tool_name: string; session_id: string | null; status: string; error_message: string | null; duration_ms: number; created_at: number }> = [];
+        const pendingFileOps: Array<{ file_path: string; operation: string; session_id: string | null; workspace: string | null; created_at: number }> = [];
         let hookCounter = 0;
         let isPollingConfirmationQueue = false;
         let confirmationQueuePollTimer: ReturnType<typeof setInterval> | null = null;
@@ -641,16 +693,25 @@ export async function POST(req: Request) {
           });
         };
 
-        coreEvents.on(CoreEvent.HookStart, onHookStart);
-        coreEvents.on(CoreEvent.HookEnd, onHookEnd);
-        cleanupMessageBusListeners = () => {
-          coreEvents.off(CoreEvent.HookStart, onHookStart);
-          coreEvents.off(CoreEvent.HookEnd, onHookEnd);
-          if (confirmationQueuePollTimer) {
-            clearInterval(confirmationQueuePollTimer);
-            confirmationQueuePollTimer = null;
-          }
-        };
+        let unsubscribeHookEvents = () => { };
+        if (!isLowLatencyMode) {
+          coreEvents.on(CoreEvent.HookStart, onHookStart);
+          coreEvents.on(CoreEvent.HookEnd, onHookEnd);
+
+          // Subscribe to hook events from CoreService
+          unsubscribeHookEvents = core.subscribeHookEvents((payload) => {
+            safeEnqueue({
+              type: 'hook_event',
+              id: `hook-${Date.now()}-${hookCounter++}`,
+              hookName: payload.eventName,
+              name: payload.eventName,
+              hook_type: 'start',
+              input: payload.data,
+              sessionId: payload.sessionId,
+            });
+          });
+        }
+
         try {
           if (typeof coreWithConfirmation.subscribeConfirmationRequests !== 'function') {
             throw new Error('CoreService confirmation subscription is unavailable');
@@ -673,8 +734,11 @@ export async function POST(req: Request) {
 
           cleanupMessageBusListeners = () => {
             unsubscribeConfirmation();
-            coreEvents.off(CoreEvent.HookStart, onHookStart);
-            coreEvents.off(CoreEvent.HookEnd, onHookEnd);
+            unsubscribeHookEvents();
+            if (!isLowLatencyMode) {
+              coreEvents.off(CoreEvent.HookStart, onHookStart);
+              coreEvents.off(CoreEvent.HookEnd, onHookEnd);
+            }
             if (confirmationQueuePollTimer) {
               clearInterval(confirmationQueuePollTimer);
               confirmationQueuePollTimer = null;
@@ -714,8 +778,10 @@ export async function POST(req: Request) {
                   role: 'assistant',
                   content: chunk
                 });
-                // Incrementally persist to DB for background continuity
-                await persistAssistantMessageIncremental(persistedAssistantContent, persistedAssistantThought);
+                // Extreme low-latency: avoid per-chunk persistence.
+                if (!isLowLatencyMode) {
+                  await scheduleIncrementalPersistence();
+                }
               }
             }
 
@@ -738,8 +804,8 @@ export async function POST(req: Request) {
                 checkpoint: info.checkpoint,
                 parameters: info.args
               });
-              // Incrementally persist to DB for background continuity
-              await persistAssistantMessageIncremental(persistedAssistantContent, persistedAssistantThought);
+              // Persist with throttling in low-latency mode to reduce stream stalls.
+              await scheduleIncrementalPersistence();
             }
 
             else if (event.type === GeminiEventType.ToolCallResponse) {
@@ -780,47 +846,35 @@ export async function POST(req: Request) {
                 error
               });
 
-              // Record tool stats for analytics
-              try {
-                const startTime = toolStartTimeByCallId.get(info.callId) || Date.now();
-                const durationMs = Date.now() - startTime;
-                db.prepare(`
-                  INSERT INTO tool_stats (tool_name, session_id, status, error_message, duration_ms, created_at)
-                  VALUES (?, ?, ?, ?, ?, ?)
-                `).run(
-                  toolName || 'unknown',
-                  sessionId || null,
-                  info.error ? 'failed' : 'success',
-                  info.error?.message || null,
-                  durationMs,
-                  Date.now()
-                );
-              } catch (err) {
-                console.error('[DB] Failed to record tool stats:', err);
-              }
+              // Collect tool stats for batch insert
+              const startTime = toolStartTimeByCallId.get(info.callId) || Date.now();
+              const durationMs = Date.now() - startTime;
+              pendingToolStats.push({
+                tool_name: toolName || 'unknown',
+                session_id: sessionId || null,
+                status: info.error ? 'failed' : 'success',
+                error_message: info.error?.message || null,
+                duration_ms: durationMs,
+                created_at: Date.now()
+              });
 
-              // Record file operations for heatmap
+              // Collect file operations for batch insert
               if (resultData && typeof resultData === 'object') {
                 const rd = resultData as Record<string, unknown>;
                 const filePath = (rd.file_path as string) || (rd.path as string);
                 const operation = (rd.operation as string) || (rd.tool as string) || toolName;
                 if (filePath && operation) {
-                  try {
-                    db.prepare(`
-                      INSERT INTO file_ops (file_path, operation, session_id, workspace, created_at)
-                      VALUES (?, ?, ?, ?, ?)
-                    `).run(
-                      filePath,
-                      operation,
-                      sessionId || null,
-                      workspace || null,
-                      Date.now()
-                    );
-                  } catch (err) {
-                    console.error('[DB] Failed to record file ops:', err);
-                  }
+                  pendingFileOps.push({
+                    file_path: filePath,
+                    operation: operation,
+                    session_id: sessionId || null,
+                    workspace: workspace || null,
+                    created_at: Date.now()
+                  });
                 }
               }
+              // Persist at key tool boundary for crash continuity.
+              await scheduleIncrementalPersistence();
             }
 
             else if (event.type === GeminiEventType.Thought) {
@@ -832,8 +886,10 @@ export async function POST(req: Request) {
                 type: 'thought',
                 content: text
               });
-              // Incrementally persist to DB for background continuity
-              await persistAssistantMessageIncremental(persistedAssistantContent, persistedAssistantThought);
+              // Extreme low-latency: avoid per-thought persistence.
+              if (!isLowLatencyMode) {
+                await scheduleIncrementalPersistence();
+              }
             }
 
             else if (event.type === GeminiEventType.Citation) {
@@ -880,6 +936,27 @@ export async function POST(req: Request) {
               };
             }
 
+            else if (event.type === GeminiEventType.ChatCompressed) {
+              // Context was compressed, notify UI to refresh
+              const compressionInfo = event.value as { originalTokenCount?: number; newTokenCount?: number; compressionRate?: number };
+              if (!isLowLatencyMode) {
+                console.log('[chat] Context compressed:', compressionInfo);
+              }
+
+              // Emit PreCompress hook event before compression
+              core.emitHookEvent('PreCompress', {
+                originalTokenCount: compressionInfo?.originalTokenCount,
+                compressionRate: compressionInfo?.compressionRate,
+              });
+
+              safeEnqueue({
+                type: 'context_compressed',
+                originalTokenCount: compressionInfo?.originalTokenCount,
+                newTokenCount: compressionInfo?.newTokenCount,
+                compressionRate: compressionInfo?.compressionRate
+              });
+            }
+
             else if (event.type === GeminiEventType.Error) {
               hasStreamError = true;
               const eventValue = (event as { value?: unknown }).value;
@@ -923,6 +1000,18 @@ export async function POST(req: Request) {
 
           // Save Assistant Message to DB
           try {
+            if (persistTimer) {
+              clearTimeout(persistTimer);
+              persistTimer = null;
+            }
+            if (
+              assistantMessageDbId !== null ||
+              persistedAssistantContent.trim() ||
+              persistedAssistantThought.trim()
+            ) {
+              await flushIncrementalPersistence();
+            }
+
             const serializedCitations = persistedAssistantCitations.length > 0
               ? JSON.stringify(Array.from(new Set(persistedAssistantCitations)))
               : null;
@@ -1012,6 +1101,39 @@ export async function POST(req: Request) {
           }
         } finally {
           persistUndoSnapshot();
+
+          // Batch insert collected tool stats and file operations
+          if (pendingToolStats.length > 0 || pendingFileOps.length > 0) {
+            try {
+              const batchInsertTx = db.transaction(() => {
+                // Batch insert tool stats
+                if (pendingToolStats.length > 0) {
+                  const toolStmt = db.prepare(`
+                    INSERT INTO tool_stats (tool_name, session_id, status, error_message, duration_ms, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                  `);
+                  for (const stat of pendingToolStats) {
+                    toolStmt.run(stat.tool_name, stat.session_id, stat.status, stat.error_message, stat.duration_ms, stat.created_at);
+                  }
+                }
+
+                // Batch insert file operations
+                if (pendingFileOps.length > 0) {
+                  const fileStmt = db.prepare(`
+                    INSERT INTO file_ops (file_path, operation, session_id, workspace, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                  `);
+                  for (const op of pendingFileOps) {
+                    fileStmt.run(op.file_path, op.operation, op.session_id, op.workspace, op.created_at);
+                  }
+                }
+              });
+              batchInsertTx();
+            } catch (err) {
+              console.error('[DB] Failed to batch insert stats:', err);
+            }
+          }
+
           cleanupStream();
           if (!streamClosed) {
             streamClosed = true;

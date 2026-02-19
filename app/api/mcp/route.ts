@@ -9,7 +9,8 @@ type JsonRecord = Record<string, unknown>;
 type McpAction =
   | { action: 'restart'; name?: string }
   | { action: 'add'; name: string; config: JsonRecord }
-  | { action: 'details'; name: string };
+  | { action: 'details'; name: string }
+  | { action: 'installExtension'; name: string; repoUrl: string };
 
 const resolveSettingsPath = async () => {
   const env = getGeminiEnv();
@@ -208,6 +209,68 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json({ success: true });
+    }
+
+    if (body.action === 'installExtension') {
+      const name = (body.name || '').trim();
+      const repoUrl = (body.repoUrl || '').trim();
+
+      if (!name) {
+        return NextResponse.json({ error: 'Extension name is required' }, { status: 400 });
+      }
+
+      if (!repoUrl) {
+        return NextResponse.json({ error: 'Repository URL is required' }, { status: 400 });
+      }
+
+      try {
+        // Use child_process to run the gemini CLI command
+        const { spawn } = await import('node:child_process');
+
+        return new Promise<Response>((resolve) => {
+          const installProcess = spawn('gemini', ['extensions', 'install', repoUrl], {
+            stdio: 'pipe',
+            shell: true,
+          });
+
+          let output = '';
+          let errorOutput = '';
+
+          installProcess.stdout?.on('data', (data) => {
+            output += data.toString();
+          });
+
+          installProcess.stderr?.on('data', (data) => {
+            errorOutput += data.toString();
+          });
+
+          installProcess.on('close', (code) => {
+            if (code === 0) {
+              resolve(NextResponse.json({ success: true, output }));
+            } else {
+              console.error('[mcp] Extension install error:', errorOutput);
+              resolve(NextResponse.json(
+                { error: errorOutput || 'Failed to install extension' },
+                { status: 500 }
+              ));
+            }
+          });
+
+          installProcess.on('error', (err) => {
+            console.error('[mcp] Extension install process error:', err);
+            resolve(NextResponse.json(
+              { error: 'Failed to start installation process' },
+              { status: 500 }
+            ));
+          });
+        });
+      } catch (error) {
+        console.error('[mcp] Extension install error:', error);
+        return NextResponse.json(
+          { error: 'Failed to install extension: ' + String(error) },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({ error: 'Unsupported MCP action' }, { status: 400 });
