@@ -310,7 +310,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
     const totalA = a[1].input + a[1].output;
     const totalB = b[1].input + b[1].output;
     return totalB - totalA;
-  })[0]?.[0] || 'gemini-3-pro-preview', [telemetry]);
+  })[0]?.[0] || 'gemini-3-pro', [telemetry]);
 
   const { pricing } = useMemo(() => getModelInfo(dominantModel), [dominantModel]);
   const cumulativeTokens = useMemo(() => current.totalTokens, [current]);

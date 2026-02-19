@@ -69,6 +69,8 @@ export const DEFAULT_TERMINAL_PANEL_HEIGHT = 360;
 export const ALLOWED_MODELS = new Set([
   'gemini-3-pro-preview',
   'gemini-3-flash-preview',
+  'gemini-3-pro',
+  'gemini-3-flash',
   'gemini-2.5-pro',
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
