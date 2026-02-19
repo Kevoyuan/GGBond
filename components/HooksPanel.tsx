@@ -28,7 +28,9 @@ import {
     Bell,
     BellOff,
     Info,
-    Plug
+    Plug,
+    Archive,
+    ListFilter
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './sidebar/PanelHeader';
@@ -56,6 +58,16 @@ export type HookEventType =
     | 'max_turns'
     | 'session_start'
     | 'session_end'
+    // New hook event types
+    | 'before_tool'
+    | 'after_tool'
+    | 'before_model'
+    | 'after_model'
+    | 'before_agent'
+    | 'after_agent'
+    | 'pre_compress'
+    | 'before_tool_selection'
+    | 'notification'
     // Legacy types for backward compatibility
     | 'start'
     | 'end';
@@ -413,6 +425,61 @@ const EVENT_TYPE_CONFIG: Record<HookEventType, {
         color: 'text-emerald-400',
         bgColor: 'bg-emerald-500/20',
         label: 'Tool Result'
+    },
+    // New hook event types
+    before_tool: {
+        icon: Terminal,
+        color: 'text-orange-400',
+        bgColor: 'bg-orange-500/20',
+        label: 'Before Tool'
+    },
+    after_tool: {
+        icon: Terminal,
+        color: 'text-teal-400',
+        bgColor: 'bg-teal-500/20',
+        label: 'After Tool'
+    },
+    before_model: {
+        icon: Sparkles,
+        color: 'text-pink-400',
+        bgColor: 'bg-pink-500/20',
+        label: 'Before Model'
+    },
+    after_model: {
+        icon: Sparkles,
+        color: 'text-rose-400',
+        bgColor: 'bg-rose-500/20',
+        label: 'After Model'
+    },
+    before_agent: {
+        icon: Zap,
+        color: 'text-cyan-400',
+        bgColor: 'bg-cyan-500/20',
+        label: 'Before Agent'
+    },
+    after_agent: {
+        icon: Zap,
+        color: 'text-lime-400',
+        bgColor: 'bg-lime-500/20',
+        label: 'After Agent'
+    },
+    pre_compress: {
+        icon: Archive,
+        color: 'text-amber-400',
+        bgColor: 'bg-amber-500/20',
+        label: 'Pre Compress'
+    },
+    before_tool_selection: {
+        icon: ListFilter,
+        color: 'text-violet-400',
+        bgColor: 'bg-violet-500/20',
+        label: 'Before Tool Selection'
+    },
+    notification: {
+        icon: Bell,
+        color: 'text-yellow-400',
+        bgColor: 'bg-yellow-500/20',
+        label: 'Notification'
     }
 };
 
@@ -420,10 +487,19 @@ const FILTER_OPTIONS: { value: HookEventType | 'all'; label: string }[] = [
     { value: 'all', label: 'All Events' },
     { value: 'tool_call', label: 'Tool Calls' },
     { value: 'tool_result', label: 'Tool Results' },
+    { value: 'before_tool', label: 'Before Tool' },
+    { value: 'after_tool', label: 'After Tool' },
+    { value: 'before_model', label: 'Before Model' },
+    { value: 'after_model', label: 'After Model' },
+    { value: 'before_agent', label: 'Before Agent' },
+    { value: 'after_agent', label: 'After Agent' },
     { value: 'confirmation_request', label: 'Confirmations' },
     { value: 'ask_user', label: 'Ask User' },
     { value: 'error', label: 'Errors' },
-    { value: 'thought', label: 'Thinking' }
+    { value: 'thought', label: 'Thinking' },
+    { value: 'session_start', label: 'Session Start' },
+    { value: 'session_end', label: 'Session End' },
+    { value: 'notification', label: 'Notifications' }
 ];
 
 type TabType = 'events' | 'config';

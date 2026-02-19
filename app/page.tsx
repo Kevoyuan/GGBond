@@ -1446,6 +1446,18 @@ export default function Home() {
               const mapHookType = (type: string): HookEvent['type'] => {
                 if (type === 'start') return 'tool_call';
                 if (type === 'end') return 'tool_result';
+                // Map hook event names to HookEventType
+                if (type === 'BeforeTool') return 'before_tool';
+                if (type === 'AfterTool') return 'after_tool';
+                if (type === 'BeforeModel') return 'before_model';
+                if (type === 'AfterModel') return 'after_model';
+                if (type === 'BeforeAgent') return 'before_agent';
+                if (type === 'AfterAgent') return 'after_agent';
+                if (type === 'SessionStart') return 'session_start';
+                if (type === 'SessionEnd') return 'session_end';
+                if (type === 'PreCompress') return 'pre_compress';
+                if (type === 'BeforeToolSelection') return 'before_tool_selection';
+                if (type === 'Notification') return 'notification';
                 return type as HookEvent['type'];
               };
 
@@ -1560,6 +1572,18 @@ export default function Home() {
               const mapHookType = (type: string): HookEvent['type'] => {
                 if (type === 'start') return 'tool_call';
                 if (type === 'end') return 'tool_result';
+                // Map hook event names to HookEventType
+                if (type === 'BeforeTool') return 'before_tool';
+                if (type === 'AfterTool') return 'after_tool';
+                if (type === 'BeforeModel') return 'before_model';
+                if (type === 'AfterModel') return 'after_model';
+                if (type === 'BeforeAgent') return 'before_agent';
+                if (type === 'AfterAgent') return 'after_agent';
+                if (type === 'SessionStart') return 'session_start';
+                if (type === 'SessionEnd') return 'session_end';
+                if (type === 'PreCompress') return 'pre_compress';
+                if (type === 'BeforeToolSelection') return 'before_tool_selection';
+                if (type === 'Notification') return 'notification';
                 return type as HookEvent['type'];
               };
 
