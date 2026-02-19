@@ -5,8 +5,28 @@ import { Storage } from '@google/gemini-cli-core';
 import path from 'path';
 import fs from 'fs';
 
-// Built-in agents that are not in user agents directory
-const BUILT_IN_AGENTS = ['codebase-investigator', 'cli-help-agent', 'generalist-agent'];
+// Fallback built-in agents when CoreService is not available
+const FALLBACK_BUILT_IN_AGENTS = ['codebase-investigator', 'cli-help-agent', 'generalist-agent'];
+
+// Dynamically get built-in agents from CoreService or fallback
+async function getBuiltInAgents(): Promise<string[]> {
+    try {
+        const core = CoreService.getInstance();
+        if (core.config) {
+            const agents = core.config.getAgentRegistry().getAllDefinitions?.() || [];
+            // Filter for built-in agents (typically marked as local kind)
+            const builtIn = agents
+                .filter((agent: { kind?: string }) => agent.kind === 'builtin' || agent.kind === 'local')
+                .map((agent: { name: string }) => agent.name);
+            if (builtIn.length > 0) {
+                return builtIn;
+            }
+        }
+    } catch (error) {
+        console.warn('[agents] Failed to get built-in agents from CoreService:', error);
+    }
+    return FALLBACK_BUILT_IN_AGENTS;
+}
 
 // Read agent definition from a markdown file
 function readAgentFromFile(filePath: string): { name: string; displayName?: string; description: string; kind: 'local' | 'remote'; experimental?: boolean; content?: string } | null {
@@ -142,7 +162,8 @@ export async function GET() {
 
         // 3. Ensure built-in agents are present
         // If they were not in userAgents OR CoreService, add the fallback definition
-        BUILT_IN_AGENTS.forEach(name => {
+        const builtInAgents = await getBuiltInAgents();
+        builtInAgents.forEach(name => {
             if (!agentsMap.has(name)) {
                 agentsMap.set(name, {
                     name,
@@ -162,8 +183,9 @@ export async function GET() {
             const userAgents = getUserAgents();
             const agentsMap = new Map<string, AgentDefinitionLike>();
             userAgents.forEach(agent => agentsMap.set(agent.name, agent));
-            
-            BUILT_IN_AGENTS.forEach(name => {
+
+            const builtInAgents = await getBuiltInAgents();
+            builtInAgents.forEach(name => {
                 if (!agentsMap.has(name)) {
                     agentsMap.set(name, {
                         name,

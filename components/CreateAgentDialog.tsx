@@ -32,6 +32,7 @@ export function CreateAgentDialog({ open, onOpenChange, onSuccess }: CreateAgent
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [defaultModel, setDefaultModel] = useState('gemini-2.5-pro');
   const [model, setModel] = useState('gemini-2.5-pro');
   const [temperature, setTemperature] = useState(1);
   const [maxTurns, setMaxTurns] = useState(20);
@@ -45,13 +46,24 @@ export function CreateAgentDialog({ open, onOpenChange, onSuccess }: CreateAgent
     setPortalReady(true);
   }, []);
 
+  useEffect(() => {
+    fetch('/api/models')
+      .then(r => r.json())
+      .then(data => {
+        const current = data.current || 'gemini-2.5-pro';
+        setDefaultModel(current);
+        setModel(current);
+      })
+      .catch(console.error);
+  }, []);
+
 
   const resetForm = () => {
     setName('');
     setDisplayName('');
     setDescription('');
     setSystemPrompt('');
-    setModel('gemini-2.5-pro');
+    setModel(defaultModel);
     setTemperature(1);
     setMaxTurns(20);
     setTimeoutMins(5);

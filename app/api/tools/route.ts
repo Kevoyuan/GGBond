@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getToolsConfig, BUILTIN_TOOLS } from '@/lib/gemini-service';
+import { getToolsConfig, getBuiltinTools } from '@/lib/gemini-service';
 
 export async function GET() {
     try {
         const config = await getToolsConfig();
+        const builtinTools = await getBuiltinTools();
 
         // Merge built-in tools with config status
-        const tools = BUILTIN_TOOLS.map(tool => {
+        const tools = builtinTools.map(tool => {
             const isExcluded = config.exclude?.some(e => e.startsWith(tool.name)) || false;
             const isAllowed = config.allowed?.some(a => a.startsWith(tool.name)) || false;
             const isCore = config.core?.some(c => c.startsWith(tool.name)) || false;

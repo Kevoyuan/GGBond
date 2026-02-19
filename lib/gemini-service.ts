@@ -144,8 +144,9 @@ export interface ToolsConfig {
     };
 }
 
-// Built-in tools list per gemini-cli-api.md
-export const BUILTIN_TOOLS = [
+// Built-in tools - dynamically retrieved from CoreService
+// Fallback list for when CoreService is not available
+const FALLBACK_TOOLS = [
     { name: 'list_directory', displayName: 'ReadFolder', requiresApproval: false },
     { name: 'read_file', displayName: 'ReadFile', requiresApproval: false },
     { name: 'write_file', displayName: 'WriteFile', requiresApproval: true },
@@ -159,17 +160,51 @@ export const BUILTIN_TOOLS = [
     { name: 'write_todos', displayName: 'WriteTodos', requiresApproval: false },
 ];
 
+export async function getBuiltinTools(): Promise<typeof FALLBACK_TOOLS> {
+    try {
+        const { CoreService } = await import('@/lib/core-service');
+        const core = CoreService.getInstance();
+        if (core.config) {
+            const registry = core.config.getToolRegistry() as unknown as Record<string, unknown>;
+            // Try various methods to get tools from the registry
+            const getAllDefs = registry.getAllDefinitions as ((...args: unknown[]) => unknown) | undefined;
+            const tools = getAllDefs?.() || (registry.tools as unknown[]) || [];
+            if (Array.isArray(tools) && tools.length > 0) {
+                return tools.map((tool: { name: string; description?: string }) => ({
+                    name: tool.name,
+                    displayName: tool.description || tool.name,
+                    requiresApproval: false,
+                }));
+            }
+        }
+    } catch (error) {
+        console.warn('[gemini-service] Failed to get tools from CoreService, using fallback:', error);
+    }
+    return FALLBACK_TOOLS;
+}
+
 export async function getToolsConfig(): Promise<ToolsConfig> {
     const settings = await readSettings();
     return settings.tools || {};
 }
 
 // ─── Hooks Config ────────────────────────────────────────
-export const HOOK_EVENTS = [
+// Hook events - dynamically retrieved from settings if available
+const FALLBACK_HOOK_EVENTS = [
     'BeforeTool', 'AfterTool', 'BeforeAgent', 'AfterAgent',
     'SessionStart', 'SessionEnd', 'BeforeModel', 'AfterModel',
     'PreCompress', 'BeforeToolSelection', 'Notification',
 ] as const;
+
+export async function getHookEvents(): Promise<readonly string[]> {
+    const settings = await readSettings();
+    // Check if custom hook events are configured in settings
+    const customEvents = settings.hooksConfig?.availableEvents || [];
+    if (customEvents.length > 0) {
+        return customEvents as readonly string[];
+    }
+    return FALLBACK_HOOK_EVENTS;
+}
 
 export interface HooksConfig {
     hooksConfig: {
@@ -230,7 +265,9 @@ export async function listExtensions(): Promise<string> {
 }
 
 // ─── Models ──────────────────────────────────────────────
-export const KNOWN_MODELS = [
+// Known models - dynamically retrieved from gemini-cli-core if available
+// This list is used as fallback when CoreService is not available
+const FALLBACK_MODELS = [
     { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro', tier: 'pro', contextWindow: '2M' },
     { id: 'gemini-2.5-flash', name: 'gemini-2.5-flash', tier: 'flash', contextWindow: '1M' },
     { id: 'gemini-2.5-flash-lite', name: 'gemini-2.5-flash-lite', tier: 'lite', contextWindow: '1M' },
@@ -238,16 +275,71 @@ export const KNOWN_MODELS = [
     { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', tier: 'flash', contextWindow: '1M' },
 ];
 
+// Model metadata including context window and tier (not available from gemini-cli-core)
+const MODEL_METADATA: Record<string, { tier: string; contextWindow: string }> = {
+    'gemini-2.5-pro': { tier: 'pro', contextWindow: '2M' },
+    'gemini-2.5-flash': { tier: 'flash', contextWindow: '1M' },
+    'gemini-2.5-flash-lite': { tier: 'lite', contextWindow: '1M' },
+    'gemini-3-pro-preview': { tier: 'pro', contextWindow: '1M' },
+    'gemini-3-flash-preview': { tier: 'flash', contextWindow: '1M' },
+};
+
+export async function getKnownModels() {
+    // Try to get valid models from gemini-cli-core
+    let validModels: Set<string> | null = null;
+    try {
+        const { VALID_GEMINI_MODELS } = await import('@google/gemini-cli-core');
+        validModels = VALID_GEMINI_MODELS;
+    } catch (error) {
+        console.warn('[gemini-service] Failed to import VALID_GEMINI_MODELS:', error);
+    }
+
+    // Get custom models from settings
+    const settings = await readSettings();
+    const customModels = settings.modelConfigs?.knownModels || [];
+
+    // Build the model list
+    const modelMap = new Map<string, typeof FALLBACK_MODELS[0]>();
+
+    // First add valid models from gemini-cli-core (if available)
+    if (validModels) {
+        for (const modelId of validModels) {
+            const metadata = MODEL_METADATA[modelId] || { tier: 'unknown', contextWindow: '1M' };
+            modelMap.set(modelId, {
+                id: modelId,
+                name: modelId,
+                tier: metadata.tier,
+                contextWindow: metadata.contextWindow,
+            });
+        }
+    } else {
+        // Use fallback if import failed
+        for (const model of FALLBACK_MODELS) {
+            modelMap.set(model.id, model);
+        }
+    }
+
+    // Then add custom models (they override built-in)
+    for (const model of customModels) {
+        if (model.id) {
+            modelMap.set(model.id, model);
+        }
+    }
+
+    return Array.from(modelMap.values());
+}
+
 export async function getModelConfig(): Promise<{
     current: string;
     customAliases: Record<string, any>;
-    known: typeof KNOWN_MODELS;
+    known: typeof FALLBACK_MODELS;
 }> {
     const settings = await readSettings();
+    const knownModels = await getKnownModels();
     return {
         current: settings.model?.name || process.env.GEMINI_MODEL || 'gemini-2.5-pro',
         customAliases: settings.modelConfigs?.customAliases || {},
-        known: KNOWN_MODELS,
+        known: knownModels,
     };
 }
 
