@@ -1460,8 +1460,8 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                 <button
                   onClick={() => setShowModeMenu(!showModeMenu)}
                   className={cn(
-                    "w-20 h-8 flex items-center justify-between gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 cursor-pointer z-20 relative border",
-                    "bg-background text-foreground border-border hover:bg-accent/50"
+                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer z-20 relative",
+                    "bg-transparent text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                   title={`Mode: ${currentMode.label}`}
                 >
@@ -1473,10 +1473,7 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                 {showModeMenu && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowModeMenu(false)} />
-                    <div className="absolute bottom-full left-0 mb-2 w-64 bg-background border rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50 py-1">
-                      <div className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                        Select Mode
-                      </div>
+                    <div className="absolute bottom-full left-0 mb-2 w-56 bg-background/90 backdrop-blur-md border border-border/50 rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50 p-1">
                       {MODE_OPTIONS.map(opt => {
                         const isActive = opt.value === mode;
                         return (
@@ -1487,32 +1484,27 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                               setShowModeMenu(false);
                             }}
                             className={cn(
-                              "w-full text-left px-3 py-2.5 text-xs flex items-center gap-3 transition-all relative",
+                              "w-full text-left px-3 py-2 text-xs flex items-center gap-3 transition-colors relative rounded-lg",
                               isActive
-                                ? "bg-accent text-foreground"
+                                ? "bg-accent/80 text-foreground"
                                 : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                             )}
                           >
-                            <div className={cn(
-                              "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                              isActive ? "bg-accent-foreground/10" : "bg-muted"
-                            )}>
-                              <opt.icon className={cn("w-4 h-4", isActive ? "text-foreground" : "text-muted-foreground")} />
-                            </div>
+                            <opt.icon className={cn("w-4 h-4 shrink-0", isActive ? "text-foreground" : "text-muted-foreground/80")} />
                             <div className="flex flex-col min-w-0 flex-1">
-                              <span className="font-semibold">{opt.label}</span>
-                              <span className="text-[10px] opacity-70">{opt.description}</span>
+                              <span className="font-medium">{opt.label}</span>
+                              <span className="text-[10px] opacity-70 whitespace-nowrap overflow-hidden text-ellipsis">{opt.description}</span>
                             </div>
                             {opt.shortcut && (
-                              <span className={cn(
-                                "text-[10px] px-1.5 py-0.5 rounded font-mono",
-                                isActive ? "bg-background/30" : "bg-muted"
+                              <kbd className={cn(
+                                "hidden sm:inline-flex h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium",
+                                isActive ? "bg-background/50 border-border/50 text-foreground/80" : "bg-muted text-muted-foreground"
                               )}>
                                 {opt.shortcut}
-                              </span>
+                              </kbd>
                             )}
                             {isActive && (
-                              <div className="ml-auto w-2 h-2 rounded-full bg-foreground/70" />
+                              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-foreground" />
                             )}
                           </button>
                         );

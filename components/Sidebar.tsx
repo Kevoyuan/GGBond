@@ -36,6 +36,7 @@ import { ChatView } from './sidebar/ChatView';
 import { useGitBranches } from '../hooks/useGitBranches';
 import { Tooltip } from './ui/Tooltip';
 import { ResizeHandle, useResize } from './ui/ResizeHandle';
+import packageJson from '../package.json';
 
 interface Session {
   id: string;
@@ -109,6 +110,9 @@ const DEFAULT_SIDEBAR_WIDTH = 280;
 const MIN_NAV_HEIGHT = 100;
 const MAX_NAV_HEIGHT = 800;
 const DEFAULT_NAV_HEIGHT = 240;
+const GEMINI_CLI_CORE_VERSION = String(
+  packageJson.dependencies?.['@google/gemini-cli-core'] || ''
+).replace(/^[^\d]*/, '') || 'unknown';
 
 export const Sidebar = React.memo(function Sidebar({
   sessions,
@@ -423,6 +427,14 @@ export const Sidebar = React.memo(function Sidebar({
           </div>
         </div>
 
+        {!isCollapsed && (
+          <>
+            <div className="w-full h-px bg-[var(--border-subtle)] mt-1 mb-0.5" />
+            <div className="w-full text-left font-mono text-[10px] font-medium text-[var(--text-tertiary)] select-none px-1">
+              CLI v{GEMINI_CLI_CORE_VERSION}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Horizontal Resizer (sidebar width) */}
