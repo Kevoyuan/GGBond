@@ -24,7 +24,6 @@ interface GalleryExtension {
     description: string;
     installCommand: string;
     category?: string;
-    icon?: string;
     author?: string;
     githubUrl?: string;
 }
@@ -321,18 +320,8 @@ export function ExtensionsGalleryDialog({ open, onClose, onInstalled }: Extensio
                                     <X className="w-5 h-5" />
                                 </button>
                                 <div className="absolute -bottom-8 left-5">
-                                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-lg border-4 border-background overflow-hidden">
-                                        {selectedExtension.icon ? (
-                                            <Image
-                                                src={selectedExtension.icon}
-                                                alt=""
-                                                width={32}
-                                                height={32}
-                                                className="w-8 h-8 object-contain"
-                                            />
-                                        ) : (
-                                            <Package className="w-8 h-8 text-white" />
-                                        )}
+                                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-lg border-4 border-background">
+                                        <Package className="w-8 h-8 text-white" />
                                     </div>
                                 </div>
                             </div>

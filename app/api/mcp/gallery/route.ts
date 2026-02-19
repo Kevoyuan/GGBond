@@ -7,7 +7,6 @@ export interface GalleryExtension {
   description: string;
   installCommand: string;
   category?: string;
-  icon?: string;
   author?: string;
   githubUrl?: string;
 }
