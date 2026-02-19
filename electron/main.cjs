@@ -7,12 +7,12 @@ const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage, ipcMain, sh
 const isHeadless = process.argv.includes('--headless') || process.env.GEMINI_HEADLESS === '1' || process.env.GEMINI_HEADLESS === 'true';
 
 // Performance: Enable hardware acceleration
-// app.commandLine.appendSwitch('enable-gpu-rasterization');
-// app.commandLine.appendSwitch('enable-zero-copy');
-// app.commandLine.appendSwitch('ignore-gpu-blocklist');
-app.commandLine.appendSwitch('no-sandbox');
-app.commandLine.appendSwitch('disable-gpu-sandbox');
-app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+// app.commandLine.appendSwitch('no-sandbox');
+// app.commandLine.appendSwitch('disable-gpu-sandbox');
+// app.disableHardwareAcceleration();
 
 // Detect if running in development
 const isDev = !app.isPackaged;
@@ -92,7 +92,7 @@ function createMainWindow() {
   });
 
   // Performance: Enable caching
-  // window.webContents.session.setCacheEnabled(true);
+  window.webContents.session.setCacheEnabled(true);
 
   // Performance: Preload scripts
   if (isDev) {
