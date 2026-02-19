@@ -57,6 +57,8 @@ GGBond is an AI-powered intelligent coding assistant desktop application built o
 - System tray with toggle functionality
 - Global shortcut: `Ctrl+Shift+Space` to summon app
 - Native window controls
+- **High Performance**: Hardware acceleration and session caching optimized for fluid UI
+- **Optimized Bundle**: Next.js `optimizePackageImports` enabled for faster loading
 
 ## Tech Stack
 
