@@ -1376,6 +1376,16 @@ export default function Home() {
               updateMessageInTree(assistantMsgId, { hooks: [...assistantHooks] });
             }
 
+            if (data.type === 'context_compressed') {
+              // Context was compressed, show notification
+              const original = data.originalTokenCount;
+              const newTokens = data.newTokenCount;
+              const saved = original && newTokens ? original - newTokens : 0;
+              console.log('[UI] Context compressed:', { original, newTokens, saved });
+              // Force refresh session stats by updating messages
+              // The compression updates the message content in the backend
+            }
+
             if (data.type === 'result') {
               if (data.status === 'error' && data.error) {
                 const errorMsg = data.error.message || data.error.type || 'Unknown API error';

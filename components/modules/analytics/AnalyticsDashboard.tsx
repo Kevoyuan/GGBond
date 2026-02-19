@@ -283,18 +283,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
     fetchData();
   }, [fetchData]);
 
-  if (loading) {
-    return (
-      <ModuleCard title="Analytics" description="Usage & Cost Tracking" icon={BarChart}>
-        <div className="flex flex-col items-center justify-center py-20 opacity-50 space-y-3">
-          <Loader2 size={24} className="animate-spin text-blue-500" />
-          <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">Loading Data...</span>
-        </div>
-      </ModuleCard>
-    );
-  }
-
-  // Memoized expensive computations
+  // Memoized expensive computations (must be called unconditionally)
   const current = useMemo(() => stats?.[period] || { inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalTokens: 0, cost: 0, count: 0 }, [stats, period]);
   const total = useMemo(() => stats?.total || current, [stats, current]);
 
@@ -366,6 +355,18 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
   const topModelsTotal = useMemo(() => primaryModels.reduce((sum, model) => sum + (modelTotals[model] || 0), 0), [primaryModels, modelTotals]);
   const othersTotal = useMemo(() => Math.max(timelineGrandTotal - topModelsTotal, 0), [timelineGrandTotal, topModelsTotal]);
   const shouldRenderDenseLabels = timelinePeriod === 'month';
+
+  // Loading state
+  if (loading) {
+    return (
+      <ModuleCard title="Analytics" description="Usage & Cost Tracking" icon={BarChart}>
+        <div className="flex flex-col items-center justify-center py-20 opacity-50 space-y-3">
+          <Loader2 size={24} className="animate-spin text-blue-500" />
+          <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">Loading Data...</span>
+        </div>
+      </ModuleCard>
+    );
+  }
 
   return (
     <ModuleCard title="Analytics" description="Usage & Cost Tracking" icon={BarChart}>

@@ -382,6 +382,8 @@ export class CoreService {
             return;
         }
 
+        console.log('[CoreService] Applying runtime model settings:', JSON.stringify(settings));
+
         const runtimeConfig = this.config as unknown as {
             maxSessionTurns?: number;
             compressionThreshold?: number;
@@ -950,7 +952,8 @@ export class CoreService {
 
         const cacheKey = chatsDir;
         const now = Date.now();
-        if (this.sessionsCache && this.sessionsCache.key === cacheKey && now - this.sessionsCache.timestamp < 3000) {
+        // Cache sessions for 30 seconds to reduce file system reads
+        if (this.sessionsCache && this.sessionsCache.key === cacheKey && now - this.sessionsCache.timestamp < 30000) {
             return this.sessionsCache.data;
         }
 
