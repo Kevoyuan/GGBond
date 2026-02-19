@@ -84,6 +84,8 @@ export default function Home() {
   // Sidebar state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showSidebarToggle, setShowSidebarToggle] = useState(true);
+  // Sidebar active view: 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory'
+  const [sidebarView, setSidebarView] = useState<string | null>(null);
 
   // Toast notifications state (via hook)
   const { toasts, dismissToast, showErrorToast, showWarningToast, showInfoToast } = useToast();
@@ -392,6 +394,17 @@ export default function Home() {
     const savedCollapsed = localStorage.getItem('sidebar-collapsed');
     if (savedCollapsed) setIsSidebarCollapsed(savedCollapsed === 'true');
   }, []);
+
+  // Handle sidebarView changes - expand sidebar and switch to the requested view
+  useEffect(() => {
+    if (sidebarView) {
+      // If a specific view is requested (e.g., 'mcp'), expand sidebar
+      if (isSidebarCollapsed) {
+        setIsSidebarCollapsed(false);
+        localStorage.setItem('sidebar-collapsed', 'false');
+      }
+    }
+  }, [sidebarView, isSidebarCollapsed]);
 
   const toggleTheme = useCallback(() => {
     setTheme(theme === 'light' ? 'dark' : 'light');
@@ -1644,6 +1657,97 @@ export default function Home() {
       return;
     }
 
+    // Handle /extensions command - show MCP servers status
+    if (trimmedInput.startsWith('/extensions')) {
+      // Open MCP panel in sidebar
+      setSidebarView('mcp');
+
+      try {
+        const res = await fetch('/api/mcp');
+        const data = await res.json() as { servers?: Record<string, { status?: string; kind?: string; command?: string; url?: string; description?: string }> };
+        const servers = data.servers || {};
+
+        if (Object.keys(servers).length === 0) {
+          const noExtContent = [
+            '## MCP Servers (Extensions)',
+            '',
+            'No MCP servers configured.',
+            '',
+            '### How to add MCP servers:',
+            '',
+            '1. Click the **MCP** button in the sidebar (or use `/extensions` to open)',
+            '2. Click **Add Server** button',
+            '3. Enter server name and configuration',
+            '',
+            '### Supported Transport Types:',
+            '- **stdio**: Local command-based servers (e.g., `npx @modelcontextprotocol/...`)',
+            '- **sse**: Network stream servers',
+            '- **http**: REST API servers',
+            '',
+            '### Related Commands:',
+            '- `/mcp` - Same as `/extensions`, opens MCP management panel'
+          ].join('\n');
+          addMessageToTree({ role: 'model', content: noExtContent }, headId);
+          return;
+        }
+
+        const serverRows = Object.entries(servers).map(([name, config]) => {
+          const status = config.status || 'disconnected';
+          const kind = config.kind || (config.command ? 'stdio' : 'network');
+          const statusIcon = status === 'connected' ? '●' : '○';
+          const statusText = status === 'connected' ? 'Running' : 'Stopped';
+          const detail = config.command || config.url || '';
+          return `- ${statusIcon} **${name}** (${kind}) - ${statusText}${detail ? ` - \`${detail}\`` : ''}`;
+        }).join('\n');
+
+        const extContent = [
+          '## MCP Servers (Extensions)',
+          '',
+          `Total: **${Object.keys(servers).length}** server(s) configured`,
+          '',
+          '### Configured Servers:',
+          serverRows,
+          '',
+          '### How to Manage:',
+          '',
+          '- Click **MCP** in sidebar to open management panel',
+          '- Use **Restart** to restart a server',
+          '- Use **Add Server** to add new MCP servers',
+          '',
+          '### Quick Tip:',
+          'Click the MCP nav item in the sidebar for full management (add, remove, restart servers)'
+        ].join('\n');
+
+        addMessageToTree({ role: 'model', content: extContent }, headId);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        addMessageToTree({
+          role: 'model',
+          content: `## MCP Servers\n\n> Error loading MCP servers: ${errorMsg}`
+        }, headId);
+      }
+      return;
+    }
+
+    // Handle /mcp command - alias for /extensions
+    if (trimmedInput.startsWith('/mcp')) {
+      // Open MCP panel in sidebar
+      setSidebarView('mcp');
+
+      // Same as /extensions, just redirect
+      const mcpContent = [
+        '## MCP Servers',
+        '',
+        'Opening MCP management panel...',
+        '',
+        'Click the **MCP** button in the sidebar to manage your MCP servers.',
+        '',
+        'You can also use `/extensions` command to view MCP server status.'
+      ].join('\n');
+      addMessageToTree({ role: 'model', content: mcpContent }, headId);
+      return;
+    }
+
     // Determine parent ID: passed option or current head (via ref for sync consistency)
     const parentIdToUseRaw = options?.parentId !== undefined ? options.parentId : headIdRef.current;
     const parentIdToUse = parentIdToUseRaw ? String(parentIdToUseRaw) : null;
@@ -2574,6 +2678,14 @@ export default function Home() {
           onToggleSidePanel={(type) => setSidePanelType(current => current === type ? null : type)}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={handleToggleSidebar}
+          sidebarView={sidebarView}
+          onSetSidebarView={(view) => {
+            setSidebarView(view);
+            // If switching to a non-chat view, ensure sidebar is expanded
+            if (view && view !== 'chat' && isSidebarCollapsed) {
+              setIsSidebarCollapsed(false);
+            }
+          }}
         />
 
         {/* Chat Content */}

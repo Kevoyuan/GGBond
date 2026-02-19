@@ -77,6 +77,9 @@ interface SidebarProps {
   onToggleCollapse?: () => void;
   workspaceBranchSummary?: Record<string, { label: string; title: string; mixed: boolean } | null>;
   formatSessionAge?: (session: Session) => string;
+  // External view control - allows parent to set active view
+  sidebarView?: string | null;
+  onSetSidebarView?: (view: string | null) => void;
 }
 
 type SidebarView = 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory';
@@ -152,14 +155,22 @@ export const Sidebar = React.memo(function Sidebar({
 
     const diffInYears = Math.floor(diffInDays / 365);
     return `${diffInYears}y`;
-  }
+  },
+  sidebarView,
+  onSetSidebarView,
 }: SidebarProps) {
 
 
-  const [activeView, setActiveView] = useState<SidebarView>('chat');
+  // Use external view if provided, otherwise use internal state
+  const [internalView, setInternalView] = useState<SidebarView>('chat');
+  const activeView = (sidebarView as SidebarView) || internalView;
   const handleViewClick = useCallback((view: SidebarView) => {
-    setActiveView(view);
-  }, []);
+    setInternalView(view);
+    // Notify parent if callback provided
+    if (onSetSidebarView) {
+      onSetSidebarView(view);
+    }
+  }, [onSetSidebarView]);
 
   // Stable callbacks for NavListItem to prevent re-renders
   const handleChatClick = useCallback(() => handleViewClick('chat'), [handleViewClick]);
