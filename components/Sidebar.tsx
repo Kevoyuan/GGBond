@@ -44,6 +44,7 @@ interface Session {
   updated_at?: string | number;
   workspace?: string;
   branch?: string | null;
+  archived?: number | boolean;
   isCore?: boolean;
   lastUpdated?: string;
 }
@@ -56,6 +57,8 @@ interface SidebarProps {
   unreadSessionIds?: string[];
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
+  onRestoreSession?: (id: string) => void;
+  onArchiveWorkspace?: (workspace: string) => void;
   onNewChat: () => void;
   onNewChatInWorkspace?: (workspace: string) => void;
   onOpenSettings: () => void;
@@ -115,6 +118,8 @@ export const Sidebar = React.memo(function Sidebar({
   unreadSessionIds = [],
   onSelectSession,
   onDeleteSession,
+  onRestoreSession,
+  onArchiveWorkspace,
   onNewChatInWorkspace,
   onOpenSettings,
   isDark,
@@ -277,6 +282,8 @@ export const Sidebar = React.memo(function Sidebar({
             unreadSessionIds={unreadSessionIds}
             onSelectSession={onSelectSession}
             onDeleteSession={onDeleteSession}
+            onRestoreSession={onRestoreSession}
+            onArchiveWorkspace={onArchiveWorkspace}
             onNewChatInWorkspace={onNewChatInWorkspace}
             onAddWorkspace={onAddWorkspace}
             onShowStats={onShowStats}

@@ -58,6 +58,8 @@ export interface ChatSettings {
   systemInstruction: string;
   toolPermissionStrategy: 'safe' | 'auto';
   ui: {
+    lowLatencyMode: boolean;
+    advancedMode: boolean;
     footer: {
       hideModelInfo: boolean;
       hideContextPercentage: boolean;
@@ -150,6 +152,8 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
       ...settings,
       toolPermissionStrategy: settings.toolPermissionStrategy ?? 'safe',
       ui: {
+        lowLatencyMode: settings.ui?.lowLatencyMode ?? true,
+        advancedMode: settings.ui?.advancedMode ?? false,
         footer: {
           hideModelInfo: settings.ui?.footer?.hideModelInfo ?? false,
           hideContextPercentage: settings.ui?.footer?.hideContextPercentage ?? false,
@@ -192,6 +196,8 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
         systemInstruction: '',
         toolPermissionStrategy: 'safe',
         ui: {
+          lowLatencyMode: true,
+          advancedMode: false,
           footer: {
             hideModelInfo: false,
             hideContextPercentage: false,
@@ -290,6 +296,32 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
           {/* UI Settings */}
           <div className="space-y-4 pt-4 border-t">
             <h3 className="text-sm font-semibold">UI Settings</h3>
+
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Low Latency Mode</label>
+              <input
+                type="checkbox"
+                checked={localSettings.ui.lowLatencyMode}
+                onChange={(e) => setLocalSettings(s => ({
+                  ...s,
+                  ui: { ...s.ui, lowLatencyMode: e.target.checked }
+                }))}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Advanced Mode</label>
+              <input
+                type="checkbox"
+                checked={localSettings.ui.advancedMode}
+                onChange={(e) => setLocalSettings(s => ({
+                  ...s,
+                  ui: { ...s.ui, advancedMode: e.target.checked }
+                }))}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+            </div>
             
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">Hide Model Info (Footer)</label>
