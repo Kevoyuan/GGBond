@@ -116,6 +116,29 @@ function createMainWindow() {
     window.loadURL('about:blank');
   });
 
+  // Native context menu for inputs and text selection
+  window.webContents.on('context-menu', (event, params) => {
+    const template = [];
+    if (params.isEditable) {
+      template.push(
+        { role: 'undo', label: 'Undo' },
+        { role: 'redo', label: 'Redo' },
+        { type: 'separator' },
+        { role: 'cut', label: 'Cut' },
+        { role: 'copy', label: 'Copy' },
+        { role: 'paste', label: 'Paste' },
+        { type: 'separator' },
+        { role: 'selectAll', label: 'Select All' }
+      );
+    } else if (params.selectionText) {
+      template.push({ role: 'copy', label: 'Copy' });
+    }
+
+    if (template.length > 0) {
+      Menu.buildFromTemplate(template).popup({ window });
+    }
+  });
+
   return window;
 }
 

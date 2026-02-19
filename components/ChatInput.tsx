@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, RefreshCw, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User, Info, BookOpen, Layout, Laptop, Keyboard, Monitor, Key, Bug, Github, FileCode, Eye, LogOut } from 'lucide-react';
+import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User, Info, BookOpen, Layout, Laptop, Keyboard, Monitor, Key, Bug, Github, FileCode, Eye, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -164,7 +164,6 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
   const cursorRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   const [cursorPosition, setCursorPosition] = useState(0);
   const [showContextTooltip, setShowContextTooltip] = useState(false);
-  const [isCompressing, setIsCompressing] = useState(false);
 
   // Use explicit escape sequences for markers to prevent matching issues across environments
   const anyTokenPattern = new RegExp("(#?[A-Za-z0-9._/\\\\-\\u2011]+)\\u200B", "g");
@@ -265,37 +264,23 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
 
   const currentMode = MODE_OPTIONS.find(m => m.value === mode) || MODE_OPTIONS[0];
 
-  // Calculate context usage - use cumulative session stats to match TokenUsageDisplay behavior
+  // Calculate context usage - prefer real-time branch usage from currentContextUsage
   const { pricing } = getModelInfo(currentModel);
   const contextLimit = pricing.contextWindow;
-  // Use sessionStats.totalTokens (cumulative) to match TokenUsageDisplay and Claude Code behavior
-  const usedTokens = sessionStats?.totalTokens || 0;
-  const inputTokens = sessionStats?.inputTokens || 0;
-  const outputTokens = sessionStats?.outputTokens || 0;
-  const cachedTokens = sessionStats?.cachedTokens || 0;
+  const usedTokens = Math.max(
+    0,
+    Math.round(
+      (typeof currentContextUsage === 'number' && Number.isFinite(currentContextUsage))
+        ? currentContextUsage
+        : 0
+    )
+  );
   const contextPercent = Math.min((usedTokens / contextLimit) * 100, 100);
-
-  // Calculate input/output percentages for visualization
-  const inputPercent = usedTokens > 0 ? (inputTokens / usedTokens) * 100 : 0;
-  const outputPercent = usedTokens > 0 ? (outputTokens / usedTokens) * 100 : 0;
 
   // Ring calculations
   const radius = 7;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (contextPercent / 100) * circumference;
-
-  const handleCompress = async () => {
-    setIsCompressing(true);
-    try {
-      // Use the native /compress command from gemini-cli
-      onSend("/compress", { approvalMode: currentApprovalMode });
-      setShowContextTooltip(false);
-    } catch (error) {
-      console.error('Compression failed:', error);
-    } finally {
-      setIsCompressing(false);
-    }
-  };
 
   // Helper to get current command bounds
   const getCommandBounds = (text: string, index: number) => {
@@ -1656,9 +1641,9 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                       {/* Stats */}
                       <div className="grid grid-cols-2 gap-2">
                         <div className="flex flex-col gap-1 p-2 rounded-lg bg-muted/40 border border-border/20">
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground/70 tracking-wider">Cached</span>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground/70 tracking-wider">Used</span>
                           <span className="text-sm font-bold font-mono text-foreground flex items-center gap-1">
-                            {cachedTokens.toLocaleString()}
+                            {usedTokens.toLocaleString()}
                             <span className="text-[10px] font-normal text-muted-foreground">tok</span>
                           </span>
                         </div>
@@ -1667,44 +1652,6 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                           <span className="text-sm font-bold font-mono text-foreground flex items-center gap-1">
                             {(contextLimit - usedTokens).toLocaleString()}
                             <span className="text-[10px] font-normal text-muted-foreground">tok</span>
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Input/Output Visual Bar */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-[10px] uppercase tracking-widest font-bold text-muted-foreground/80">
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
-                            Input
-                          </span>
-                          <span className="flex items-center gap-1.5">
-                            Output
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
-                          </span>
-                        </div>
-                        <div className="h-2.5 w-full bg-muted/40 rounded-full overflow-hidden flex ring-1 ring-black/5 dark:ring-white/5">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${inputPercent}%` }}
-                            transition={{ duration: 0.8, ease: "easeOut" }}
-                            className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500"
-                          />
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${outputPercent}%` }}
-                            transition={{ duration: 0.8, ease: "easeOut" }}
-                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-500"
-                          />
-                        </div>
-                        <div className="flex justify-between text-xs font-semibold text-foreground">
-                          <span className="flex items-center gap-1">
-                            {inputTokens >= 1000 ? `${(inputTokens / 1000).toFixed(1)}k` : inputTokens}
-                            <span className="text-[10px] text-muted-foreground font-normal">tokens</span>
-                          </span>
-                          <span className="flex items-center gap-1">
-                            {outputTokens >= 1000 ? `${(outputTokens / 1000).toFixed(1)}k` : outputTokens}
-                            <span className="text-[10px] text-muted-foreground font-normal">tokens</span>
                           </span>
                         </div>
                       </div>
@@ -1737,20 +1684,6 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                           />
                         </div>
                       </div>
-
-                      {/* Actions */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCompress();
-                        }}
-                        disabled={isCompressing}
-                        className="w-full group relative overflow-hidden rounded-lg bg-primary/5 hover:bg-primary/10 border border-primary/10 text-primary transition-colors duration-200 py-2 flex items-center justify-center gap-2 font-medium text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent -translate-x-full group-hover:animate-shimmer" />
-                        <RefreshCw className={cn("w-3.5 h-3.5", isCompressing && "animate-spin")} />
-                        <span>{isCompressing ? "Compressing..." : "Compact"}</span>
-                      </button>
 
                       {/* Tiny info */}
                       <div className="text-[9px] text-center text-muted-foreground/50">
