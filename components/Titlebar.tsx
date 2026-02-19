@@ -15,6 +15,7 @@ interface TitlebarProps {
         totalCost: number;
     };
     currentBranch?: string | null;
+    currentModel?: string;
     className?: string;
 }
 
@@ -24,6 +25,7 @@ export const Titlebar = React.memo(function Titlebar({
     onNewChat,
     stats,
     currentBranch,
+    currentModel = 'Gemini 3 Pro',
     className
 }: TitlebarProps) {
     return (
@@ -96,7 +98,7 @@ export const Titlebar = React.memo(function Titlebar({
                     {stats && (
                         <div className="hidden md:block">
                             <TokenUsageDisplay
-                                stats={stats}
+                                stats={{ ...stats, model: currentModel }}
                                 compact={true}
                                 floating={true}
                                 hover={true}

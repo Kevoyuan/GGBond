@@ -194,7 +194,7 @@ export function TokenUsageDisplay({ stats, compact = true, className, hideModelI
                   </div>
                   <div className="flex justify-between text-xs text-foreground font-semibold">
                     <span>{((totalTokens / contextLimit) * 100).toFixed(2)}% <span className="text-[10px] text-muted-foreground font-normal">capacity</span></span>
-                    <span className="text-muted-foreground/70">{Math.round(contextLimit / 1024)}k <span className="text-[10px] font-normal">limit</span></span>
+                    <span className="text-muted-foreground/70">{Math.round(contextLimit / 1000)}k <span className="text-[10px] font-normal">limit</span></span>
                   </div>
                   <div className="text-[10px] text-muted-foreground/70 pt-0.5 flex items-center justify-center gap-1.5">
                     <Info className="w-3 h-3 text-primary/70" />
