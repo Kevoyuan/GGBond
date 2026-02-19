@@ -72,7 +72,7 @@
 | **Agent Skills** | ✅ 完整 (85%) | `AgentPanel`, `SkillsPanel` |
 | **Authentication** | ❌ 未实现 | 需接入 |
 | **Checkpointing** | ✅ 完整 | `undo-utils.ts`, `StateSnapshotDisplay` |
-| **Extensions** | ✅ 完整 (85%) | `MCPPanel` |
+| **Extensions** | ✅ 完整 (100%) | `MCPPanel` + Gallery |
 | **Headless Mode** | ✅ 已实现 | 命令行/环境变量/API |
 | **Hooks** | ✅ 完整 (95%) | `HooksPanel` - 所有事件 |
 | **IDE Integration** | ⚠️ 部分 | 桌面应用已提供部分功能 |
