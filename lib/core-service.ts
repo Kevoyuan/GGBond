@@ -864,6 +864,34 @@ export class CoreService {
 
         let currentRequest: unknown = content;
         let turnCount = 0;
+        const isCapacityExhaustedError = (error: unknown) => {
+            const err = error as {
+                status?: number;
+                message?: string;
+                response?: { error?: { message?: string; status?: string; details?: Array<{ reason?: string }> } };
+            };
+            const message = `${err?.message || ''} ${err?.response?.error?.message || ''}`.toLowerCase();
+            const reason = err?.response?.error?.details?.[0]?.reason || '';
+            return (
+                err?.status === 429 &&
+                (
+                    message.includes('no capacity available') ||
+                    message.includes('model_capacity_exhausted') ||
+                    err?.response?.error?.status === 'RESOURCE_EXHAUSTED' ||
+                    reason === 'MODEL_CAPACITY_EXHAUSTED'
+                )
+            );
+        };
+        const fallbackModelForCapacity = () => {
+            const currentModel = this.config?.getModel() || '';
+            if (currentModel === 'gemini-3-pro-preview') {
+                return 'gemini-3-flash-preview';
+            }
+            if (currentModel === 'gemini-3-flash-preview') {
+                return 'gemini-2.5-pro';
+            }
+            return null;
+        };
 
         console.log(`[CoreService] Running turn with model: ${this.config.getModel()}`);
 
@@ -887,20 +915,34 @@ export class CoreService {
                     message: displayContent,
                 });
 
-                const responseStream = geminiClient.sendMessageStream(
-                    currentRequest as never,
-                    abortSignal,
-                    promptId,
-                    undefined,
-                    false,
-                    turnCount === 1 ? displayContent : undefined
-                );
+                try {
+                    const responseStream = geminiClient.sendMessageStream(
+                        currentRequest as never,
+                        abortSignal,
+                        promptId,
+                        undefined,
+                        false,
+                        turnCount === 1 ? displayContent : undefined
+                    );
 
-                for await (const event of responseStream) {
-                    if (event.type === GeminiEventType.ToolCallRequest) {
-                        toolCallRequests.push(event.value as ToolCallRequestInfo);
+                    for await (const event of responseStream) {
+                        if (event.type === GeminiEventType.ToolCallRequest) {
+                            toolCallRequests.push(event.value as ToolCallRequestInfo);
+                        }
+                        yield event;
                     }
-                    yield event;
+                } catch (error) {
+                    const fallbackModel = fallbackModelForCapacity();
+                    if (fallbackModel && isCapacityExhaustedError(error)) {
+                        console.warn(
+                            `[CoreService] Model capacity exhausted for ${this.config.getModel()}. Falling back to ${fallbackModel}.`
+                        );
+                        this.config.setModel(fallbackModel);
+                        // Retry the same turn with fallback model.
+                        turnCount -= 1;
+                        continue;
+                    }
+                    throw error;
                 }
 
                 // Emit AfterModel hook event

@@ -578,14 +578,64 @@ export default function Home() {
 
   const handleDeleteSession = async (id: string) => {
     try {
-      console.log('Deleting session:', id);
-      await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
-      setSessions(prev => prev.filter(s => s.id !== id));
+      await fetch(`/api/sessions/${id}/archive`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: true }),
+      });
+      setSessions(prev => prev.map(s => s.id === id ? { ...s, archived: 1 } : s));
       if (currentSessionId === id) {
         handleNewChat();
       }
     } catch (error) {
-      console.error('Failed to delete session', error);
+      console.error('Failed to archive session', error);
+    }
+  };
+
+  const handleRestoreSession = async (id: string) => {
+    try {
+      await fetch(`/api/sessions/${id}/archive`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: false }),
+      });
+      setSessions(prev => prev.map(s => s.id === id ? { ...s, archived: 0 } : s));
+      await handleSelectSession(id);
+    } catch (error) {
+      console.error('Failed to restore session', error);
+    }
+  };
+
+  const handleArchiveWorkspace = async (workspace: string) => {
+    const targetSessions = sessions.filter(
+      (s) => (s.workspace || 'Default') === workspace && !(s.archived === true || s.archived === 1)
+    );
+    if (targetSessions.length === 0) {
+      return;
+    }
+
+    try {
+      await Promise.all(
+        targetSessions.map((s) =>
+          fetch(`/api/sessions/${s.id}/archive`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ archived: true }),
+          })
+        )
+      );
+
+      const archivedIds = new Set(targetSessions.map((s) => s.id));
+      setSessions((prev) => prev.map((s) => (archivedIds.has(s.id) ? { ...s, archived: 1 } : s)));
+
+      if (currentWorkspace === workspace) {
+        const current = currentSessionId;
+        if (current && archivedIds.has(current)) {
+          handleNewChat();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to archive workspace sessions', error);
     }
   };
 
@@ -1835,6 +1885,7 @@ export default function Home() {
           sessionId: generatedSessionId,
           workspace: currentWorkspace,
           mode,
+          lowLatencyMode: settings.ui?.lowLatencyMode ?? true,
           approvalMode: options?.approvalMode ?? approvalMode,
           modelSettings: settings.modelSettings,
           selectedAgent: options?.agentName || selectedAgent?.name,
@@ -1875,7 +1926,9 @@ export default function Home() {
           if (!line.trim()) continue;
           try {
             const data = JSON.parse(line);
-            console.log('[Stream Event]', data.type, data);
+            if (!(settings.ui?.lowLatencyMode ?? true)) {
+              console.log('[Stream Event]', data.type, data);
+            }
 
             if (data.type === 'init' && data.session_id) {
               setStreamingStatus("Connected...");
@@ -1943,6 +1996,9 @@ export default function Home() {
             }
 
             if (data.type === 'hook' || data.type === 'hook_event') {
+              if (settings.ui?.lowLatencyMode ?? true) {
+                continue;
+              }
               const hookName = data.hookName || data.name || 'unknown';
               const isStart = data.type === 'hook' ? data.value?.type === 'start' : data.hook_type === 'start';
 
@@ -2076,6 +2132,9 @@ export default function Home() {
             }
 
             if (data.type === 'hook_event') {
+              if (settings.ui?.lowLatencyMode ?? true) {
+                continue;
+              }
               // Map legacy hook types to new HookEventType
               const mapHookType = (type: string): HookEvent['type'] => {
                 if (type === 'start') return 'tool_call';
@@ -2603,6 +2662,8 @@ export default function Home() {
           unreadSessionIds={Array.from(unreadSessionIds)}
           onSelectSession={handleSelectSession}
           onDeleteSession={handleDeleteSession}
+          onRestoreSession={handleRestoreSession}
+          onArchiveWorkspace={handleArchiveWorkspace}
           onNewChat={handleNewChat}
           onNewChatInWorkspace={handleNewChatInWorkspace}
           currentWorkspace={currentWorkspace === null ? undefined : currentWorkspace}

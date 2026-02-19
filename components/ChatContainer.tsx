@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { Bot, ArrowDown, Code2, ClipboardList, HelpCircle } from 'lucide-react';
+import { ArrowDown } from 'lucide-react';
 import { GeminiIcon } from './icons/GeminiIcon';
 import { MessageBubble, LoadingBubble, Message } from './MessageBubble';
 import { ChatInput } from './ChatInput';
@@ -9,7 +9,6 @@ import { FileViewer } from './FileViewer';
 import { cn } from '@/lib/utils';
 import { ChatSettings } from './SettingsDialog';
 import { TaskProgressDock, TodoItem } from './TaskProgressDock';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface ChatContainerProps {
 
@@ -265,39 +264,6 @@ export const ChatContainer = React.memo(function ChatContainer({
 
 
                     {latestTodos && latestTodos.length > 0 && <TaskProgressDock todos={latestTodos} />}
-
-                    {/* Mode Indicator Banner */}
-                    <AnimatePresence mode="wait">
-                        {mode !== 'code' && (
-                            <motion.div
-                                key={mode}
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="px-4 pt-2"
-                            >
-                                <div className={cn(
-                                    "flex items-center justify-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium",
-                                    mode === 'plan'
-                                        ? "bg-amber-500/10 border-amber-500/30 text-amber-500"
-                                        : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
-                                )}>
-                                    {mode === 'plan' ? (
-                                        <>
-                                            <ClipboardList className="w-4 h-4" />
-                                            <span>Plan Mode - No execution, preview only</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <HelpCircle className="w-4 h-4" />
-                                            <span>Ask Mode - Read-only, no modifications</span>
-                                        </>
-                                    )}
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
 
                     <ChatInput
                         onSend={onSendMessage}
