@@ -134,6 +134,7 @@ export async function removeMCPServer(name: string): Promise<void> {
 export interface ToolsConfig {
     sandbox?: string;
     approvalMode?: string;
+    headless?: boolean | string;
     core?: string[];
     exclude?: string[];
     allowed?: string[];
@@ -186,6 +187,21 @@ export async function getBuiltinTools(): Promise<typeof FALLBACK_TOOLS> {
 export async function getToolsConfig(): Promise<ToolsConfig> {
     const settings = await readSettings();
     return settings.tools || {};
+}
+
+export async function updateToolsConfig(updates: Partial<ToolsConfig>): Promise<ToolsConfig> {
+    const settings = await readSettings();
+    const currentTools = settings.tools || {};
+    const updatedTools = { ...currentTools, ...updates };
+    settings.tools = updatedTools;
+    await writeSettings(settings);
+
+    // Also check for headless env var as fallback
+    if (process.env.GEMINI_HEADLESS === '1' || process.env.GEMINI_HEADLESS === 'true') {
+        settings.tools.headless = true;
+    }
+
+    return updatedTools;
 }
 
 // ─── Hooks Config ────────────────────────────────────────

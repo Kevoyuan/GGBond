@@ -180,7 +180,16 @@ export class CoreService {
     }
 
     public async initialize(params: InitParams) {
+        // Check for headless mode - force YOLO mode
+        const isHeadless = process.env.GEMINI_HEADLESS === '1' ||
+            process.env.GEMINI_HEADLESS === 'true';
+
         const normalizedApprovalMode = (() => {
+            // Headless mode always uses YOLO (auto-approve)
+            if (isHeadless) {
+                console.log('[CoreService] Headless mode detected, forcing YOLO approval mode');
+                return ApprovalMode.YOLO;
+            }
             if (params.approvalMode === 'auto') {
                 return ApprovalMode.YOLO;
             }
