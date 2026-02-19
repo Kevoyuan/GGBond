@@ -1183,6 +1183,217 @@ export default function Home() {
       return;
     }
 
+    // Handle /about command
+    if (trimmedInput.startsWith('/about')) {
+      const aboutContent = [
+        '## GGBond - AI Coding Assistant',
+        '',
+        'GGBond is an AI-powered intelligent coding assistant built on top of Google Gemini CLI.',
+        '',
+        '### Features:',
+        '- **AI-powered coding**: Leverage Gemini AI for intelligent code assistance',
+        '- **Session management**: Save, resume, and manage conversation sessions',
+        '- **Tool integration**: MCP servers and extensible tools',
+        '- **Memory management**: Context compression and memory features',
+        '- **Multi-model support**: Switch between different AI models',
+        '',
+        '### Version:',
+        '- App: v1.0.0',
+        '- Based on: Google Gemini CLI Core',
+        '',
+        '### Quick Commands:',
+        '- `/help` - Show all available commands',
+        '- `/settings` - Open settings panel',
+        '- `/docs` - View documentation'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: aboutContent }, headId);
+      return;
+    }
+
+    // Handle /docs command
+    if (trimmedInput.startsWith('/docs')) {
+      const docsContent = [
+        '## GGBond Documentation',
+        '',
+        '### Available Slash Commands:',
+        '',
+        '**Chat Management:**',
+        '- `/chat` - Manage chat sessions (save, list, resume)',
+        '- `/clear` - Clear conversation history',
+        '- `/resume` - Resume previous session',
+        '- `/rewind` - Rewind conversation',
+        '- `/restore` - Restore state from checkpoint',
+        '',
+        '**Tools & Extensions:**',
+        '- `/tools` - Manage tools',
+        '- `/mcp` - Manage MCP servers',
+        '- `/skills` - Manage skills',
+        '- `/extensions` - Manage extensions',
+        '',
+        '**Context & Memory:**',
+        '- `/memory` - Manage memory/context',
+        '- `/compress` - Compress context',
+        '- `/init` - Initialize GEMINI.md',
+        '- `/directory` - Manage working directories',
+        '',
+        '**Settings:**',
+        '- `/settings` - Open settings',
+        '- `/model` - Select model',
+        '- `/theme` - Change theme',
+        '- `/editor` - Toggle editor mode',
+        '- `/vim` - Toggle Vim mode',
+        '- `/shells` - Show configured shells',
+        '- `/terminal-setup` - Open terminal settings',
+        '- `/ide` - IDE integration settings',
+        '',
+        '**Utilities:**',
+        '- `/doctor` - Run diagnostics',
+        '- `/cost` - Show token usage',
+        '- `/analyze-project` - Generate project report',
+        '- `/copy` - Copy last response',
+        '',
+        '### Keyboard Shortcuts:',
+        '- `Ctrl+1` - Code mode',
+        '- `Ctrl+2` - Plan mode',
+        '- `Ctrl+3` - Ask mode',
+        '- `Ctrl+Shift+Space` - Toggle app (global)'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: docsContent }, headId);
+      return;
+    }
+
+    // Handle /editor command
+    if (trimmedInput.startsWith('/editor')) {
+      // Toggle editor mode - this would require adding state management
+      const editorContent = [
+        '## Editor Mode',
+        '',
+        'Editor mode allows you to directly edit files in the integrated editor.',
+        '',
+        '### Features:',
+        '- Direct file editing with syntax highlighting',
+        '- Multiple file tabs',
+        '- Split view support',
+        '- File tree navigation',
+        '',
+        '> Note: Editor mode is currently under development.',
+        '',
+        'Use `/settings` to configure editor preferences.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: editorContent }, headId);
+      return;
+    }
+
+    // Handle /ide command
+    if (trimmedInput.startsWith('/ide')) {
+      const ideContent = [
+        '## IDE Integration',
+        '',
+        'GGBond can integrate with your preferred IDE for enhanced development workflow.',
+        '',
+        '### Supported IDEs:',
+        '- VS Code',
+        '- WebStorm',
+        '- Cursor',
+        '- Zed',
+        '',
+        '### Configuration:',
+        'Use `/settings` to configure IDE integration.',
+        '',
+        '### Features:',
+        '- Open files in external editor',
+        '- Jump to definition',
+        '- Inline code references',
+        '- Debug integration (coming soon)'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: ideContent }, headId);
+      return;
+    }
+
+    // Handle /shells command
+    if (trimmedInput.startsWith('/shells')) {
+      const shellsContent = [
+        '## Configured Shells',
+        '',
+        'Current shell configuration:',
+        '',
+        '- **macOS**: `/bin/zsh` (default)',
+        '- **Linux**: `/bin/bash`',
+        '- **Windows**: PowerShell / CMD (via WSL)',
+        '',
+        '### Shell Features:',
+        '- Persistent shell sessions',
+        '- Environment variable inheritance',
+        '- Working directory persistence',
+        '',
+        'Use `/terminal-setup` to configure shell settings.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: shellsContent }, headId);
+      return;
+    }
+
+    // Handle /terminal-setup command
+    if (trimmedInput.startsWith('/terminal-setup')) {
+      const terminalSetupContent = [
+        '## Terminal Setup',
+        '',
+        '### Terminal Configuration:',
+        '',
+        '**Shell Options:**',
+        '- Zsh (recommended for macOS)',
+        '- Bash',
+        '- Fish',
+        '',
+        '**Environment:**',
+        '- Inherit system PATH',
+        '- Load ~/.zshrc / ~/.bashrc',
+        '- Support for custom environment variables',
+        '',
+        '**Features:**',
+        '- ANSI color support',
+        '- Unicode support',
+        '- Scrollback buffer: 10000 lines',
+        '',
+        'Use `/settings` to configure terminal preferences.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: terminalSetupContent }, headId);
+      return;
+    }
+
+    // Handle /vim command
+    if (trimmedInput.startsWith('/vim')) {
+      const vimContent = [
+        '## Vim Mode',
+        '',
+        'Vim mode enables Vim-style keybindings in the input area.',
+        '',
+        '### Current Status:',
+        '- Vim mode: **Available**',
+        '- Enable via: `/settings` or chat input',
+        '',
+        '### Vim Keybindings:',
+        '- `i` - Insert mode',
+        '- `Esc` - Normal mode',
+        '- `h/j/k/l` - Navigation',
+        '- `w/b` - Word navigation',
+        '- `dd` - Delete line',
+        '- `u` - Undo',
+        '- `Ctrl+r` - Redo',
+        '',
+        '### Tips:',
+        'Toggle vim mode on/off using `/vim` command.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: vimContent }, headId);
+      return;
+    }
+
     // Determine parent ID: passed option or current head (via ref for sync consistency)
     const parentIdToUseRaw = options?.parentId !== undefined ? options.parentId : headIdRef.current;
     const parentIdToUse = parentIdToUseRaw ? String(parentIdToUseRaw) : null;
