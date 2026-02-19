@@ -1,17 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, Loader2, Sparkles, Settings, Wrench, Check, ArrowLeft, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-const AVAILABLE_MODELS = [
-  { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro' },
-  { id: 'gemini-2.5-flash', name: 'gemini-2.5-flash' },
-  { id: 'gemini-2.0-flash', name: 'gemini-2.0-flash' },
-  { id: 'inherit', name: 'Inherit from settings' },
-];
 
 const AVAILABLE_TOOLS = [
   'Read',
@@ -35,6 +28,7 @@ export default function CreateAgentPage() {
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [models, setModels] = useState<{ id: string; name: string }[]>([]);
   const [model, setModel] = useState('gemini-2.5-pro');
   const [temperature, setTemperature] = useState(1);
   const [maxTurns, setMaxTurns] = useState(20);
@@ -42,6 +36,19 @@ export default function CreateAgentPage() {
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/models')
+      .then(r => r.json())
+      .then(data => {
+        const modelList = (data.known || []).map((m: { id: string; name: string }) => ({
+          id: m.id,
+          name: m.name || m.id,
+        }));
+        setModels([...modelList, { id: 'inherit', name: 'Inherit from settings' }]);
+      })
+      .catch(console.error);
+  }, []);
 
   const steps: { id: Step; label: string }[] = [
     { id: 'basics', label: 'Basic Info' },
@@ -228,7 +235,7 @@ export default function CreateAgentPage() {
                     onChange={(e) => setModel(e.target.value)}
                     className="w-full px-4 py-3 text-sm rounded-lg border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
                   >
-                    {AVAILABLE_MODELS.map((m) => (
+                    {models.map((m) => (
                       <option key={m.id} value={m.id}>{m.name}</option>
                     ))}
                   </select>

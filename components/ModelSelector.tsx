@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Zap, Code2, Shield, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export const MODELS = [
+// Fallback models when API is not available
+const FALLBACK_MODELS = [
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', icon: Code2 },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', icon: Zap },
     { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', icon: Zap },
@@ -10,6 +11,17 @@ export const MODELS = [
     { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (Preview)', icon: Code2 },
     { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Preview)', icon: Zap },
 ];
+
+// Icon mapping based on tier
+const getModelIcon = (tier?: string) => {
+    if (tier === 'pro') return Code2;
+    return Zap;
+};
+
+// Model name formatting
+const formatModelName = (id: string) => {
+    return id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+};
 
 interface ModelSelectorProps {
     value: string;
@@ -27,11 +39,31 @@ export function ModelSelector({
     className
 }: ModelSelectorProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const [models, setModels] = useState<typeof FALLBACK_MODELS>(FALLBACK_MODELS);
     const menuRef = useRef<HTMLDivElement>(null);
 
+    // Fetch models from API on mount
+    useEffect(() => {
+        fetch('/api/models')
+            .then(r => r.json())
+            .then(data => {
+                const modelList = (data.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
+                    id: m.id,
+                    name: m.name || formatModelName(m.id),
+                    icon: getModelIcon(m.tier),
+                }));
+                if (modelList.length > 0) {
+                    setModels(modelList);
+                }
+            })
+            .catch(() => {
+                // Use fallback on error
+            });
+    }, []);
+
     const allModels = showInherit
-        ? [...MODELS, { id: 'inherit', name: 'Inherit from settings', icon: Settings }]
-        : MODELS;
+        ? [...models, { id: 'inherit', name: 'Inherit from settings', icon: Settings }]
+        : models;
 
     const currentModel = allModels.find(m => m.id === value) || allModels[0];
 
