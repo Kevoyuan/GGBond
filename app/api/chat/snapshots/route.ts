@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db, { chatSnapshots } from '@/lib/db';
+import { chatSnapshots } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -89,6 +89,44 @@ export async function POST(request: NextRequest) {
             created_at: s.created_at,
             created_at_formatted: new Date(s.created_at).toLocaleString()
           }))
+        });
+      }
+
+      case 'resume': {
+        if (!tag) {
+          return NextResponse.json({ error: 'tag is required for resume action' }, { status: 400 });
+        }
+
+        const snapshot = chatSnapshots.get(session_id, tag);
+        if (!snapshot) {
+          return NextResponse.json({ error: `Snapshot '${tag}' not found` }, { status: 404 });
+        }
+
+        // Create a new session and copy messages from the snapshot's session
+        const newSessionId = crypto.randomUUID();
+        const now = Date.now();
+
+        // Import db here to create the new session and copy messages
+        const { default: db } = await import('@/lib/db');
+
+        // Insert new session
+        db.prepare(`
+          INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
+          SELECT ?, ?, ?, updated_at, workspace, branch
+          FROM sessions WHERE id = ?
+        `).run(newSessionId, `[Resume] ${snapshot.title || snapshot.tag}`, now, snapshot.session_id);
+
+        // Copy messages from the original session to the new session
+        db.prepare(`
+          INSERT INTO messages (session_id, role, content, stats, thought, citations, images, parent_id, created_at)
+          SELECT ?, role, content, stats, thought, citations, images, parent_id, created_at
+          FROM messages WHERE session_id = ?
+        `).run(newSessionId, snapshot.session_id);
+
+        return NextResponse.json({
+          success: true,
+          new_session_id: newSessionId,
+          message: `Resumed from snapshot '${tag}'`
         });
       }
 
