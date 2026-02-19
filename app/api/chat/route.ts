@@ -651,14 +651,20 @@ export async function POST(req: Request) {
 
         coreEvents.on(CoreEvent.HookStart, onHookStart);
         coreEvents.on(CoreEvent.HookEnd, onHookEnd);
-        cleanupMessageBusListeners = () => {
-          coreEvents.off(CoreEvent.HookStart, onHookStart);
-          coreEvents.off(CoreEvent.HookEnd, onHookEnd);
-          if (confirmationQueuePollTimer) {
-            clearInterval(confirmationQueuePollTimer);
-            confirmationQueuePollTimer = null;
-          }
-        };
+
+        // Subscribe to hook events from CoreService
+        const unsubscribeHookEvents = core.subscribeHookEvents((payload) => {
+          safeEnqueue({
+            type: 'hook_event',
+            id: `hook-${Date.now()}-${hookCounter++}`,
+            hookName: payload.eventName,
+            name: payload.eventName,
+            hook_type: 'start',
+            input: payload.data,
+            sessionId: payload.sessionId,
+          });
+        });
+
         try {
           if (typeof coreWithConfirmation.subscribeConfirmationRequests !== 'function') {
             throw new Error('CoreService confirmation subscription is unavailable');
@@ -681,6 +687,7 @@ export async function POST(req: Request) {
 
           cleanupMessageBusListeners = () => {
             unsubscribeConfirmation();
+            unsubscribeHookEvents();
             coreEvents.off(CoreEvent.HookStart, onHookStart);
             coreEvents.off(CoreEvent.HookEnd, onHookEnd);
             if (confirmationQueuePollTimer) {

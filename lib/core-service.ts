@@ -91,6 +91,27 @@ type UndoCheckpointResult =
     | { success: true; restoreId: string }
     | { success: false; error: string };
 
+// Hook event types matching gemini-cli-core HookEventName
+export type HookEventName =
+    | 'BeforeTool'
+    | 'AfterTool'
+    | 'BeforeAgent'
+    | 'AfterAgent'
+    | 'SessionStart'
+    | 'SessionEnd'
+    | 'PreCompress'
+    | 'BeforeModel'
+    | 'AfterModel'
+    | 'BeforeToolSelection'
+    | 'Notification';
+
+export interface HookEventPayload {
+    eventName: HookEventName;
+    timestamp: number;
+    data?: Record<string, unknown>;
+    sessionId?: string;
+}
+
 export class CoreService {
     private static _instance: CoreService;
     private static readonly SERVICE_VERSION = 3;
@@ -117,6 +138,8 @@ export class CoreService {
             isCore: boolean;
         }>;
     } | null = null;
+    // Hook event subscribers
+    private hookEventSubscribers = new Set<(payload: HookEventPayload) => void>();
 
     private constructor() { }
 
@@ -351,6 +374,13 @@ export class CoreService {
         // 4. Register Event Listeners
         this.registerSystemEvents();
 
+        // 5. Emit SessionStart hook event
+        this.emitHookEvent('SessionStart', {
+            sessionId: params.sessionId,
+            model: params.model,
+            cwd: params.cwd,
+        });
+
         this.initialized = true;
         console.log('[CoreService] Initialization complete.');
     }
@@ -473,6 +503,36 @@ export class CoreService {
 
     public clearConfirmationSubscribers() {
         this.confirmationSubscribers.clear();
+    }
+
+    // Hook event subscription methods
+    public subscribeHookEvents(listener: (payload: HookEventPayload) => void): () => void {
+        this.hookEventSubscribers.add(listener);
+        return () => {
+            this.hookEventSubscribers.delete(listener);
+        };
+    }
+
+    public clearHookEventSubscribers() {
+        this.hookEventSubscribers.clear();
+    }
+
+    private emitHookEvent(eventName: HookEventName, data?: Record<string, unknown>) {
+        const payload: HookEventPayload = {
+            eventName,
+            timestamp: Date.now(),
+            data,
+            sessionId: this.config?.getSessionId(),
+        };
+
+        for (const listener of Array.from(this.hookEventSubscribers)) {
+            try {
+                listener(payload);
+            } catch (error) {
+                console.error('[CoreService] Hook event subscriber error:', error);
+                this.hookEventSubscribers.delete(listener);
+            }
+        }
     }
 
     private emitConfirmationRequest(request: PendingConfirmationRequest) {
@@ -683,6 +743,14 @@ export class CoreService {
                 }
 
                 const toolCallRequests: ToolCallRequestInfo[] = [];
+
+                // Emit BeforeModel hook event
+                this.emitHookEvent('BeforeModel', {
+                    turnCount,
+                    model: this.config.getModel(),
+                    message: displayContent,
+                });
+
                 const responseStream = geminiClient.sendMessageStream(
                     currentRequest as never,
                     abortSignal,
@@ -698,6 +766,13 @@ export class CoreService {
                     }
                     yield event;
                 }
+
+                // Emit AfterModel hook event
+                this.emitHookEvent('AfterModel', {
+                    turnCount,
+                    model: this.config.getModel(),
+                    toolCallCount: toolCallRequests.length,
+                });
 
                 if (!toolCallRequests.length) {
                     break;
@@ -746,6 +821,14 @@ export class CoreService {
             return [];
         }
 
+        // Emit BeforeTool hook event for each tool
+        for (const request of requests) {
+            this.emitHookEvent('BeforeTool', {
+                toolName: request.name,
+                toolInput: request.args,
+            });
+        }
+
         const scheduler = new Scheduler({
             config: this.config,
             messageBus: this.messageBus,
@@ -768,8 +851,9 @@ export class CoreService {
             onToolCallsUpdate as never
         );
 
+        let completedCalls: CompletedToolCall[] = [];
         try {
-            return await scheduler.schedule(requests, signal);
+            completedCalls = await scheduler.schedule(requests, signal);
         } finally {
             this.messageBus.unsubscribe(
                 MessageBusType.TOOL_CALLS_UPDATE,
@@ -777,6 +861,18 @@ export class CoreService {
             );
             this.syncPendingConfirmations([]);
         }
+
+        // Emit AfterTool hook event for each completed tool
+        for (const call of completedCalls) {
+            this.emitHookEvent('AfterTool', {
+                toolName: call.request.name,
+                toolInput: call.request.args,
+                toolResponse: call.response,
+                error: call.response.error,
+            });
+        }
+
+        return completedCalls;
     }
 
     public async submitConfirmation(
