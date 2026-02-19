@@ -231,6 +231,7 @@ export class CoreService {
             try {
                 const geminiClient = this.config.getGeminiClient();
                 this.ensureWriteTodosToolEnabled();
+                await this.registerCustomTools();
                 await geminiClient.setTools();
                 this.chat = geminiClient.getChat();
                 if (params.systemInstruction) {
@@ -368,6 +369,7 @@ export class CoreService {
 
         // 2. Setup / refresh tools on the core GeminiClient (CLI-aligned path)
         this.ensureWriteTodosToolEnabled();
+        await this.registerCustomTools();
         const registry = this.config.getToolRegistry();
         const toolDeclarations = registry.getFunctionDeclarations();
         console.log(
@@ -489,6 +491,73 @@ export class CoreService {
         } catch (error) {
             console.warn('[CoreService] Failed to force-enable write_todos tool:', error);
         }
+    }
+
+    // Register custom tools from settings
+    private async registerCustomTools() {
+        if (!this.config) return;
+
+        try {
+            // Dynamically import to avoid circular dependencies
+            const { getCustomTools } = await import('@/lib/gemini-service');
+            const customTools = await getCustomTools();
+
+            if (!customTools || customTools.length === 0) {
+                return;
+            }
+
+            const enabledTools = customTools.filter(tool => tool.enabled);
+            if (enabledTools.length === 0) {
+                return;
+            }
+
+            const registry = this.config.getToolRegistry() as unknown as {
+                getTool?: (name: string) => unknown;
+                registerTool?: (tool: unknown) => void;
+                sortTools?: () => void;
+                getAllDefinitions?: () => unknown[];
+            };
+
+            for (const customTool of enabledTools) {
+                // Check if tool already exists
+                if (registry.getTool?.(customTool.name)) {
+                    console.log(`[CoreService] Custom tool ${customTool.name} already exists, skipping`);
+                    continue;
+                }
+
+                // Create a simple wrapper tool for custom tools
+                // Note: Full implementation would require proper tool definition with execute method
+                const toolWrapper = this.createCustomToolWrapper(customTool);
+                if (toolWrapper) {
+                    try {
+                        registry.registerTool?.(toolWrapper);
+                        console.log(`[CoreService] Registered custom tool: ${customTool.name}`);
+                    } catch (error) {
+                        console.warn(`[CoreService] Failed to register custom tool ${customTool.name}:`, error);
+                    }
+                }
+            }
+
+            registry.sortTools?.();
+        } catch (error) {
+            console.warn('[CoreService] Failed to register custom tools:', error);
+        }
+    }
+
+    // Create a simple tool wrapper for custom tools
+    private createCustomToolWrapper(customTool: { name: string; description: string; schema?: Record<string, unknown> }) {
+        // Create a minimal tool definition that can be called
+        // The actual execution would be handled through a callback or handler
+        return {
+            name: customTool.name,
+            description: customTool.description,
+            schema: customTool.schema || {},
+            execute: async (args: Record<string, unknown>) => {
+                // Custom tool execution would go through the MCP or custom handler
+                console.log(`[CoreService] Custom tool ${customTool.name} called with args:`, args);
+                return { result: 'Custom tool execution not fully implemented' };
+            },
+        };
     }
 
     private registerSystemEvents() {
