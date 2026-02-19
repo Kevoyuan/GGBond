@@ -37,7 +37,7 @@
 | `/directory` | ✅ 已实现 | ChatInput.tsx |
 | `/docs` | ✅ 已实现 | page.tsx |
 | `/editor` | ✅ 已实现 | page.tsx |
-| `/extensions` | ⚠️ 部分 (MCP) | MCPPanel |
+| `/extensions` | ✅ 已实现 | page.tsx, MCPPanel |
 | `/help` | ✅ 已实现 | - |
 | `/hooks` | ✅ 已实现 | HooksPanel |
 | `/ide` | ✅ 已实现 | page.tsx |
@@ -61,7 +61,7 @@
 | `/tools` | ✅ 已实现 | - |
 | `/vim` | ✅ 已实现 | page.tsx |
 
-**覆盖率: 38/40 = 95%** (更新)
+**覆盖率: 39/40 = 97.5%** (更新)
 
 ---
 
