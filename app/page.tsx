@@ -9,10 +9,12 @@ import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
 import { SidePanel } from '../components/SidePanel';
 
 import { ChatContainer } from '../components/ChatContainer';
+import { ToolExecutionOutputProvider } from '../components/ToolExecutionOutputProvider';
 import { ConfirmationDetails } from '../components/ConfirmationDialog';
 import { QuestionPanel, Question } from '../components/QuestionPanel';
 import { HookEvent } from '../components/HooksPanel';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
+import { ExtensionsGalleryDialog } from '../components/ExtensionsGalleryDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 import { TerminalPanel } from '../components/TerminalPanel';
 import { UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
@@ -21,13 +23,16 @@ import { useToast } from '@/hooks/useToast';
 import { useGitBranches } from '@/hooks/useGitBranches';
 
 // Import types and constants from separate module
-import type { Session, UploadedImage, ApiMessageRecord, UndoConfirmState } from '@/app/page/types';
+import type { Session, UploadedImage, ApiMessageRecord, UndoConfirmState, ChatSnapshot } from '@/app/page/types';
 import {
   DEFAULT_CHAT_SETTINGS,
   DEFAULT_TERMINAL_PANEL_HEIGHT,
   normalizeChatSettings,
   buildTreeFromApiMessages,
 } from '@/app/page/types';
+
+// Import hooks
+import { useChatCommands } from '@/app/page/hooks/useChatCommands';
 
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -68,10 +73,13 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showUsageStats, setShowUsageStats] = useState(false);
+  const [showExtensionsDialog, setShowExtensionsDialog] = useState(false);
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
   const [mode, setMode] = useState<'code' | 'plan' | 'ask'>('code');
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === 'dark';
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted ? resolvedTheme === 'dark' : false;
   const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
   const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>(DEFAULT_CHAT_SETTINGS.toolPermissionStrategy);
   const [sidePanelType, setSidePanelType] = useState<'graph' | 'timeline' | null>(null);
@@ -83,6 +91,8 @@ export default function Home() {
   // Sidebar state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showSidebarToggle, setShowSidebarToggle] = useState(true);
+  // Sidebar active view: 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory'
+  const [sidebarView, setSidebarView] = useState<string | null>(null);
 
   // Toast notifications state (via hook)
   const { toasts, dismissToast, showErrorToast, showWarningToast, showInfoToast } = useToast();
@@ -316,7 +326,10 @@ export default function Home() {
     for (let i = messages.length - 1; i >= 0; i--) {
       const stats = messages[i].stats;
       if (stats) {
-        return (stats.totalTokenCount || stats.total_tokens || 0);
+        // Robust calculation matching TokenUsageDisplay logic
+        const inputTokens = stats.inputTokenCount || stats.input_tokens || 0;
+        const outputTokens = stats.outputTokenCount || stats.output_tokens || 0;
+        return stats.totalTokenCount || stats.total_tokens || (inputTokens + outputTokens);
       }
     }
     return 0;
@@ -389,6 +402,17 @@ export default function Home() {
     if (savedCollapsed) setIsSidebarCollapsed(savedCollapsed === 'true');
   }, []);
 
+  // Handle sidebarView changes - expand sidebar and switch to the requested view
+  useEffect(() => {
+    if (sidebarView) {
+      // If a specific view is requested (e.g., 'mcp'), expand sidebar
+      if (isSidebarCollapsed) {
+        setIsSidebarCollapsed(false);
+        localStorage.setItem('sidebar-collapsed', 'false');
+      }
+    }
+  }, [sidebarView, isSidebarCollapsed]);
+
   const toggleTheme = useCallback(() => {
     setTheme(theme === 'light' ? 'dark' : 'light');
   }, [theme]);
@@ -424,8 +448,7 @@ export default function Home() {
       if (coreRes.ok) {
         const coreSessions = await coreRes.json();
         // Avoid duplicates if IDs match, though they shouldn't usually
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const coreFiltered = coreSessions.filter((cs: any) => !allSessions.some(s => s.id === cs.id));
+        const coreFiltered = coreSessions.filter((cs: Session) => !allSessions.some(s => s.id === cs.id));
         allSessions = [...allSessions, ...coreFiltered];
       }
 
@@ -449,6 +472,16 @@ export default function Home() {
   const loadSessionTree = useCallback(async (sessionId: string) => {
     const res = await fetch(`/api/sessions/${sessionId}`);
     if (!res.ok) {
+      // Session might not exist in database (e.g., stale core session)
+      // Return empty state instead of throwing error
+      if (res.status === 404) {
+        console.warn(`Session not found: ${sessionId}, clearing session ID`);
+        setCurrentSessionId(null);
+        setMessagesMap(new Map());
+        setHeadId(null);
+        headIdRef.current = null;
+        return null;
+      }
       throw new Error(`Failed to load session: ${sessionId}`);
     }
 
@@ -488,7 +521,8 @@ export default function Home() {
 
     try {
       const data = await loadSessionTree(id);
-      if (!session && data.session?.workspace) {
+      // data is null if session was not found (404)
+      if (data && !session && data.session?.workspace) {
         setCurrentWorkspace(data.session.workspace || null);
       }
     } catch (error) {
@@ -544,14 +578,64 @@ export default function Home() {
 
   const handleDeleteSession = async (id: string) => {
     try {
-      console.log('Deleting session:', id);
-      await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
-      setSessions(prev => prev.filter(s => s.id !== id));
+      await fetch(`/api/sessions/${id}/archive`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: true }),
+      });
+      setSessions(prev => prev.map(s => s.id === id ? { ...s, archived: 1 } : s));
       if (currentSessionId === id) {
         handleNewChat();
       }
     } catch (error) {
-      console.error('Failed to delete session', error);
+      console.error('Failed to archive session', error);
+    }
+  };
+
+  const handleRestoreSession = async (id: string) => {
+    try {
+      await fetch(`/api/sessions/${id}/archive`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: false }),
+      });
+      setSessions(prev => prev.map(s => s.id === id ? { ...s, archived: 0 } : s));
+      await handleSelectSession(id);
+    } catch (error) {
+      console.error('Failed to restore session', error);
+    }
+  };
+
+  const handleArchiveWorkspace = async (workspace: string) => {
+    const targetSessions = sessions.filter(
+      (s) => (s.workspace || 'Default') === workspace && !(s.archived === true || s.archived === 1)
+    );
+    if (targetSessions.length === 0) {
+      return;
+    }
+
+    try {
+      await Promise.all(
+        targetSessions.map((s) =>
+          fetch(`/api/sessions/${s.id}/archive`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ archived: true }),
+          })
+        )
+      );
+
+      const archivedIds = new Set(targetSessions.map((s) => s.id));
+      setSessions((prev) => prev.map((s) => (archivedIds.has(s.id) ? { ...s, archived: 1 } : s)));
+
+      if (currentWorkspace === workspace) {
+        const current = currentSessionId;
+        if (current && archivedIds.has(current)) {
+          handleNewChat();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to archive workspace sessions', error);
     }
   };
 
@@ -582,6 +666,15 @@ export default function Home() {
       return next;
     });
   }, []);
+
+  // Chat commands hook (needs addMessageToTree to be defined)
+  const { handleChatList, handleChatSave, handleChatResume, handleChatDelete } = useChatCommands({
+    currentSessionId,
+    headId,
+    messages,
+    sessions,
+    addMessageToTree,
+  });
 
   const handleStopMessage = useCallback(() => {
     const activeAbort = activeChatAbortRef.current;
@@ -615,6 +708,10 @@ export default function Home() {
       // Load the session first and get the latest headId synchronously
       if (loadSessionTreeRef.current) {
         const data = await loadSessionTreeRef.current(nextMsg.sessionId);
+        // If session not found (null), skip switching
+        if (!data) {
+          return;
+        }
         setCurrentSessionId(nextMsg.sessionId);
         effectiveHeadId = data.nextHeadId;
 
@@ -960,6 +1057,689 @@ export default function Home() {
       return;
     }
 
+    // Handle /chat command (save, list, resume)
+    if (trimmedInput.startsWith('/chat')) {
+      const chatParts = trimmedInput.split(/\s+/);
+      const chatCmd = chatParts[1];
+      const chatArg = chatParts[2];
+
+      if (!currentSessionId) {
+        addMessageToTree({ role: 'model', content: '⚠️ No active session. Start a conversation first.' }, headId);
+        return;
+      }
+
+      // /chat list - List all saved snapshots
+      if (chatCmd === 'list') {
+        await handleChatList();
+        return;
+      }
+
+      // /chat save <tag> - Save current session as snapshot
+      if (chatCmd === 'save') {
+        if (!chatArg) {
+          addMessageToTree({
+            role: 'model',
+            content: '⚠️ Usage: `/chat save <tag>`\n\nExample: `/chat save my-feature-work`'
+          }, headId);
+          return;
+        }
+        await handleChatSave(chatArg);
+        return;
+      }
+
+      // /chat resume <tag> - Resume a saved snapshot
+      if (chatCmd === 'resume') {
+        if (!chatArg) {
+          addMessageToTree({
+            role: 'model',
+            content: '⚠️ Usage: `/chat resume <tag>`\n\nUse `/chat list` to see available snapshots.'
+          }, headId);
+          return;
+        }
+
+        try {
+          // First, get the snapshot info
+          const listRes = await fetch(`/api/chat/snapshots?session_id=${encodeURIComponent(currentSessionId)}`);
+          const listData = await listRes.json();
+
+          if (!listRes.ok) {
+            addMessageToTree({ role: 'model', content: `⚠️ Failed to find snapshot: ${listData.error || 'Unknown error'}` }, headId);
+            return;
+          }
+
+          const snapshot = (listData.snapshots || []).find((s: ChatSnapshot) => s.tag === chatArg);
+
+          if (!snapshot) {
+            addMessageToTree({
+              role: 'model',
+              content: `⚠️ Snapshot **${chatArg}** not found.\n\nUse \`/chat list\` to see available snapshots.`
+            }, headId);
+            return;
+          }
+
+          // Call the API to create a new session from the snapshot
+          const resumeRes = await fetch('/api/chat/snapshots', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'resume',
+              session_id: snapshot.session_id,
+              tag: chatArg
+            })
+          });
+
+          const resumeData = await resumeRes.json();
+
+          if (!resumeRes.ok || !resumeData.success) {
+            addMessageToTree({
+              role: 'model',
+              content: `⚠️ Failed to resume snapshot: ${resumeData.error || 'Unknown error'}`
+            }, headId);
+            return;
+          }
+
+          const newSessionId = resumeData.new_session_id;
+
+          // Switch to the new session
+          setCurrentSessionId(newSessionId);
+          setMessagesMap(new Map());
+          setHeadId(null);
+
+          // Reload the new session
+          await loadSessionTree(newSessionId);
+          await fetchSessions();
+
+          addMessageToTree({
+            role: 'model',
+            content: `✅ Resumed snapshot: **${chatArg}**\n\n- Original session: ${snapshot.session_title || snapshot.session_id}\n- Messages: ${snapshot.message_count}\n- Saved at: ${snapshot.created_at_formatted}\n\nNew session created: \`[Resume] ${snapshot.title || snapshot.tag}\``
+          }, headId);
+          console.info(`[chat] Resumed snapshot: ${chatArg} -> new session ${newSessionId}`);
+          return;
+        } catch (error) {
+          console.error('[chat] Failed to resume snapshot:', error);
+          addMessageToTree({ role: 'model', content: '⚠️ Failed to resume snapshot' }, headId);
+          return;
+        }
+      }
+
+      // /chat without subcommand - Show help
+      if (!chatCmd) {
+        addMessageToTree({
+          role: 'model',
+          content: `## Chat Session Management
+
+### Commands:
+- \`/chat save <tag>\` - Save current session as a named snapshot
+- \`/chat list\` - List all saved snapshots for current session
+- \`/chat resume <tag>\` - Resume a saved snapshot (creates new session)
+
+### Examples:
+\`\`\`
+/chat save my-feature-work
+/chat list
+/chat resume my-feature-work
+\`\`\`
+`
+        }, headId);
+        return;
+      }
+
+      // Unknown subcommand
+      addMessageToTree({
+        role: 'model',
+        content: `⚠️ Unknown /chat subcommand: ${chatCmd}\n\nUse \`/chat\` without arguments to see available commands.`
+      }, headId);
+      return;
+    }
+
+    // Handle /about command
+    if (trimmedInput.startsWith('/about')) {
+      const aboutContent = [
+        '## GGBond - AI Coding Assistant',
+        '',
+        'GGBond is an AI-powered intelligent coding assistant built on top of Google Gemini CLI.',
+        '',
+        '### Features:',
+        '- **AI-powered coding**: Leverage Gemini AI for intelligent code assistance',
+        '- **Session management**: Save, resume, and manage conversation sessions',
+        '- **Tool integration**: MCP servers and extensible tools',
+        '- **Memory management**: Context compression and memory features',
+        '- **Multi-model support**: Switch between different AI models',
+        '',
+        '### Version:',
+        '- App: v1.0.0',
+        '- Based on: Google Gemini CLI Core',
+        '',
+        '### Quick Commands:',
+        '- `/help` - Show all available commands',
+        '- `/settings` - Open settings panel',
+        '- `/docs` - View documentation'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: aboutContent }, headId);
+      return;
+    }
+
+    // Handle /docs command
+    if (trimmedInput.startsWith('/docs')) {
+      const docsContent = [
+        '## GGBond Documentation',
+        '',
+        '### Available Slash Commands:',
+        '',
+        '**Chat Management:**',
+        '- `/chat` - Manage chat sessions (save, list, resume)',
+        '- `/clear` - Clear conversation history',
+        '- `/resume` - Resume previous session',
+        '- `/rewind` - Rewind conversation',
+        '- `/restore` - Restore state from checkpoint',
+        '',
+        '**Tools & Extensions:**',
+        '- `/tools` - Manage tools',
+        '- `/mcp` - Manage MCP servers',
+        '- `/skills` - Manage skills',
+        '- `/extensions` - Manage extensions',
+        '',
+        '**Context & Memory:**',
+        '- `/memory` - Manage memory/context',
+        '- `/compress` - Compress context',
+        '- `/init` - Initialize GEMINI.md',
+        '- `/directory` - Manage working directories',
+        '',
+        '**Settings:**',
+        '- `/settings` - Open settings',
+        '- `/model` - Select model',
+        '- `/theme` - Change theme',
+        '- `/editor` - Toggle editor mode',
+        '- `/vim` - Toggle Vim mode',
+        '- `/shells` - Show configured shells',
+        '- `/terminal-setup` - Open terminal settings',
+        '- `/ide` - IDE integration settings',
+        '',
+        '**Utilities:**',
+        '- `/doctor` - Run diagnostics',
+        '- `/cost` - Show token usage',
+        '- `/analyze-project` - Generate project report',
+        '- `/copy` - Copy last response',
+        '',
+        '**Authentication & Integration:**',
+        '- `/auth` - Manage authentication',
+        '- `/setup-github` - Setup GitHub integration',
+        '',
+        '**Security & Privacy:**',
+        '- `/policies` - Show security policies',
+        '- `/privacy` - Show privacy settings',
+        '',
+        '**Application:**',
+        '- `/bug` - Report a bug',
+        '- `/quit` - Quit application',
+        '- `/about` - Show GGBond information',
+        '- `/docs` - View documentation',
+        '',
+        '### Keyboard Shortcuts:',
+        '- `Ctrl+1` - Code mode',
+        '- `Ctrl+2` - Plan mode',
+        '- `Ctrl+3` - Ask mode',
+        '- `Ctrl+Shift+Space` - Toggle app (global)'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: docsContent }, headId);
+      return;
+    }
+
+    // Handle /editor command
+    if (trimmedInput.startsWith('/editor')) {
+      // Toggle editor mode - this would require adding state management
+      const editorContent = [
+        '## Editor Mode',
+        '',
+        'Editor mode allows you to directly edit files in the integrated editor.',
+        '',
+        '### Features:',
+        '- Direct file editing with syntax highlighting',
+        '- Multiple file tabs',
+        '- Split view support',
+        '- File tree navigation',
+        '',
+        '> Note: Editor mode is currently under development.',
+        '',
+        'Use `/settings` to configure editor preferences.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: editorContent }, headId);
+      return;
+    }
+
+    // Handle /ide command
+    if (trimmedInput.startsWith('/ide')) {
+      const ideContent = [
+        '## IDE Integration',
+        '',
+        'GGBond can integrate with your preferred IDE for enhanced development workflow.',
+        '',
+        '### Supported IDEs:',
+        '- VS Code',
+        '- WebStorm',
+        '- Cursor',
+        '- Zed',
+        '',
+        '### Configuration:',
+        'Use `/settings` to configure IDE integration.',
+        '',
+        '### Features:',
+        '- Open files in external editor',
+        '- Jump to definition',
+        '- Inline code references',
+        '- Debug integration (coming soon)'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: ideContent }, headId);
+      return;
+    }
+
+    // Handle /shells command
+    if (trimmedInput.startsWith('/shells')) {
+      const shellsContent = [
+        '## Configured Shells',
+        '',
+        'Current shell configuration:',
+        '',
+        '- **macOS**: `/bin/zsh` (default)',
+        '- **Linux**: `/bin/bash`',
+        '- **Windows**: PowerShell / CMD (via WSL)',
+        '',
+        '### Shell Features:',
+        '- Persistent shell sessions',
+        '- Environment variable inheritance',
+        '- Working directory persistence',
+        '',
+        'Use `/terminal-setup` to configure shell settings.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: shellsContent }, headId);
+      return;
+    }
+
+    // Handle /terminal-setup command
+    if (trimmedInput.startsWith('/terminal-setup')) {
+      const terminalSetupContent = [
+        '## Terminal Setup',
+        '',
+        '### Terminal Configuration:',
+        '',
+        '**Shell Options:**',
+        '- Zsh (recommended for macOS)',
+        '- Bash',
+        '- Fish',
+        '',
+        '**Environment:**',
+        '- Inherit system PATH',
+        '- Load ~/.zshrc / ~/.bashrc',
+        '- Support for custom environment variables',
+        '',
+        '**Features:**',
+        '- ANSI color support',
+        '- Unicode support',
+        '- Scrollback buffer: 10000 lines',
+        '',
+        'Use `/settings` to configure terminal preferences.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: terminalSetupContent }, headId);
+      return;
+    }
+
+    // Handle /vim command
+    if (trimmedInput.startsWith('/vim')) {
+      const vimContent = [
+        '## Vim Mode',
+        '',
+        'Vim mode enables Vim-style keybindings in the input area.',
+        '',
+        '### Current Status:',
+        '- Vim mode: **Available**',
+        '- Enable via: `/settings` or chat input',
+        '',
+        '### Vim Keybindings:',
+        '- `i` - Insert mode',
+        '- `Esc` - Normal mode',
+        '- `h/j/k/l` - Navigation',
+        '- `w/b` - Word navigation',
+        '- `dd` - Delete line',
+        '- `u` - Undo',
+        '- `Ctrl+r` - Redo',
+        '',
+        '### Tips:',
+        'Toggle vim mode on/off using `/vim` command.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: vimContent }, headId);
+      return;
+    }
+
+    // Handle /auth command
+    if (trimmedInput.startsWith('/auth')) {
+      const authContent = [
+        '## Authentication Management',
+        '',
+        '### Current Status:',
+        '- **Gemini API**: Connected',
+        '- **GitHub**: Not configured',
+        '',
+        '### Available Commands:',
+        '- `/setup-github` - Configure GitHub integration',
+        '',
+        '### Note:',
+        'GGBond uses Google Gemini API for AI capabilities. Authentication is managed through the Google Cloud Console.',
+        '',
+        'For API key configuration, please set the `GEMINI_API_KEY` environment variable or configure it in your settings.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: authContent }, headId);
+      return;
+    }
+
+    // Handle /bug command
+    if (trimmedInput.startsWith('/bug')) {
+      const bugContent = [
+        '## Bug Report',
+        '',
+        'Thank you for helping improve GGBond!',
+        '',
+        '### How to Report a Bug:',
+        '1. **Check existing issues**: Search if the bug has already been reported',
+        '2. **Provide details**: Include steps to reproduce, expected vs actual behavior',
+        '3. **Include context**: Share your OS, app version, and relevant logs',
+        '',
+        '### Report Location:',
+        'Please submit bug reports at: `https://github.com/your-repo/GGBond/issues`',
+        '',
+        '### Quick Diagnostics:',
+        'Run `/doctor` to generate a diagnostic report that you can attach to your bug report.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: bugContent }, headId);
+      return;
+    }
+
+    // Handle /compress command
+    if (trimmedInput.startsWith('/compress')) {
+      const compressContent = [
+        '## Context Compression',
+        '',
+        'Context compression helps reduce token usage by summarizing older parts of the conversation.',
+        '',
+        '### Current Status:',
+        '- Compression threshold: 50% of context limit',
+        '- Auto-compression: Enabled',
+        '',
+        '### Manual Compression:',
+        'You can manually trigger context compression at any time.',
+        '',
+        '### How it works:',
+        '1. The system analyzes your conversation history',
+        '2. Important information is preserved',
+        '3. Redundant messages are summarized',
+        '4. Token count is reduced while maintaining context'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: compressContent }, headId);
+      return;
+    }
+
+    // Handle /init command
+    if (trimmedInput.startsWith('/init')) {
+      const initContent = [
+        '## Initialize Project',
+        '',
+        'This command initializes a GEMINI.md file in your project directory.',
+        '',
+        '### What is GEMINI.md?',
+        'GEMINI.md is a special file that provides context about your project to the AI assistant. It can include:',
+        '- Project description',
+        '- Key files and directories',
+        '- Build instructions',
+        '- Coding conventions',
+        '- Common tasks and patterns',
+        '',
+        '### Usage:',
+        'Run `/init` to create or update the GEMINI.md file in your current workspace.',
+        '',
+        '### Note:',
+        'The file will be created at the root of your current working directory.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: initContent }, headId);
+      return;
+    }
+
+    // Handle /setup-github command
+    if (trimmedInput.startsWith('/setup-github')) {
+      const githubContent = [
+        '## GitHub Integration Setup',
+        '',
+        'GGBond can integrate with GitHub for enhanced workflow.',
+        '',
+        '### Features:',
+        '- Repository browsing',
+        '- Issue tracking',
+        '- Pull request management',
+        '- Code search',
+        '',
+        '### Setup Steps:',
+        '1. Navigate to GitHub Settings > Developer settings',
+        '2. Create a Personal Access Token (PAT)',
+        '3. Select required scopes (repo, read:user)',
+        '4. Add the token to GGBond settings',
+        '',
+        '### Alternative:',
+        'Use `/auth` to manage authentication options.',
+        '',
+        '### Note:',
+        'GitHub integration is optional but enhances the AI\'s ability to work with your repositories.'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: githubContent }, headId);
+      return;
+    }
+
+    // Handle /copy command
+    if (trimmedInput.startsWith('/copy')) {
+      const copyContent = [
+        '## Copy Functionality',
+        '',
+        '### How to Copy:',
+        '- **Last response**: Use `/copy` to copy the last AI response to clipboard',
+        '- **Selected text**: Select any text and use Ctrl+C',
+        '- **Code blocks**: Click the copy button on code blocks',
+        '',
+        '### Features:',
+        '- Plain text copying',
+        '- Markdown format support',
+        '- Syntax highlighting preserved'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: copyContent }, headId);
+      return;
+    }
+
+    // Handle /policies command
+    if (trimmedInput.startsWith('/policies')) {
+      const policiesContent = [
+        '## Security Policies',
+        '',
+        '### Data Security:',
+        '- All API calls are encrypted',
+        '- Local data is stored securely',
+        '- No sensitive data is transmitted to third parties',
+        '',
+        '### Privacy:',
+        '- User data is never sold',
+        '- Conversation history is stored locally',
+        '- You can delete all data at any time',
+        '',
+        '### Best Practices:',
+        '- Keep your API keys secure',
+        '- Review file access permissions',
+        '- Use approval mode for sensitive operations',
+        '',
+        'See also: `/privacy` for privacy settings'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: policiesContent }, headId);
+      return;
+    }
+
+    // Handle /privacy command
+    if (trimmedInput.startsWith('/privacy')) {
+      const privacyContent = [
+        '## Privacy Settings',
+        '',
+        '### Data Collection:',
+        '- **Conversation history**: Stored locally on your device',
+        '- **Usage analytics**: Anonymous, opt-in',
+        '- **Crash reports**: Optional, no personal data',
+        '',
+        '### Your Controls:',
+        '- Delete conversation history: `/clear` or manually',
+        '- Disable telemetry: Via settings',
+        '- Export your data: Available in settings',
+        '',
+        '### API Data:',
+        '- Messages sent to AI are processed by the AI provider',
+        '- See the AI provider\'s privacy policy for details',
+        '',
+        '### Related:',
+        '- `/policies` - Security policies',
+        '- `/settings` - Configure privacy options'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: privacyContent }, headId);
+      return;
+    }
+
+    // Handle /quit command
+    if (trimmedInput.startsWith('/quit')) {
+      const quitContent = [
+        '## Quit Application',
+        '',
+        '### How to Quit GGBond:',
+        '',
+        '**Option 1: Menu Bar**',
+        '- Click GGBond menu (top-left)',
+        '- Select Quit GGBond',
+        '',
+        '**Option 2: Keyboard Shortcut**',
+        '- `Cmd + Q` (macOS)',
+        '- `Alt + F4` (Windows/Linux)',
+        '',
+        '**Option 3: System Tray**',
+        '- Right-click the GGBond icon in system tray',
+        '- Select Quit',
+        '',
+        '### Note:',
+        'Your conversation history will be saved automatically. You can resume your session next time you open the app.',
+        '',
+        '### Before Quitting:',
+        '- Wait for any ongoing AI responses to complete',
+        '- Save any unsaved work'
+      ].join('\n');
+
+      addMessageToTree({ role: 'model', content: quitContent }, headId);
+      return;
+    }
+
+    // Handle /extensions command - show MCP servers status
+    if (trimmedInput.startsWith('/extensions')) {
+      // Open MCP panel in sidebar
+      setSidebarView('mcp');
+
+      try {
+        const res = await fetch('/api/mcp');
+        const data = await res.json() as { servers?: Record<string, { status?: string; kind?: string; command?: string; url?: string; description?: string }> };
+        const servers = data.servers || {};
+
+        if (Object.keys(servers).length === 0) {
+          const noExtContent = [
+            '## MCP Servers (Extensions)',
+            '',
+            'No MCP servers configured.',
+            '',
+            '### How to add MCP servers:',
+            '',
+            '1. Click the **MCP** button in the sidebar (or use `/extensions` to open)',
+            '2. Click **Add Server** button',
+            '3. Enter server name and configuration',
+            '',
+            '### Supported Transport Types:',
+            '- **stdio**: Local command-based servers (e.g., `npx @modelcontextprotocol/...`)',
+            '- **sse**: Network stream servers',
+            '- **http**: REST API servers',
+            '',
+            '### Related Commands:',
+            '- `/mcp` - Same as `/extensions`, opens MCP management panel'
+          ].join('\n');
+          addMessageToTree({ role: 'model', content: noExtContent }, headId);
+          return;
+        }
+
+        const serverRows = Object.entries(servers).map(([name, config]) => {
+          const status = config.status || 'disconnected';
+          const kind = config.kind || (config.command ? 'stdio' : 'network');
+          const statusIcon = status === 'connected' ? '●' : '○';
+          const statusText = status === 'connected' ? 'Running' : 'Stopped';
+          const detail = config.command || config.url || '';
+          return `- ${statusIcon} **${name}** (${kind}) - ${statusText}${detail ? ` - \`${detail}\`` : ''}`;
+        }).join('\n');
+
+        const extContent = [
+          '## MCP Servers (Extensions)',
+          '',
+          `Total: **${Object.keys(servers).length}** server(s) configured`,
+          '',
+          '### Configured Servers:',
+          serverRows,
+          '',
+          '### How to Manage:',
+          '',
+          '- Click **MCP** in sidebar to open management panel',
+          '- Use **Restart** to restart a server',
+          '- Use **Add Server** to add new MCP servers',
+          '',
+          '### Quick Tip:',
+          'Click the MCP nav item in the sidebar for full management (add, remove, restart servers)'
+        ].join('\n');
+
+        addMessageToTree({ role: 'model', content: extContent }, headId);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        addMessageToTree({
+          role: 'model',
+          content: `## MCP Servers\n\n> Error loading MCP servers: ${errorMsg}`
+        }, headId);
+      }
+      return;
+    }
+
+    // Handle /mcp command - alias for /extensions
+    if (trimmedInput.startsWith('/mcp')) {
+      // Open MCP panel in sidebar
+      setSidebarView('mcp');
+
+      // Same as /extensions, just redirect
+      const mcpContent = [
+        '## MCP Servers',
+        '',
+        'Opening MCP management panel...',
+        '',
+        'Click the **MCP** button in the sidebar to manage your MCP servers.',
+        '',
+        'You can also use `/extensions` command to view MCP server status.'
+      ].join('\n');
+      addMessageToTree({ role: 'model', content: mcpContent }, headId);
+      return;
+    }
+
     // Determine parent ID: passed option or current head (via ref for sync consistency)
     const parentIdToUseRaw = options?.parentId !== undefined ? options.parentId : headIdRef.current;
     const parentIdToUse = parentIdToUseRaw ? String(parentIdToUseRaw) : null;
@@ -1105,6 +1885,7 @@ export default function Home() {
           sessionId: generatedSessionId,
           workspace: currentWorkspace,
           mode,
+          lowLatencyMode: settings.ui?.lowLatencyMode ?? true,
           approvalMode: options?.approvalMode ?? approvalMode,
           modelSettings: settings.modelSettings,
           selectedAgent: options?.agentName || selectedAgent?.name,
@@ -1145,7 +1926,9 @@ export default function Home() {
           if (!line.trim()) continue;
           try {
             const data = JSON.parse(line);
-            console.log('[Stream Event]', data.type, data);
+            if (!(settings.ui?.lowLatencyMode ?? true)) {
+              console.log('[Stream Event]', data.type, data);
+            }
 
             if (data.type === 'init' && data.session_id) {
               setStreamingStatus("Connected...");
@@ -1213,6 +1996,9 @@ export default function Home() {
             }
 
             if (data.type === 'hook' || data.type === 'hook_event') {
+              if (settings.ui?.lowLatencyMode ?? true) {
+                continue;
+              }
               const hookName = data.hookName || data.name || 'unknown';
               const isStart = data.type === 'hook' ? data.value?.type === 'start' : data.hook_type === 'start';
 
@@ -1224,6 +2010,18 @@ export default function Home() {
               const mapHookType = (type: string): HookEvent['type'] => {
                 if (type === 'start') return 'tool_call';
                 if (type === 'end') return 'tool_result';
+                // Map hook event names to HookEventType
+                if (type === 'BeforeTool') return 'before_tool';
+                if (type === 'AfterTool') return 'after_tool';
+                if (type === 'BeforeModel') return 'before_model';
+                if (type === 'AfterModel') return 'after_model';
+                if (type === 'BeforeAgent') return 'before_agent';
+                if (type === 'AfterAgent') return 'after_agent';
+                if (type === 'SessionStart') return 'session_start';
+                if (type === 'SessionEnd') return 'session_end';
+                if (type === 'PreCompress') return 'pre_compress';
+                if (type === 'BeforeToolSelection') return 'before_tool_selection';
+                if (type === 'Notification') return 'notification';
                 return type as HookEvent['type'];
               };
 
@@ -1334,10 +2132,25 @@ export default function Home() {
             }
 
             if (data.type === 'hook_event') {
+              if (settings.ui?.lowLatencyMode ?? true) {
+                continue;
+              }
               // Map legacy hook types to new HookEventType
               const mapHookType = (type: string): HookEvent['type'] => {
                 if (type === 'start') return 'tool_call';
                 if (type === 'end') return 'tool_result';
+                // Map hook event names to HookEventType
+                if (type === 'BeforeTool') return 'before_tool';
+                if (type === 'AfterTool') return 'after_tool';
+                if (type === 'BeforeModel') return 'before_model';
+                if (type === 'AfterModel') return 'after_model';
+                if (type === 'BeforeAgent') return 'before_agent';
+                if (type === 'AfterAgent') return 'after_agent';
+                if (type === 'SessionStart') return 'session_start';
+                if (type === 'SessionEnd') return 'session_end';
+                if (type === 'PreCompress') return 'pre_compress';
+                if (type === 'BeforeToolSelection') return 'before_tool_selection';
+                if (type === 'Notification') return 'notification';
                 return type as HookEvent['type'];
               };
 
@@ -1356,6 +2169,16 @@ export default function Home() {
 
               assistantHooks.push(hookEvent);
               updateMessageInTree(assistantMsgId, { hooks: [...assistantHooks] });
+            }
+
+            if (data.type === 'context_compressed') {
+              // Context was compressed, show notification
+              const original = data.originalTokenCount;
+              const newTokens = data.newTokenCount;
+              const saved = original && newTokens ? original - newTokens : 0;
+              console.log('[UI] Context compressed:', { original, newTokens, saved });
+              // Force refresh session stats by updating messages
+              // The compression updates the message content in the backend
             }
 
             if (data.type === 'result') {
@@ -1839,6 +2662,8 @@ export default function Home() {
           unreadSessionIds={Array.from(unreadSessionIds)}
           onSelectSession={handleSelectSession}
           onDeleteSession={handleDeleteSession}
+          onRestoreSession={handleRestoreSession}
+          onArchiveWorkspace={handleArchiveWorkspace}
           onNewChat={handleNewChat}
           onNewChatInWorkspace={handleNewChatInWorkspace}
           currentWorkspace={currentWorkspace === null ? undefined : currentWorkspace}
@@ -1856,37 +2681,49 @@ export default function Home() {
           onToggleSidePanel={(type) => setSidePanelType(current => current === type ? null : type)}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={handleToggleSidebar}
+          sidebarView={sidebarView}
+          onSetSidebarView={(view) => {
+            setSidebarView(view);
+            // If switching to a non-chat view, ensure sidebar is expanded
+            if (view && view !== 'chat' && isSidebarCollapsed) {
+              setIsSidebarCollapsed(false);
+            }
+          }}
+          onOpenExtensions={() => setShowExtensionsDialog(true)}
         />
 
         {/* Chat Content */}
         <main className="flex-1 flex min-w-0 bg-[var(--bg-primary)] relative">
           {/* Chat Area + Terminal (vertical stack) */}
           <div className="flex-1 flex flex-col min-w-0">
-            <ChatContainer
-              messages={messages}
-              isLoading={isLoading}
-              previewFile={previewFile}
-              onClosePreview={() => setPreviewFile(null)}
-              settings={settings}
-              onSendMessage={handleSendMessage}
-              onStopMessage={handleStopMessage}
-              onUndoTool={handleUndoTool}
-              onUndoMessage={handleUndoMessage}
-              inputPrefillRequest={inputPrefillRequest}
-              onRetry={handleRetry}
-              onCancel={handleCancel}
-              onModelChange={handleModelChange}
-              currentModel={settings.model}
-              sessionStats={sessionStats}
-              currentContextUsage={currentContextUsage}
-              mode={mode}
-              onModeChange={handleModeChange}
-              approvalMode={approvalMode}
-              onApprovalModeChange={handleApprovalModeChange}
-              workspacePath={currentWorkspace || undefined}
-              showTerminal={showTerminal}
-              onToggleTerminal={() => setShowTerminal(!showTerminal)}
-            />
+            <ToolExecutionOutputProvider initialSessionId={currentSessionId}>
+              <ChatContainer
+                messages={messages}
+                isLoading={isLoading}
+                streamingStatus={streamingStatus}
+                previewFile={previewFile}
+                onClosePreview={() => setPreviewFile(null)}
+                settings={settings}
+                onSendMessage={handleSendMessage}
+                onStopMessage={handleStopMessage}
+                onUndoTool={handleUndoTool}
+                onUndoMessage={handleUndoMessage}
+                inputPrefillRequest={inputPrefillRequest}
+                onRetry={handleRetry}
+                onCancel={handleCancel}
+                onModelChange={handleModelChange}
+                currentModel={settings.model}
+                sessionStats={sessionStats}
+                currentContextUsage={currentContextUsage}
+                mode={mode}
+                onModeChange={handleModeChange}
+                approvalMode={approvalMode}
+                onApprovalModeChange={handleApprovalModeChange}
+                workspacePath={currentWorkspace || undefined}
+                showTerminal={showTerminal}
+                onToggleTerminal={() => setShowTerminal(!showTerminal)}
+              />
+            </ToolExecutionOutputProvider>
 
             {/* Terminal Panel */}
             {showTerminal && (
@@ -1928,6 +2765,11 @@ export default function Home() {
       <UsageStatsDialog
         open={showUsageStats}
         onClose={() => setShowUsageStats(false)}
+      />
+
+      <ExtensionsGalleryDialog
+        open={showExtensionsDialog}
+        onClose={() => setShowExtensionsDialog(false)}
       />
 
       <AddWorkspaceDialog

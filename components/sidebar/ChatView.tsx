@@ -1,15 +1,14 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-    Search,
     FolderPlus,
     ChevronDown,
     ChevronRight,
     Folder,
     Plus,
     GitBranch,
+    Archive,
     Trash2,
-    TerminalSquare,
-    BarChart2,
+    RotateCcw,
     MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -24,6 +23,7 @@ interface Session {
     updated_at?: string | number;
     workspace?: string;
     branch?: string | null;
+    archived?: number | boolean;
     isCore?: boolean;
     lastUpdated?: string;
 }
@@ -36,6 +36,8 @@ interface ChatViewProps {
     unreadSessionIds?: string[];
     onSelectSession: (id: string) => void;
     onDeleteSession: (id: string) => void;
+    onRestoreSession?: (id: string) => void;
+    onArchiveWorkspace?: (workspace: string) => void;
     onNewChatInWorkspace?: (workspace: string) => void;
     onAddWorkspace?: () => void;
     onShowStats?: () => void;
@@ -52,6 +54,8 @@ export const ChatView = React.memo(function ChatView({
     unreadSessionIds = [],
     onSelectSession,
     onDeleteSession,
+    onRestoreSession,
+    onArchiveWorkspace,
     onNewChatInWorkspace,
     onAddWorkspace,
     onShowStats,
@@ -62,6 +66,7 @@ export const ChatView = React.memo(function ChatView({
 }: ChatViewProps & { searchTerm?: string }) {
     // Internal state for workspace collapse
     const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set());
+    const [showArchived, setShowArchived] = useState(false);
     const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
 
     const toggleWorkspace = useCallback((workspace: string) => {
@@ -99,15 +104,25 @@ export const ChatView = React.memo(function ChatView({
         confirmDelete(sessionId, onDeleteSession);
     }, [confirmDelete, onDeleteSession]);
 
+    const activeSessions = useMemo(
+        () => sessions.filter((s) => !(s.archived === true || s.archived === 1)),
+        [sessions]
+    );
+
+    const archivedSessions = useMemo(
+        () => sessions.filter((s) => s.archived === true || s.archived === 1),
+        [sessions]
+    );
+
     const groupedSessions = useMemo(() => {
         const groups: Record<string, Session[]> = {};
-        sessions.forEach(session => {
+        activeSessions.forEach(session => {
             const workspace = session.workspace || 'Default';
             if (!groups[workspace]) groups[workspace] = [];
             groups[workspace].push(session);
         });
         return groups;
-    }, [sessions]);
+    }, [activeSessions]);
 
     const filteredGroups = useMemo(() => {
         if (!searchTerm) return groupedSessions;
@@ -119,7 +134,13 @@ export const ChatView = React.memo(function ChatView({
         return result;
     }, [groupedSessions, searchTerm]);
 
-    const hasResults = Object.keys(filteredGroups).length > 0;
+    const filteredArchivedSessions = useMemo(() => {
+        if (!searchTerm) return archivedSessions;
+        const q = searchTerm.toLowerCase();
+        return archivedSessions.filter((s) => s.title.toLowerCase().includes(q));
+    }, [archivedSessions, searchTerm]);
+
+    const hasResults = Object.keys(filteredGroups).length > 0 || filteredArchivedSessions.length > 0;
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
@@ -189,6 +210,18 @@ export const ChatView = React.memo(function ChatView({
                             >
                                 <Plus className="w-3.5 h-3.5" />
                             </button>
+                            {workspace !== 'Default' && onArchiveWorkspace && (
+                                <button
+                                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-[var(--bg-tertiary)] hover:text-[var(--red)] rounded text-[var(--text-secondary)] transition-colors"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onArchiveWorkspace(workspace);
+                                    }}
+                                    title="Archive Workspace Chats"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                            )}
                         </div>
 
                         {/* Session List */}
@@ -250,7 +283,7 @@ export const ChatView = React.memo(function ChatView({
                                                         onClick={(e) => handleConfirmDelete(e, session.id)}
                                                         className="pointer-events-auto flex items-center justify-center w-full h-6 rounded bg-[var(--red)] text-white text-[10px] font-medium hover:bg-red-600 transition-colors shadow-sm animate-in fade-in zoom-in-95 duration-200"
                                                     >
-                                                        Confirm
+                                                        Archive
                                                     </button>
                                                 ) : (
                                                     <button
@@ -258,9 +291,10 @@ export const ChatView = React.memo(function ChatView({
                                                             e.stopPropagation();
                                                             handleStartDelete(session.id);
                                                         }}
-                                                        className="pointer-events-auto p-1.5 hover:bg-[var(--bg-tertiary)] hover:text-[var(--red)] rounded transition-colors"
+                                                        className="pointer-events-auto p-1.5 hover:bg-[var(--bg-tertiary)] hover:text-[var(--orange)] rounded transition-colors"
+                                                        title="Archive Chat"
                                                     >
-                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                        <Archive className="w-3.5 h-3.5" />
                                                     </button>
                                                 )}
                                             </div>
@@ -273,8 +307,58 @@ export const ChatView = React.memo(function ChatView({
                         )}
                     </div>
                 ))}
+
+                {filteredArchivedSessions.length > 0 && (
+                    <div className="mb-2 mt-3">
+                        <button
+                            onClick={() => setShowArchived((prev) => !prev)}
+                            className="w-full group flex items-center gap-2 px-2 py-1.5 mb-0.5 rounded-md transition-colors hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]"
+                        >
+                            <span className="text-[var(--text-tertiary)]">
+                                {showArchived ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                            </span>
+                            <Archive className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
+                            <span className="text-[11px] font-semibold uppercase tracking-wider flex-1 text-left">
+                                Archived
+                            </span>
+                            <span className="text-[10px] text-[var(--text-tertiary)]">{filteredArchivedSessions.length}</span>
+                        </button>
+
+                        {showArchived && (
+                            <div className="ml-2 pl-2 border-l border-[var(--border-subtle)] flex flex-col gap-0.5 mt-0.5">
+                                {filteredArchivedSessions.map((session) => (
+                                    <div
+                                        key={session.id}
+                                        className="group relative flex items-center gap-2.5 px-2 py-1.5 rounded-md border border-transparent hover:bg-[var(--bg-hover)]"
+                                    >
+                                        <div className="w-2 h-2 rounded-full bg-[var(--text-tertiary)]/40 shrink-0" />
+                                        <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                                            <div className="text-[13px] font-medium truncate leading-none text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+                                                {session.title}
+                                            </div>
+                                            <span className="text-[10px] text-[var(--text-tertiary)] shrink-0 opacity-70">
+                                                {formatSessionAge(session)}
+                                            </span>
+                                        </div>
+                                        {onRestoreSession && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onRestoreSession(session.id);
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-[var(--bg-tertiary)] rounded transition-colors text-[var(--text-secondary)] hover:text-[var(--accent)]"
+                                                title="Restore Chat"
+                                            >
+                                                <RotateCcw className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );
 });
-

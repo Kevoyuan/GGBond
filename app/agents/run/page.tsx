@@ -22,6 +22,7 @@ function RunAgentContent() {
   const preselectedModel = searchParams.get('model');
 
   const [agents, setAgents] = useState<AgentDefinition[]>([]);
+  const [models, setModels] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAgent, setSelectedAgent] = useState<AgentDefinition | null>(null);
@@ -69,6 +70,20 @@ function RunAgentContent() {
       })
       .finally(() => setLoading(false));
   }, [preselectedAgent, getAgents, saveAgents]);
+
+  // Fetch models from API
+  useEffect(() => {
+    fetch('/api/models')
+      .then(r => r.json())
+      .then(data => {
+        const modelList = (data.known || []).map((m: { id: string; name: string }) => ({
+          id: m.id,
+          name: m.name || m.id,
+        }));
+        setModels(modelList);
+      })
+      .catch(console.error);
+  }, []);
 
   const handleRun = async () => {
     if (!selectedAgent || !task.trim()) return;
@@ -285,11 +300,9 @@ function RunAgentContent() {
                   disabled={submitting}
                 >
                   <option value="inherit">Inherit from chat settings</option>
-                  <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
-                  <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
-                  <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                  <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                  <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+                  {models.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
                 </select>
               </div>
             </div>

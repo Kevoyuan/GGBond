@@ -1,24 +1,43 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, BarChart3, MessageSquare, Settings, Brain, Palette, Loader2, LayoutGrid, TrendingUp, GitBranch, Cpu, Database, Sparkles, Terminal, Shield, Folder, Command, Activity, Clock, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AnalyticsDashboard } from './modules/analytics/AnalyticsDashboard';
-import { PerformancePanel } from './modules/analytics/PerformancePanel';
-import { ToolStatsPanel } from './modules/analytics/ToolStatsPanel';
-import { FileHeatmapPanel } from './modules/analytics/FileHeatmapPanel';
-import { SessionTimeline } from './modules/timeline/SessionTimeline';
-import { ProjectContext } from './modules/project/ProjectContext';
-import { ChatManager } from './modules/ChatModules';
-import { CheckpointManager } from './modules/SessionModules';
-import { ToolManager, MCPManager, ExtensionManager } from './modules/SystemModules';
-import { MemoryManager, DirectoryManager, HooksManager } from './modules/ContextModules';
-import { SettingsManager, ThemeSelector, ShortcutsPanel, SystemInfo } from './modules/ConfigModules';
-import { ShellManager, AuthManager, FileManager } from './modules/ActionModules';
-import { CustomCommandManager } from './modules/CommandModules';
-import { SkillsManager } from './modules/SkillsManager';
+
+// Lazy load all heavy components - only load when tab is active
+const AnalyticsDashboard = lazy(() => import('./modules/analytics/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
+const PerformancePanel = lazy(() => import('./modules/analytics/PerformancePanel').then(m => ({ default: m.PerformancePanel })));
+const ToolStatsPanel = lazy(() => import('./modules/analytics/ToolStatsPanel').then(m => ({ default: m.ToolStatsPanel })));
+const FileHeatmapPanel = lazy(() => import('./modules/analytics/FileHeatmapPanel').then(m => ({ default: m.FileHeatmapPanel })));
+const SessionTimeline = lazy(() => import('./modules/timeline/SessionTimeline').then(m => ({ default: m.SessionTimeline })));
+const ChatManager = lazy(() => import('./modules/ChatModules').then(m => ({ default: m.ChatManager })));
+const CheckpointManager = lazy(() => import('./modules/SessionModules').then(m => ({ default: m.CheckpointManager })));
+const ToolManager = lazy(() => import('./modules/SystemModules').then(m => ({ default: m.ToolManager })));
+const MCPManager = lazy(() => import('./modules/SystemModules').then(m => ({ default: m.MCPManager })));
+const ExtensionManager = lazy(() => import('./modules/SystemModules').then(m => ({ default: m.ExtensionManager })));
+const MemoryManager = lazy(() => import('./modules/ContextModules').then(m => ({ default: m.MemoryManager })));
+const DirectoryManager = lazy(() => import('./modules/ContextModules').then(m => ({ default: m.DirectoryManager })));
+const HooksManager = lazy(() => import('./modules/ContextModules').then(m => ({ default: m.HooksManager })));
+const SettingsManager = lazy(() => import('./modules/ConfigModules').then(m => ({ default: m.SettingsManager })));
+const ThemeSelector = lazy(() => import('./modules/ConfigModules').then(m => ({ default: m.ThemeSelector })));
+const ShortcutsPanel = lazy(() => import('./modules/ConfigModules').then(m => ({ default: m.ShortcutsPanel })));
+const SystemInfo = lazy(() => import('./modules/ConfigModules').then(m => ({ default: m.SystemInfo })));
+const ShellManager = lazy(() => import('./modules/ActionModules').then(m => ({ default: m.ShellManager })));
+const AuthManager = lazy(() => import('./modules/ActionModules').then(m => ({ default: m.AuthManager })));
+const FileManager = lazy(() => import('./modules/ActionModules').then(m => ({ default: m.FileManager })));
+const CustomCommandManager = lazy(() => import('./modules/CommandModules').then(m => ({ default: m.CustomCommandManager })));
+const SkillsManager = lazy(() => import('./modules/SkillsManager').then(m => ({ default: m.SkillsManager })));
+
+// Loading fallback component
+function ModuleLoader() {
+  return (
+    <div className="flex items-center justify-center py-12">
+      <Loader2 size={20} className="animate-spin text-muted-foreground" />
+    </div>
+  );
+}
 
 type TabId = 'analytics' | 'sessions' | 'system' | 'context' | 'config';
 
@@ -92,7 +111,7 @@ const TabButton = React.memo(function TabButton({
   );
 });
 
-export function ModulesDialog({ open, onOpenChange }: ModulesDialogProps) {
+export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }: ModulesDialogProps) {
   const [activeTab, setActiveTab] = useState<TabId>('analytics');
   const [isLoaded, setIsLoaded] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
@@ -236,12 +255,12 @@ export function ModulesDialog({ open, onOpenChange }: ModulesDialogProps) {
                       icon={<TrendingUp size={20} />}
                     />
                     <div className="grid lg:grid-cols-2 gap-6">
-                      <AnalyticsDashboard />
-                      <PerformancePanel />
+                      <Suspense fallback={<ModuleLoader />}><AnalyticsDashboard /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><PerformancePanel /></Suspense>
                     </div>
                     <div className="grid lg:grid-cols-2 gap-6 mt-6">
-                      <ToolStatsPanel />
-                      <FileHeatmapPanel />
+                      <Suspense fallback={<ModuleLoader />}><ToolStatsPanel /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><FileHeatmapPanel /></Suspense>
                     </div>
                   </section>
                 )}
@@ -255,11 +274,11 @@ export function ModulesDialog({ open, onOpenChange }: ModulesDialogProps) {
                       icon={<GitBranch size={20} />}
                     />
                     <div className="grid lg:grid-cols-2 gap-6">
-                      <ChatManager />
-                      <SessionTimeline />
+                      <Suspense fallback={<ModuleLoader />}><ChatManager /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><SessionTimeline /></Suspense>
                     </div>
                     <div className="mt-6">
-                      <CheckpointManager />
+                      <Suspense fallback={<ModuleLoader />}><CheckpointManager /></Suspense>
                     </div>
                   </section>
                 )}
@@ -273,13 +292,13 @@ export function ModulesDialog({ open, onOpenChange }: ModulesDialogProps) {
                       icon={<Cpu size={20} />}
                     />
                     <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                      <MCPManager />
-                      <ToolManager />
-                      <ExtensionManager />
-                      <CustomCommandManager />
-                      <SkillsManager />
-                      <ShellManager />
-                      <AuthManager />
+                      <Suspense fallback={<ModuleLoader />}><MCPManager /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><ToolManager /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><ExtensionManager /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><CustomCommandManager /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><SkillsManager /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><ShellManager /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><AuthManager /></Suspense>
                     </div>
                   </section>
                 )}
@@ -293,10 +312,9 @@ export function ModulesDialog({ open, onOpenChange }: ModulesDialogProps) {
                       icon={<Database size={20} />}
                     />
                     <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                      <MemoryManager />
-                      <DirectoryManager />
-                      <HooksManager />
-                      <ProjectContext />
+                      <Suspense fallback={<ModuleLoader />}><MemoryManager /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><DirectoryManager /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><HooksManager /></Suspense>
                     </div>
                   </section>
                 )}
@@ -310,11 +328,11 @@ export function ModulesDialog({ open, onOpenChange }: ModulesDialogProps) {
                       icon={<Layers size={20} />}
                     />
                     <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                      <SettingsManager />
-                      <ThemeSelector />
-                      <ShortcutsPanel />
-                      <SystemInfo />
-                      <FileManager />
+                      <Suspense fallback={<ModuleLoader />}><SettingsManager /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><ThemeSelector /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><ShortcutsPanel /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><SystemInfo /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><FileManager /></Suspense>
                     </div>
                   </section>
                 )}
@@ -337,4 +355,4 @@ export function ModulesDialog({ open, onOpenChange }: ModulesDialogProps) {
     </div>,
     document.body
   );
-}
+});

@@ -144,7 +144,7 @@ export const MessageBubble = React.memo(function MessageBubble({
           >
             {!isUser ? (
               <div className="flex flex-col gap-2">
-                {message.hooks && message.hooks.length > 0 && (
+                {settings?.ui?.advancedMode && message.hooks && message.hooks.length > 0 && (
                   <ExecutionStatusBlock hooks={message.hooks} defaultExpanded={!message.content && !message.thought} />
                 )}
                 {message.thought && <ThinkingBlock content={message.thought} />}
@@ -181,6 +181,21 @@ export const MessageBubble = React.memo(function MessageBubble({
                 <StreamingIndicator status={streamingStatus} />
               </div>
             )}
+
+            {/* Action Bar - shown after streaming completes (not during) */}
+            {!isUser && !isSnapshot && !message.error && !isStreaming && (
+              <div className="flex items-center gap-2 mt-1 pl-[30px] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <button
+                  onClick={() => onRetry?.(index!, 'once')}
+                  className="p-1.5 h-7 text-xs flex items-center gap-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  title="Regenerate response (New Branch)"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Regenerate</span>
+                </button>
+                <CopyButton content={message.content} />
+              </div>
+            )}
           </div>
         )}
 
@@ -214,21 +229,6 @@ export const MessageBubble = React.memo(function MessageBubble({
               hideContextPercentage={settings?.ui?.footer?.hideContextPercentage}
               showMemoryUsage={settings?.ui?.showMemoryUsage}
             />
-          </div>
-        )}
-
-        {/* Action Bar */}
-        {!isUser && !isSnapshot && !message.error && (
-          <div className="flex items-center gap-2 mt-1 pl-[30px] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <button
-              onClick={() => onRetry?.(index!, 'once')}
-              className="p-1.5 h-7 text-xs flex items-center gap-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-              title="Regenerate response (New Branch)"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Regenerate</span>
-            </button>
-            <CopyButton content={message.content} />
           </div>
         )}
 
