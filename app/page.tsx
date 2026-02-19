@@ -10,6 +10,7 @@ import { SettingsDialog, ChatSettings } from '../components/SettingsDialog';
 import { SidePanel } from '../components/SidePanel';
 
 import { ChatContainer } from '../components/ChatContainer';
+import { ToolExecutionOutputProvider } from '../components/ToolExecutionOutputProvider';
 import { ConfirmationDetails } from '../components/ConfirmationDialog';
 import { QuestionPanel, Question } from '../components/QuestionPanel';
 import { HookEvent } from '../components/HooksPanel';
@@ -2118,32 +2119,34 @@ export default function Home() {
         <main className="flex-1 flex min-w-0 bg-[var(--bg-primary)] relative">
           {/* Chat Area + Terminal (vertical stack) */}
           <div className="flex-1 flex flex-col min-w-0">
-            <ChatContainer
-              messages={messages}
-              isLoading={isLoading}
-              streamingStatus={streamingStatus}
-              previewFile={previewFile}
-              onClosePreview={() => setPreviewFile(null)}
-              settings={settings}
-              onSendMessage={handleSendMessage}
-              onStopMessage={handleStopMessage}
-              onUndoTool={handleUndoTool}
-              onUndoMessage={handleUndoMessage}
-              inputPrefillRequest={inputPrefillRequest}
-              onRetry={handleRetry}
-              onCancel={handleCancel}
-              onModelChange={handleModelChange}
-              currentModel={settings.model}
-              sessionStats={sessionStats}
-              currentContextUsage={currentContextUsage}
-              mode={mode}
-              onModeChange={handleModeChange}
-              approvalMode={approvalMode}
-              onApprovalModeChange={handleApprovalModeChange}
-              workspacePath={currentWorkspace || undefined}
-              showTerminal={showTerminal}
-              onToggleTerminal={() => setShowTerminal(!showTerminal)}
-            />
+            <ToolExecutionOutputProvider initialSessionId={currentSessionId}>
+              <ChatContainer
+                messages={messages}
+                isLoading={isLoading}
+                streamingStatus={streamingStatus}
+                previewFile={previewFile}
+                onClosePreview={() => setPreviewFile(null)}
+                settings={settings}
+                onSendMessage={handleSendMessage}
+                onStopMessage={handleStopMessage}
+                onUndoTool={handleUndoTool}
+                onUndoMessage={handleUndoMessage}
+                inputPrefillRequest={inputPrefillRequest}
+                onRetry={handleRetry}
+                onCancel={handleCancel}
+                onModelChange={handleModelChange}
+                currentModel={settings.model}
+                sessionStats={sessionStats}
+                currentContextUsage={currentContextUsage}
+                mode={mode}
+                onModeChange={handleModeChange}
+                approvalMode={approvalMode}
+                onApprovalModeChange={handleApprovalModeChange}
+                workspacePath={currentWorkspace || undefined}
+                showTerminal={showTerminal}
+                onToggleTerminal={() => setShowTerminal(!showTerminal)}
+              />
+            </ToolExecutionOutputProvider>
 
             {/* Terminal Panel */}
             {showTerminal && (
