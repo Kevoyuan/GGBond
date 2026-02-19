@@ -80,13 +80,8 @@ export const Titlebar = React.memo(function Titlebar({
 
             {/* Titlebar Right */}
             <div className="flex-1 flex items-center justify-between px-4 min-w-0 bg-[var(--bg-primary)] drag-region">
-                {/* Breadcrumb / Left Side */}
+                {/* Left Side (Empty for now) */}
                 <div className="flex items-center gap-2 no-drag">
-                    <div className="flex items-center gap-1.5 text-[13px]">
-                        <span className="text-[var(--text-secondary)]">Chats</span>
-                        <ChevronRight className="w-3 h-3 text-[var(--text-tertiary)]" />
-                        <span className="text-[var(--text-primary)] font-medium">New Chat</span>
-                    </div>
                 </div>
 
                 {/* Right Side Info */}
