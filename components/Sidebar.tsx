@@ -416,17 +416,6 @@ export const Sidebar = React.memo(function Sidebar({
           </div>
         </div>
 
-        {/* Info Bar */}
-        {!isCollapsed && (
-          <div className="flex items-center justify-between px-1.5 pt-1.5 border-t border-[var(--border-subtle)]/50">
-            <span className="text-[10px] text-[var(--text-tertiary)] font-mono opacity-60">v0.4.2</span>
-            <div className="flex items-center gap-1.5">
-              <span className="px-1 py-0.25 rounded-[3px] text-[9px] font-bold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 shadow-sm lowercase">
-                pro
-              </span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Horizontal Resizer (sidebar width) */}

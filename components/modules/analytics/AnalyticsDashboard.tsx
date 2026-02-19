@@ -81,6 +81,13 @@ interface TimelineHoverState {
   rows: Array<{ model: string; tokens: number; color: string }>;
 }
 
+interface TokenTimelineBucket {
+  key: string;
+  label: string;
+  totalTokens: number;
+  models: Record<string, number>;
+}
+
 const TokenTimelineChart = memo(function TokenTimelineChart({
   buckets,
   period,
@@ -93,7 +100,7 @@ const TokenTimelineChart = memo(function TokenTimelineChart({
   chartHeightPx = 140,
   shouldRenderDenseLabels
 }: {
-  buckets: any[];
+  buckets: TokenTimelineBucket[];
   period: string;
   timelineModeLabel: string;
   maxToken: number;
@@ -148,9 +155,9 @@ const TokenTimelineChart = memo(function TokenTimelineChart({
           onMouseLeave={() => setHover(null)}
         >
           {buckets.map((bucket, index) => {
-            const othersValue = Object.entries(bucket.models || {}).reduce((sum: number, [model, value]: [string, any]) => {
+            const othersValue = Object.entries(bucket.models || {}).reduce((sum: number, [model, value]: [string, number]) => {
               if (primaryModels.includes(model)) return sum;
-              return sum + (value as number);
+              return sum + value;
             }, 0);
 
             const normalizedModels = chartModels

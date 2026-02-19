@@ -48,6 +48,17 @@ export interface UploadedImage {
   dataUrl: string;
 }
 
+export interface ChatSnapshot {
+  id: number;
+  session_id: string;
+  tag: string;
+  title?: string;
+  message_count: number;
+  session_title?: string;
+  created_at: number;
+  created_at_formatted: string;
+}
+
 // ============================================================================
 // Constants
 // ============================================================================

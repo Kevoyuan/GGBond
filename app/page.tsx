@@ -23,7 +23,7 @@ import { useToast } from '@/hooks/useToast';
 import { useGitBranches } from '@/hooks/useGitBranches';
 
 // Import types and constants from separate module
-import type { Session, UploadedImage, ApiMessageRecord, UndoConfirmState } from '@/app/page/types';
+import type { Session, UploadedImage, ApiMessageRecord, UndoConfirmState, ChatSnapshot } from '@/app/page/types';
 import {
   DEFAULT_CHAT_SETTINGS,
   DEFAULT_TERMINAL_PANEL_HEIGHT,
@@ -445,8 +445,7 @@ export default function Home() {
       if (coreRes.ok) {
         const coreSessions = await coreRes.json();
         // Avoid duplicates if IDs match, though they shouldn't usually
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const coreFiltered = coreSessions.filter((cs: any) => !allSessions.some(s => s.id === cs.id));
+        const coreFiltered = coreSessions.filter((cs: Session) => !allSessions.some(s => s.id === cs.id));
         allSessions = [...allSessions, ...coreFiltered];
       }
 
@@ -1027,7 +1026,7 @@ export default function Home() {
           const listContent = [
             '## Chat Snapshots',
             '',
-            ...snapshots.map((s: any) =>
+            ...snapshots.map((s: ChatSnapshot) =>
               `- **${s.tag}**${s.title ? ` - ${s.title}` : ''} (${s.message_count} messages, ${s.created_at_formatted})`
             ),
             '',
@@ -1119,7 +1118,7 @@ export default function Home() {
             return;
           }
 
-          const snapshot = (listData.snapshots || []).find((s: any) => s.tag === chatArg);
+          const snapshot = (listData.snapshots || []).find((s: ChatSnapshot) => s.tag === chatArg);
 
           if (!snapshot) {
             addMessageToTree({
