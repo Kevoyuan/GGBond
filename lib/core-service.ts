@@ -127,7 +127,7 @@ export interface ToolExecutionOutputPayload {
 
 export class CoreService {
     private static _instance: CoreService;
-    private static readonly SERVICE_VERSION = 3;
+    private static readonly SERVICE_VERSION = 4;
     private static coreEventsRegistered = false;
     public config: Config | null = null;
     public chat: GeminiChat | null = null;
@@ -162,12 +162,18 @@ export class CoreService {
         if (process.env.NODE_ENV === 'development') {
             const isStaleInstance =
                 !!global.__gemini_core_service &&
-                typeof (global.__gemini_core_service as unknown as {
-                    subscribeConfirmationRequests?: unknown;
-                    clearConfirmationSubscribers?: unknown;
-                    submitConfirmation?: unknown;
-                    serviceVersion?: unknown;
-                }).subscribeConfirmationRequests !== 'function';
+                (
+                    typeof (global.__gemini_core_service as unknown as {
+                        subscribeConfirmationRequests?: unknown;
+                        clearConfirmationSubscribers?: unknown;
+                        submitConfirmation?: unknown;
+                        serviceVersion?: unknown;
+                        subscribeHookEvents?: unknown;
+                    }).subscribeConfirmationRequests !== 'function' ||
+                    typeof (global.__gemini_core_service as unknown as {
+                        subscribeHookEvents?: unknown;
+                    }).subscribeHookEvents !== 'function'
+                );
             const hasLatestVersion =
                 !!global.__gemini_core_service &&
                 (global.__gemini_core_service as unknown as { serviceVersion?: unknown }).serviceVersion === CoreService.SERVICE_VERSION;
