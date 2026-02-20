@@ -28,6 +28,7 @@
       "next.config.*",
       "next-env.d.ts",
       ".next/**/*",
+      "!.next/dev/**",
       "electron/**/*",
       "package.json",
       "node_modules/**/*",
