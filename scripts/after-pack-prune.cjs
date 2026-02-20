@@ -23,6 +23,9 @@ function shouldRemoveDir(name) {
 }
 
 function shouldRemoveFile(nameLower) {
+  if (nameLower === 'skill.md') {
+    return false;
+  }
   return (
     nameLower.endsWith('.map') ||
     nameLower.endsWith('.md') ||
@@ -86,6 +89,82 @@ function resolveResourcesDir(context) {
   return null;
 }
 
+function pruneLocaleDirs(targetDir, keep) {
+  if (!targetDir || !fs.existsSync(targetDir)) return 0;
+  const entries = fs.readdirSync(targetDir, { withFileTypes: true });
+  let removed = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (!entry.name.endsWith('.lproj')) continue;
+    if (keep.has(entry.name)) continue;
+    if (removePath(path.join(targetDir, entry.name))) {
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
+function prunePrebuildsToCurrentPlatform(prebuildsDir, keepDirNames) {
+  if (!fs.existsSync(prebuildsDir)) return 0;
+  const entries = fs.readdirSync(prebuildsDir, { withFileTypes: true });
+  let removed = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (keepDirNames.has(entry.name)) continue;
+    if (removePath(path.join(prebuildsDir, entry.name))) {
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
+function pruneUnpackedArtifacts(resourcesDir) {
+  const unpackedRoot = path.join(resourcesDir, 'app.asar.unpacked', 'node_modules');
+  if (!fs.existsSync(unpackedRoot)) {
+    return { removedPaths: 0, removedPrebuildDirs: 0 };
+  }
+
+  let removedPaths = 0;
+  let removedPrebuildDirs = 0;
+
+  // Runtime build does not require Next SWC compiler binaries.
+  if (removePath(path.join(unpackedRoot, '@next', 'swc-darwin-arm64'))) {
+    removedPaths += 1;
+  }
+  if (removePath(path.join(unpackedRoot, '@next', 'swc-darwin-x64'))) {
+    removedPaths += 1;
+  }
+
+  // Keep only current platform prebuilds.
+  removedPrebuildDirs += prunePrebuildsToCurrentPlatform(
+    path.join(unpackedRoot, 'node-pty', 'prebuilds'),
+    new Set(['darwin-arm64'])
+  );
+  removedPrebuildDirs += prunePrebuildsToCurrentPlatform(
+    path.join(unpackedRoot, 'tree-sitter-bash', 'prebuilds'),
+    new Set(['darwin-arm64'])
+  );
+
+  // Remove heavy sources and intermediate objects not needed at runtime.
+  if (removePath(path.join(unpackedRoot, 'better-sqlite3', 'deps'))) {
+    removedPaths += 1;
+  }
+  if (removePath(path.join(unpackedRoot, 'better-sqlite3', 'src'))) {
+    removedPaths += 1;
+  }
+  if (removePath(path.join(unpackedRoot, 'better-sqlite3', 'build', 'Release', 'obj'))) {
+    removedPaths += 1;
+  }
+  if (removePath(path.join(unpackedRoot, 'tree-sitter-bash', 'src'))) {
+    removedPaths += 1;
+  }
+  if (removePath(path.join(unpackedRoot, 'tree-sitter-bash', 'bin'))) {
+    removedPaths += 1;
+  }
+
+  return { removedPaths, removedPrebuildDirs };
+}
+
 exports.default = async function afterPack(context) {
   const resourcesDir = resolveResourcesDir(context);
   if (!resourcesDir) {
@@ -97,7 +176,28 @@ exports.default = async function afterPack(context) {
     path.join(resourcesDir, 'app.asar.unpacked', 'node_modules')
   );
 
+  const artifactPrune = pruneUnpackedArtifacts(resourcesDir);
+
+  const contentsDir = path.resolve(resourcesDir, '..');
+  const keepLocales = new Set(['en.lproj', 'zh_CN.lproj']);
+  const removedResourceLocales = pruneLocaleDirs(resourcesDir, keepLocales);
+  const frameworkResourcesDir = path.join(
+    contentsDir,
+    'Frameworks',
+    'Electron Framework.framework',
+    'Versions',
+    'A',
+    'Resources'
+  );
+  const removedFrameworkLocales = pruneLocaleDirs(frameworkResourcesDir, keepLocales);
+
   console.log(
     `[afterPack] Pruned unpacked node_modules: removed ${unpackedResult.removedDirs} directories and ${unpackedResult.removedFiles} files.`
+  );
+  console.log(
+    `[afterPack] Removed runtime artifacts: ${artifactPrune.removedPaths} paths, ${artifactPrune.removedPrebuildDirs} prebuild directories.`
+  );
+  console.log(
+    `[afterPack] Removed locale directories: resources=${removedResourceLocales}, framework=${removedFrameworkLocales}.`
   );
 };

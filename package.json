@@ -1,6 +1,6 @@
 {
   "name": "ggbond",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "private": true,
   "author": "Your Name",
   "description": "GGBond - AI-powered coding assistant",
@@ -51,11 +51,13 @@
       "!node_modules/**/LICENSE.txt",
       "!node_modules/**/LICENSE*",
       "!node_modules/**/*.md",
+      "node_modules/**/SKILL.md",
       "!node_modules/**/README*",
       "!node_modules/**/readme*",
       "!node_modules/**/CHANGELOG*",
       "!node_modules/**/CHANGELOG.md",
-      "!node_modules/**/.DS_Store"
+      "!node_modules/**/.DS_Store",
+      "!node_modules/@next/swc-*/**/*"
     ],
     "extraMetadata": {
       "main": "electron/main.cjs"
@@ -67,6 +69,10 @@
       "icon": "public/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
+      "electronLanguages": [
+        "en",
+        "zh-CN"
+      ],
       "entitlements": "electron/entitlements.mac.plist",
       "entitlementsInherit": "electron/entitlements.mac.plist"
     },
@@ -95,7 +101,8 @@
       "node_modules/tree-sitter-bash/**/*",
       "node_modules/node-pty/**/*",
       "node_modules/@img/**/*",
-      "node_modules/@lydell/node-pty*"
+      "node_modules/@lydell/node-pty*",
+      "node_modules/keytar/**/*"
     ]
   },
   "dependencies": {
