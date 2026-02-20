@@ -100,6 +100,12 @@ npm run desktop:dev
 npm run desktop:build
 ```
 
+### Maintainers: Signed + Notarized macOS Release
+
+For production macOS release (signing/notarization and env vars), see:
+
+- `docs/macos-release.md`
+
 ## Quick Start
 
 1. Launch the GGBond application

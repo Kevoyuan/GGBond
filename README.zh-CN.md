@@ -98,6 +98,12 @@ npm run desktop:dev
 npm run desktop:build
 ```
 
+### 维护者：签名 + 公证的 macOS 发布
+
+生产环境的 macOS 发布流程（签名、公证、环境变量）请参考：
+
+- `docs/macos-release.md`
+
 ## 快速开始
 
 1. 启动 GGBond 应用程序
