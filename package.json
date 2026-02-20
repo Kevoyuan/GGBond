@@ -29,6 +29,8 @@
     },
     "npmRebuild": false,
     "files": [
+      "!demo-video",
+      "!demo-video/**",
       "next.config.*",
       "next-env.d.ts",
       ".next/**/*",
