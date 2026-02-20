@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { CoreService } from '@/lib/core-service';
 import path from 'path';
+import { isActiveModel } from '@google/gemini-cli-core';
 import {
   applyFallbackUndoFiles,
   buildUndoPreview,
@@ -51,7 +52,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'action and sessionId are required' }, { status: 400 });
     }
 
-    const resolvedModel = model || 'gemini-2.5-pro';
+    const requestedModel = typeof model === 'string' ? model.trim() : '';
+    const resolvedModel = requestedModel && isActiveModel(requestedModel)
+      ? requestedModel
+      : 'gemini-2.5-pro';
     const resolvedCwd = (workspace && workspace !== 'Default') ? workspace : process.cwd();
     let core: CoreService | null = null;
     const ensureCoreInitialized = async () => {
