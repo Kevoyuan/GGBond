@@ -7,14 +7,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kevoyuan/ggbond/releases">
+  <a href="https://github.com/Kevoyuan/GGBond/releases">
     <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?include_prereleases&label=latest" alt="Latest Release" />
   </a>
-  <a href="https://github.com/Kevoyuan/ggbond/blob/main/LICENSE">
+  <a href="https://github.com/Kevoyuan/GGBond/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/Kevoyuan/GGBond" alt="License" />
-  </a>
-  <a href="https://github.com/Kevoyuan/ggbond/actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/Kevoyuan/GGBond?label=build" alt="Build Status" />
   </a>
 </p>
 
@@ -57,6 +54,8 @@ GGBond is an AI-powered intelligent coding assistant desktop application built o
 - System tray with toggle functionality
 - Global shortcut: `Ctrl+Shift+Space` to summon app
 - Native window controls
+- **High Performance**: Hardware acceleration and session caching optimized for fluid UI
+- **Optimized Bundle**: Next.js `optimizePackageImports` enabled for faster loading
 
 ## Tech Stack
 
@@ -85,7 +84,7 @@ Visit the [Releases](https://github.com/Kevoyuan/GGBond/releases) page to downlo
 
 ```bash
 # Clone the project
-git clone https://github.com/Kevoyuan/ggbond.git
+git clone https://github.com/Kevoyuan/GGBond.git
 cd ggbond
 
 # Install dependencies

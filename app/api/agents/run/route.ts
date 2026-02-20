@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import db from '@/lib/db';
 import { CoreService } from '@/lib/core-service';
-import { GeminiEventType, ServerGeminiContentEvent, Storage } from '@google/gemini-cli-core';
+import { GeminiEventType, ServerGeminiContentEvent, Storage, isActiveModel } from '@google/gemini-cli-core';
 import path from 'path';
 import fs from 'fs';
 
@@ -177,11 +177,14 @@ export async function POST(request: NextRequest) {
     const runId = uuidv4();
     const now = Date.now();
 
-    // Get current model from settings if "inherit"
-    let effectiveModel = model;
-    if (!model || model === 'inherit') {
+    // Resolve model with active-model validation (aligned with core v0.29.5 semantics).
+    let effectiveModel = typeof model === 'string' ? model.trim() : '';
+    if (!effectiveModel || effectiveModel === 'inherit') {
       const coreService = CoreService.getInstance();
       effectiveModel = coreService.config?.getModel() || 'gemini-2.5-pro';
+    }
+    if (!isActiveModel(effectiveModel)) {
+      effectiveModel = 'gemini-2.5-pro';
     }
 
     // Insert agent run record
@@ -215,7 +218,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Start execution in background (async, don't wait)
-    executeAgentRun(runId, agentName, agentDefinition.promptConfig?.systemPrompt || '', task, workspace, model).catch(err => {
+    executeAgentRun(runId, agentName, agentDefinition.promptConfig?.systemPrompt || '', task, workspace, effectiveModel).catch(err => {
       console.error('[agent-run] Execution error:', err);
       db.prepare(`
         UPDATE agent_runs SET status = 'failed', error = ?, updated_at = ? WHERE id = ?

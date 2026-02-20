@@ -17,6 +17,7 @@ import {
   coreEvents,
   ApprovalMode,
   VALID_GEMINI_MODELS,
+  isActiveModel,
 } from '@google/gemini-cli-core';
 
 type AgentDefinitionLike = {
@@ -68,18 +69,18 @@ const DEFAULT_MODEL_FALLBACK_CHAIN = [
 
 function resolveSupportedModel(requestedModel: string | undefined): string {
   const requested = (requestedModel || '').trim();
-  if (requested && VALID_GEMINI_MODELS.has(requested)) {
+  if (requested && isActiveModel(requested)) {
     return requested;
   }
   if (requested) {
     console.warn(`[chat] Unsupported model requested: ${requested}. Falling back to first available default.`);
   }
   for (const candidate of DEFAULT_MODEL_FALLBACK_CHAIN) {
-    if (VALID_GEMINI_MODELS.has(candidate)) {
+    if (isActiveModel(candidate) && VALID_GEMINI_MODELS.has(candidate)) {
       return candidate;
     }
   }
-  return requested || 'gemini-2.5-pro';
+  return 'gemini-2.5-pro';
 }
 
 export async function POST(req: Request) {
