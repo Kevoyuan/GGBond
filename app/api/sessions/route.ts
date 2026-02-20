@@ -11,8 +11,30 @@ export async function GET() {
   }
 }
 
-export async function POST() {
-    // Maybe allow creating a session explicitly?
-    // For now, sessions are created via chat
-    return NextResponse.json({ message: 'Use /api/chat to create a session' }, { status: 405 });
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const { workspace, title } = body;
+
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    const sessionTitle = title || 'New Chat';
+
+    db.prepare(`
+      INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
+      VALUES (?, ?, ?, ?, ?, NULL)
+    `).run(id, sessionTitle, now, now, workspace || null);
+
+    return NextResponse.json({
+      id,
+      title: sessionTitle,
+      created_at: now,
+      updated_at: now,
+      workspace: workspace || null,
+      branch: null
+    });
+  } catch (error) {
+    console.error('Failed to create session:', error);
+    return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
+  }
 }

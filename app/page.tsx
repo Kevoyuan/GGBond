@@ -588,12 +588,33 @@ export default function Home() {
     }
   };
 
-  const handleAddWorkspace = (workspacePath: string) => {
+  const handleAddWorkspace = async (workspacePath: string) => {
     // Note: We intentionally do NOT stop running sessions here
     // Multiple sessions can run concurrently
     // But we clear the abort ref so new messages can be sent in new session
     activeChatAbortRef.current = null;
-    setCurrentSessionId(null);
+
+    // Create a new session for this workspace immediately
+    // This ensures the workspace appears in the chat sidebar right away
+    try {
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace: workspacePath,
+          title: 'New Chat'
+        })
+      });
+      if (res.ok) {
+        const newSession = await res.json();
+        setSessions(prev => [newSession, ...prev]);
+        setCurrentSessionId(newSession.id);
+      }
+    } catch (error) {
+      console.error('Failed to create session for workspace:', error);
+      setCurrentSessionId(null);
+    }
+
     setCurrentWorkspace(workspacePath);
     setMessagesMap(new Map());
     setHeadId(null);
