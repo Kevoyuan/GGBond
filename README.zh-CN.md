@@ -6,10 +6,13 @@
 
 <p align="center">
   <a href="https://github.com/Kevoyuan/GGBond/releases">
-    <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?include_prereleases&label=latest" alt="最新版本" />
+    <img src="https://img.shields.io/badge/Release-v0.1.0-blue" alt="最新版本" />
   </a>
   <a href="https://github.com/Kevoyuan/GGBond/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/Kevoyuan/GGBond" alt="许可证" />
+    <img src="https://img.shields.io/badge/License-MIT-green" alt="许可证" />
+  </a>
+  <a href="https://github.com/Kevoyuan/GGBond/actions">
+    <img src="https://img.shields.io/badge/Build-unknown-lightgrey" alt="构建状态" />
   </a>
 </p>
 

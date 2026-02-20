@@ -8,10 +8,13 @@
 
 <p align="center">
   <a href="https://github.com/Kevoyuan/GGBond/releases">
-    <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?include_prereleases&label=latest" alt="Latest Release" />
+    <img src="https://img.shields.io/badge/Release-v0.1.0-blue" alt="Latest Release" />
   </a>
   <a href="https://github.com/Kevoyuan/GGBond/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/Kevoyuan/GGBond" alt="License" />
+    <img src="https://img.shields.io/badge/License-MIT-green" alt="License" />
+  </a>
+  <a href="https://github.com/Kevoyuan/GGBond/actions">
+    <img src="https://img.shields.io/badge/Build-unknown-lightgrey" alt="Build Status" />
   </a>
 </p>
 
