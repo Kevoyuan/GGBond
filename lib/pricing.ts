@@ -112,12 +112,12 @@ export const PRICING_RATES: Record<string, ModelPricing> = {
   },
 };
 
-// Default to Gemini 3 Pro (latest flagship)
-export const DEFAULT_PRICING = PRICING_RATES['gemini-3-pro'];
+// Default to Gemini 3 Pro Preview (active default in CLI core)
+export const DEFAULT_PRICING = PRICING_RATES['gemini-3-pro-preview'];
 
 export function getModelInfo(modelName?: string): { pricing: ModelPricing, name: string } {
   let pricing = DEFAULT_PRICING;
-  let name = 'gemini-3-pro';
+  let name = 'gemini-3-pro-preview';
 
   if (modelName) {
     const normalizedModel = modelName.toLowerCase().replace(/ /g, '-');
@@ -131,11 +131,11 @@ export function getModelInfo(modelName?: string): { pricing: ModelPricing, name:
 
     // Fallback matching
     if (normalizedModel.includes('3') && normalizedModel.includes('pro')) {
-      pricing = PRICING_RATES['gemini-3-pro'];
-      name = 'gemini-3-pro';
+      pricing = PRICING_RATES['gemini-3-pro-preview'];
+      name = 'gemini-3-pro-preview';
     } else if (normalizedModel.includes('3') && normalizedModel.includes('flash')) {
-      pricing = PRICING_RATES['gemini-3-flash'];
-      name = 'gemini-3-flash';
+      pricing = PRICING_RATES['gemini-3-flash-preview'];
+      name = 'gemini-3-flash-preview';
     } else if (normalizedModel.includes('2.5') && normalizedModel.includes('pro')) {
       pricing = PRICING_RATES['gemini-2.5-pro'];
       name = 'gemini-2.5-pro';
@@ -160,8 +160,8 @@ export function getModelInfo(modelName?: string): { pricing: ModelPricing, name:
       name = 'gemini-2.5-flash';
     } else if (normalizedModel.includes('pro')) {
       // Generic pro fallback - use 3 pro
-      pricing = PRICING_RATES['gemini-3-pro'];
-      name = 'gemini-3-pro';
+      pricing = PRICING_RATES['gemini-3-pro-preview'];
+      name = 'gemini-3-pro-preview';
     }
   }
 
