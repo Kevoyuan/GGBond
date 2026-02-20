@@ -1,156 +1,144 @@
 # GGBond
 
+[English](./README.md) | [简体中文](./README.zh-CN.md)
+
 <p align="center">
-  <img src="./public/screenshot.png" alt="GGBond - AI 智能编程助手" width="100%" />
+  <img src="./public/screenshot.png" alt="GGBond 截图" width="100%" />
 </p>
 
 <p align="center">
   <a href="https://github.com/Kevoyuan/GGBond/releases">
-    <img src="https://img.shields.io/badge/Release-v0.1.0-blue" alt="最新版本" />
+    <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?label=release" alt="最新版本" />
   </a>
   <a href="https://github.com/Kevoyuan/GGBond/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/License-MIT-green" alt="许可证" />
+    <img src="https://img.shields.io/badge/license-MIT-green" alt="许可证" />
   </a>
-  <a href="https://github.com/Kevoyuan/GGBond/actions">
-    <img src="https://img.shields.io/badge/Build-unknown-lightgrey" alt="构建状态" />
-  </a>
+  <img src="https://img.shields.io/badge/platform-macOS%20arm64-black" alt="平台" />
 </p>
 
-## 简介
+GGBond 是一个基于 Gemini CLI 的桌面级 AI 编程工作台。
+它不是“套壳聊天框”，而是把真实开发流程里最关键的能力补全：工作区隔离、会话分支可视化、工具执行可追踪、会话可回放、桌面端稳定运行。
 
-GGBond 是一款由 AI 驱动的智能编程助手桌面应用，基于 Google Gemini CLI 构建。它将强大的 AI 编程能力与现代化的桌面界面相结合，为开发者提供流畅的 AI 辅助编程体验。
+## 为什么是 GGBond（差异化）
 
-## 核心功能
+- 工作区优先：每次对话都绑定到明确项目目录，避免上下文漂移。
+- 分支可视化：对话图谱 + 时间线，不再丢失思路和备选方案。
+- 工具可观测：看得到调用了什么、改了什么、哪里失败。
+- Agent 友好：内置与自定义 Agent 都能按模型/模式明确运行。
+- 桌面稳定性：本地服务兜底、单实例保护、SQLite 持久化增强。
 
-### 💬 智能对话界面
-- 自然语言与 AI 交互
-- Markdown 代码高亮渲染，支持语法高亮
-- 多轮对话上下文保持
-- 会话历史保存与恢复
+## 核心能力
 
-### 🤖 Agent 系统
-- 内置多种 Agent（Think、Code、Review 等）
-- 支持自定义 Agent 创建与配置
-- 实时运行状态监控
+### 1) 可操作的 AI 对话
+- 多轮编程会话，支持历史恢复与分支继续。
+- 支持 `code / plan / ask` 等使用模式。
+- 工具执行支持审批策略（安全模式与自动模式）。
 
-### 🌐 对话可视化
-- 可视化对话图谱，展示消息分支结构
-- 消息时间线，追踪对话流程
-- 分支洞察，探索备选对话路径
-- 消息树结构，展示复杂对话关系
+### 2) 工作区 + 文件 + 终端一体化
+- 快速添加/切换工作区。
+- 内置文件树、文件查看与编辑能力。
+- 集成终端面板，在当前工作区直接执行命令。
 
-### 🔧 工具与 MCP 集成
-- 完整的 CLI 工具集成
-- 文件编辑与预览功能
-- 终端命令执行
-- MCP 服务器管理面板
-- MCP 工具集成，扩展 AI 能力
+### 3) 对话过程可追踪
+- Graph 视图看消息分支结构。
+- Timeline 视图看逐步演进过程。
+- 按消息/工具定位问题，降低 AI 黑盒感。
 
-### 🧠 记忆与上下文
-- 项目上下文管理
-- SQLite 全局记忆存储
-- 上下文自动加载到会话
+### 4) 可扩展运行时（MCP / Hooks / Skills）
+- MCP 面板管理服务和扩展工具。
+- Hooks 面板查看运行时事件。
+- 可结合 Gemini CLI 的 Skills / Commands 体系扩展能力。
 
-### 🖥️ 桌面集成
-- 系统托盘，支持显示/隐藏切换
-- 全局快捷键：`Ctrl+Shift+Space` 唤起应用
-- 原生窗口控制
-- **极致性能**：全面启用硬件加速和会话缓存，UI 流畅如丝
-- **体积优化**：配置 Next.js `optimizePackageImports` 以加快加载速度
+### 5) 面向发布的桌面工程能力
+- 支持 macOS 签名与公证流程。
+- 安装包体积优化，降低分发成本。
+- 本地数据迁移与运行稳定性增强。
 
 ## 技术栈
 
-| 类别 | 技术 |
-|------|------|
-| 前端框架 | Next.js 16 + React 19 |
-| 桌面框架 | Electron 37 |
-| 编程语言 | TypeScript |
-| 样式方案 | Tailwind CSS 4 |
+| 模块 | 技术 |
+|---|---|
+| 桌面壳 | Electron 37 |
+| 应用框架 | Next.js 16 (App Router) + React 19 |
+| 语言 | TypeScript |
 | 状态管理 | Zustand |
-| AI 核心 | @google/gemini-cli-core, @google/genai |
-| 数据库 | better-sqlite3 |
-| 可视化 | @xyflow/react (React Flow) |
-| 动画 | Framer Motion |
+| AI 核心 | `@google/gemini-cli-core`, `@google/genai` |
+| 数据存储 | `better-sqlite3` |
+| 可视化 | `@xyflow/react` |
+| UI/动画 | Tailwind CSS 4 + Framer Motion |
 
 ## 安装
 
-### 从 Release 下载
+从 [Releases](https://github.com/Kevoyuan/GGBond/releases) 下载最新版：
 
-前往 [Releases](https://github.com/Kevoyuan/GGBond/releases) 页面下载最新版本的 macOS 安装包：
+- `GGBond-x.x.x-arm64.dmg`（推荐）
+- `GGBond-x.x.x-arm64-mac.zip`
 
-- **DMG 安装包**: `GGBond-x.x.x-arm64.dmg`
-- **ZIP 便携版**: `GGBond-x.x.x-arm64-mac.zip`
+## 3 分钟上手
 
-### 自行构建
+1. 启动 GGBond。
+2. 添加工作区（项目目录）。
+3. 在 Chat 里输入明确任务。
+4. 查看工具调用和文件变化。
+5. 用 Graph/Timeline 从任意分支继续。
+
+## 本地开发与构建
 
 ```bash
-# 克隆项目
 git clone https://github.com/Kevoyuan/GGBond.git
-cd ggbond
-
-# 安装依赖
+cd GGBond
 npm install
 
-# 开发模式
+# 桌面开发模式
 npm run desktop:dev
 
-# 构建桌面应用
-npm run desktop:build
+# 构建 macOS 应用
+npm run desktop:build:mac:release
 ```
 
-### 维护者：签名 + 公证的 macOS 发布
-
-生产环境的 macOS 发布流程（签名、公证、环境变量）请参考：
+签名与公证配置见：
 
 - `docs/macos-release.md`
 
-## 快速开始
+## 常见问题
 
-1. 启动 GGBond 应用程序
-2. 在左侧边栏选择或创建新的聊天会话
-3. 在底部的输入框中输入你的问题或需求
-4. 按 Enter 或点击发送按钮
-5. AI 将会分析你的请求并提供帮助
+### 打开应用后空白或无响应
+- 先确认没有旧进程占用本地服务端口。
+- 完全退出所有 GGBond 进程后重开。
 
-## 快捷键
+### 能添加工作区但看不到文件
+- 优先使用系统目录选择器授权目录。
+- 在 macOS 隐私设置中补充文件访问权限（必要时 Full Disk Access）。
 
-| 快捷键 | 功能 |
-|--------|------|
-| Ctrl+Shift+Space | 全局唤起应用（显示/隐藏切换） |
-| Cmd+N | 新建会话 |
-| Cmd+K | 打开命令面板 |
+### Chat 出现 “Error processing request”
+- 常见原因是旧实例冲突或本地状态异常。
+- 完全退出应用后重启，再重试会话。
 
 ## 项目结构
 
-```
-ggbond/
-├── app/                    # Next.js App Router
-│   ├── page.tsx           # 主页面
-│   └── api/               # API 路由
-├── components/            # React 组件
-│   ├── modules/           # 功能模块组件
-│   ├── views/             # 视图组件
-│   ├── message/           # 消息渲染组件
-│   └── sidebar/          # 侧边栏组件
-├── lib/                   # 核心服务库
-│   ├── core-service.ts   # 核心 Gemini CLI 集成
-│   ├── gemini-service.ts # Gemini API 服务封装
-│   └── db.ts             # SQLite 数据库操作
-├── stores/                # Zustand 状态管理
-├── electron/              # Electron 桌面应用
-│   ├── main.cjs          # 主进程
-│   └── preload.cjs       # 预加载脚本
-└── public/                # 静态资源
+```text
+GGBond/
+├── app/                 # Next.js 页面与 API 路由
+├── components/          # UI 组件（聊天、侧栏、图谱等）
+├── electron/            # 桌面主进程与 preload
+├── lib/                 # 核心服务（Gemini 桥接、DB、运行时）
+├── stores/              # Zustand 状态
+├── scripts/             # 构建/发布辅助脚本
+└── docs/                # 发布与维护文档
 ```
 
 ## 贡献
 
-欢迎提交 Pull Request 或创建 Issue 报告 bug 和提出功能建议！
+欢迎提 Issue 和 PR。建议在 PR 中明确：
+
+- 改了什么
+- 为什么改
+- 如何验证
 
 ## 许可证
 
-MIT License
+MIT
 
 ---
 
-<p align="center">由 <a href="https://github.com/Kevoyuan">Kevoyuan</a> ❤️ 开发</p>
+<p align="center">由 <a href="https://github.com/Kevoyuan">Kevoyuan</a> 开发</p>
