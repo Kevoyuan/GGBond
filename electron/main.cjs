@@ -8,6 +8,14 @@ const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage, ipcMain, sh
 
 // Check for headless mode
 const isHeadless = process.argv.includes('--headless') || process.env.GEMINI_HEADLESS === '1' || process.env.GEMINI_HEADLESS === 'true';
+const DEFAULT_SERVER_PORT = Number(process.env.GGBOND_SERVER_PORT || 3456);
+const MAX_PORT_ATTEMPTS = 20;
+
+// Prevent multiple desktop instances from fighting for the same local server/DB.
+const gotSingleInstanceLock = isHeadless ? true : app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
 
 // Performance: Enable hardware acceleration
 app.commandLine.appendSwitch('enable-gpu-rasterization');
@@ -40,7 +48,6 @@ let nextHttpServer = null;
 // Start Next.js server in production
 function startNextServer() {
   return new Promise(async (resolve, reject) => {
-    const port = 3456;
     const appRoot = app.isPackaged ? app.getAppPath() : path.join(__dirname, '..');
 
     try {
@@ -52,17 +59,43 @@ function startNextServer() {
       const handle = nextApp.getRequestHandler();
 
       await nextApp.prepare();
+      let lastError = null;
 
-      nextHttpServer = http.createServer((req, res) => handle(req, res));
-      nextHttpServer.on('error', (error) => {
-        console.error('[Next.js Error]', error);
-        reject(error);
-      });
+      for (let attempt = 0; attempt < MAX_PORT_ATTEMPTS; attempt += 1) {
+        const port = DEFAULT_SERVER_PORT + attempt;
+        const candidateServer = http.createServer((req, res) => handle(req, res));
 
-      nextHttpServer.listen(port, '127.0.0.1', () => {
-        console.log('[Next.js] Ready on', `http://localhost:${port}`);
-        resolve(`http://localhost:${port}`);
-      });
+        try {
+          await new Promise((listenResolve, listenReject) => {
+            candidateServer.once('error', listenReject);
+            candidateServer.listen(port, '127.0.0.1', () => {
+              candidateServer.removeAllListeners('error');
+              listenResolve();
+            });
+          });
+
+          nextHttpServer = candidateServer;
+          const url = `http://127.0.0.1:${port}`;
+          console.log('[Next.js] Ready on', url);
+          resolve(url);
+          return;
+        } catch (error) {
+          lastError = error;
+          if (error && error.code === 'EADDRINUSE') {
+            console.warn(`[Next.js] Port ${port} in use, trying next port...`);
+            try {
+              candidateServer.close();
+            } catch {
+              // ignore close errors on failed server.
+            }
+            continue;
+          }
+          reject(error);
+          return;
+        }
+      }
+
+      reject(lastError || new Error('Unable to allocate port for local server'));
     } catch (error) {
       console.error('[Next.js Error]', error);
       reject(error);
@@ -297,6 +330,16 @@ function setupMaximizeListener() {
 }
 
 app.whenReady().then(async () => {
+  // Ensure a writable data home for local app state (SQLite, etc.).
+  if (!process.env.GGBOND_DATA_HOME) {
+    process.env.GGBOND_DATA_HOME = path.join(app.getPath('userData'), 'gemini-home');
+  }
+  try {
+    fs.mkdirSync(process.env.GGBOND_DATA_HOME, { recursive: true });
+  } catch (error) {
+    console.warn('[Electron] Failed to create GGBOND_DATA_HOME:', process.env.GGBOND_DATA_HOME, error);
+  }
+
   // In production, start the Next.js server first
   if (!isDev) {
     console.log('[Electron] Starting Next.js server...');
@@ -334,6 +377,15 @@ app.whenReady().then(async () => {
       return;
     }
     toggleMainWindow();
+  });
+
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
   });
 });
 
