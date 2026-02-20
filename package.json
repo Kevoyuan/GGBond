@@ -36,11 +36,25 @@
       "electron/**/*",
       "package.json",
       "node_modules/**/*",
-      "!node_modules/.cache"
+      "!node_modules/.cache",
+      "!node_modules/**/test/**",
+      "!node_modules/**/__tests__/**",
+      "!node_modules/**/*.map",
+      "!node_modules/**/LICENSE",
+      "!node_modules/**/LICENSE.md",
+      "!node_modules/**/LICENSE.txt",
+      "!node_modules/**/LICENSE*",
+      "!node_modules/**/*.md",
+      "!node_modules/**/README*",
+      "!node_modules/**/readme*",
+      "!node_modules/**/CHANGELOG*",
+      "!node_modules/**/CHANGELOG.md",
+      "!node_modules/**/.DS_Store"
     ],
     "extraMetadata": {
       "main": "electron/main.cjs"
     },
+    "afterPack": "scripts/after-pack-prune.cjs",
     "afterSign": "scripts/notarize.cjs",
     "mac": {
       "category": "public.app-category.developer-tools",
@@ -71,15 +85,17 @@
     "asar": true,
     "asarUnpack": [
       "node_modules/better-sqlite3/**/*",
-      "node_modules/@google/**/*"
+      "node_modules/@google/**/*",
+      "node_modules/tree-sitter-bash/**/*",
+      "node_modules/node-pty/**/*",
+      "node_modules/@img/**/*",
+      "node_modules/@lydell/node-pty*"
     ]
   },
   "dependencies": {
     "@google/gemini-cli-core": "^0.29.5",
-    "@google/genai": "^1.40.0",
     "@xyflow/react": "^12.10.0",
     "better-sqlite3": "^12.6.2",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.33.0",
@@ -89,17 +105,15 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
-    "react-resizable-panels": "^4.6.2",
     "react-syntax-highlighter": "^16.1.0",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.0",
     "tailwind-merge": "^3.4.0",
-    "tailwindcss-animate": "^1.0.7",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.1",
     "@electron/notarize": "^3.1.1",
+    "@electron/rebuild": "^4.0.1",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/dom": "^10.4.1",
