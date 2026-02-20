@@ -286,8 +286,6 @@ export async function listExtensions(): Promise<string> {
 const FALLBACK_MODELS = [
     { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', tier: 'pro', contextWindow: '1M' },
     { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', tier: 'flash', contextWindow: '1M' },
-    { id: 'gemini-3-pro', name: 'gemini-3-pro', tier: 'pro', contextWindow: '1M' },
-    { id: 'gemini-3-flash', name: 'gemini-3-flash', tier: 'flash', contextWindow: '1M' },
     { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro', tier: 'pro', contextWindow: '2M' },
     { id: 'gemini-2.5-flash', name: 'gemini-2.5-flash', tier: 'flash', contextWindow: '1M' },
     { id: 'gemini-2.5-flash-lite', name: 'gemini-2.5-flash-lite', tier: 'lite', contextWindow: '1M' },
@@ -297,8 +295,8 @@ const FALLBACK_MODELS = [
 const MODEL_METADATA: Record<string, { tier: string; contextWindow: string }> = {
     'gemini-3-pro-preview': { tier: 'pro', contextWindow: '1M' },
     'gemini-3-flash-preview': { tier: 'flash', contextWindow: '1M' },
-    'gemini-3-pro': { tier: 'pro', contextWindow: '1M' },
-    'gemini-3-flash': { tier: 'flash', contextWindow: '1M' },
+    'gemini-3.1-pro-preview': { tier: 'pro', contextWindow: '1M' },
+    'gemini-3.1-pro-preview-customtools': { tier: 'pro', contextWindow: '1M' },
     'gemini-2.5-pro': { tier: 'pro', contextWindow: '2M' },
     'gemini-2.5-flash': { tier: 'flash', contextWindow: '1M' },
     'gemini-2.5-flash-lite': { tier: 'lite', contextWindow: '1M' },
@@ -307,9 +305,11 @@ const MODEL_METADATA: Record<string, { tier: string; contextWindow: string }> = 
 export async function getKnownModels() {
     // Try to get valid models from gemini-cli-core
     let validModels: Set<string> | null = null;
+    let isActive: ((model: string) => boolean) | null = null;
     try {
-        const { VALID_GEMINI_MODELS } = await import('@google/gemini-cli-core');
+        const { VALID_GEMINI_MODELS, isActiveModel } = await import('@google/gemini-cli-core');
         validModels = VALID_GEMINI_MODELS;
+        isActive = isActiveModel;
     } catch (error) {
         console.warn('[gemini-service] Failed to import VALID_GEMINI_MODELS:', error);
     }
@@ -324,6 +324,10 @@ export async function getKnownModels() {
     // First add valid models from gemini-cli-core (if available)
     if (validModels) {
         for (const modelId of validModels) {
+            // Keep the list aligned with core active-model semantics.
+            if (isActive && !isActive(modelId)) {
+                continue;
+            }
             const metadata = MODEL_METADATA[modelId] || { tier: 'unknown', contextWindow: '1M' };
             modelMap.set(modelId, {
                 id: modelId,

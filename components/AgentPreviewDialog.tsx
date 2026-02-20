@@ -26,7 +26,7 @@ interface AgentPreviewDialogProps {
 export function AgentPreviewDialog({ open, onOpenChange, agent, onSuccess }: AgentPreviewDialogProps) {
     const [task, setTask] = useState('');
     const [workspace, setWorkspace] = useState('');
-    const [model, setModel] = useState('gemini-2.0-flash');
+    const [model, setModel] = useState('gemini-2.5-flash');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<{ id: string; task: string } | null>(null);
@@ -41,7 +41,7 @@ export function AgentPreviewDialog({ open, onOpenChange, agent, onSuccess }: Age
         if (!open) {
             setTask('');
             setWorkspace('');
-            setModel('gemini-2.0-flash');
+            setModel('gemini-2.5-flash');
             setError(null);
             setSuccess(null);
         }

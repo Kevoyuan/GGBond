@@ -13,6 +13,8 @@ import { existsSync } from 'fs';
 import path from 'path';
 import {
   ToolConfirmationOutcome,
+  VALID_GEMINI_MODELS,
+  isActiveModel,
 } from '@google/gemini-cli-core';
 
 type AgentDefinitionLike = {
@@ -44,6 +46,28 @@ const buildAgentSystemInstruction = (agent: AgentDefinitionLike) => {
   return parts.join('\n\n');
 };
 
+const DEFAULT_MODEL_FALLBACK_CHAIN = [
+  'gemini-3-pro-preview',
+  'gemini-3-flash-preview',
+  'gemini-2.5-pro',
+];
+
+function resolveSupportedModel(requestedModel: string | undefined): string {
+  const requested = (requestedModel || '').trim();
+  if (requested && isActiveModel(requested)) {
+    return requested;
+  }
+  if (requested) {
+    console.warn(`[headless] Unsupported model requested: ${requested}. Falling back to first available default.`);
+  }
+  for (const candidate of DEFAULT_MODEL_FALLBACK_CHAIN) {
+    if (isActiveModel(candidate) && VALID_GEMINI_MODELS.has(candidate)) {
+      return candidate;
+    }
+  }
+  return 'gemini-2.5-pro';
+}
+
 export async function POST(req: Request) {
   try {
     const {
@@ -72,7 +96,7 @@ export async function POST(req: Request) {
     }
 
     // In headless mode, always use 'yolo' (auto-approve) mode
-    let targetModel = model || 'gemini-2.5-pro';
+    let targetModel = resolveSupportedModel(model || 'gemini-3-pro-preview');
 
     const env = getGeminiEnv();
     if (env.GEMINI_CLI_HOME) {
@@ -111,8 +135,9 @@ export async function POST(req: Request) {
       const agent = core.getAgentDefinition(selectedAgentName) as AgentDefinitionLike | null;
       if (agent) {
         const agentModel = agent.modelConfig?.model;
-        if (agentModel && agentModel !== targetModel) {
-          targetModel = agentModel;
+        const supportedAgentModel = resolveSupportedModel(agentModel);
+        if (supportedAgentModel && supportedAgentModel !== targetModel) {
+          targetModel = supportedAgentModel;
           await core.initialize({
             sessionId: finalSessionId,
             model: targetModel,
