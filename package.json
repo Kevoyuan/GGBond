@@ -6,7 +6,7 @@
   "description": "GGBond - AI-powered coding assistant",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "desktop:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:3000 && electron electron/main.cjs\"",
     "desktop:start": "electron electron/main.cjs",
