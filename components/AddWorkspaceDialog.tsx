@@ -8,6 +8,14 @@ interface AddWorkspaceDialogProps {
     onAdd: (path: string) => void;
 }
 
+type ValidateDirectoryResult = {
+    ok: boolean;
+    path?: string;
+    error?: string;
+    code?: string;
+    hint?: string;
+};
+
 export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogProps) {
     const [path, setPath] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -56,17 +64,31 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
         setErrorHint(null);
 
         try {
-            // Validate by trying to list the directory
-            const res = await fetch(`/api/files?path=${encodeURIComponent(trimmed)}`);
-            if (!res.ok) {
-                const payload = await res.json().catch(() => null) as { error?: string; code?: string; hint?: string } | null;
-                setError(payload?.error || 'Cannot access directory, please check if path is correct');
-                setErrorCode(payload?.code || null);
-                setErrorHint(payload?.hint || null);
-                return;
-            }
+            // Prefer direct validation in Electron main process to avoid API readiness/routing issues.
+            // @ts-expect-error - electronAPI is only available in Electron environment
+            if (window.electronAPI?.validateDirectory) {
+                // @ts-expect-error - electronAPI is only available in Electron environment
+                const result = await window.electronAPI.validateDirectory(trimmed) as ValidateDirectoryResult;
+                if (!result.ok) {
+                    setError(result.error || 'Cannot access directory, please check if path is correct');
+                    setErrorCode(result.code || null);
+                    setErrorHint(result.hint || null);
+                    return;
+                }
 
-            onAdd(trimmed);
+                onAdd(result.path || trimmed);
+            } else {
+                // Web fallback: validate via API
+                const res = await fetch(`/api/files?path=${encodeURIComponent(trimmed)}`);
+                if (!res.ok) {
+                    const payload = await res.json().catch(() => null) as { error?: string; code?: string; hint?: string } | null;
+                    setError(payload?.error || 'Cannot access directory, please check if path is correct');
+                    setErrorCode(payload?.code || null);
+                    setErrorHint(payload?.hint || null);
+                    return;
+                }
+                onAdd(trimmed);
+            }
             setPath('');
             setError(null);
             setErrorCode(null);
