@@ -3,7 +3,6 @@ import fs from 'fs/promises';
 import type { Dirent } from 'fs';
 import os from 'os';
 import path from 'path';
-import { CoreService } from '@/lib/core-service';
 
 interface FileItem {
   name: string;
@@ -125,7 +124,6 @@ export async function GET(req: Request) {
 
     const entries = await fs.readdir(targetPath, { withFileTypes: true });
 
-    const core = CoreService.getInstance();
     let files: FileItem[] = entries.map(entry => ({
       name: entry.name,
       type: entry.isDirectory() ? 'directory' : 'file',
@@ -137,6 +135,10 @@ export async function GET(req: Request) {
     let shouldIgnoreFile = (_filePath: string) => false;
     if (ignoreGitignore) {
       try {
+        // Lazy-load CoreService so basic directory listing does not fail
+        // when optional native dependencies are unavailable in current runtime.
+        const { CoreService } = await import('@/lib/core-service');
+        const core = CoreService.getInstance();
         const fileDiscovery = core.getFileDiscoveryService();
         shouldIgnoreFile = (filePath: string) => fileDiscovery.shouldIgnoreFile(filePath);
         files = files.filter(f => !fileDiscovery.shouldIgnoreFile(f.path));

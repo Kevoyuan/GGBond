@@ -35,6 +35,11 @@ interface FileTreeProps {
 
 export const FileTree = React.memo(function FileTree({ initialPath, onFileSelect, className, searchTerm }: FileTreeProps) {
     const [rootPath, setRootPath] = useState<string>(initialPath || '');
+    const [refreshToken, setRefreshToken] = useState(0);
+
+    useEffect(() => {
+        setRootPath(initialPath || '');
+    }, [initialPath]);
 
     return (
         <div className={cn("flex flex-col h-full bg-card/30", className)}>
@@ -43,7 +48,7 @@ export const FileTree = React.memo(function FileTree({ initialPath, onFileSelect
                 icon={FolderOpen}
                 actions={
                     <button
-                        onClick={() => setRootPath(initialPath || '')}
+                        onClick={() => setRefreshToken(prev => prev + 1)}
                         className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
                         title="Refresh"
                     >
@@ -54,6 +59,7 @@ export const FileTree = React.memo(function FileTree({ initialPath, onFileSelect
 
             <div className="flex-1 overflow-y-auto scrollbar-thin p-1">
                 <DirectoryNode
+                    key={`${rootPath || 'root'}:${refreshToken}`}
                     path={rootPath}
                     name={rootPath.split('/').pop() || 'root'}
                     onFileSelect={onFileSelect}
@@ -79,6 +85,13 @@ function DirectoryNode({ path, name, onFileSelect, depth = 0, defaultExpanded = 
     const [files, setFiles] = useState<FileEntry[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [hasLoaded, setHasLoaded] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
+    useEffect(() => {
+        setFiles([]);
+        setHasLoaded(false);
+        setLoadError(null);
+    }, [path]);
 
     useEffect(() => {
         if (isExpanded && !hasLoaded) {
@@ -88,15 +101,24 @@ function DirectoryNode({ path, name, onFileSelect, depth = 0, defaultExpanded = 
 
     const loadFiles = async () => {
         setIsLoading(true);
+        setLoadError(null);
         try {
             const res = await fetch(`/api/files?path=${encodeURIComponent(path)}&ignore=0`);
             if (res.ok) {
                 const data = await res.json();
                 setFiles(data.files);
                 setHasLoaded(true);
+            } else {
+                const payload = await res.json().catch(() => null) as { error?: string } | null;
+                setFiles([]);
+                setHasLoaded(true);
+                setLoadError(payload?.error || 'Failed to load directory');
             }
         } catch (err) {
             console.error('Failed to load directory:', path, err);
+            setFiles([]);
+            setHasLoaded(true);
+            setLoadError('Failed to load directory');
         } finally {
             setIsLoading(false);
         }
@@ -136,6 +158,9 @@ function DirectoryNode({ path, name, onFileSelect, depth = 0, defaultExpanded = 
                         </div>
                     ) : (
                         <>
+                            {loadError && (
+                                <div className="px-4 py-1 text-[11px] text-destructive/80 ml-4">{loadError}</div>
+                            )}
                             {filteredFiles.map((file) => (
                                 file.type === 'directory' ? (
                                     <DirectoryNode
