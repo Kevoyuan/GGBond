@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const path = require('path');
 const fs = require('fs');
+const fsp = require('fs/promises');
 const http = require('http');
+const os = require('os');
 const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage, ipcMain, shell, dialog } = require('electron');
 
 // Check for headless mode
@@ -244,6 +246,43 @@ ipcMain.handle('dialog:openDirectory', async () => {
     return null;
   }
   return result.filePaths[0];
+});
+
+ipcMain.handle('dialog:validateDirectory', async (event, rawPath) => {
+  try {
+    if (typeof rawPath !== 'string' || !rawPath.trim()) {
+      return { ok: false, error: 'Path is empty', code: 'EINVAL' };
+    }
+
+    const input = rawPath.trim();
+    const resolvedPath = input === '~'
+      ? os.homedir()
+      : input.startsWith('~/')
+        ? path.join(os.homedir(), input.slice(2))
+        : input;
+
+    await fsp.access(resolvedPath);
+    const stats = await fsp.stat(resolvedPath);
+    if (!stats.isDirectory()) {
+      return { ok: false, error: 'Path is not a directory', code: 'ENOTDIR', path: resolvedPath };
+    }
+
+    return { ok: true, path: resolvedPath };
+  } catch (error) {
+    const code = error && typeof error === 'object' && typeof error.code === 'string' ? error.code : 'UNKNOWN';
+    if (code === 'EACCES' || code === 'EPERM') {
+      return {
+        ok: false,
+        error: 'Permission denied for this directory',
+        code,
+        hint: 'Use folder picker to grant access, or allow Full Disk Access in macOS Privacy settings.'
+      };
+    }
+    if (code === 'ENOENT') {
+      return { ok: false, error: 'Path not found', code };
+    }
+    return { ok: false, error: 'Cannot access directory', code };
+  }
 });
 
 // Track maximize/unmaximize events

@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPath: (name) => ipcRenderer.invoke('system:getPath', name),
   openPrivacySettings: () => ipcRenderer.invoke('system:openPrivacySettings'),
   openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
+  validateDirectory: (inputPath) => ipcRenderer.invoke('dialog:validateDirectory', inputPath),
 
   // Events from main process
   onMaximizeChange: (callback) => {
