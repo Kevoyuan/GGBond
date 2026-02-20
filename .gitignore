@@ -1,4 +1,5 @@
-*.log
+*.log Codex local config
+.codex/
 *.tmp
 *.swp
 *.swo
@@ -56,7 +57,7 @@ htmlcov/
 gemini-home/
 .gemini/
 .npm-cache/
-.codex/environments/environment.toml
+.codex/
 
 .pnpm-store/
 
@@ -70,3 +71,4 @@ gemini-home/
 *.html
 next-env.d.ts
 tsconfig.tsbuildinfo
+
