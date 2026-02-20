@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import type { Dirent } from 'fs';
+import os from 'os';
 import path from 'path';
 import { CoreService } from '@/lib/core-service';
 
@@ -24,6 +25,19 @@ const MENTION_SUPPORTED_EXTENSIONS = new Set([
 function isMentionSupported(item: FileItem) {
   if (item.type === 'directory') return true;
   return !!item.extension && MENTION_SUPPORTED_EXTENSIONS.has(item.extension);
+}
+
+function resolveTargetPath(inputPath: string | null) {
+  if (!inputPath) {
+    return process.cwd();
+  }
+  if (inputPath === '~') {
+    return os.homedir();
+  }
+  if (inputPath.startsWith('~/')) {
+    return path.join(os.homedir(), inputPath.slice(2));
+  }
+  return inputPath;
 }
 
 async function walkFiles(
@@ -98,7 +112,7 @@ export async function GET(req: Request) {
   const limit = Math.max(1, Math.min(500, Number(searchParams.get('limit') || 120)));
 
   // Default to current working directory if no path provided
-  const targetPath = requestedPath || process.cwd();
+  const targetPath = resolveTargetPath(requestedPath);
 
   try {
     // Basic security check: ensure we can access the path
@@ -154,6 +168,29 @@ export async function GET(req: Request) {
 
   } catch (error) {
     console.error('File API Error:', error);
-    return NextResponse.json({ error: 'Failed to read directory' }, { status: 500 });
+    const code =
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      typeof error.code === 'string'
+        ? error.code
+        : null;
+
+    if (code === 'ENOENT') {
+      return NextResponse.json({ error: 'Path not found', code }, { status: 404 });
+    }
+
+    if (code === 'EACCES' || code === 'EPERM') {
+      return NextResponse.json(
+        {
+          error: 'Permission denied for this directory',
+          code,
+          hint: 'Use folder picker to grant access, or allow Full Disk Access in macOS Privacy settings.',
+        },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.json({ error: 'Failed to read directory', code }, { status: 500 });
   }
 }

@@ -11,6 +11,8 @@ interface AddWorkspaceDialogProps {
 export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogProps) {
     const [path, setPath] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [errorCode, setErrorCode] = useState<string | null>(null);
+    const [errorHint, setErrorHint] = useState<string | null>(null);
     const [isValidating, setIsValidating] = useState(false);
 
     const handleFileSelect = async () => {
@@ -26,10 +28,14 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
             if (selectedPath) {
                 setPath(selectedPath);
                 setError(null);
+                setErrorCode(null);
+                setErrorHint(null);
             }
         } catch (err) {
             console.error('Failed to open directory picker:', err);
             setError('Failed to open file picker');
+            setErrorCode(null);
+            setErrorHint(null);
         }
     };
 
@@ -39,28 +45,51 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
         const trimmed = path.trim();
         if (!trimmed) {
             setError('Please enter project path');
+            setErrorCode(null);
+            setErrorHint(null);
             return;
         }
 
         setIsValidating(true);
         setError(null);
+        setErrorCode(null);
+        setErrorHint(null);
 
         try {
             // Validate by trying to list the directory
             const res = await fetch(`/api/files?path=${encodeURIComponent(trimmed)}`);
             if (!res.ok) {
-                setError('Cannot access directory, please check if path is correct');
+                const payload = await res.json().catch(() => null) as { error?: string; code?: string; hint?: string } | null;
+                setError(payload?.error || 'Cannot access directory, please check if path is correct');
+                setErrorCode(payload?.code || null);
+                setErrorHint(payload?.hint || null);
                 return;
             }
 
             onAdd(trimmed);
             setPath('');
             setError(null);
+            setErrorCode(null);
+            setErrorHint(null);
             onClose();
         } catch {
             setError('Error validating path');
+            setErrorCode(null);
+            setErrorHint(null);
         } finally {
             setIsValidating(false);
+        }
+    };
+
+    const handleOpenPrivacySettings = async () => {
+        try {
+            // @ts-expect-error - electronAPI is only available in Electron environment
+            if (window.electronAPI?.openPrivacySettings) {
+                // @ts-expect-error - electronAPI is only available in Electron environment
+                await window.electronAPI.openPrivacySettings();
+            }
+        } catch (err) {
+            console.error('Failed to open privacy settings:', err);
         }
     };
 
@@ -98,7 +127,12 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
                             <input
                                 type="text"
                                 value={path}
-                                onChange={(e) => { setPath(e.target.value); setError(null); }}
+                                onChange={(e) => {
+                                    setPath(e.target.value);
+                                    setError(null);
+                                    setErrorCode(null);
+                                    setErrorHint(null);
+                                }}
                                 onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
                                 placeholder="/path/to/your/project"
                                 className={cn(
@@ -119,11 +153,23 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
                                 <FolderOpen className="w-4 h-4" />
                             </button>
                         </div>
-                        {error && (
+                                {error && (
                             <div className="flex items-center gap-1.5 text-xs text-destructive mt-2">
                                 <AlertCircle className="w-3.5 h-3.5" />
                                 <span>{error}</span>
                             </div>
+                        )}
+                        {errorHint && (
+                            <p className="text-xs text-muted-foreground mt-2">{errorHint}</p>
+                        )}
+                        {(errorCode === 'EACCES' || errorCode === 'EPERM') && (
+                            <button
+                                type="button"
+                                onClick={handleOpenPrivacySettings}
+                                className="mt-2 text-xs text-primary hover:underline"
+                            >
+                                Open macOS Privacy Settings
+                            </button>
                         )}
                     </div>
 

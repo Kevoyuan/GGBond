@@ -229,6 +229,13 @@ ipcMain.handle('system:getPath', (event, name) => {
   return app.getPath(name);
 });
 
+ipcMain.handle('system:openPrivacySettings', async () => {
+  if (process.platform !== 'darwin') {
+    return false;
+  }
+  return shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles');
+});
+
 ipcMain.handle('dialog:openDirectory', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory', 'createDirectory'],
