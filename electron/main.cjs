@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
 const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage, ipcMain, shell, dialog } = require('electron');
 
 // Check for headless mode
@@ -32,32 +33,38 @@ let mainWindow = null;
 let tray = null;
 let allowQuit = false;
 let nextServer = null;
+let nextHttpServer = null;
 
 // Start Next.js server in production
 function startNextServer() {
-  return new Promise((resolve) => {
+  return new Promise(async (resolve, reject) => {
     const port = 3456;
-    nextServer = spawn('node', ['node_modules/next/dist/bin/next', 'start', '-p', port.toString()], {
-      cwd: process.cwd(),
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, PORT: port.toString() },
-    });
+    const appRoot = app.isPackaged ? app.getAppPath() : path.join(__dirname, '..');
 
-    nextServer.stdout.on('data', (data) => {
-      const output = data.toString();
-      console.log('[Next.js]', output);
-      if (output.includes('Ready') || output.includes('started server')) {
+    try {
+      const next = require('next');
+      const nextApp = next({
+        dev: false,
+        dir: appRoot,
+      });
+      const handle = nextApp.getRequestHandler();
+
+      await nextApp.prepare();
+
+      nextHttpServer = http.createServer((req, res) => handle(req, res));
+      nextHttpServer.on('error', (error) => {
+        console.error('[Next.js Error]', error);
+        reject(error);
+      });
+
+      nextHttpServer.listen(port, '127.0.0.1', () => {
+        console.log('[Next.js] Ready on', `http://localhost:${port}`);
         resolve(`http://localhost:${port}`);
-      }
-    });
-
-    nextServer.stderr.on('data', (data) => {
-      console.error('[Next.js Error]', data.toString());
-    });
-
-    nextServer.on('close', (code) => {
-      console.log('[Next.js] Server closed with code:', code);
-    });
+      });
+    } catch (error) {
+      console.error('[Next.js Error]', error);
+      reject(error);
+    }
   });
 }
 
@@ -294,5 +301,10 @@ app.on('will-quit', () => {
   if (nextServer) {
     nextServer.kill();
     console.log('[Electron] Next.js server killed');
+  }
+  if (nextHttpServer) {
+    nextHttpServer.close();
+    nextHttpServer = null;
+    console.log('[Electron] Next.js HTTP server closed');
   }
 });
