@@ -1,16 +1,64 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
-// Ensure the directory exists
-const dbPath = path.join(process.cwd(), 'gemini-home', 'ggbond.db');
-const dbDir = path.dirname(dbPath);
+const LEGACY_HOME = path.join(process.cwd(), 'gemini-home');
+const LEGACY_DB_PATH = path.join(LEGACY_HOME, 'ggbond.db');
 
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+function ensureWritableDirectory(dirPath: string): boolean {
+  try {
+    fs.mkdirSync(dirPath, { recursive: true });
+    fs.accessSync(dirPath, fs.constants.R_OK | fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
+function resolveDbPath(): string {
+  const envHome = process.env.GGBOND_DATA_HOME?.trim() || process.env.GGBOND_HOME?.trim();
+  const candidates = [
+    envHome,
+    LEGACY_HOME,
+    path.join(os.homedir(), '.ggbond'),
+    path.join(os.tmpdir(), 'ggbond'),
+  ].filter((candidate): candidate is string => Boolean(candidate && candidate.trim()));
+
+  const uniqueCandidates = [...new Set(candidates.map((candidate) => path.resolve(candidate)))];
+  for (const candidate of uniqueCandidates) {
+    if (ensureWritableDirectory(candidate)) {
+      return path.join(candidate, 'ggbond.db');
+    }
+  }
+
+  throw new Error('No writable directory available for SQLite database');
+}
+
+function migrateLegacyDbIfNeeded(targetDbPath: string) {
+  if (targetDbPath === LEGACY_DB_PATH) return;
+  if (!fs.existsSync(LEGACY_DB_PATH)) return;
+  if (fs.existsSync(targetDbPath)) return;
+
+  try {
+    fs.copyFileSync(LEGACY_DB_PATH, targetDbPath);
+    console.log(`[DB] Migrated legacy DB from ${LEGACY_DB_PATH} to ${targetDbPath}`);
+  } catch (error) {
+    console.warn('[DB] Failed to migrate legacy database:', error);
+  }
+}
+
+const dbPath = resolveDbPath();
+migrateLegacyDbIfNeeded(dbPath);
 const db = new Database(dbPath);
+try {
+  db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000');
+  db.pragma('foreign_keys = ON');
+} catch (error) {
+  console.warn('[DB] Failed to apply pragmas:', error);
+}
+console.log(`[DB] Using database: ${dbPath}`);
 
 // Initialize tables
 db.exec(`
