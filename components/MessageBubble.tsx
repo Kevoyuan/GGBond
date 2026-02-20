@@ -21,6 +21,8 @@ export interface Message {
   content: string;
   error?: boolean;
   stats?: {
+    promptTokenCount?: number;
+    prompt_tokens?: number;
     inputTokenCount?: number;
     input_tokens?: number;
     outputTokenCount?: number;

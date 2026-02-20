@@ -91,9 +91,6 @@ function createMainWindow() {
     },
   });
 
-  // Performance: Enable caching
-  window.webContents.session.setCacheEnabled(true);
-
   // Performance: Preload scripts
   if (isDev) {
     window.webContents.openDevTools();

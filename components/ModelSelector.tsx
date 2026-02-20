@@ -9,7 +9,6 @@ const FALLBACK_MODELS = [
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', icon: Code2 },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', icon: Zap },
     { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', icon: Zap },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', icon: Zap },
 ];
 
 // Icon mapping based on tier
