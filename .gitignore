@@ -1,5 +1,4 @@
-*.log Codex local config
-.codex/
+*.log
 *.tmp
 *.swp
 *.swo
@@ -71,4 +70,3 @@ gemini-home/
 *.html
 next-env.d.ts
 tsconfig.tsbuildinfo
-
