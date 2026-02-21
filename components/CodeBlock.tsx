@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Copy, Check, ChevronDown, ChevronRight, Terminal } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';

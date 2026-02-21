@@ -466,10 +466,10 @@ export default function Home() {
     if (savedCollapsed) setIsSidebarCollapsed(savedCollapsed === 'true');
   }, []);
 
-  // Handle sidebarView changes - expand sidebar and switch to the requested view
+  // Handle sidebarView changes - only expand sidebar for non-chat views
   useEffect(() => {
-    if (sidebarView) {
-      // If a specific view is requested (e.g., 'mcp'), expand sidebar
+    if (sidebarView && sidebarView !== 'chat') {
+      // If a non-chat view is requested (e.g., 'mcp'), expand sidebar
       if (isSidebarCollapsed) {
         setIsSidebarCollapsed(false);
         localStorage.setItem('sidebar-collapsed', 'false');
