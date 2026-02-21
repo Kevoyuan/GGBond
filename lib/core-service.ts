@@ -189,6 +189,15 @@ export class CoreService {
         return CoreService._instance;
     }
 
+    private static readonly NATIVE_PLAN_MODE_INSTRUCTION = `
+# Native Plan Mode Guideline
+When you are in planning phase:
+1. ALWAYS use the 'write_todos' tool to present your step-by-step plan directly in the chat.
+2. DO NOT use 'write_file', 'planning-with-files', or any other tool to create external markdown files for the plan.
+3. Your plan should use standard markdown checkboxes (e.g., - [ ] Task).
+4. Once the plan is complete and presented via 'write_todos', call 'exit_plan_mode' (with an empty planPath) to wait for user approval.
+`;
+
     public async initialize(params: InitParams) {
         // Check for headless mode - force YOLO mode
         const isHeadless = process.env.GEMINI_HEADLESS === '1' ||
@@ -244,9 +253,9 @@ export class CoreService {
                 await this.registerCustomTools();
                 await geminiClient.setTools();
                 this.chat = geminiClient.getChat();
-                if (params.systemInstruction) {
-                    geminiClient.getChat().setSystemInstruction(params.systemInstruction);
-                }
+                
+                const fullSystemInstruction = (params.systemInstruction || '') + CoreService.NATIVE_PLAN_MODE_INSTRUCTION;
+                geminiClient.getChat().setSystemInstruction(fullSystemInstruction);
             } catch (error) {
                 console.warn('[CoreService] Failed to refresh tools for existing session:', error);
             }
@@ -389,10 +398,13 @@ export class CoreService {
                 .join(', ')
         );
         const geminiClient = this.config.getGeminiClient();
+        this.ensureWriteTodosToolEnabled();
+        await this.registerCustomTools();
+        
+        const fullSystemInstruction = (params.systemInstruction || '') + CoreService.NATIVE_PLAN_MODE_INSTRUCTION;
+
         await geminiClient.setTools();
-        if (params.systemInstruction) {
-            geminiClient.getChat().setSystemInstruction(params.systemInstruction);
-        }
+        geminiClient.getChat().setSystemInstruction(fullSystemInstruction);
 
         this.messageBus = this.config.getMessageBus();
         if (this.messageBus && this.policyUpdaterMessageBus !== this.messageBus) {

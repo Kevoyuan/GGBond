@@ -70,6 +70,10 @@ export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset 
         Icon = Server;
         accent = 'text-fuchsia-400';
         button = 'bg-fuchsia-600 hover:bg-fuchsia-500';
+    } else if (type === 'exit_plan_mode') {
+        Icon = Check;
+        accent = 'text-green-400';
+        button = 'bg-green-600 hover:bg-green-500';
     }
 
     const primaryLabel =
@@ -77,7 +81,9 @@ export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset 
             ? 'Run Command'
             : type === 'edit'
                 ? 'Apply Changes'
-                : 'Confirm';
+                : type === 'exit_plan_mode'
+                    ? 'Start Implementation'
+                    : 'Confirm';
     const showAllowSession = type !== 'ask_user' && type !== 'exit_plan_mode';
 
     return (

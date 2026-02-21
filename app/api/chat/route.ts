@@ -501,23 +501,23 @@ export async function POST(req: Request) {
         name: string;
         args: string;
         checkpointValue?: string;
-      }) => `<tool-call id="${id}" name="${name}" args="${args}"${checkpointValue ? ` checkpoint="${checkpointValue}"` : ''
+      }) => `<tool-call id="${encodeURIComponent(id)}" name="${encodeURIComponent(name)}" args="${args}"${checkpointValue ? ` checkpoint="${checkpointValue}"` : ''
         } status="${status}" result="${encodedResult}"${encodedResultData ? ` result_data="${encodedResultData}"` : ''
         } />`;
 
       if (toolId) {
-        const escapedToolId = toolId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const escapedToolId = encodeURIComponent(toolId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const exactRegex = new RegExp(
           `<tool-call id="${escapedToolId}" name="([^"]*)" args="([^"]*)"(?: checkpoint="([^"]*)")? status="running" \\/>`
         );
         const exactMatch = persistedAssistantContent.match(exactRegex);
         if (exactMatch) {
-          persistedAssistantContent = persistedAssistantContent.replace(exactRegex, (_full, name, args, existingCheckpoint) =>
+          persistedAssistantContent = persistedAssistantContent.replace(exactRegex, () =>
             buildToolTag({
               id: toolId,
-              name,
-              args,
-              checkpointValue: encodedCheckpoint || existingCheckpoint
+              name: decodeURIComponent(exactMatch[1]),
+              args: exactMatch[2],
+              checkpointValue: encodedCheckpoint || exactMatch[3]
             })
           );
           return;
@@ -535,8 +535,8 @@ export async function POST(req: Request) {
       if (lastMatch) {
         const [fullMatch, fallbackId, fallbackName, fallbackArgs, fallbackCheckpoint] = lastMatch;
         const updatedTag = buildToolTag({
-          id: toolId || fallbackId,
-          name: fallbackName,
+          id: toolId || decodeURIComponent(fallbackId),
+          name: decodeURIComponent(fallbackName),
           args: fallbackArgs,
           checkpointValue: encodedCheckpoint || fallbackCheckpoint
         });
@@ -797,12 +797,13 @@ export async function POST(req: Request) {
             if (event.type === GeminiEventType.Content) {
               const chunk = event.value; // string
               if (typeof chunk === 'string') {
+                const escapedChunk = chunk.replace(/</g, '&lt;');
                 fullResponse += chunk;
-                persistedAssistantContent += chunk;
+                persistedAssistantContent += escapedChunk;
                 safeEnqueue({
                   type: 'message',
                   role: 'assistant',
-                  content: chunk
+                  content: escapedChunk
                 });
                 // Extreme low-latency: avoid per-chunk persistence.
                 if (!isLowLatencyMode) {
@@ -821,7 +822,7 @@ export async function POST(req: Request) {
               const encodedCheckpoint = (typeof info.checkpoint === 'string' && info.checkpoint)
                 ? ` checkpoint="${encodeURIComponent(info.checkpoint)}"`
                 : '';
-              const toolCallTag = `\n\n<tool-call id="${info.callId || ''}" name="${info.name}" args="${encodeURIComponent(JSON.stringify(info.args || {}))}"${encodedCheckpoint} status="running" />\n\n`;
+              const toolCallTag = `\n\n<tool-call id="${encodeURIComponent(info.callId || '')}" name="${encodeURIComponent(info.name)}" args="${encodeURIComponent(JSON.stringify(info.args || {}))}"${encodedCheckpoint} status="running" />\n\n`;
               persistedAssistantContent += toolCallTag;
               safeEnqueue({
                 type: 'tool_use',
@@ -907,10 +908,11 @@ export async function POST(req: Request) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const thought = event.value as any;
               const text = typeof thought === 'string' ? thought : thought.text || JSON.stringify(thought);
-              persistedAssistantThought += text;
+              const escapedText = text.replace(/</g, '&lt;');
+              persistedAssistantThought += escapedText;
               safeEnqueue({
                 type: 'thought',
-                content: text
+                content: escapedText
               });
               // Extreme low-latency: avoid per-thought persistence.
               if (!isLowLatencyMode) {
