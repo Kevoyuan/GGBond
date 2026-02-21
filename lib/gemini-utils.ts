@@ -1,10 +1,10 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
-const GEMINI_GUI_HOME = path.join(process.cwd(), '.gemini-gui-home');
-const GEMINI_ORIGINAL_HOME = path.join(process.env.HOME || '~', '.gemini');
-const GEMINI_GUI_CONFIG_DIR = path.join(GEMINI_GUI_HOME, '.gemini');
+const GEMINI_ORIGINAL_HOME = path.join(os.homedir(), '.gemini');
+const LEGACY_GEMINI_GUI_HOME = path.join(process.cwd(), '.gemini-gui-home');
 const PROJECT_GEMINI_HOME = path.join(process.cwd(), 'gemini-home');
 
 // Files to copy from ~/.gemini to the GUI home
@@ -64,6 +64,8 @@ export function getGeminiPath(): string {
 }
 
 export function getGeminiEnv(): NodeJS.ProcessEnv {
+  const dataHome = (process.env.GGBOND_DATA_HOME || '').trim();
+  const geminiGuiHome = dataHome || LEGACY_GEMINI_GUI_HOME;
   const existingHome = process.env.GEMINI_CLI_HOME;
   const projectConfigDir = path.join(PROJECT_GEMINI_HOME, '.gemini');
   const projectHasSettings = fs.existsSync(path.join(projectConfigDir, 'settings.json'));
@@ -73,10 +75,10 @@ export function getGeminiEnv(): NodeJS.ProcessEnv {
   // Prefer project snapshot only when it already has skills (or no user skills exist).
   // Otherwise use isolated GUI home and hydrate it from ~/.gemini to keep behavior consistent.
   const selectedHome = existingHome
-    || ((projectHasSettings && (projectHasSkills || !userHasSkills)) ? PROJECT_GEMINI_HOME : GEMINI_GUI_HOME);
+    || ((projectHasSettings && (projectHasSkills || !userHasSkills)) ? PROJECT_GEMINI_HOME : geminiGuiHome);
 
-  if (selectedHome === GEMINI_GUI_HOME) {
-    ensureGeminiHome(GEMINI_GUI_HOME);
+  if (selectedHome === geminiGuiHome) {
+    ensureGeminiHome(geminiGuiHome);
   }
 
   return {
