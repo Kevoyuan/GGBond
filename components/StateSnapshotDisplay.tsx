@@ -51,13 +51,18 @@ export function StateSnapshotDisplay({ content }: StateSnapshotDisplayProps) {
       <div className="border border-border/60 rounded-xl bg-card overflow-hidden shadow-sm">
         <button 
           onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 transition-colors"
+          className="w-full flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          aria-expanded={isExpanded}
         >
           <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-primary" />
+            <Activity className="w-4 h-4 text-primary" aria-hidden="true" />
             <span className="font-medium text-sm">Session State Snapshot</span>
           </div>
-          {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+          {isExpanded ? (
+            <ChevronUp className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+          )}
         </button>
 
         <AnimatePresence>
@@ -66,6 +71,7 @@ export function StateSnapshotDisplay({ content }: StateSnapshotDisplayProps) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
               className="border-t border-border/40"
             >
               <div className="p-4 grid gap-6 md:grid-cols-2">
@@ -80,11 +86,14 @@ export function StateSnapshotDisplay({ content }: StateSnapshotDisplayProps) {
                 <div className="space-y-6">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                      <ListTodo className="w-4 h-4" />
+                      <ListTodo className="w-4 h-4" aria-hidden="true" />
                       <span>Task Progress</span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+                      <div 
+                        className="h-full bg-primary transition-all duration-500 ease-out" 
+                        style={{ width: `${progress}%` }} 
+                      />
                     </div>
                     <div className="text-xs text-muted-foreground whitespace-pre-wrap font-mono bg-muted/30 p-2 rounded border border-border/50">
                       {snapshot.task_state}
@@ -109,7 +118,7 @@ function Section({ icon: Icon, title, content, color }: { icon: any, title: stri
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <Icon className={cn("w-4 h-4", color)} />
+        <Icon className={cn("w-4 h-4", color)} aria-hidden="true" />
         <span>{title}</span>
       </div>
       <div className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap bg-muted/30 p-2.5 rounded-lg border border-border/50 font-mono">

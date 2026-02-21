@@ -45,7 +45,7 @@ const getContentPreview = (content: string, maxLength: number = 80): string => {
         .trim();
 
     if (textOnly.length <= maxLength) return textOnly;
-    return textOnly.slice(0, maxLength) + '...';
+    return textOnly.slice(0, maxLength) + '…';
 };
 
 function GeminiIcon({ className }: { className?: string }) {
@@ -84,7 +84,7 @@ const getRoleStyle = (role: 'user' | 'model', isThinking: boolean) => {
             dotColor: 'bg-amber-500',
             ringColor: 'ring-amber-500/20',
             activeRing: 'ring-amber-500/40',
-            label: 'Thinking...'
+            label: 'Thinking…'
         };
     }
     return {
