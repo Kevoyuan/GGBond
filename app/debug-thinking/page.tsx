@@ -1,6 +1,6 @@
 'use client';
 
-import { ThinkingBlock } from '@/components/ThinkingBlock';
+import { ThinkingBlock } from '../../components/ThinkingBlock';
 
 export default function DebugThinkingPage() {
     const sampleContent = JSON.stringify([
