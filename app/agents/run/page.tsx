@@ -4,8 +4,8 @@ import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, Loader2, Play, Sparkles, Settings, Search, Check, Folder, Cpu, AlertCircle, Activity, Code2, Zap } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useAppStore } from '@/stores/useAppStore';
+import { cn } from '../../../lib/utils';
+import { useAppStore } from '../../../stores/useAppStore';
 
 interface AgentDefinition {
   name: string;
