@@ -3,19 +3,19 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, BarChart3, MessageSquare, Settings, Brain, Palette } from 'lucide-react';
-import { AnalyticsDashboard } from '@/components/modules/analytics/AnalyticsDashboard';
-import { PerformancePanel } from '@/components/modules/analytics/PerformancePanel';
-import { ToolStatsPanel } from '@/components/modules/analytics/ToolStatsPanel';
-import { FileHeatmapPanel } from '@/components/modules/analytics/FileHeatmapPanel';
-import { SessionTimeline } from '@/components/modules/timeline/SessionTimeline';
-import { ChatManager } from '@/components/modules/ChatModules';
-import { CheckpointManager } from '@/components/modules/SessionModules';
-import { ToolManager, MCPManager, ExtensionManager } from '@/components/modules/SystemModules';
-import { MemoryManager, DirectoryManager, HooksManager } from '@/components/modules/ContextModules';
-import { SettingsManager, ThemeSelector, ShortcutsPanel, SystemInfo } from '@/components/modules/ConfigModules';
-import { ShellManager, AuthManager, FileManager } from '@/components/modules/ActionModules';
-import { CustomCommandManager } from '@/components/modules/CommandModules';
-import { SkillsManager } from '@/components/modules/SkillsManager';
+import { AnalyticsDashboard } from '../../components/modules/analytics/AnalyticsDashboard';
+import { PerformancePanel } from '../../components/modules/analytics/PerformancePanel';
+import { ToolStatsPanel } from '../../components/modules/analytics/ToolStatsPanel';
+import { FileHeatmapPanel } from '../../components/modules/analytics/FileHeatmapPanel';
+import { SessionTimeline } from '../../components/modules/timeline/SessionTimeline';
+import { ChatManager } from '../../components/modules/ChatModules';
+import { CheckpointManager } from '../../components/modules/SessionModules';
+import { ToolManager, MCPManager, ExtensionManager } from '../../components/modules/SystemModules';
+import { MemoryManager, DirectoryManager, HooksManager } from '../../components/modules/ContextModules';
+import { SettingsManager, ThemeSelector, ShortcutsPanel, SystemInfo } from '../../components/modules/ConfigModules';
+import { ShellManager, AuthManager, FileManager } from '../../components/modules/ActionModules';
+import { CustomCommandManager } from '../../components/modules/CommandModules';
+import { SkillsManager } from '../../components/modules/SkillsManager';
 
 type TabId = 'analytics' | 'sessions' | 'system' | 'context' | 'config';
 
