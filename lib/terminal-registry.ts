@@ -1,13 +1,25 @@
 import { ChildProcess } from 'child_process';
+import { IPty } from 'node-pty';
 
-export interface TerminalProcessRecord {
+interface TerminalProcessRecordBase {
   id: string;
-  child: ChildProcess;
   command: string;
   cwd: string;
   startedAt: number;
   stopRequested: boolean;
 }
+
+export interface ChildTerminalProcessRecord extends TerminalProcessRecordBase {
+  kind: 'child_process';
+  process: ChildProcess;
+}
+
+export interface PtyTerminalProcessRecord extends TerminalProcessRecordBase {
+  kind: 'pty';
+  process: IPty;
+}
+
+export type TerminalProcessRecord = ChildTerminalProcessRecord | PtyTerminalProcessRecord;
 
 export type TerminalStopSignal = 'SIGINT' | 'SIGTERM';
 
@@ -52,17 +64,17 @@ export const requestTerminalStop = (
   }
 
   record.stopRequested = true;
-  const signaled = record.child.kill(signal);
+  const signaled = killProcess(record, signal);
   if (signaled) {
     if (signal === 'SIGINT') {
       setTimeout(() => {
         const latest = getRegistry().get(id);
         if (latest) {
-          latest.child.kill('SIGTERM');
+          killProcess(latest, 'SIGTERM');
           setTimeout(() => {
             const latestAfterTerm = getRegistry().get(id);
             if (latestAfterTerm) {
-              latestAfterTerm.child.kill('SIGKILL');
+              killProcess(latestAfterTerm, 'SIGKILL');
             }
           }, 2000).unref();
         }
@@ -73,10 +85,42 @@ export const requestTerminalStop = (
     setTimeout(() => {
       const latest = getRegistry().get(id);
       if (latest) {
-        latest.child.kill('SIGKILL');
+        killProcess(latest, 'SIGKILL');
       }
     }, 2000).unref();
   }
 
   return { found: true, signaled };
+};
+
+export const writeTerminalInput = (id: string, data: string) => {
+  const record = getRegistry().get(id);
+  if (!record || typeof data !== 'string') return { found: false, written: false };
+
+  if (record.kind === 'pty') {
+    record.process.write(data);
+    return { found: true, written: true };
+  }
+
+  const child = record.process;
+  if (child.stdin && typeof child.stdin.write === 'function') {
+    child.stdin.write(data);
+    return { found: true, written: true };
+  }
+
+  return { found: true, written: false };
+};
+
+const killProcess = (record: TerminalProcessRecord, signal: TerminalStopSignal | 'SIGKILL') => {
+  if (record.kind === 'pty') {
+    // node-pty only supports SIGTERM and SIGKILL behavior via kill(), so SIGINT is emulated.
+    if (signal === 'SIGINT') {
+      record.process.write('\u0003');
+      return true;
+    }
+    record.process.kill();
+    return true;
+  }
+
+  return record.process.kill(signal);
 };

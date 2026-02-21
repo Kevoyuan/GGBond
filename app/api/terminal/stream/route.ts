@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn as spawnPty } from 'node-pty';
 import { promises as fs } from 'fs';
 import { randomUUID } from 'crypto';
 import { isAbsolute, resolve } from 'path';
@@ -132,15 +132,18 @@ export async function POST(req: NextRequest) {
       };
 
       const { shell, args } = getShellCommand(command, shellOverride);
-      const child = spawn(shell, args, {
+      const pty = spawnPty(shell, args, {
         cwd,
         env: runtimeEnv,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        name: runtimeEnv.TERM || 'xterm-256color',
+        cols: 120,
+        rows: 30,
       });
 
       registerTerminalProcess({
         id: runId,
-        child,
+        process: pty,
+        kind: 'pty',
         command,
         cwd,
         startedAt,
@@ -149,9 +152,9 @@ export async function POST(req: NextRequest) {
 
       const timeout = setTimeout(() => {
         timedOut = true;
-        child.kill('SIGTERM');
+        pty.kill();
         setTimeout(() => {
-          child.kill('SIGKILL');
+          pty.kill();
         }, 2000).unref();
       }, COMMAND_TIMEOUT_MS);
       timeout.unref();
@@ -165,8 +168,7 @@ export async function POST(req: NextRequest) {
         startedAt,
       });
 
-      child.stdout?.on('data', (chunk: Buffer | string) => {
-        const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+      pty.onData((text: string) => {
         emit({
           type: 'stdout',
           chunk: text,
@@ -174,26 +176,7 @@ export async function POST(req: NextRequest) {
         });
       });
 
-      child.stderr?.on('data', (chunk: Buffer | string) => {
-        const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-        emit({
-          type: 'stderr',
-          chunk: text,
-          runId,
-        });
-      });
-
-      child.on('error', (error) => {
-        clearTimeout(timeout);
-        emit({
-          type: 'error',
-          runId,
-          message: error instanceof Error ? error.message : 'Failed to execute command',
-        });
-        cleanupAndClose();
-      });
-
-      child.on('close', (code, signal) => {
+      pty.onExit(({ exitCode }) => {
         clearTimeout(timeout);
         const record = getTerminalProcess(runId);
         const stopped = Boolean(record?.stopRequested);
@@ -201,8 +184,8 @@ export async function POST(req: NextRequest) {
         emit({
           type: 'exit',
           runId,
-          exitCode: timedOut ? 124 : code ?? (stopped ? 130 : 1),
-          signal: signal ?? null,
+          exitCode: timedOut ? 124 : exitCode ?? (stopped ? 130 : 1),
+          signal: null,
           timedOut,
           stopped,
           durationMs: Date.now() - startedAt,
@@ -215,11 +198,19 @@ export async function POST(req: NextRequest) {
       const record = getTerminalProcess(runId);
       if (record) {
         record.stopRequested = true;
-        record.child.kill('SIGTERM');
+        if (record.kind === 'pty') {
+          record.process.kill();
+        } else {
+          record.process.kill('SIGTERM');
+        }
         setTimeout(() => {
           const latest = getTerminalProcess(runId);
           if (latest) {
-            latest.child.kill('SIGKILL');
+            if (latest.kind === 'pty') {
+              latest.process.kill();
+            } else {
+              latest.process.kill('SIGKILL');
+            }
           }
         }, 2000).unref();
       }
