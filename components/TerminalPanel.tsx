@@ -16,9 +16,6 @@ import {
   SplitSquareHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Terminal } from 'xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
 import 'xterm/css/xterm.css';
 
 interface TerminalPanelProps {
@@ -78,6 +75,7 @@ interface TerminalStreamEvent {
 interface TerminalSession {
   id: string;
   name: string;
+  entries: TerminalEntry[];
   command: string;
   commandHistory: string[];
   commandHistoryIndex: number | null;
@@ -86,8 +84,16 @@ interface TerminalSession {
   isRunning: boolean;
   isStopping: boolean;
   currentRunId: string | null;
-  term?: Terminal | null;
-  fitAddon?: FitAddon | null;
+  term?: {
+    write: (data: string) => void;
+    clear: () => void;
+    focus: () => void;
+    open: (element: HTMLElement) => void;
+    dispose: () => void;
+    onData: (cb: (data: string) => void) => void;
+    element?: HTMLElement;
+  } | null;
+  fitAddon?: { fit: () => void } | null;
 }
 
 const STORAGE_KEY = 'ggbond-terminal-environment-v1';
@@ -470,6 +476,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   const [showActionMenu, setShowActionMenu] = useState(false);
 
   const outputRef = useRef<HTMLDivElement>(null);
+  const terminalHostRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const commandTextareaRef = useRef<HTMLTextAreaElement>(null);
   const actionMenuRef = useRef<HTMLDivElement>(null);
   const resizeStartRef = useRef<{ startY: number; startHeight: number; startX: number; startWidth: number } | null>(null);
@@ -479,8 +486,13 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   // Ref to hold refs for entries/sessions for async operations
   const activeEntryIdRef = useRef<Record<string, string | null>>({});
   const activeRunSessionIdRef = useRef<Record<string, string | null>>({});
+  const sessionsRef = useRef<TerminalSession[]>(sessions);
 
   const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId) || sessions[0], [sessions, activeSessionId]);
+
+  useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
 
   // Update specific session state
   const updateSession = useCallback((sessionId: string, updates: Partial<TerminalSession>) => {
@@ -491,6 +503,50 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   const updateActiveSession = useCallback((updates: Partial<TerminalSession>) => {
     updateSession(activeSessionId, updates);
   }, [activeSessionId, updateSession]);
+
+  const ensureSessionTerminal = useCallback((sessionId: string) => {
+    const session = sessionsRef.current.find((item) => item.id === sessionId);
+    if (!session) return null;
+    if (session.term) return session.term;
+
+    const { Terminal } = require('xterm');
+    const { FitAddon } = require('@xterm/addon-fit');
+    const { WebLinksAddon } = require('@xterm/addon-web-links');
+
+    const term = new Terminal({
+      cursorBlink: true,
+      convertEol: false,
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+      fontSize: 13,
+      theme: {
+        background: '#09090b',
+        foreground: '#e4e4e7',
+      },
+      scrollback: 5000,
+    });
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    term.loadAddon(new WebLinksAddon());
+
+    term.onData((data: string) => {
+      const latest = sessionsRef.current.find((item) => item.id === sessionId);
+      if (!latest?.currentRunId) return;
+      void fetch('/api/terminal/input', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId: latest.currentRunId, data }),
+      });
+    });
+
+    updateSession(sessionId, { term, fitAddon });
+    return term;
+  }, [updateSession]);
+
+  const writeToTerminal = useCallback((sessionId: string, chunk: string) => {
+    if (!chunk) return;
+    const term = ensureSessionTerminal(sessionId);
+    if (term) term.write(chunk);
+  }, [ensureSessionTerminal]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -569,6 +625,17 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   useEffect(() => {
     commandTextareaRef.current?.focus();
   }, [activeSessionId]);
+
+  useEffect(() => {
+    sessions.forEach((session) => {
+      const host = terminalHostRefs.current[session.id];
+      if (!host) return;
+      const term = ensureSessionTerminal(session.id);
+      if (!term || term.element) return;
+      term.open(host);
+      session.fitAddon?.fit();
+    });
+  }, [sessions, activeSessionId, panelHeight, sidebarWidth, ensureSessionTerminal]);
 
   useEffect(() => {
     const textarea = commandTextareaRef.current;
@@ -650,6 +717,9 @@ export const TerminalPanel = React.memo(function TerminalPanel({
         if (runId) {
           onSessionRunStateChange?.(runId, -1);
         }
+      });
+      sessionsRef.current.forEach((session) => {
+        session.term?.dispose();
       });
     };
   }, [onSessionRunStateChange]);
@@ -771,6 +841,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
           historyDraft: ''
         } : {})
       });
+      writeToTerminal(sessionId, `\r\n$ ${normalizedCommand}\r\n`);
 
       const abortController = new AbortController();
       abortControllersRef.current[sessionId] = abortController;
@@ -867,12 +938,15 @@ export const TerminalPanel = React.memo(function TerminalPanel({
                 cdProbeStdout += stdoutChunk;
               } else {
                 appendEntryText(sessionId, entryId, 'stdout', stdoutChunk);
+                writeToTerminal(sessionId, stdoutChunk);
               }
               continue;
             }
 
             if (eventType === 'stderr') {
-              appendEntryText(sessionId, entryId, 'stderr', toStringOrEmpty(event.chunk));
+              const stderrChunk = toStringOrEmpty(event.chunk);
+              appendEntryText(sessionId, entryId, 'stderr', stderrChunk);
+              writeToTerminal(sessionId, stderrChunk);
               continue;
             }
 
@@ -944,7 +1018,8 @@ export const TerminalPanel = React.memo(function TerminalPanel({
       sessionId, // props sessionId
       sessions,
       updateEntry,
-      updateSession
+      updateSession,
+      writeToTerminal
     ]
   );
 
@@ -1291,7 +1366,10 @@ export const TerminalPanel = React.memo(function TerminalPanel({
 
             <button
               type="button"
-              onClick={() => updateActiveSession({ entries: [] })}
+              onClick={() => {
+                updateActiveSession({ entries: [] });
+                activeSession.term?.clear();
+              }}
               disabled={activeSession.entries.length === 0}
               className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
               title="Clear terminal output"
@@ -1312,16 +1390,20 @@ export const TerminalPanel = React.memo(function TerminalPanel({
         <div className="flex-1 flex min-h-0 relative">
           <div
             ref={outputRef}
-            className="flex-1 overflow-y-auto bg-zinc-950 dark:bg-zinc-950 text-zinc-100 dark:text-zinc-100 font-mono text-[13px] px-3 py-3 space-y-3"
-            onClick={() => commandTextareaRef.current?.focus()}
+            className="flex-1 overflow-y-auto bg-zinc-950 dark:bg-zinc-950 text-zinc-100 dark:text-zinc-100 font-mono text-[13px] px-3 py-3"
+            onClick={() => {
+              activeSession.term?.focus();
+              commandTextareaRef.current?.focus();
+            }}
           >
-            {activeSession.entries.map((entry) => (
-              <pre
-                key={entry.id}
-                className="whitespace-pre-wrap break-words leading-relaxed"
-              >
-                {renderAnsiText(formatTerminalTranscript(entry))}
-              </pre>
+            {sessions.map((session) => (
+              <div
+                key={session.id}
+                ref={(node) => {
+                  terminalHostRefs.current[session.id] = node;
+                }}
+                className={cn(session.id === activeSessionId ? 'block' : 'hidden')}
+              />
             ))}
 
             <div>
