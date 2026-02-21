@@ -115,7 +115,7 @@ export const ContentRenderer = React.memo(function ContentRenderer({
         };
     }, [skillMetaMap, skillSpans]);
 
-    const parts = content.split(/(<tool-call[^>]*\/>|<thinking>[\s\S]*?<\/thinking>|#\s*Updated\s*Plan[\s\S]*?(?=\n#|\n<|$))/g);
+    const parts = content.split(/(<tool-call[^>]*\/>|<tool-call[^>]*$|<thinking>[\s\S]*?<\/thinking>|<thinking>[\s\S]*$|#\s*Updated\s*Plan[\s\S]*?(?=\n#|\n<|$))/g);
     const lastTodoToolPartIndex = parts.reduce((lastIndex, part, partIndex) => {
         if (!part || !part.startsWith('<tool-call')) return lastIndex;
         const nameMatch = part.match(/name="([^"]+)"/);
@@ -305,8 +305,8 @@ export const ContentRenderer = React.memo(function ContentRenderer({
                         }
                     };
 
-                    const toolId = idMatch ? idMatch[1] : undefined;
-                    const name = nameMatch ? nameMatch[1] : 'Unknown Tool';
+                    const toolId = safeDecode(idMatch?.[1]);
+                    const name = safeDecode(nameMatch?.[1]) || 'Unknown Tool';
                     const isTodoTool = name.toLowerCase().includes('todo');
                     if (isTodoTool && index !== lastTodoToolPartIndex) {
                         return null;
@@ -316,7 +316,12 @@ export const ContentRenderer = React.memo(function ContentRenderer({
                     }
                     const argsStr = safeDecode(argsMatch?.[1]) ?? '{}';
                     const checkpoint = safeDecode(checkpointMatch?.[1]);
-                    const status = statusMatch ? statusMatch[1] as 'running' | 'completed' | 'failed' : 'completed';
+                    
+                    // Determine status: explicitly parsed > 'running' if partial > default 'completed'
+                    const isPartial = !part.endsWith('/>');
+                    const parsedStatus = statusMatch ? statusMatch[1] as 'running' | 'completed' | 'failed' : undefined;
+                    const status = parsedStatus || (isPartial ? 'running' : 'completed');
+
                     const result = safeDecode(resultMatch?.[1]);
                     const resultDataStr = safeDecode(resultDataMatch?.[1]);
                     let resultData: unknown = undefined;

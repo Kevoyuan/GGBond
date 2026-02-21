@@ -1992,7 +1992,8 @@ export default function Home() {
 
             if (data.type === 'thought' && data.content) {
               setStreamingStatus("Thinking...");
-              assistantThought += data.content;
+              const escapedThought = String(data.content).replace(/</g, '&lt;');
+              assistantThought += escapedThought;
               const updates: Partial<Message> = { thought: assistantThought };
               if (streamSessionId) updates.sessionId = streamSessionId;
               updateMessageInTree(assistantMsgId, updates);
@@ -2091,7 +2092,7 @@ export default function Home() {
               const checkpointAttr = typeof data.checkpoint === 'string' && data.checkpoint
                 ? ` checkpoint="${encodeURIComponent(data.checkpoint)}"`
                 : '';
-              const toolCallTag = `\n\n<tool-call id="${data.tool_id || ''}" name="${toolName}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}"${checkpointAttr} status="running" />\n\n`;
+              const toolCallTag = `\n\n<tool-call id="${encodeURIComponent(data.tool_id || '')}" name="${encodeURIComponent(toolName)}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}"${checkpointAttr} status="running" />\n\n`;
               assistantContent += toolCallTag;
               updateMessageInTree(assistantMsgId, { content: assistantContent });
             }
@@ -2105,16 +2106,17 @@ export default function Home() {
               const resolvedToolId = data.tool_id ? String(data.tool_id) : '';
 
               if (resolvedToolId) {
+                const escapedToolId = encodeURIComponent(resolvedToolId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const exactRegex = new RegExp(
-                  `<tool-call id="${escapeRegex(resolvedToolId)}" name="([^"]*)" args="([^"]*)"(?: checkpoint="([^"]*)")? status="running" \\/>`
+                  `<tool-call id="${escapedToolId}" name="([^"]*)" args="([^"]*)"(?: checkpoint="([^"]*)")? status="running" \\/>`
                 );
                 const exactMatch = assistantContent.match(exactRegex);
                 if (exactMatch) {
                   assistantContent = assistantContent.replace(
                     exactRegex,
-                    buildCompletedToolCallTag({
+                    () => buildCompletedToolCallTag({
                       id: resolvedToolId,
-                      name: exactMatch[1],
+                      name: decodeAttr(exactMatch[1]) || 'unknown',
                       args: exactMatch[2],
                       checkpoint: resolvedCheckpoint || decodeAttr(exactMatch[3]),
                       status: resolvedStatus,
@@ -2138,8 +2140,8 @@ export default function Home() {
               if (lastMatch) {
                 const [fullMatch, fallbackId, fallbackName, fallbackArgs, fallbackCheckpoint] = lastMatch;
                 const updatedTag = buildCompletedToolCallTag({
-                  id: resolvedToolId || fallbackId,
-                  name: fallbackName,
+                  id: resolvedToolId || decodeAttr(fallbackId) || '',
+                  name: decodeAttr(fallbackName) || 'unknown',
                   args: fallbackArgs,
                   checkpoint: resolvedCheckpoint || decodeAttr(fallbackCheckpoint),
                   status: resolvedStatus,
@@ -2156,7 +2158,8 @@ export default function Home() {
 
             if (data.type === 'message' && data.role === 'assistant' && data.content) {
               setStreamingStatus("Generating response...");
-              assistantContent += data.content;
+              const escapedContent = String(data.content).replace(/</g, '&lt;');
+              assistantContent += escapedContent;
               const updates: Partial<Message> = { content: assistantContent };
               if (streamSessionId) updates.sessionId = streamSessionId;
               updateMessageInTree(assistantMsgId, updates);
@@ -2171,7 +2174,8 @@ export default function Home() {
                 rawError?.type ||
                 'Unknown API error';
 
-              assistantContent += `\n\n> ⚠️ **Error**: ${errorMsg}`;
+              const escapedErrorMsg = String(errorMsg).replace(/</g, '&lt;');
+              assistantContent += `\n\n> ⚠️ **Error**: ${escapedErrorMsg}`;
               updateMessageInTree(assistantMsgId, { content: assistantContent, error: true });
             }
 
