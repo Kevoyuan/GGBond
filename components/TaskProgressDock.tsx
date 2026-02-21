@@ -29,7 +29,7 @@ export function TaskProgressDock({ todos }: TaskProgressDockProps) {
 
   const completed = todos.filter((todo) => todo.status === 'completed').length;
   const total = todos.length;
-  const percent = total > 0 ? (completed / total) * 100 : 0;
+  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
   const isCompleted = total > 0 && completed === total;
 
   if (dismissed) {
@@ -44,31 +44,32 @@ export function TaskProgressDock({ todos }: TaskProgressDockProps) {
           !collapsed && 'border-b border-border/50'
         )}>
           <div className="flex items-center gap-2">
-            <ListTodo className="w-4 h-4 text-primary" />
+            <ListTodo className="w-4 h-4 text-primary" aria-hidden="true" />
             <span className="text-sm font-semibold text-foreground">Task Progress</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {completed} out of {total} tasks completed
+            <span className="text-xs text-muted-foreground font-medium tabular-nums">
+              {completed}/{total} ({percent}%)
             </span>
             <button
               type="button"
               onClick={() => setCollapsed((prev) => !prev)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/60 bg-background/70 hover:bg-muted transition-colors"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-background/70 hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label={collapsed ? 'Expand task progress' : 'Collapse task progress'}
+              aria-expanded={!collapsed}
               title={collapsed ? 'Expand' : 'Collapse'}
             >
-              {collapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+              {collapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />}
             </button>
             {isCompleted && (
               <button
                 type="button"
                 onClick={() => setDismissed(true)}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/60 bg-background/70 hover:bg-muted transition-colors"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-background/70 hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 aria-label="Close task progress"
                 title="Close"
               >
-                <X className="h-4 w-4 text-muted-foreground" />
+                <X className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -78,19 +79,19 @@ export function TaskProgressDock({ todos }: TaskProgressDockProps) {
             <div className="px-4 pt-2">
               <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
                 <div
-                  className="h-full bg-primary transition-colors duration-300"
+                  className="h-full bg-primary transition-all duration-500 ease-out"
                   style={{ width: `${percent}%` }}
                 />
               </div>
             </div>
-            <div className="px-4 py-3 space-y-1.5 max-h-[9.6rem] overflow-y-auto custom-scrollbar pr-1">
+            <div className="px-4 py-3 space-y-1.5 max-h-[12rem] overflow-y-auto custom-scrollbar pr-1">
               {todos.map((todo, idx) => (
                 <div key={`${todo.description}-${idx}`} className="flex items-start gap-2.5 min-h-[1.9rem]">
                   <div className="mt-0.5 shrink-0">
-                    {todo.status === 'completed' && <Check className="w-4 h-4 text-emerald-500" />}
-                    {todo.status === 'in_progress' && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
-                    {todo.status === 'cancelled' && <X className="w-4 h-4 text-muted-foreground" />}
-                    {todo.status === 'pending' && <Circle className="w-4 h-4 text-muted-foreground/70" />}
+                    {todo.status === 'completed' && <Check className="w-4 h-4 text-emerald-500" aria-hidden="true" />}
+                    {todo.status === 'in_progress' && <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none text-blue-500" aria-hidden="true" />}
+                    {todo.status === 'cancelled' && <X className="w-4 h-4 text-muted-foreground" aria-hidden="true" />}
+                    {todo.status === 'pending' && <Circle className="w-4 h-4 text-muted-foreground/70" aria-hidden="true" />}
                   </div>
                   <div
                     className={cn(

@@ -13,6 +13,7 @@ import {
     Search,
     Globe,
     List,
+    ListTodo,
     Trash2,
     Edit,
     Play,
@@ -81,7 +82,7 @@ function getToolTarget(args: Record<string, any>): string {
             // For file paths, shorten if needed but keep full path in tooltip
             if (val.includes('/')) {
                 const parts = val.split('/');
-                return parts.length > 2 ? `.../${parts.slice(-2).join('/')}` : val;
+                return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : val;
             }
             return val;
         }
@@ -209,7 +210,7 @@ export const ToolCallCard = React.memo(function ToolCallCard({
     if (isTodoTool && todos) {
         const completedCount = todos.filter((todo) => todo.status === 'completed').length;
         const totalCount = todos.length;
-        const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+        const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
         const summaryText = status === 'running' ? 'Task updating' : 'Task updated';
 
         return (
@@ -221,54 +222,55 @@ export const ToolCallCard = React.memo(function ToolCallCard({
                     type="button"
                     onClick={() => setTodoExpanded((prev) => !prev)}
                     className={cn(
-                        "w-full px-3 py-2 bg-muted/20 hover:bg-muted/35 transition-colors",
+                        "w-full px-3 py-2 bg-muted/20 hover:bg-muted/35 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                         todoExpanded && "border-b border-border/50"
                     )}
+                    aria-expanded={todoExpanded}
                 >
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
-                            <List className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <ListTodo className="w-3.5 h-3.5 text-primary shrink-0" aria-hidden="true" />
                             <StatusIcon className={cn(
                                 "w-3.5 h-3.5 shrink-0",
                                 statusColor,
-                                status === 'running' && "animate-spin"
-                            )} />
-                            <span className="text-xs text-muted-foreground font-medium truncate">
-                                {summaryText}: {completedCount}/{totalCount}
+                                status === 'running' && "animate-spin motion-reduce:animate-none"
+                            )} aria-hidden="true" />
+                            <span className="text-xs text-muted-foreground font-medium truncate tabular-nums">
+                                {summaryText}: {completedCount}/{totalCount} ({progress}%)
                             </span>
                         </div>
                         <ChevronRight className={cn(
                             "h-4 w-4 text-muted-foreground transition-transform shrink-0",
                             todoExpanded && "rotate-90"
-                        )} />
+                        )} aria-hidden="true" />
                     </div>
                 </button>
                 {todoExpanded && (
                     <div className="px-3 py-2.5 space-y-2">
                         <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
                             <div
-                                className="h-full bg-primary transition-colors duration-300"
+                                className="h-full bg-primary transition-all duration-500 ease-out"
                                 style={{ width: `${progress}%` }}
                             />
                         </div>
                         {totalCount === 0 ? (
                             <div className="text-sm text-muted-foreground">Todo list cleared.</div>
                         ) : (
-                            <div className="max-h-[9.6rem] overflow-y-auto custom-scrollbar pr-1 space-y-1.5">
+                            <div className="max-h-[12rem] overflow-y-auto custom-scrollbar pr-1 space-y-1.5">
                                 {todos.map((todo, index) => (
                                     <div key={`${todo.description}-${index}`} className="flex items-start gap-2.5 min-h-[1.9rem]">
                                         <div className="mt-0.5 shrink-0">
                                             {todo.status === 'completed' && (
-                                                <Check className="w-4 h-4 text-emerald-500" />
+                                                <Check className="w-4 h-4 text-emerald-500" aria-hidden="true" />
                                             )}
                                             {todo.status === 'in_progress' && (
-                                                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                                                <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none text-blue-500" aria-hidden="true" />
                                             )}
                                             {todo.status === 'cancelled' && (
-                                                <X className="w-4 h-4 text-muted-foreground" />
+                                                <X className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                                             )}
                                             {todo.status === 'pending' && (
-                                                <Circle className="w-4 h-4 text-muted-foreground/70" />
+                                                <Circle className="w-4 h-4 text-muted-foreground/70" aria-hidden="true" />
                                             )}
                                         </div>
                                         <div

@@ -1400,7 +1400,7 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
           <div className="relative min-h-[40px] max-h-[200px]">
             {input.length === 0 && (
               <div className="pointer-events-none absolute inset-0 px-2 py-1 text-sm text-muted-foreground z-20">
-                Ask anything... (Type / for commands, @ for files, # for agents, /skills id for inline skill)
+                Ask anything… (Type / for commands, @ for files, # for agents, /skills id for inline skill)
               </div>
             )}
 

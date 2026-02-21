@@ -228,6 +228,7 @@ export const ChatContainer = React.memo(function ChatContainer({
                                                     onUndoMessage={onUndoMessage}
                                                     onRetry={onRetry}
                                                     onCancel={onCancel}
+                                                    hideTodoToolCalls={idx !== lastModelIdx}
                                                     isStreaming={isStreaming}
                                                     streamingStatus={streamingStatus}
                                                 />
