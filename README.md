@@ -1,19 +1,24 @@
-# GGBond
-
-[English](./README.md) | [简体中文](./README.zh-CN.md)
+<div align="center">
+  <img src="./public/icon.png" alt="GGBond Logo" width="128" />
+  <h1>GGBond</h1>
+</div>
 
 <p align="center">
-  <img src="./public/screenshot.png" alt="GGBond screenshot" width="100%" />
+  <a href="./README.md">English</a> · <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/Kevoyuan/GGBond/releases">
-    <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?label=release" alt="Latest release" />
+    <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?color=black&style=flat-square" alt="Latest release" />
   </a>
   <a href="https://github.com/Kevoyuan/GGBond/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
+    <img src="https://img.shields.io/badge/License-MIT-black.svg?style=flat-square" alt="License" />
   </a>
-  <img src="https://img.shields.io/badge/platform-macOS%20arm64-black" alt="Platform" />
+  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-black.svg?style=flat-square" alt="Platform" />
+</p>
+
+<p align="center">
+  <img src="./public/screenshot.png" alt="GGBond screenshot" width="100%" />
 </p>
 
 GGBond is a desktop-first AI coding cockpit built on top of Gemini CLI.
@@ -27,32 +32,32 @@ It keeps the raw power of CLI workflows, but adds the missing pieces serious dev
 - Agent workflow ready: run with built-in or custom agents, with explicit model/mode behavior.
 - Desktop reliability: local service fallback, single-instance protection, and stable SQLite persistence.
 
-## Feature Highlights
+## Feature Highlights 🚀
 
-### 1) AI Chat That Is Actually Operable
-- Multi-turn coding chat with session history and message branching.
-- Separate `code / plan / ask` style workflows.
-- Approval strategies for tool execution (`safe` vs `auto`-style flow).
+### 1) ⚡️ Fully Interactive Built-in PTY Terminal
+- Complete `xterm.js` and `node-pty` integration.
+- Run interactive processes, dev servers, or REPLs directly in the app.
+- Full proxy of keyboard input and ANSI output formatting.
 
-### 2) Workspace + File Ops in One Place
-- Add/switch workspaces quickly.
+### 2) 🤖 AI Chat That Is Actually Operable
+- Native **Plan Mode** execution tracking with rich visual progress.
+- Multi-turn coding chat with deep session history and message branching.
+- Adaptive UI elements and accessibility tools.
+
+### 3) 📂 Workspace + File Ops in One Place
+- Zero-config auto-created sessions on workspace addition.
 - Built-in file tree and file viewer/editor for project inspection.
-- Integrated terminal panel for command execution in workspace context.
+- Granular Module Management UI covering Hooks, Skills, and Agents.
 
-### 3) Visual Debuggability for AI Sessions
-- Graph view for branch structure.
-- Timeline view for turn-by-turn replay.
-- Per-message and per-tool visibility to reduce "AI black box" behavior.
+### 4) 🔍 Visual Debuggability for AI Sessions
+- Graph view for branch structure and chronological Timeline view.
+- Per-message and per-tool visibility with percentage progress tracking.
+- Eliminating the "AI black box" one UI component at a time.
 
-### 4) Extensible Runtime (MCP / Hooks / Skills)
-- MCP panel for server integration and tool extension.
-- Hooks panel for runtime events and behavior inspection.
-- Skills and command integration via Gemini CLI ecosystem.
-
-### 5) Production-Oriented Desktop Packaging
+### 5) 📦 Production-Oriented & Ultra-lightweight
+- Aggressive post-pack pruning scripts to dramatically reduce macOS app size.
 - Signed macOS build flow + optional notarization pipeline.
-- Build-size optimization for practical distribution.
-- Local storage migration and runtime stability improvements.
+- Rock-solid local SQLite storage with strict single-instance locking.
 
 ## Tech Stack
 

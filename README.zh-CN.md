@@ -1,19 +1,24 @@
-# GGBond
-
-[English](./README.md) | [简体中文](./README.zh-CN.md)
+<div align="center">
+  <img src="./public/icon.png" alt="GGBond Logo" width="128" />
+  <h1>GGBond</h1>
+</div>
 
 <p align="center">
-  <img src="./public/screenshot.png" alt="GGBond 截图" width="100%" />
+  <a href="./README.md">English</a> · <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/Kevoyuan/GGBond/releases">
-    <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?label=release" alt="最新版本" />
+    <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?color=black&style=flat-square" alt="最新版本" />
   </a>
   <a href="https://github.com/Kevoyuan/GGBond/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-green" alt="许可证" />
+    <img src="https://img.shields.io/badge/License-MIT-black.svg?style=flat-square" alt="许可证" />
   </a>
-  <img src="https://img.shields.io/badge/platform-macOS%20arm64-black" alt="平台" />
+  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-black.svg?style=flat-square" alt="平台" />
+</p>
+
+<p align="center">
+  <img src="./public/screenshot.png" alt="GGBond 截图" width="100%" />
 </p>
 
 GGBond 是一个基于 Gemini CLI 的桌面级 AI 编程工作台。
@@ -27,32 +32,32 @@ GGBond 是一个基于 Gemini CLI 的桌面级 AI 编程工作台。
 - Agent 友好：内置与自定义 Agent 都能按模型/模式明确运行。
 - 桌面稳定性：本地服务兜底、单实例保护、SQLite 持久化增强。
 
-## 核心能力
+## 核心能力 🚀
 
-### 1) 可操作的 AI 对话
-- 多轮编程会话，支持历史恢复与分支继续。
-- 支持 `code / plan / ask` 等使用模式。
-- 工具执行支持审批策略（安全模式与自动模式）。
+### 1) ⚡️ 沉浸式 PTY 交互终端
+- 完整集成 `xterm.js` 与 `node-pty`。
+- 允许在应用内流畅运行交互式进程、本地服务架构或控制台调试。
+- 键盘输入实时捕获代理及完整的 ANSI 高亮流式渲染。
 
-### 2) 工作区 + 文件 + 终端一体化
-- 快速添加/切换工作区。
-- 内置文件树、文件查看与编辑能力。
-- 集成终端面板，在当前工作区直接执行命令。
+### 2) 🤖 真正可操作的 AI 对话
+- 深度融合原生 **Plan Mode** (任务计划模块)，支持直观的进度管理与状态追踪。
+- 多轮对话伴随可视化网状分支，灵活回溯并试错任何路线。
+- 高可用、精细优化的工具调用卡片与悬浮进度坞（A11y 加持）。
 
-### 3) 对话过程可追踪
-- Graph 视图看消息分支结构。
-- Timeline 视图看逐步演进过程。
-- 按消息/工具定位问题，降低 AI 黑盒感。
+### 3) 📂 工作区即环境，开箱即用
+- 一键自动生成绑定了该目录的默认会话。
+- 内置文件树与代码轻量级阅读环境，免切换上下文。
+- 采用独立专门设计的模块化管理界面统一调度各类 Agent、Skills 与 Hooks。
 
-### 4) 可扩展运行时（MCP / Hooks / Skills）
-- MCP 面板管理服务和扩展工具。
-- Hooks 面板查看运行时事件。
-- 可结合 Gemini CLI 的 Skills / Commands 体系扩展能力。
+### 4) 🔍 对话过程极度透明
+- 独家双重视图：分支结构鸟瞰（Graph），流式执行推演（Timeline）。
+- 追踪每个工具执行流并百分比化进度。
+- 彻底粉碎 AI "黑箱模式"，把决策链路展现得一览无余。
 
-### 5) 面向发布的桌面工程能力
-- 支持 macOS 签名与公证流程。
-- 安装包体积优化，降低分发成本。
-- 本地数据迁移与运行稳定性增强。
+### 5) 📦 面向发布且极致瘦身
+- 引进全新体积压缩流水线脚本，全方位压榨 macOS 分发包冗余，轻装上阵。
+- 完善的跨会话管理机制保障单实例应用的安全防碰撞。
+- 零配置以本地 SQLite 构建出坚如磐石的数据持久化方案。
 
 ## 技术栈
 
