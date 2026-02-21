@@ -16,6 +16,10 @@ import {
   SplitSquareHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Terminal } from 'xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import 'xterm/css/xterm.css';
 
 interface TerminalPanelProps {
   workspacePath?: string;
@@ -74,7 +78,6 @@ interface TerminalStreamEvent {
 interface TerminalSession {
   id: string;
   name: string;
-  entries: TerminalEntry[];
   command: string;
   commandHistory: string[];
   commandHistoryIndex: number | null;
@@ -83,6 +86,8 @@ interface TerminalSession {
   isRunning: boolean;
   isStopping: boolean;
   currentRunId: string | null;
+  term?: Terminal | null;
+  fitAddon?: FitAddon | null;
 }
 
 const STORAGE_KEY = 'ggbond-terminal-environment-v1';
