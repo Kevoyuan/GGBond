@@ -18,6 +18,7 @@ import { ExtensionsGalleryDialog } from '../components/ExtensionsGalleryDialog';
 import { AddWorkspaceDialog } from '../components/AddWorkspaceDialog';
 import { TerminalPanel } from '../components/TerminalPanel';
 import { UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
+import { CommandPalette } from '../components/CommandPalette';
 import { ToastContainer } from '../components/Toast';
 import { useToast } from '@/hooks/useToast';
 import { useGitBranches } from '@/hooks/useGitBranches';
@@ -72,6 +73,7 @@ export default function Home() {
   // UI state
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [showUsageStats, setShowUsageStats] = useState(false);
   const [showExtensionsDialog, setShowExtensionsDialog] = useState(false);
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
@@ -94,8 +96,47 @@ export default function Home() {
   // Sidebar active view: 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory'
   const [sidebarView, setSidebarView] = useState<string | null>(null);
 
+  useEffect(() => {
+    const handleRunTerminal = () => {
+      if (!showTerminal) {
+        setShowTerminal(true);
+      }
+    };
+    window.addEventListener('run-terminal-command', handleRunTerminal);
+    return () => window.removeEventListener('run-terminal-command', handleRunTerminal);
+  }, [showTerminal]);
+
   // Toast notifications state (via hook)
   const { toasts, dismissToast, showErrorToast, showWarningToast, showInfoToast } = useToast();
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+K or Ctrl+K for Command Palette
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(prev => !prev);
+      }
+      // Cmd+J or Ctrl+J for Terminal
+      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
+        e.preventDefault();
+        setShowTerminal(prev => !prev);
+      }
+      // Cmd+N or Ctrl+N for New Chat
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        e.preventDefault();
+        handleNewChat();
+      }
+      // Cmd+, or Ctrl+, for Settings
+      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        e.preventDefault();
+        setSettingsOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
 
   const currentSessionIdRef = useRef<string | null>(currentSessionId);
@@ -887,40 +928,7 @@ export default function Home() {
     }
 
     if (trimmedInput.startsWith('/cost')) {
-      const formatUsd = (value: number) => `$${value.toFixed(6)}`;
-      const sessionReport = [
-        '### Current Session',
-        `- Input tokens: **${sessionStats.inputTokens.toLocaleString()}**`,
-        `- Output tokens: **${sessionStats.outputTokens.toLocaleString()}**`,
-        `- Total tokens: **${sessionStats.totalTokens.toLocaleString()}**`,
-        `- Estimated cost: **${formatUsd(sessionStats.totalCost)}**`,
-      ];
-
-      try {
-        const res = await fetch('/api/stats');
-        if (!res.ok) {
-          throw new Error(`stats API ${res.status}`);
-        }
-        const data = await res.json();
-        const globalReport = [
-          '### Global Usage',
-          `- Daily: ${data.daily?.totalTokens?.toLocaleString?.() ?? 0} tokens · ${formatUsd(data.daily?.cost || 0)}`,
-          `- Weekly: ${data.weekly?.totalTokens?.toLocaleString?.() ?? 0} tokens · ${formatUsd(data.weekly?.cost || 0)}`,
-          `- Monthly: ${data.monthly?.totalTokens?.toLocaleString?.() ?? 0} tokens · ${formatUsd(data.monthly?.cost || 0)}`,
-          `- Total: ${data.total?.totalTokens?.toLocaleString?.() ?? 0} tokens · ${formatUsd(data.total?.cost || 0)}`,
-        ];
-
-        addMessageToTree({
-          role: 'model',
-          content: ['## Cost Report', '', ...sessionReport, '', ...globalReport].join('\n'),
-        }, headId);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        addMessageToTree({
-          role: 'model',
-          content: ['## Cost Report', '', ...sessionReport, '', `> ⚠️ Failed to fetch global stats: ${message}`].join('\n'),
-        }, headId);
-      }
+      setShowUsageStats(true);
       return;
     }
 
@@ -2835,6 +2843,22 @@ export default function Home() {
           onCancel={handleQuestionCancel}
         />
       )}
+
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        currentMode={mode}
+        currentApproval={approvalMode}
+        actions={{
+          onNewChat: handleNewChat,
+          onClearChat: handleNewChat, // /clear maps to new chat in this context
+          onOpenSettings: () => setSettingsOpen(true),
+          onToggleTerminal: () => setShowTerminal(!showTerminal),
+          onSetMode: (m) => setMode(m),
+          onToggleApproval: () => setApprovalMode(prev => prev === 'safe' ? 'auto' : 'safe'),
+          onShowStats: () => setShowUsageStats(true),
+        }}
+      />
     </div>
   );
 }

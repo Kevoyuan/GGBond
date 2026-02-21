@@ -191,6 +191,13 @@ export const ToolCallCard = React.memo(function ToolCallCard({
 
     const isTodoTool = toolName.toLowerCase().includes('todo');
     const todos = isTodoTool ? extractTodos(resultData, result) : null;
+    const [showFullResult, setShowFullResult] = useState(false);
+    const resultLines = result?.split('\n') || [];
+    const isResultTruncated = resultLines.length > 50;
+    const displayResult = (isResultTruncated && !showFullResult) 
+        ? resultLines.slice(0, 50).join('\n') 
+        : result;
+
     // Native checkpointing only guarantees restore by checkpoint id.
     // Tool call id alone is not reliably restorable.
     const restoreId = checkpointId?.trim();
@@ -377,15 +384,37 @@ export const ToolCallCard = React.memo(function ToolCallCard({
                 )}>
                     {/* Specialized Rendering */}
                     {toolName.toLowerCase().includes('run_shell_command') || toolName.toLowerCase().includes('execute') ? (
-                        <ShellToolView args={args} result={result} />
+                        <ShellToolView args={args} result={displayResult} />
                     ) : toolName.toLowerCase().includes('edit') || toolName.toLowerCase().includes('replace') ? (
-                        <EditToolView args={args} result={result} />
+                        <EditToolView args={args} result={displayResult} />
                     ) : toolName.toLowerCase().includes('write') || toolName.toLowerCase().includes('create') ? (
-                        <WriteToolView args={args} target={target?.toString()} result={result} />
+                        <WriteToolView args={args} target={target?.toString()} result={displayResult} />
                     ) : toolName.toLowerCase().includes('read') || toolName.toLowerCase().includes('view') || toolName.toLowerCase().includes('cat') || toolName.toLowerCase().includes('fetch') ? (
-                        <ReadToolView args={args} result={result} />
+                        <ReadToolView args={args} result={displayResult} />
                     ) : (
-                        <DefaultToolView args={args} result={result} status={status} />
+                        <DefaultToolView args={args} result={displayResult} status={status} />
+                    )}
+
+                    {/* Truncation Toggle */}
+                    {isResultTruncated && (
+                        <div className="mt-2">
+                            <button
+                                onClick={() => setShowFullResult(!showFullResult)}
+                                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                            >
+                                {showFullResult ? (
+                                    <>
+                                        <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
+                                        <span>Show less</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <ChevronRight className="w-3 h-3 rotate-[90deg]" />
+                                        <span>Show remaining {resultLines.length - 50} lines</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     )}
 
                     {/* Real-time Output Display */}
