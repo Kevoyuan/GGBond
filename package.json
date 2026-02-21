@@ -1,6 +1,6 @@
 {
   "name": "ggbond",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "author": "Your Name",
   "description": "GGBond - AI-powered coding assistant",
@@ -71,6 +71,11 @@
       "icon": "public/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
+      "extendInfo": {
+        "LSEnvironment": {
+          "NODE_OPTIONS": ""
+        }
+      },
       "electronLanguages": [
         "en",
         "zh-CN"
