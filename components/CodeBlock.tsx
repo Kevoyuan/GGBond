@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { Copy, Check, ChevronDown, ChevronRight, Terminal } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { cn } from '@/lib/utils';
@@ -15,16 +14,26 @@ interface CodeBlockProps {
 const COLLAPSE_THRESHOLD = 20;
 const VISIBLE_LINES = 10;
 
+const SHELL_LANGUAGES = ['bash', 'sh', 'shell', 'zsh', 'powershell', 'ps1'];
+
 export function CodeBlock({ language, code, collapsible = true }: CodeBlockProps) {
     const [copied, setCopied] = useState(false);
     const lineCount = code.split('\n').length;
     const shouldCollapse = collapsible && lineCount > COLLAPSE_THRESHOLD;
     const [collapsed, setCollapsed] = useState(shouldCollapse);
 
+    const isShell = SHELL_LANGUAGES.includes(language.toLowerCase());
+
     const handleCopy = () => {
         navigator.clipboard.writeText(code);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleRunInTerminal = () => {
+        window.dispatchEvent(new CustomEvent('run-terminal-command', {
+            detail: { command: code }
+        }));
     };
 
     const displayCode = collapsed
@@ -39,16 +48,27 @@ export function CodeBlock({ language, code, collapsible = true }: CodeBlockProps
                     <span className="text-xs font-medium text-muted-foreground">{language}</span>
                     <span className="text-[10px] text-muted-foreground/50">{lineCount} lines</span>
                 </div>
-                <button
-                    onClick={handleCopy}
-                    className="p-1 hover:bg-background rounded-md transition-colors opacity-0 group-hover/code:opacity-100"
-                    title="Copy code"
-                >
-                    {copied
-                        ? <Check className="w-3.5 h-3.5 text-green-500" />
-                        : <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-                    }
-                </button>
+                <div className="flex items-center gap-1.5 opacity-0 group-hover/code:opacity-100 transition-opacity">
+                    {isShell && (
+                        <button
+                            onClick={handleRunInTerminal}
+                            className="p-1 hover:bg-background rounded-md transition-colors text-muted-foreground hover:text-primary"
+                            title="Run in Terminal"
+                        >
+                            <Terminal className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                    <button
+                        onClick={handleCopy}
+                        className="p-1 hover:bg-background rounded-md transition-colors"
+                        title="Copy code"
+                    >
+                        {copied
+                            ? <Check className="w-3.5 h-3.5 text-green-500" />
+                            : <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                        }
+                    </button>
+                </div>
             </div>
 
             {/* Code */}

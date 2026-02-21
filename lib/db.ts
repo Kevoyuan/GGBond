@@ -6,6 +6,32 @@ import os from 'os';
 const LEGACY_HOME = path.join(process.cwd(), 'gemini-home');
 const LEGACY_DB_PATH = path.join(LEGACY_HOME, 'ggbond.db');
 
+function getDefaultDataHomes(): string[] {
+  const home = os.homedir();
+  const homes: string[] = [];
+
+  if (process.platform === 'darwin') {
+    homes.push(
+      path.join(home, 'Library', 'Application Support', 'ggbond', 'gemini-home'),
+      path.join(home, 'Library', 'Application Support', 'gg-bond', 'gemini-home')
+    );
+  } else if (process.platform === 'win32') {
+    const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+    homes.push(
+      path.join(appData, 'ggbond', 'gemini-home'),
+      path.join(appData, 'gg-bond', 'gemini-home')
+    );
+  } else {
+    homes.push(
+      path.join(home, '.local', 'share', 'ggbond', 'gemini-home'),
+      path.join(home, '.local', 'share', 'gg-bond', 'gemini-home')
+    );
+  }
+
+  homes.push(path.join(home, '.ggbond'));
+  return homes;
+}
+
 function ensureWritableDirectory(dirPath: string): boolean {
   try {
     fs.mkdirSync(dirPath, { recursive: true });
@@ -20,8 +46,8 @@ function resolveDbPath(): string {
   const envHome = process.env.GGBOND_DATA_HOME?.trim() || process.env.GGBOND_HOME?.trim();
   const candidates = [
     envHome,
+    ...getDefaultDataHomes(),
     LEGACY_HOME,
-    path.join(os.homedir(), '.ggbond'),
     path.join(os.tmpdir(), 'ggbond'),
   ].filter((candidate): candidate is string => Boolean(candidate && candidate.trim()));
 

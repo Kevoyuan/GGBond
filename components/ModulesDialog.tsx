@@ -15,11 +15,7 @@ const SessionTimeline = lazy(() => import('./modules/timeline/SessionTimeline').
 const ChatManager = lazy(() => import('./modules/ChatModules').then(m => ({ default: m.ChatManager })));
 const CheckpointManager = lazy(() => import('./modules/SessionModules').then(m => ({ default: m.CheckpointManager })));
 const ToolManager = lazy(() => import('./modules/SystemModules').then(m => ({ default: m.ToolManager })));
-const MCPManager = lazy(() => import('./modules/SystemModules').then(m => ({ default: m.MCPManager })));
-const ExtensionManager = lazy(() => import('./modules/SystemModules').then(m => ({ default: m.ExtensionManager })));
-const MemoryManager = lazy(() => import('./modules/ContextModules').then(m => ({ default: m.MemoryManager })));
 const DirectoryManager = lazy(() => import('./modules/ContextModules').then(m => ({ default: m.DirectoryManager })));
-const HooksManager = lazy(() => import('./modules/ContextModules').then(m => ({ default: m.HooksManager })));
 const SettingsManager = lazy(() => import('./modules/ConfigModules').then(m => ({ default: m.SettingsManager })));
 const ThemeSelector = lazy(() => import('./modules/ConfigModules').then(m => ({ default: m.ThemeSelector })));
 const ShortcutsPanel = lazy(() => import('./modules/ConfigModules').then(m => ({ default: m.ShortcutsPanel })));
@@ -28,7 +24,6 @@ const ShellManager = lazy(() => import('./modules/ActionModules').then(m => ({ d
 const AuthManager = lazy(() => import('./modules/ActionModules').then(m => ({ default: m.AuthManager })));
 const FileManager = lazy(() => import('./modules/ActionModules').then(m => ({ default: m.FileManager })));
 const CustomCommandManager = lazy(() => import('./modules/CommandModules').then(m => ({ default: m.CustomCommandManager })));
-const SkillsManager = lazy(() => import('./modules/SkillsManager').then(m => ({ default: m.SkillsManager })));
 
 // Loading fallback component
 function ModuleLoader() {
@@ -288,15 +283,12 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }:
                   <section>
                     <SectionTitle
                       title="System Integration"
-                      description="MCP servers, tools, extensions, and skills"
+                      description="Built-in tools, system capabilities, and command extensions"
                       icon={<Cpu size={20} />}
                     />
                     <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                      <Suspense fallback={<ModuleLoader />}><MCPManager /></Suspense>
                       <Suspense fallback={<ModuleLoader />}><ToolManager /></Suspense>
-                      <Suspense fallback={<ModuleLoader />}><ExtensionManager /></Suspense>
                       <Suspense fallback={<ModuleLoader />}><CustomCommandManager /></Suspense>
-                      <Suspense fallback={<ModuleLoader />}><SkillsManager /></Suspense>
                       <Suspense fallback={<ModuleLoader />}><ShellManager /></Suspense>
                       <Suspense fallback={<ModuleLoader />}><AuthManager /></Suspense>
                     </div>
@@ -308,13 +300,11 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }:
                   <section>
                     <SectionTitle
                       title="Context & Memory"
-                      description="GEMINI.md, directories, hooks, and project context"
+                      description="GEMINI.md, directories, and project-level context"
                       icon={<Database size={20} />}
                     />
                     <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                      <Suspense fallback={<ModuleLoader />}><MemoryManager /></Suspense>
                       <Suspense fallback={<ModuleLoader />}><DirectoryManager /></Suspense>
-                      <Suspense fallback={<ModuleLoader />}><HooksManager /></Suspense>
                     </div>
                   </section>
                 )}

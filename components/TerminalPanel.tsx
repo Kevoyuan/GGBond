@@ -724,69 +724,6 @@ export const TerminalPanel = React.memo(function TerminalPanel({
     };
   }, [onSessionRunStateChange]);
 
-  const selectedAction = useMemo(
-    () =>
-      environment.actions.find((action) => action.id === environment.selectedActionId) ||
-      environment.actions[0] ||
-      null,
-    [environment.actions, environment.selectedActionId]
-  );
-
-  const getCurrentWorkingDirectory = useCallback((session: TerminalSession) => {
-    if (session.sessionCwd.trim()) return session.sessionCwd.trim();
-    if (environment.defaultCwd.trim()) return environment.defaultCwd.trim();
-    if (workspacePath?.trim()) return workspacePath;
-    return '';
-  }, [environment.defaultCwd, workspacePath]);
-
-  const terminalPrompt = useMemo(() => {
-    const location = getCurrentWorkingDirectory(activeSession) || '~';
-    return `${location} $`;
-  }, [activeSession, getCurrentWorkingDirectory]);
-
-  const updateEntry = useCallback((sessionId: string, entryId: string, updater: (entry: TerminalEntry) => TerminalEntry) => {
-    setSessions(prev => prev.map(s => {
-      if (s.id !== sessionId) return s;
-      return {
-        ...s,
-        entries: s.entries.map(e => e.id === entryId ? updater(e) : e)
-      };
-    }));
-  }, []);
-
-  const appendEntryText = useCallback(
-    (sessionId: string, entryId: string, key: 'stdout' | 'stderr', chunk: string) => {
-      if (!chunk) return;
-      updateEntry(sessionId, entryId, (entry) => ({ ...entry, [key]: entry[key] + chunk }));
-    },
-    [updateEntry]
-  );
-
-  const finalizeActiveRun = useCallback(
-    (sessionId: string, entryId: string, updates: Partial<TerminalEntry>) => {
-      updateEntry(sessionId, entryId, (entry) => ({
-        ...entry,
-        ...updates,
-        status: updates.status ?? (entry.status === 'running' ? 'failed' : entry.status),
-      }));
-
-      updateSession(sessionId, {
-        isRunning: false,
-        isStopping: false,
-        currentRunId: null
-      });
-
-      activeEntryIdRef.current[sessionId] = null;
-      abortControllersRef.current[sessionId] = null;
-      const activeRunSessionId = activeRunSessionIdRef.current[sessionId];
-      if (activeRunSessionId) {
-        onSessionRunStateChange?.(activeRunSessionId, -1);
-        activeRunSessionIdRef.current[sessionId] = null;
-      }
-    },
-    [onSessionRunStateChange, updateEntry, updateSession]
-  );
-
   const handleRunCommand = useCallback(
     async (sessionId: string, commandOverride?: string) => {
       const session = sessions.find(s => s.id === sessionId);
@@ -1025,6 +962,45 @@ export const TerminalPanel = React.memo(function TerminalPanel({
 
   // Use alias for prop sessionId to avoid confusion
   const propsSessionId = sessionId;
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const customEvent = event as CustomEvent<{ command: string }>;
+      const command = customEvent.detail?.command;
+      if (!command) return;
+
+      // Find an idle session or create a new one
+      const targetSession = sessions.find(s => !s.isRunning);
+      
+      if (!targetSession) {
+        // Create a new tab if all are busy
+        const newId = generateActionId();
+        const newSession: TerminalSession = {
+          id: newId,
+          name: `Terminal ${sessions.length + 1}`,
+          entries: [],
+          command: '',
+          commandHistory: [],
+          commandHistoryIndex: null,
+          historyDraft: '',
+          sessionCwd: environment.defaultCwd || workspacePath || '',
+          isRunning: false,
+          isStopping: false,
+          currentRunId: null,
+        };
+        setSessions(prev => [...prev, newSession]);
+        setActiveSessionId(newId);
+        // We need to wait for the next render to run the command on the new session
+        setTimeout(() => handleRunCommand(newId, command), 50);
+      } else {
+        setActiveSessionId(targetSession.id);
+        void handleRunCommand(targetSession.id, command);
+      }
+    };
+
+    window.addEventListener('run-terminal-command', handler);
+    return () => window.removeEventListener('run-terminal-command', handler);
+  }, [sessions, activeSessionId, environment.defaultCwd, workspacePath, handleRunCommand]);
 
   const navigateCommandHistory = useCallback((direction: 'up' | 'down') => {
     const session = activeSession;

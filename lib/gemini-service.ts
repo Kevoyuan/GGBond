@@ -13,7 +13,14 @@ import { execSync, spawn } from 'child_process';
 
 // ─── Paths ───────────────────────────────────────────────
 export function getGeminiHome(): string {
-    return process.env.GEMINI_CLI_HOME || path.join(os.homedir(), '.gemini');
+    const home = process.env.GEMINI_CLI_HOME;
+    if (home) {
+        // If it points to a directory containing .gemini, use the .gemini subdirectory
+        const dotGemini = path.join(home, '.gemini');
+        if (fs.existsSync(dotGemini)) return dotGemini;
+        return home;
+    }
+    return path.join(os.homedir(), '.gemini');
 }
 
 export function getSettingsPath(): string {
@@ -70,18 +77,37 @@ export async function getAuthInfo(): Promise<AuthInfo> {
     let userId: string | undefined;
 
     try {
-        accountId = (await fsp.readFile(path.join(geminiHome, 'google_account_id'), 'utf-8')).trim();
+        const idPath = path.join(geminiHome, 'google_account_id');
+        if (fs.existsSync(idPath)) {
+            accountId = (await fsp.readFile(idPath, 'utf-8')).trim();
+        }
     } catch { /* ignore */ }
 
     try {
-        const accountsJson = await fsp.readFile(path.join(geminiHome, 'google_accounts.json'), 'utf-8');
-        const parsed = JSON.parse(accountsJson);
-        if (Array.isArray(parsed)) accounts = parsed;
-        else if (parsed && typeof parsed === 'object') accounts = [parsed];
+        const accountsPath = path.join(geminiHome, 'google_accounts.json');
+        if (fs.existsSync(accountsPath)) {
+            const accountsJson = await fsp.readFile(accountsPath, 'utf-8');
+            const parsed = JSON.parse(accountsJson);
+            if (Array.isArray(parsed)) {
+                accounts = parsed.map(a => typeof a === 'string' ? { email: a } : a);
+            } else if (parsed && typeof parsed === 'object') {
+                if (parsed.active) {
+                    accounts = [{ email: parsed.active }];
+                    if (Array.isArray(parsed.old)) {
+                        accounts.push(...parsed.old.map((e: string) => ({ email: e })));
+                    }
+                } else if (parsed.email) {
+                    accounts = [parsed];
+                }
+            }
+        }
     } catch { /* ignore */ }
 
     try {
-        userId = (await fsp.readFile(path.join(geminiHome, 'user_id'), 'utf-8')).trim();
+        const userIdPath = path.join(geminiHome, 'user_id');
+        if (fs.existsSync(userIdPath)) {
+            userId = (await fsp.readFile(userIdPath, 'utf-8')).trim();
+        }
     } catch { /* ignore */ }
 
     const hasOAuthCreds = fs.existsSync(path.join(geminiHome, 'oauth_creds.json'));
