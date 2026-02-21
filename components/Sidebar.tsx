@@ -316,7 +316,7 @@ export const Sidebar = React.memo(function Sidebar({
       {/* Footer Toolbar */}
       <div className={cn(
         "px-2 py-2 border-t border-[var(--border-subtle)] shrink-0 flex flex-col gap-2 bg-[var(--bg-secondary)]",
-        isCollapsed && "p-2 gap-2Items"
+        isCollapsed && "p-2"
       )}>
         {/* Horizontal Action Bar */}
         <div className={cn(

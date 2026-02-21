@@ -489,6 +489,14 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   const sessionsRef = useRef<TerminalSession[]>(sessions);
 
   const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId) || sessions[0], [sessions, activeSessionId]);
+  const selectedAction = useMemo(
+    () => environment.actions.find((action) => action.id === environment.selectedActionId) ?? null,
+    [environment.actions, environment.selectedActionId]
+  );
+  const terminalPrompt = useMemo(() => {
+    const cwd = activeSession.sessionCwd.trim();
+    return cwd ? `${cwd} $` : '$';
+  }, [activeSession.sessionCwd]);
 
   useEffect(() => {
     sessionsRef.current = sessions;
@@ -503,6 +511,54 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   const updateActiveSession = useCallback((updates: Partial<TerminalSession>) => {
     updateSession(activeSessionId, updates);
   }, [activeSessionId, updateSession]);
+
+  const updateEntry = useCallback(
+    (sessionId: string, entryId: string, updater: (entry: TerminalEntry) => TerminalEntry) => {
+      setSessions((prev) =>
+        prev.map((session) => {
+          if (session.id !== sessionId) return session;
+          return {
+            ...session,
+            entries: session.entries.map((entry) =>
+              entry.id === entryId ? updater(entry) : entry
+            ),
+          };
+        })
+      );
+    },
+    []
+  );
+
+  const appendEntryText = useCallback(
+    (sessionId: string, entryId: string, stream: 'stdout' | 'stderr', chunk: string) => {
+      if (!chunk) return;
+      updateEntry(sessionId, entryId, (entry) => ({
+        ...entry,
+        [stream]: `${entry[stream]}${chunk}`,
+      }));
+    },
+    [updateEntry]
+  );
+
+  const finalizeActiveRun = useCallback(
+    (sessionId: string, entryId: string, updates: Partial<TerminalEntry>) => {
+      updateEntry(sessionId, entryId, (entry) => ({ ...entry, ...updates }));
+      updateSession(sessionId, {
+        isRunning: false,
+        isStopping: false,
+        currentRunId: null,
+      });
+      abortControllersRef.current[sessionId] = null;
+      activeEntryIdRef.current[sessionId] = null;
+
+      const trackedSessionId = activeRunSessionIdRef.current[sessionId];
+      if (trackedSessionId) {
+        onSessionRunStateChange?.(trackedSessionId, -1);
+        activeRunSessionIdRef.current[sessionId] = null;
+      }
+    },
+    [onSessionRunStateChange, updateEntry, updateSession]
+  );
 
   const ensureSessionTerminal = useCallback((sessionId: string) => {
     const session = sessionsRef.current.find((item) => item.id === sessionId);
@@ -723,6 +779,22 @@ export const TerminalPanel = React.memo(function TerminalPanel({
       });
     };
   }, [onSessionRunStateChange]);
+
+  const getCurrentWorkingDirectory = useCallback(
+    (session: TerminalSession) => {
+      const sessionCwd = session.sessionCwd?.trim();
+      if (sessionCwd) return sessionCwd;
+
+      const defaultCwd = environment.defaultCwd?.trim();
+      if (defaultCwd) return defaultCwd;
+
+      const workspaceCwd = workspacePath?.trim();
+      if (workspaceCwd) return workspaceCwd;
+
+      return '';
+    },
+    [environment.defaultCwd, workspacePath]
+  );
 
   const handleRunCommand = useCallback(
     async (sessionId: string, commandOverride?: string) => {
