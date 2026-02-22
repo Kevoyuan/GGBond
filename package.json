@@ -10,7 +10,7 @@
     "rebuild:electron-native": "electron-rebuild -f -w better-sqlite3,keytar,node-pty,tree-sitter-bash",
     "build": "npm run rebuild:node-native && next build",
     "start": "next start",
-    "desktop:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:3000 && electron electron/main.cjs\"",
+    "desktop:dev": "concurrently -k \"npm run dev\" \"electron electron/main.cjs\"",
     "desktop:start": "electron electron/main.cjs",
     "desktop:build": "npm run build && npm run rebuild:electron-native && electron-builder --mac",
     "desktop:build:mac:release": "npm run build && npm run rebuild:electron-native && electron-builder --mac --publish never",
