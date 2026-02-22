@@ -5,6 +5,12 @@ import { cn } from '@/lib/utils';
 interface GitBranchSwitcherProps {
     branch: string | null;
     branches: string[];
+    uncommitted?: {
+        added: number;
+        removed: number;
+        untracked: number;
+        hasChanges: boolean;
+    } | null;
     loading?: boolean;
     switchingTo?: string | null;
     onSelectBranch: (branch: string) => Promise<void> | void;
@@ -15,6 +21,7 @@ interface GitBranchSwitcherProps {
 export function GitBranchSwitcher({
     branch,
     branches,
+    uncommitted = null,
     loading = false,
     switchingTo = null,
     onSelectBranch,
@@ -36,9 +43,9 @@ export function GitBranchSwitcher({
     }, []);
 
     const branchList = useMemo(() => {
-        let list = branches;
-        if (branch && !list.includes(branch)) {
-            list = [branch, ...list];
+        let list = [...branches];
+        if (branch) {
+            list = [branch, ...list.filter((item) => item !== branch)];
         }
         if (!searchQuery) return list;
         return list.filter(b => b.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -73,12 +80,12 @@ export function GitBranchSwitcher({
                                 placeholder="Search branches..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-zinc-100/50 dark:bg-zinc-900/60 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 focus:bg-white dark:focus:bg-zinc-800 border border-zinc-200 dark:border-zinc-800/50 focus:border-zinc-300 dark:focus:border-zinc-600/80 rounded-lg py-1.5 pl-8 pr-3 text-[13px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 transition-all outline-none"
+                                className="w-full bg-zinc-100/50 dark:bg-zinc-900/60 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 focus:bg-white dark:focus:bg-zinc-800 border border-zinc-200 dark:border-zinc-800/50 focus:border-zinc-300 dark:focus:border-zinc-600/80 rounded-lg py-1.5 pl-8 pr-3 text-[12px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 transition-all outline-none"
                             />
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-between px-3 py-2 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em] bg-zinc-50/50 dark:bg-zinc-900/40">
+                    <div className="flex items-center justify-between px-3 py-2 text-[9px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em] bg-zinc-50/50 dark:bg-zinc-900/40">
                         <span>Branches</span>
                         <button
                             onClick={() => void onRefresh?.()}
@@ -90,7 +97,7 @@ export function GitBranchSwitcher({
 
                     <div className="max-h-64 overflow-auto py-1">
                         {branchList.length === 0 ? (
-                            <div className="px-2 py-2 text-xs text-[var(--text-tertiary)]">No branches</div>
+                            <div className="px-2 py-2 text-[11px] text-[var(--text-tertiary)]">No branches</div>
                         ) : (
                             branchList.map((item) => {
                                 const isActive = item === branch;
@@ -104,7 +111,7 @@ export function GitBranchSwitcher({
                                         }}
                                         disabled={isSwitching}
                                         className={cn(
-                                            'w-full flex items-center justify-between px-3 py-3 text-left transition-all duration-200 relative group/item',
+                                            'w-full flex items-center justify-between px-3 py-1.5 text-left transition-all duration-200 relative group/item',
                                             'hover:bg-zinc-100 dark:hover:bg-zinc-800/60 disabled:opacity-50',
                                             isActive ? 'bg-zinc-100/80 dark:bg-zinc-800/40' : ''
                                         )}
@@ -112,13 +119,28 @@ export function GitBranchSwitcher({
                                         <div className="flex items-center gap-3 min-w-0">
                                             <GitBranch className={cn("w-4 h-4 shrink-0 transition-colors", isActive ? "text-zinc-900 dark:text-white" : "text-zinc-400 dark:text-zinc-500 group-hover/item:text-zinc-600 dark:group-hover/item:text-zinc-300")} />
                                             <div className="flex flex-col min-w-0">
-                                                <span className={cn("truncate tracking-tight transition-colors font-medium text-[14px]", isActive ? "text-zinc-900 dark:text-white font-bold" : "text-zinc-600 dark:text-zinc-300 group-hover/item:text-zinc-900 dark:group-hover/item:text-white")}>
+                                                <span className={cn("truncate tracking-tight transition-colors font-medium text-[13px]", isActive ? "text-zinc-900 dark:text-white font-bold" : "text-zinc-600 dark:text-zinc-300 group-hover/item:text-zinc-900 dark:group-hover/item:text-white")}>
                                                     {item}
                                                 </span>
-                                                {/* Mocked uncommitted info if it's the current branch for visual flair */}
                                                 {isActive && (
-                                                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                                                        Uncommited: <span className="text-emerald-600 dark:text-emerald-400">+14</span> <span className="text-rose-600 dark:text-rose-400">-2</span>
+                                                    <span className="text-[9px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                                        {uncommitted?.hasChanges ? (
+                                                            <>
+                                                                Uncommitted:
+                                                                {' '}
+                                                                <span className="text-emerald-600 dark:text-emerald-400">+{uncommitted.added}</span>
+                                                                {' '}
+                                                                <span className="text-rose-600 dark:text-rose-400">-{uncommitted.removed}</span>
+                                                                {uncommitted.untracked > 0 ? (
+                                                                    <>
+                                                                        {' '}
+                                                                        <span className="text-amber-600 dark:text-amber-400">· ?{uncommitted.untracked}</span>
+                                                                    </>
+                                                                ) : null}
+                                                            </>
+                                                        ) : (
+                                                            <>Working tree clean</>
+                                                        )}
                                                     </span>
                                                 )}
                                             </div>
@@ -138,7 +160,7 @@ export function GitBranchSwitcher({
 
                     {/* Bottom Action */}
                     <div className="p-1.5 border-t border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/60">
-                        <button className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] font-medium text-zinc-500 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-zinc-800/80 rounded-lg transition-all group/new">
+                        <button className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] font-medium text-zinc-500 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-zinc-800/80 rounded-lg transition-all group/new">
                             <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
                             <span>Create and checkout new branch...</span>
                         </button>

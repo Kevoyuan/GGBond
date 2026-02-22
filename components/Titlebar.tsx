@@ -16,6 +16,12 @@ interface TitlebarProps {
     };
     currentBranch?: string | null;
     branches?: string[];
+    uncommitted?: {
+        added: number;
+        removed: number;
+        untracked: number;
+        hasChanges: boolean;
+    } | null;
     branchLoading?: boolean;
     branchSwitchingTo?: string | null;
     onSelectBranch?: (branch: string) => Promise<void> | void;
@@ -31,6 +37,7 @@ export const Titlebar = React.memo(function Titlebar({
     stats,
     currentBranch,
     branches = [],
+    uncommitted = null,
     branchLoading = false,
     branchSwitchingTo = null,
     onSelectBranch,
@@ -101,6 +108,7 @@ export const Titlebar = React.memo(function Titlebar({
                         <GitBranchSwitcher
                             branch={currentBranch ?? null}
                             branches={branches}
+                            uncommitted={uncommitted}
                             loading={branchLoading}
                             switchingTo={branchSwitchingTo}
                             onSelectBranch={onSelectBranch}

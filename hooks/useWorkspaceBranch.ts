@@ -3,6 +3,12 @@ import { useCallback, useEffect, useState } from 'react';
 interface BranchResponse {
     branch?: string | null;
     branches?: string[];
+    uncommitted?: {
+        added: number;
+        removed: number;
+        untracked: number;
+        hasChanges: boolean;
+    } | null;
     error?: string;
 }
 
@@ -15,6 +21,7 @@ interface SwitchBranchResult {
 export function useWorkspaceBranch(workspacePath: string | null) {
     const [currentBranch, setCurrentBranch] = useState<string | null>(null);
     const [branches, setBranches] = useState<string[]>([]);
+    const [uncommitted, setUncommitted] = useState<BranchResponse['uncommitted']>(null);
     const [loading, setLoading] = useState(false);
     const [switchingTo, setSwitchingTo] = useState<string | null>(null);
 
@@ -32,9 +39,11 @@ export function useWorkspaceBranch(workspacePath: string | null) {
             const data = await res.json() as BranchResponse;
             setCurrentBranch(data.branch || null);
             setBranches(Array.isArray(data.branches) ? data.branches : []);
+            setUncommitted(data.uncommitted ?? null);
         } catch {
             setCurrentBranch(null);
             setBranches([]);
+            setUncommitted(null);
         } finally {
             setLoading(false);
         }
@@ -75,6 +84,7 @@ export function useWorkspaceBranch(workspacePath: string | null) {
             } else {
                 setBranches((prev) => (prev.includes(nextBranch) ? prev : [nextBranch, ...prev]));
             }
+            setUncommitted(data.uncommitted ?? null);
 
             return { ok: true, branch: nextBranch };
         } catch {
@@ -91,6 +101,7 @@ export function useWorkspaceBranch(workspacePath: string | null) {
     return {
         currentBranch,
         branches,
+        uncommitted,
         loading,
         switchingTo,
         refresh,

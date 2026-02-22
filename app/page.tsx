@@ -44,6 +44,7 @@ export default function Home() {
   const {
     currentBranch: workspaceBranch,
     branches: workspaceBranches,
+    uncommitted: workspaceUncommitted,
     loading: workspaceBranchLoading,
     switchingTo: workspaceBranchSwitchingTo,
     refresh: refreshWorkspaceBranches,
@@ -2793,6 +2794,7 @@ export default function Home() {
         }}
         currentBranch={currentBranch}
         branches={workspaceBranches}
+        uncommitted={workspaceUncommitted}
         branchLoading={workspaceBranchLoading}
         branchSwitchingTo={workspaceBranchSwitchingTo}
         onSelectBranch={handleSelectWorkspaceBranch}
