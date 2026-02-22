@@ -2,7 +2,7 @@ import React from 'react';
 import { SquarePen, PanelLeftClose, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TokenUsageDisplay } from './TokenUsageDisplay';
-import { GitBranchTag } from './GitBranchTag';
+import { GitBranchSwitcher } from './GitBranchSwitcher';
 
 interface TitlebarProps {
     isCollapsed: boolean;
@@ -15,6 +15,11 @@ interface TitlebarProps {
         totalCost: number;
     };
     currentBranch?: string | null;
+    branches?: string[];
+    branchLoading?: boolean;
+    branchSwitchingTo?: string | null;
+    onSelectBranch?: (branch: string) => Promise<void> | void;
+    onRefreshBranches?: () => Promise<void> | void;
     currentModel?: string;
     className?: string;
 }
@@ -25,6 +30,11 @@ export const Titlebar = React.memo(function Titlebar({
     onNewChat,
     stats,
     currentBranch,
+    branches = [],
+    branchLoading = false,
+    branchSwitchingTo = null,
+    onSelectBranch,
+    onRefreshBranches,
     currentModel = 'Gemini 3 Pro',
     className
 }: TitlebarProps) {
@@ -87,7 +97,16 @@ export const Titlebar = React.memo(function Titlebar({
                 {/* Right Side Info */}
                 <div className="flex items-center gap-4 no-drag">
                     {/* Branch Info - Show first */}
-                    <GitBranchTag branch={currentBranch ?? null} className="bg-[var(--bg-secondary)] border-[var(--border-subtle)] text-[var(--text-secondary)] h-6 text-[11px]" />
+                    {onSelectBranch ? (
+                        <GitBranchSwitcher
+                            branch={currentBranch ?? null}
+                            branches={branches}
+                            loading={branchLoading}
+                            switchingTo={branchSwitchingTo}
+                            onSelectBranch={onSelectBranch}
+                            onRefresh={onRefreshBranches}
+                        />
+                    ) : null}
 
                     {/* Stats - Token Usage Display with Hover Panel */}
                     {stats && (

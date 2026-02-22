@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { resolveRuntimeHome } from '@/lib/runtime-home';
 
 const LEGACY_HOME = path.join(process.cwd(), 'gemini-home');
 const LEGACY_DB_PATH = path.join(LEGACY_HOME, 'ggbond.db');
@@ -43,8 +44,10 @@ function ensureWritableDirectory(dirPath: string): boolean {
 }
 
 function resolveDbPath(): string {
+  const runtimeHome = resolveRuntimeHome();
   const envHome = process.env.GGBOND_DATA_HOME?.trim() || process.env.GGBOND_HOME?.trim();
   const candidates = [
+    runtimeHome,
     envHome,
     ...getDefaultDataHomes(),
     LEGACY_HOME,

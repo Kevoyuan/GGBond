@@ -15,7 +15,10 @@ const MAX_COMMAND_LENGTH = 2000;
 const MAX_SHELL_LENGTH = 260;
 const MAX_ENV_ENTRIES = 128;
 const MAX_ENV_VALUE_LENGTH = 8000;
-const COMMAND_TIMEOUT_MS = 60_000;
+const STREAM_TIMEOUT_ENV = Number(process.env.GGBOND_TERMINAL_STREAM_TIMEOUT_MS ?? '0');
+const COMMAND_TIMEOUT_MS = Number.isFinite(STREAM_TIMEOUT_ENV) && STREAM_TIMEOUT_ENV > 0
+  ? Math.floor(STREAM_TIMEOUT_ENV)
+  : 0;
 
 type TerminalStreamRequestBody = {
   command?: unknown;
@@ -150,14 +153,17 @@ export async function POST(req: NextRequest) {
         stopRequested: false,
       });
 
-      const timeout = setTimeout(() => {
-        timedOut = true;
-        pty.kill();
-        setTimeout(() => {
+      const timeout = COMMAND_TIMEOUT_MS > 0
+        ? setTimeout(() => {
+          timedOut = true;
           pty.kill();
-        }, 2000).unref();
-      }, COMMAND_TIMEOUT_MS);
-      timeout.unref();
+          setTimeout(() => {
+            pty.kill();
+          }, 2000).unref();
+        }, COMMAND_TIMEOUT_MS)
+        : null;
+
+      timeout?.unref();
 
       emit({
         type: 'init',
@@ -177,7 +183,9 @@ export async function POST(req: NextRequest) {
       });
 
       pty.onExit(({ exitCode }) => {
-        clearTimeout(timeout);
+        if (timeout) {
+          clearTimeout(timeout);
+        }
         const record = getTerminalProcess(runId);
         const stopped = Boolean(record?.stopRequested);
 

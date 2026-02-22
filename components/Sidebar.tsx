@@ -33,7 +33,6 @@ import { ModulesDialog } from './ModulesDialog';
 import { AgentIcon } from './icons/AgentIcon';
 import { NavListItem } from './sidebar/NavListItem';
 import { ChatView } from './sidebar/ChatView';
-import { useGitBranches } from '../hooks/useGitBranches';
 import { Tooltip } from './ui/Tooltip';
 import { ResizeHandle, useResize } from './ui/ResizeHandle';
 import packageJson from '../package.json';
@@ -75,8 +74,8 @@ interface SidebarProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSelectAgent?: (agent: any) => void;
   selectedAgentName?: string;
-  sidePanelType?: 'graph' | 'timeline' | null;
-  onToggleSidePanel?: (type: 'graph' | 'timeline' | null) => void;
+  sidePanelType?: 'graph' | 'timeline' | 'artifact' | null;
+  onToggleSidePanel?: (type: 'graph' | 'timeline' | 'artifact' | null) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   workspaceBranchSummary?: Record<string, { label: string; title: string; mixed: boolean } | null>;

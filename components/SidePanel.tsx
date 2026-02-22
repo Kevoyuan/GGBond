@@ -6,6 +6,7 @@ import { Message } from '@/components/MessageBubble';
 import { ConversationGraph, GraphMessage } from '@/components/ConversationGraph';
 import { BranchInsights } from '@/components/BranchInsights';
 import { MessageTimeline } from '@/components/MessageTimeline';
+import { ArtifactPreview } from '@/components/ArtifactPreview';
 import { cn } from '@/lib/utils';
 import { ResizeHandle, useResize } from './ui/ResizeHandle';
 import {
@@ -16,7 +17,7 @@ import {
 } from '@/lib/side-panel-utils';
 
 interface SidePanelProps {
-  sidePanelType: 'graph' | 'timeline' | null;
+  sidePanelType: 'graph' | 'timeline' | 'artifact' | null;
   sidePanelWidth: number;
   setSidePanelWidth: (width: number) => void;
   messages: Message[];
@@ -24,6 +25,8 @@ interface SidePanelProps {
   headId: string | null;
   setHeadId: (id: string | null) => void;
   showInfoToast: (message: string) => void;
+  artifactPath?: string | null;
+  onCloseArtifact?: () => void;
 }
 
 function summarizeBranchContent(content: string): string {
@@ -55,6 +58,8 @@ export function SidePanel({
   headId,
   setHeadId,
   showInfoToast,
+  artifactPath,
+  onCloseArtifact,
 }: SidePanelProps) {
   // Use resize hook for panel width (reverse for left edge)
   const { size, isResizing, handleProps } = useResize({
@@ -164,6 +169,23 @@ export function SidePanel({
                   highlightMessage(msg.id);
                 }
               }}
+            />
+          </motion.div>
+        )}
+
+        {sidePanelType === 'artifact' && artifactPath && (
+          <motion.div
+            key="artifact"
+            initial={{ opacity: 0, x: -5 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -5 }}
+            transition={{ duration: 0.1 }}
+            className="flex-1 flex flex-col min-h-0 relative h-full bg-background"
+          >
+            <ArtifactPreview 
+              filePath={artifactPath} 
+              onClose={() => onCloseArtifact?.()} 
+              className="flex-1 h-full w-full"
             />
           </motion.div>
         )}

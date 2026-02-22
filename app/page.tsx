@@ -10,7 +10,7 @@ import { SidePanel } from '../components/SidePanel';
 
 import { ChatContainer } from '../components/ChatContainer';
 import { ToolExecutionOutputProvider } from '../components/ToolExecutionOutputProvider';
-import { ConfirmationDetails } from '../components/ConfirmationDialog';
+import { ConfirmationDialog, ConfirmationDetails } from '../components/ConfirmationDialog';
 import { QuestionPanel, Question } from '../components/QuestionPanel';
 import { HookEvent } from '../components/HooksPanel';
 import { UsageStatsDialog } from '../components/UsageStatsDialog';
@@ -21,7 +21,7 @@ import { UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
 import { CommandPalette } from '../components/CommandPalette';
 import { ToastContainer } from '../components/Toast';
 import { useToast } from '@/hooks/useToast';
-import { useGitBranches } from '@/hooks/useGitBranches';
+import { useWorkspaceBranch } from '@/hooks/useWorkspaceBranch';
 
 // Import types and constants from separate module
 import type { Session, UploadedImage, ApiMessageRecord, UndoConfirmState, ChatSnapshot } from '@/app/page/types';
@@ -40,11 +40,18 @@ export default function Home() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [currentWorkspace, setCurrentWorkspace] = useState<string | null>(null);
 
-  // Get branch info for current workspace
-  const branchInfo = useGitBranches(currentWorkspace ? [currentWorkspace] : []);
+  // Workspace git branch state
+  const {
+    currentBranch: workspaceBranch,
+    branches: workspaceBranches,
+    loading: workspaceBranchLoading,
+    switchingTo: workspaceBranchSwitchingTo,
+    refresh: refreshWorkspaceBranches,
+    switchBranch,
+  } = useWorkspaceBranch(currentWorkspace);
   const currentSession = sessions.find(s => s.id === currentSessionId);
-  // Prefer session's stored branch, fall back to API result
-  const currentBranch = currentSession?.branch || (currentWorkspace ? branchInfo[currentWorkspace] : null);
+  // Prefer live workspace branch, then session fallback
+  const currentBranch = workspaceBranch || currentSession?.branch || null;
 
   // -- Tree State --
   // We use a Map to store all messages by ID
@@ -84,9 +91,10 @@ export default function Home() {
   const isDark = mounted ? resolvedTheme === 'dark' : false;
   const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
   const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>(DEFAULT_CHAT_SETTINGS.toolPermissionStrategy);
-  const [sidePanelType, setSidePanelType] = useState<'graph' | 'timeline' | null>(null);
+  const [sidePanelType, setSidePanelType] = useState<'graph' | 'timeline' | 'artifact' | null>(null);
   const [sidePanelWidth, setSidePanelWidth] = useState(400);
   const [showTerminal, setShowTerminal] = useState(false);
+  const [artifactPath, setArtifactPath] = useState<string | null>(null);
   const [inputAreaHeight, setInputAreaHeight] = useState(120);
   const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
   const [streamingStatus, setStreamingStatus] = useState<string | undefined>(undefined);
@@ -95,6 +103,17 @@ export default function Home() {
   const [showSidebarToggle, setShowSidebarToggle] = useState(true);
   // Sidebar active view: 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory'
   const [sidebarView, setSidebarView] = useState<string | null>(null);
+
+  const toAbsoluteArtifactPath = (rawPath: string) => {
+    const candidate = String(rawPath || '').trim();
+    if (!candidate) return '';
+    const isAbsolutePosix = candidate.startsWith('/');
+    const isAbsoluteWindows = /^[A-Za-z]:[\\/]/.test(candidate);
+    if (isAbsolutePosix || isAbsoluteWindows) return candidate;
+    const workspaceRoot = String(currentWorkspace || '').trim();
+    if (!workspaceRoot) return candidate;
+    return `${workspaceRoot.replace(/[\\/]+$/, '')}/${candidate.replace(/^\.?[\\/]+/, '')}`;
+  };
 
   useEffect(() => {
     const handleRunTerminal = () => {
@@ -207,7 +226,11 @@ export default function Home() {
           // If there are running jobs in background, reload the session tree
           if (data.hasRunningJobs) {
             console.log('[visibility] Background job detected, reloading session...');
-            await loadSessionTreeRef.current(currentSessionId);
+            try {
+              await loadSessionTreeRef.current(currentSessionId);
+            } catch (loadError) {
+              console.error('[visibility] Failed to reload session tree:', loadError);
+            }
           }
         }
       } catch (e) {
@@ -460,6 +483,37 @@ export default function Home() {
     });
   }, []);
 
+  const handleSelectWorkspaceBranch = useCallback(async (branch: string) => {
+    const result = await switchBranch(branch);
+    if (!result.ok) {
+      showErrorToast(result.error || 'Failed to switch branch');
+      return;
+    }
+
+    const nextBranch = result.branch || branch;
+    showInfoToast(`Switched to branch: ${nextBranch}`);
+
+    if (!currentSessionId) return;
+
+    setSessions((prev) =>
+      prev.map((session) =>
+        session.id === currentSessionId
+          ? { ...session, branch: nextBranch, updated_at: Date.now() }
+          : session
+      )
+    );
+
+    try {
+      await fetch(`/api/sessions/${currentSessionId}/branch`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch: nextBranch }),
+      });
+    } catch (error) {
+      console.error('Failed to persist branch for session', error);
+    }
+  }, [switchBranch, showErrorToast, showInfoToast, currentSessionId]);
+
   // Load sidebar state
   useEffect(() => {
     const savedCollapsed = localStorage.getItem('sidebar-collapsed');
@@ -536,7 +590,7 @@ export default function Home() {
   const loadSessionTree = useCallback(async (sessionId: string) => {
     const res = await fetch(`/api/sessions/${sessionId}`);
     if (!res.ok) {
-      // Session might not exist in database (e.g., stale core session)
+      // Session might not exist in database (e.g., stale core session) or server error
       // Return empty state instead of throwing error
       if (res.status === 404) {
         console.warn(`Session not found: ${sessionId}, clearing session ID`);
@@ -546,7 +600,13 @@ export default function Home() {
         headIdRef.current = null;
         return null;
       }
-      throw new Error(`Failed to load session: ${sessionId}`);
+      // Handle server errors (500, 503, etc.) gracefully - clear session state
+      console.error(`Failed to load session: ${sessionId}, status: ${res.status}`);
+      setCurrentSessionId(null);
+      setMessagesMap(new Map());
+      setHeadId(null);
+      headIdRef.current = null;
+      return null;
     }
 
     const data = await res.json() as { messages?: ApiMessageRecord[]; session?: Session };
@@ -2162,6 +2222,27 @@ export default function Home() {
                   assistantContent.slice(lastMatch.index + fullMatch.length);
                 updateMessageInTree(assistantMsgId, { content: assistantContent });
               }
+
+              // Auto-open HTML artifacts
+              if (
+                resolvedStatus === 'completed' &&
+                resolvedResultData &&
+                typeof resolvedResultData === 'object'
+              ) {
+                const rd = resolvedResultData as Record<string, unknown>;
+                // Check multiple possible property names for file path
+                const filePath = (rd.filePath as string) || (rd.file_path as string) || (rd.path as string);
+                const operation = (rd.operation as string) || (rd.tool as string) || data.tool_name || 'unknown';
+
+                if (
+                  filePath &&
+                  typeof filePath === 'string' &&
+                  filePath.toLowerCase().endsWith('.html')
+                ) {
+                  setArtifactPath(toAbsoluteArtifactPath(filePath));
+                  setSidePanelType('artifact');
+                }
+              }
             }
 
             if (data.type === 'message' && data.role === 'assistant' && data.content) {
@@ -2705,6 +2786,11 @@ export default function Home() {
           totalCost: sessionStats.totalCost || 0
         }}
         currentBranch={currentBranch}
+        branches={workspaceBranches}
+        branchLoading={workspaceBranchLoading}
+        branchSwitchingTo={workspaceBranchSwitchingTo}
+        onSelectBranch={handleSelectWorkspaceBranch}
+        onRefreshBranches={refreshWorkspaceBranches}
         currentModel={settings.model}
       />
 
@@ -2728,7 +2814,14 @@ export default function Home() {
           isDark={isDark}
           toggleTheme={toggleTheme}
           onShowStats={() => setShowUsageStats(true)}
-          onFileSelect={(file) => setPreviewFile(file)}
+          onFileSelect={(file) => {
+            if (file.path.endsWith('.html')) {
+              setArtifactPath(toAbsoluteArtifactPath(file.path));
+              setSidePanelType('artifact');
+            } else {
+              setPreviewFile(file);
+            }
+          }}
           hookEvents={hookEvents}
           onClearHooks={() => setHookEvents([])}
           onSelectAgent={(agent) => setSelectedAgent(agent)}
@@ -2807,6 +2900,8 @@ export default function Home() {
               headIdRef.current = id;
             }}
             showInfoToast={showInfoToast}
+            artifactPath={artifactPath}
+            onCloseArtifact={() => setSidePanelType(null)}
           />
         </main>
       </div>
@@ -2841,6 +2936,18 @@ export default function Home() {
           correlationId={activeQuestion.correlationId}
           onSubmit={handleQuestionSubmit}
           onCancel={handleQuestionCancel}
+        />
+      )}
+
+      {confirmation && (
+        <ConfirmationDialog
+          details={confirmation.details}
+          onConfirm={(mode) => void handleConfirm(true, mode)}
+          onCancel={() => void handleConfirm(false)}
+          bottomOffset={
+            (showTerminal ? terminalPanelHeight : 0)
+            + Math.max(80, inputAreaHeight)
+          }
         />
       )}
 

@@ -744,6 +744,21 @@ export async function POST(req: Request) {
           }
 
           const unsubscribeConfirmation = coreWithConfirmation.subscribeConfirmationRequests((request) => {
+            const toolName =
+              request.toolCall && typeof request.toolCall === 'object'
+                ? String((request.toolCall as { name?: unknown }).name || '')
+                : '';
+
+            // Codex-like behavior: in safe mode, auto-approve low-risk planning tool.
+            if (coreApprovalMode === ApprovalMode.DEFAULT && toolName === 'write_todos') {
+              void core.submitConfirmation(
+                request.correlationId,
+                true,
+                ToolConfirmationOutcome.ProceedOnce
+              );
+              return;
+            }
+
             pendingConfirmationIds.add(request.correlationId);
             safeEnqueue({
               type: 'tool_confirmation',

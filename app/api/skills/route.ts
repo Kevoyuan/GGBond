@@ -31,14 +31,9 @@ function resolveGeminiConfigRoot(homePath: string) {
 }
 
 function getSkillDirs(envHome: string) {
-  const candidates = [
-    envHome,
-    path.join(process.cwd(), 'gemini-home'),
-    path.join(os.homedir(), '.gemini'),
-  ].filter(Boolean);
-
-  const uniqueHomes = Array.from(new Set(candidates));
-  return uniqueHomes.map((home) => path.join(resolveGeminiConfigRoot(home), 'skills'));
+  const home = String(envHome || '').trim();
+  if (!home) return [];
+  return [path.join(resolveGeminiConfigRoot(home), 'skills')];
 }
 
 function getPrimarySkillsDir(geminiHome: string) {
