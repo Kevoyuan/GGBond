@@ -68,6 +68,37 @@ function isUrlReachable(url, timeoutMs = 400) {
   });
 }
 
+function fetchText(url, timeoutMs = 600) {
+  return new Promise((resolve) => {
+    const request = http.get(url, (response) => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => {
+        body += chunk;
+      });
+      response.on('end', () => {
+        resolve({
+          ok: response.statusCode && response.statusCode >= 200 && response.statusCode < 400,
+          body,
+        });
+      });
+    });
+
+    request.on('error', () => resolve({ ok: false, body: '' }));
+    request.setTimeout(timeoutMs, () => {
+      request.destroy();
+      resolve({ ok: false, body: '' });
+    });
+  });
+}
+
+async function isGGBondDevServer(baseUrl) {
+  const index = await fetchText(baseUrl);
+  if (!index.ok) return false;
+  const html = index.body || '';
+  return html.includes('<title>GGBond</title>') || html.includes('A pixel-perfect AI IDE interface for gemini-cli');
+}
+
 async function resolveDevStartUrl() {
   const explicitUrl = process.env.ELECTRON_START_URL;
   if (explicitUrl) {
@@ -75,12 +106,27 @@ async function resolveDevStartUrl() {
   }
 
   for (let attempt = 0; attempt < DEV_SERVER_WAIT_ATTEMPTS; attempt += 1) {
+    let fallbackReachableUrl = null;
+
     for (let port = DEV_SERVER_PORT_START; port <= DEV_SERVER_PORT_END; port += 1) {
       const candidateUrl = `http://localhost:${port}`;
-      if (await isUrlReachable(candidateUrl)) {
+      if (!(await isUrlReachable(candidateUrl))) {
+        continue;
+      }
+
+      if (!fallbackReachableUrl) {
+        fallbackReachableUrl = candidateUrl;
+      }
+
+      if (await isGGBondDevServer(candidateUrl)) {
         console.log(`[Electron] Detected Next.js dev server at ${candidateUrl}`);
         return candidateUrl;
       }
+    }
+
+    // Keep backward compatibility when marker probing fails (e.g. custom page title)
+    if (fallbackReachableUrl) {
+      console.warn(`[Electron] Found reachable dev server at ${fallbackReachableUrl}, but could not verify it as GGBond yet. Retrying...`);
     }
     await delay(DEV_SERVER_WAIT_INTERVAL_MS);
   }
