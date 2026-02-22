@@ -19,15 +19,10 @@ export function useWorkspaceBranch(workspacePath: string | null) {
     const [switchingTo, setSwitchingTo] = useState<string | null>(null);
 
     const refresh = useCallback(async () => {
-        if (!workspacePath || workspacePath === 'Default') {
-            setCurrentBranch(null);
-            setBranches([]);
-            return;
-        }
-
         setLoading(true);
         try {
-            const res = await fetch(`/api/git/branch?path=${encodeURIComponent(workspacePath)}&list=1`);
+            const queryPath = (!workspacePath || workspacePath === 'Default') ? '' : `&path=${encodeURIComponent(workspacePath)}`;
+            const res = await fetch(`/api/git/branch?list=1${queryPath}`);
             if (!res.ok) {
                 setCurrentBranch(null);
                 setBranches([]);
@@ -47,9 +42,6 @@ export function useWorkspaceBranch(workspacePath: string | null) {
 
     const switchBranch = useCallback(async (branch: string): Promise<SwitchBranchResult> => {
         const trimmedBranch = branch.trim();
-        if (!workspacePath) {
-            return { ok: false, error: 'No workspace selected' };
-        }
         if (!trimmedBranch) {
             return { ok: false, error: 'Branch is required' };
         }
@@ -63,7 +55,7 @@ export function useWorkspaceBranch(workspacePath: string | null) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    path: workspacePath,
+                    path: (!workspacePath || workspacePath === 'Default') ? '' : workspacePath,
                     branch: trimmedBranch,
                 }),
             });

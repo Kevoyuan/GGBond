@@ -12,11 +12,11 @@ function runGit(path: string, args: string[]) {
 }
 
 export async function GET(req: NextRequest) {
-    const path = req.nextUrl.searchParams.get('path');
+    let path = req.nextUrl.searchParams.get('path');
     const includeList = req.nextUrl.searchParams.get('list') === '1';
 
-    if (!path) {
-        return NextResponse.json({ error: 'path parameter is required' }, { status: 400 });
+    if (!path || path === 'Default') {
+        path = process.cwd();
     }
 
     if (!existsSync(path)) {
@@ -46,11 +46,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const path = typeof body?.path === 'string' ? body.path : '';
+        let path = typeof body?.path === 'string' ? body.path : '';
         const branch = typeof body?.branch === 'string' ? body.branch.trim() : '';
 
-        if (!path) {
-            return NextResponse.json({ error: 'path is required' }, { status: 400 });
+        if (!path || path === 'Default') {
+            path = process.cwd();
         }
         if (!branch) {
             return NextResponse.json({ error: 'branch is required' }, { status: 400 });
