@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
-import { homedir } from 'os';
 import { basename, join, resolve } from 'path';
+import { resolveRuntimeHome } from '@/lib/runtime-home';
 
 type CommandScope = 'project' | 'global' | 'extension';
 
@@ -17,7 +17,8 @@ interface CommandFile {
 
 function getGeminiHome() {
   const fromEnv = process.env.GEMINI_CLI_HOME?.trim();
-  return fromEnv && fromEnv.length > 0 ? fromEnv : join(homedir(), '.gemini');
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  return resolveRuntimeHome();
 }
 
 function getProjectCommandsDir() {

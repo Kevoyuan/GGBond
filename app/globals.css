@@ -203,6 +203,14 @@
     color-scheme: light dark;
   }
 
+  /* Disable all transitions during theme switch for instant change */
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
+    transition-duration: 0ms !important;
+    transition-delay: 0ms !important;
+  }
+
   html, body {
     background-color: var(--color-background);
     color: var(--color-foreground);

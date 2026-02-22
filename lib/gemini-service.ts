@@ -8,19 +8,13 @@
 import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
-import os from 'os';
 import { execSync, spawn } from 'child_process';
+import { resolveRuntimeHome } from '@/lib/runtime-home';
 
 // ─── Paths ───────────────────────────────────────────────
 export function getGeminiHome(): string {
-    const home = process.env.GEMINI_CLI_HOME;
-    if (home) {
-        // If it points to a directory containing .gemini, use the .gemini subdirectory
-        const dotGemini = path.join(home, '.gemini');
-        if (fs.existsSync(dotGemini)) return dotGemini;
-        return home;
-    }
-    return path.join(os.homedir(), '.gemini');
+    const rootHome = resolveRuntimeHome();
+    return path.join(rootHome, '.gemini');
 }
 
 export function getSettingsPath(): string {

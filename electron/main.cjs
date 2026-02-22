@@ -10,6 +10,10 @@ const { app, BrowserWindow, globalShortcut, Menu, Tray, nativeImage, ipcMain, sh
 const isHeadless = process.argv.includes('--headless') || process.env.GEMINI_HEADLESS === '1' || process.env.GEMINI_HEADLESS === 'true';
 const DEFAULT_SERVER_PORT = Number(process.env.GGBOND_SERVER_PORT || 3456);
 const MAX_PORT_ATTEMPTS = 20;
+const DEV_SERVER_PORT_START = 3000;
+const DEV_SERVER_PORT_END = 3010;
+const DEV_SERVER_WAIT_ATTEMPTS = 120;
+const DEV_SERVER_WAIT_INTERVAL_MS = 500;
 
 // Prevent multiple desktop instances from fighting for the same local server/DB.
 const gotSingleInstanceLock = isHeadless ? true : app.requestSingleInstanceLock();
@@ -44,6 +48,93 @@ let tray = null;
 let allowQuit = false;
 let nextServer = null;
 let nextHttpServer = null;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isUrlReachable(url, timeoutMs = 400) {
+  return new Promise((resolve) => {
+    const request = http.get(url, (response) => {
+      response.destroy();
+      resolve(true);
+    });
+
+    request.on('error', () => resolve(false));
+    request.setTimeout(timeoutMs, () => {
+      request.destroy();
+      resolve(false);
+    });
+  });
+}
+
+function fetchText(url, timeoutMs = 600) {
+  return new Promise((resolve) => {
+    const request = http.get(url, (response) => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => {
+        body += chunk;
+      });
+      response.on('end', () => {
+        resolve({
+          ok: response.statusCode && response.statusCode >= 200 && response.statusCode < 400,
+          body,
+        });
+      });
+    });
+
+    request.on('error', () => resolve({ ok: false, body: '' }));
+    request.setTimeout(timeoutMs, () => {
+      request.destroy();
+      resolve({ ok: false, body: '' });
+    });
+  });
+}
+
+async function isGGBondDevServer(baseUrl) {
+  const index = await fetchText(baseUrl);
+  if (!index.ok) return false;
+  const html = index.body || '';
+  return html.includes('<title>GGBond</title>') || html.includes('A pixel-perfect AI IDE interface for gemini-cli');
+}
+
+async function resolveDevStartUrl() {
+  const explicitUrl = process.env.ELECTRON_START_URL;
+  if (explicitUrl) {
+    return explicitUrl;
+  }
+
+  for (let attempt = 0; attempt < DEV_SERVER_WAIT_ATTEMPTS; attempt += 1) {
+    let fallbackReachableUrl = null;
+
+    for (let port = DEV_SERVER_PORT_START; port <= DEV_SERVER_PORT_END; port += 1) {
+      const candidateUrl = `http://localhost:${port}`;
+      if (!(await isUrlReachable(candidateUrl))) {
+        continue;
+      }
+
+      if (!fallbackReachableUrl) {
+        fallbackReachableUrl = candidateUrl;
+      }
+
+      if (await isGGBondDevServer(candidateUrl)) {
+        console.log(`[Electron] Detected Next.js dev server at ${candidateUrl}`);
+        return candidateUrl;
+      }
+    }
+
+    // Keep backward compatibility when marker probing fails (e.g. custom page title)
+    if (fallbackReachableUrl) {
+      console.warn(`[Electron] Found reachable dev server at ${fallbackReachableUrl}, but could not verify it as GGBond yet. Retrying...`);
+    }
+    await delay(DEV_SERVER_WAIT_INTERVAL_MS);
+  }
+
+  throw new Error(
+    `Unable to detect Next.js dev server on ports ${DEV_SERVER_PORT_START}-${DEV_SERVER_PORT_END}`
+  );
+}
 
 // Start Next.js server in production
 function startNextServer() {
@@ -340,8 +431,10 @@ app.whenReady().then(async () => {
     console.warn('[Electron] Failed to create GGBOND_DATA_HOME:', process.env.GGBOND_DATA_HOME, error);
   }
 
-  // In production, start the Next.js server first
-  if (!isDev) {
+  if (isDev) {
+    START_URL = await resolveDevStartUrl();
+  } else {
+    // In production, start the Next.js server first
     console.log('[Electron] Starting Next.js server...');
     const serverUrl = await startNextServer();
     console.log('[Electron] Next.js server started at:', serverUrl);

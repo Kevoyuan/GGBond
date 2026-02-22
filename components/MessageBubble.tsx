@@ -1,4 +1,4 @@
-import { Info, RefreshCw, Undo2, Loader2 } from 'lucide-react';
+import { Info, RefreshCw, Undo2, Loader2, FileCode2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -55,6 +55,54 @@ interface MessageBubbleProps {
   hideTodoToolCalls?: boolean;
   isStreaming?: boolean;
   streamingStatus?: string;
+  onOpenArtifact?: (filePath: string) => void;
+}
+
+function extractArtifactPathFromContent(content: string): string | null {
+  const toolCallTags = content.match(/<tool-call[^>]*\/>/g) || [];
+  const safeDecode = (value: string) => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  };
+
+  for (let i = toolCallTags.length - 1; i >= 0; i -= 1) {
+    const tag = toolCallTags[i];
+    const resultDataMatch = tag.match(/result_data="([^"]+)"/);
+
+    const extractPathFromEncodedJson = (encoded?: string) => {
+      if (!encoded) return null;
+      try {
+        const decoded = safeDecode(encoded);
+        const parsed = JSON.parse(decoded) as {
+          filePath?: unknown;
+          file_path?: unknown;
+          path?: unknown;
+        };
+        const candidate =
+          (typeof parsed.filePath === 'string' && parsed.filePath) ||
+          (typeof parsed.file_path === 'string' && parsed.file_path) ||
+          (typeof parsed.path === 'string' && parsed.path) ||
+          null;
+        return candidate && candidate.toLowerCase().endsWith('.html') ? candidate : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const fromResultData = extractPathFromEncodedJson(resultDataMatch?.[1]);
+    if (fromResultData) return fromResultData;
+
+    const argsMatch = tag.match(/args="([^"]+)"/);
+    const fromArgs = extractPathFromEncodedJson(argsMatch?.[1]);
+    if (fromArgs) {
+      return fromArgs;
+    }
+  }
+
+  return null;
 }
 
 const GeminiIcon = React.memo(function GeminiIcon({ className }: { className?: string }) {
@@ -86,12 +134,14 @@ export const MessageBubble = React.memo(function MessageBubble({
   onCancel,
   hideTodoToolCalls = false,
   isStreaming = false,
-  streamingStatus
+  streamingStatus,
+  onOpenArtifact
 }: MessageBubbleProps) {
   const [skillMetaMap, setSkillMetaMap] = useState<SkillMetaMap>({});
   const isUser = message.role === 'user';
   const isSnapshot = !isUser && message.content.includes('<state_snapshot>');
   const [isUndoingMessage, setIsUndoingMessage] = useState(false);
+  const artifactPath = React.useMemo(() => extractArtifactPathFromContent(message.content), [message.content]);
 
   React.useEffect(() => {
     loadSkillMetaMap().then(setSkillMetaMap);
@@ -185,6 +235,19 @@ export const MessageBubble = React.memo(function MessageBubble({
             )}
 
             {/* Action Bar - shown after streaming completes (not during) */}
+            {!isUser && artifactPath && onOpenArtifact && !isSnapshot && !message.error && (
+              <div className="mt-2 pl-[30px]">
+                <button
+                  onClick={() => onOpenArtifact(artifactPath)}
+                  className="group/artifact relative inline-flex items-center justify-center px-5 py-2 rounded-full border border-[#ccaee3]/30 bg-[#ccaee3]/10 hover:bg-[#ccaee3]/20 backdrop-blur-sm transition-all duration-300 shadow-sm hover:shadow-md hover:border-[#ccaee3]/50 hover:-translate-y-[1px] overflow-hidden"
+                  title="Open artifact preview"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#ccaee3]/0 via-[#ccaee3]/30 to-[#ccaee3]/0 translate-x-[-100%] group-hover/artifact:translate-x-[100%] transition-transform duration-700 ease-in-out" />
+                  <span className="text-xs font-semibold tracking-wider relative z-10 text-[#ccaee3] group-hover/artifact:text-[#e0cbf2] uppercase transition-colors duration-300">Open Artifact</span>
+                </button>
+              </div>
+            )}
+
             {!isUser && !isSnapshot && !message.error && !isStreaming && (
               <div className="flex items-center gap-2 mt-1 pl-[30px] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 <button

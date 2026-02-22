@@ -1,11 +1,12 @@
 'use client';
 
-import { useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Message } from '@/components/MessageBubble';
 import { ConversationGraph, GraphMessage } from '@/components/ConversationGraph';
 import { BranchInsights } from '@/components/BranchInsights';
 import { MessageTimeline } from '@/components/MessageTimeline';
+import { ArtifactPreview } from '@/components/ArtifactPreview';
 import { cn } from '@/lib/utils';
 import { ResizeHandle, useResize } from './ui/ResizeHandle';
 import {
@@ -16,7 +17,7 @@ import {
 } from '@/lib/side-panel-utils';
 
 interface SidePanelProps {
-  sidePanelType: 'graph' | 'timeline' | null;
+  sidePanelType: 'graph' | 'timeline' | 'artifact' | null;
   sidePanelWidth: number;
   setSidePanelWidth: (width: number) => void;
   messages: Message[];
@@ -24,6 +25,8 @@ interface SidePanelProps {
   headId: string | null;
   setHeadId: (id: string | null) => void;
   showInfoToast: (message: string) => void;
+  artifactPath?: string | null;
+  onCloseArtifact?: () => void;
 }
 
 function summarizeBranchContent(content: string): string {
@@ -55,7 +58,13 @@ export function SidePanel({
   headId,
   setHeadId,
   showInfoToast,
+  artifactPath,
+  onCloseArtifact,
 }: SidePanelProps) {
+  // Ref for direct DOM manipulation to avoid React re-renders during drag
+  const panelRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+
   // Use resize hook for panel width (reverse for left edge)
   const { size, isResizing, handleProps } = useResize({
     direction: 'horizontal',
@@ -64,7 +73,30 @@ export function SidePanel({
     initialSize: sidePanelWidth,
     reverse: true,
     onResize: setSidePanelWidth,
+    liveResizeCallback: false,
   });
+
+  // Direct DOM update for smooth dragging - bypasses React reconciliation
+  useEffect(() => {
+    if (!panelRef.current) return;
+
+    // Cancel any pending frame
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+    }
+
+    rafRef.current = requestAnimationFrame(() => {
+      if (panelRef.current) {
+        panelRef.current.style.width = sidePanelType ? `${size}px` : '0px';
+      }
+    });
+
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, [size, sidePanelType]);
 
   // Graph data computation
   const graphMessages: GraphMessage[] = useMemo(() => {
@@ -104,13 +136,15 @@ export function SidePanel({
 
   return (
     <div
+      ref={panelRef}
       className={cn(
         "flex-none border-r bg-muted/5 relative flex flex-col overflow-hidden",
         // Disable transition during resize for smooth dragging
         !isResizing && "transition-[width] duration-200 ease-in-out",
         !sidePanelType && "w-0 border-none"
       )}
-      style={{ width: sidePanelType ? size : 0 }}
+      // Use CSS contain for better rendering performance
+      style={{ contain: 'layout style' }}
     >
       <AnimatePresence mode="wait">
         {sidePanelType === 'graph' && (
@@ -164,6 +198,23 @@ export function SidePanel({
                   highlightMessage(msg.id);
                 }
               }}
+            />
+          </motion.div>
+        )}
+
+        {sidePanelType === 'artifact' && artifactPath && (
+          <motion.div
+            key="artifact"
+            initial={{ opacity: 0, x: -5 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -5 }}
+            transition={{ duration: 0.1 }}
+            className="flex-1 flex flex-col min-h-0 relative h-full bg-background"
+          >
+            <ArtifactPreview 
+              filePath={artifactPath} 
+              onClose={() => onCloseArtifact?.()} 
+              className="flex-1 h-full w-full"
             />
           </motion.div>
         )}

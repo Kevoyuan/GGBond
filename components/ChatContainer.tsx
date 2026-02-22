@@ -35,6 +35,7 @@ interface ChatContainerProps {
     workspacePath?: string;
     showTerminal?: boolean;
     onToggleTerminal?: () => void;
+    onOpenArtifact?: (filePath: string) => void;
     onInputHeightChange?: (height: number) => void;
     streamingStatus?: string;
 }
@@ -63,6 +64,7 @@ export const ChatContainer = React.memo(function ChatContainer({
     workspacePath,
     showTerminal,
     onToggleTerminal,
+    onOpenArtifact,
     onInputHeightChange,
     streamingStatus
 }: ChatContainerProps) {
@@ -231,6 +233,7 @@ export const ChatContainer = React.memo(function ChatContainer({
                                                     hideTodoToolCalls={idx !== lastModelIdx}
                                                     isStreaming={isStreaming}
                                                     streamingStatus={streamingStatus}
+                                                    onOpenArtifact={onOpenArtifact}
                                                 />
                                             </div>
                                         );
