@@ -115,6 +115,13 @@ export default function Home() {
     return `${workspaceRoot.replace(/[\\/]+$/, '')}/${candidate.replace(/^\.?[\\/]+/, '')}`;
   };
 
+  const openArtifact = useCallback((rawPath: string) => {
+    const absolutePath = toAbsoluteArtifactPath(rawPath);
+    if (!absolutePath) return;
+    setArtifactPath(absolutePath);
+    setSidePanelType('artifact');
+  }, [currentWorkspace]);
+
   useEffect(() => {
     const handleRunTerminal = () => {
       if (!showTerminal) {
@@ -2239,8 +2246,7 @@ export default function Home() {
                   typeof filePath === 'string' &&
                   filePath.toLowerCase().endsWith('.html')
                 ) {
-                  setArtifactPath(toAbsoluteArtifactPath(filePath));
-                  setSidePanelType('artifact');
+                  openArtifact(filePath);
                 }
               }
             }
@@ -2816,8 +2822,7 @@ export default function Home() {
           onShowStats={() => setShowUsageStats(true)}
           onFileSelect={(file) => {
             if (file.path.endsWith('.html')) {
-              setArtifactPath(toAbsoluteArtifactPath(file.path));
-              setSidePanelType('artifact');
+              openArtifact(file.path);
             } else {
               setPreviewFile(file);
             }
@@ -2871,6 +2876,7 @@ export default function Home() {
                 workspacePath={currentWorkspace || undefined}
                 showTerminal={showTerminal}
                 onToggleTerminal={() => setShowTerminal(!showTerminal)}
+                onOpenArtifact={openArtifact}
               />
             </ToolExecutionOutputProvider>
 

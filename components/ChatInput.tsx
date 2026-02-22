@@ -133,6 +133,7 @@ const INLINE_SKILL_TOKEN_MARKER = '\u200B';
 const INLINE_SKILL_TOKEN_SOURCE = `([A-Za-z0-9._/\\-\u2011]+)${INLINE_SKILL_TOKEN_MARKER}`;
 const INLINE_SKILL_COMMAND = '/skills';
 const LEGACY_INLINE_SKILL_COMMAND = '/skill';
+const ARTIFACT_SKILL_ID = 'web-artifacts-builder';
 const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
   'list',
   'enable',
@@ -164,6 +165,7 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
   const cursorRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   const [cursorPosition, setCursorPosition] = useState(0);
   const [showContextTooltip, setShowContextTooltip] = useState(false);
+  const [canvasEnabled, setCanvasEnabled] = useState(false);
 
   // Use explicit escape sequences for markers to prevent matching issues across environments
   const anyTokenPattern = new RegExp("(#?[A-Za-z0-9._/\\\\-\\u2011]+)\\u200B", "g");
@@ -487,6 +489,25 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
     };
     fetchAgents();
   }, []);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('ggbond-canvas-enabled');
+      if (saved === '1') {
+        setCanvasEnabled(true);
+      }
+    } catch {
+      // Ignore localStorage failures.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ggbond-canvas-enabled', canvasEnabled ? '1' : '0');
+    } catch {
+      // Ignore localStorage failures.
+    }
+  }, [canvasEnabled]);
 
   const adjustHeight = () => {
     const textarea = textareaRef.current;
@@ -1102,10 +1123,18 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
 
     if (!cleanedInput && mergedSkillIds.length === 0) return;
 
-    const skillPrefix = mergedSkillIds.map((id) => `${INLINE_SKILL_COMMAND} ${id}`).join('\n');
+    const isExplicitSlashCommand = cleanedInput.startsWith('/');
+    const finalSkillIds = (!isExplicitSlashCommand && canvasEnabled)
+      ? Array.from(new Set([...mergedSkillIds, ARTIFACT_SKILL_ID]))
+      : mergedSkillIds;
+    const skillPrefix = finalSkillIds.map((id) => `${INLINE_SKILL_COMMAND} ${id}`).join('\n');
+    const canvasInstruction = (!isExplicitSlashCommand && canvasEnabled)
+      ? 'Canvas mode: force artifact output. Generate a runnable single-file HTML artifact and provide the output .html path in your response.'
+      : '';
+    const bodyWithCanvas = [canvasInstruction, cleanedInput].filter(Boolean).join('\n');
     const finalMessage = skillPrefix
-      ? `${skillPrefix}${cleanedInput ? `\n${cleanedInput}` : ''}`
-      : cleanedInput;
+      ? `${skillPrefix}${bodyWithCanvas ? `\n${bodyWithCanvas}` : ''}`
+      : bodyWithCanvas;
 
     onSend(finalMessage.replace(/\u2011/g, '-'), { approvalMode: currentApprovalMode, images: uploadedImages, agentName: inlineAgentName });
     setInput('');
@@ -1500,9 +1529,20 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
               </div>
 
               <div className="w-px h-4 bg-border mx-1" />
-
-
-
+              <button
+                onClick={() => setCanvasEnabled((prev) => !prev)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs border transition-colors",
+                  canvasEnabled
+                    ? "bg-primary/10 text-primary border-primary/40 hover:bg-primary/15"
+                    : "bg-transparent text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                )}
+                title={canvasEnabled ? "Canvas mode enabled (click to disable)" : "Enable Canvas mode (force artifact generation)"}
+              >
+                <FileCode className="w-3.5 h-3.5" />
+                <span>Canvas</span>
+                {canvasEnabled && <X className="w-3 h-3 opacity-80" />}
+              </button>
 
               <button className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors" title="Attach file">
                 <Paperclip className="w-4 h-4" />
