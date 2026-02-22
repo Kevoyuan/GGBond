@@ -16,6 +16,7 @@ import {
   SplitSquareHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTheme } from 'next-themes';
 import 'xterm/css/xterm.css';
 
 interface TerminalPanelProps {
@@ -92,6 +93,7 @@ interface TerminalSession {
     dispose: () => void;
     onData: (cb: (data: string) => void) => void;
     element?: HTMLElement;
+    options: { theme?: any };
   } | null;
   fitAddon?: { fit: () => void } | null;
 }
@@ -449,6 +451,9 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   onClose,
   onHeightChange,
 }: TerminalPanelProps) {
+  const { theme, systemTheme } = useTheme();
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+
   // Multi-tab state
   const [sessions, setSessions] = useState<TerminalSession[]>(() => [{
     id: 'default',
@@ -569,14 +574,22 @@ export const TerminalPanel = React.memo(function TerminalPanel({
     const { FitAddon } = require('@xterm/addon-fit');
     const { WebLinksAddon } = require('@xterm/addon-web-links');
 
+    const isDark = currentTheme !== 'light';
     const term = new Terminal({
       cursorBlink: true,
       convertEol: false,
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
       fontSize: 13,
-      theme: {
+      theme: isDark ? {
         background: '#09090b',
         foreground: '#e4e4e7',
+        cursor: '#e4e4e7',
+        selectionBackground: 'rgba(255, 255, 255, 0.2)',
+      } : {
+        background: '#ffffff',
+        foreground: '#0f172a',
+        cursor: '#0f172a',
+        selectionBackground: 'rgba(0, 0, 0, 0.1)',
       },
       scrollback: 5000,
     });
@@ -596,7 +609,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
 
     updateSession(sessionId, { term, fitAddon });
     return term;
-  }, [updateSession]);
+  }, [updateSession, currentTheme]);
 
   const writeToTerminal = useCallback((sessionId: string, chunk: string) => {
     if (!chunk) return;
@@ -692,6 +705,27 @@ export const TerminalPanel = React.memo(function TerminalPanel({
       session.fitAddon?.fit();
     });
   }, [sessions, activeSessionId, panelHeight, sidebarWidth, ensureSessionTerminal]);
+
+  useEffect(() => {
+    const isDark = currentTheme !== 'light';
+    const xtermTheme = isDark ? {
+      background: '#09090b',
+      foreground: '#e4e4e7',
+      cursor: '#e4e4e7',
+      selectionBackground: 'rgba(255, 255, 255, 0.2)',
+    } : {
+      background: '#ffffff',
+      foreground: '#0f172a',
+      cursor: '#0f172a',
+      selectionBackground: 'rgba(0, 0, 0, 0.1)',
+    };
+
+    sessionsRef.current.forEach((session) => {
+      if (session.term) {
+        session.term.options.theme = xtermTheme;
+      }
+    });
+  }, [currentTheme]);
 
   useEffect(() => {
     const textarea = commandTextareaRef.current;
@@ -1043,7 +1077,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
 
       // Find an idle session or create a new one
       const targetSession = sessions.find(s => !s.isRunning);
-      
+
       if (!targetSession) {
         // Create a new tab if all are busy
         const newId = generateActionId();
@@ -1283,7 +1317,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   return (
     <>
       <div
-        className="relative border-t border-border bg-card/70 backdrop-blur-sm flex flex-col"
+        className="relative border-t border-border bg-background/80 dark:bg-[#020617]/80 backdrop-blur-md flex flex-col shadow-2xl"
         style={{ height: `${panelHeight}px` }}
       >
         <div
@@ -1295,7 +1329,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
           title="Drag to resize terminal"
         />
 
-        <div className="h-10 px-3 border-b border-border/40 bg-muted/5 flex items-center justify-between gap-3 select-none">
+        <div className="h-10 px-3 border-b border-border/40 bg-zinc-50/50 dark:bg-zinc-900/50 flex items-center justify-between gap-3 select-none">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <div className="p-1 rounded-md bg-primary/10 text-primary">
               <TerminalSquare size={14} className="shrink-0" />
@@ -1438,7 +1472,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
         <div className="flex-1 flex min-h-0 relative">
           <div
             ref={outputRef}
-            className="flex-1 overflow-y-auto bg-zinc-950 dark:bg-zinc-950 text-zinc-100 dark:text-zinc-100 font-mono text-[13px] px-3 py-3"
+            className="flex-1 overflow-y-auto bg-white dark:bg-[#09090b] text-slate-900 dark:text-zinc-100 font-mono text-[13px] px-3 py-3 shadow-inner"
             onClick={() => {
               activeSession.term?.focus();
               commandTextareaRef.current?.focus();
@@ -1456,7 +1490,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
 
             <div>
               <div className="flex items-start gap-2">
-                <span className="font-mono text-[13px] text-zinc-400 dark:text-zinc-400 shrink-0 pt-1">{terminalPrompt}</span>
+                <span className="font-mono text-[13px] text-slate-500 dark:text-zinc-400 shrink-0 pt-1">{terminalPrompt}</span>
                 <textarea
                   ref={commandTextareaRef}
                   value={activeSession.command}
@@ -1504,7 +1538,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
                       void handleRunCommand(activeSessionId);
                     }
                   }}
-                  className="flex-1 min-w-0 bg-transparent font-mono text-[15px] leading-relaxed text-zinc-100 dark:text-zinc-100 placeholder:text-zinc-500 dark:placeholder:text-zinc-500 border-none rounded-none px-0 py-0.5 focus:outline-none resize-none"
+                  className="flex-1 min-w-0 bg-transparent font-mono text-[15px] leading-relaxed text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 dark:placeholder:text-zinc-500 border-none rounded-none px-0 py-0.5 focus:outline-none resize-none"
                   placeholder="Type command. Enter run, Shift+Enter newline, Up/Down history, Ctrl+C interrupt."
                   spellCheck={false}
                   autoComplete="off"
@@ -1525,7 +1559,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
 
           {/* Right Sidebar Tabs */}
           <div
-            className="border-l border-border/40 bg-muted/5 dark:bg-muted/5 flex flex-col shrink-0"
+            className="border-l border-border/40 bg-slate-50/50 dark:bg-muted/5 flex flex-col shrink-0"
             style={{ width: sidebarWidth }}
           >
             <div className="px-2 py-1.5 flex items-center justify-between border-b border-border/20">
