@@ -1317,8 +1317,11 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   return (
     <>
       <div
-        className="relative border-t border-border bg-background/80 dark:bg-[#020617]/80 backdrop-blur-md flex flex-col shadow-2xl"
-        style={{ height: `${panelHeight}px` }}
+        className={cn(
+          "relative border-t border-border bg-background/80 dark:bg-[#020617]/80 backdrop-blur-md flex flex-col shadow-2xl transform-gpu",
+          !isResizing && "transition-[height] duration-200 ease-in-out will-change-[height]"
+        )}
+        style={{ height: `${panelHeight}px`, contain: 'layout style' }}
       >
         <div
           className={cn(

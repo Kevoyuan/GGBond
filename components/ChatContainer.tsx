@@ -181,7 +181,7 @@ export const ChatContainer = React.memo(function ChatContainer({
             ) : (
                 <>
                     <div className="flex-1 relative min-h-0">
-                        <div className="absolute inset-0 overflow-y-auto scroll-smooth" ref={scrollContainerRef} onScroll={handleScroll}>
+                        <div className="absolute inset-0 overflow-y-auto scroll-smooth overscroll-contain" ref={scrollContainerRef} onScroll={handleScroll}>
                             {messages.length === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center p-8 text-center opacity-0 animate-fade-in" style={{ animationDelay: '0.1s', opacity: 1 }}>
                                     <div className="text-center space-y-4 max-w-lg mx-auto">
@@ -210,7 +210,7 @@ export const ChatContainer = React.memo(function ChatContainer({
                                     </div>
                                 </div>
                             ) : (
-                                <div className="max-w-3xl mx-auto w-full pb-8 pt-6 px-4 flex flex-col gap-6">
+                                <div className="max-w-3xl mx-auto w-full pb-8 pt-6 px-4 flex flex-col gap-6" style={{ contentVisibility: 'auto' }}>
                                     {messages.map((msg, idx) => {
                                         const prev = messages[idx - 1];
                                         const next = messages[idx + 1];

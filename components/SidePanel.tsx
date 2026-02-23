@@ -138,9 +138,9 @@ export function SidePanel({
     <div
       ref={panelRef}
       className={cn(
-        "flex-none border-r bg-muted/5 relative flex flex-col overflow-hidden",
-        // Disable transition during resize for smooth dragging
-        !isResizing && "transition-[width] duration-200 ease-in-out",
+        "flex-none border-r bg-muted/5 relative flex flex-col overflow-hidden transform-gpu",
+        // Disable transition during resize for smooth dragging, add will-change for optimization
+        !isResizing && "transition-[width] duration-200 ease-in-out will-change-[width]",
         !sidePanelType && "w-0 border-none"
       )}
       // Use CSS contain for better rendering performance
@@ -211,9 +211,9 @@ export function SidePanel({
             transition={{ duration: 0.1 }}
             className="flex-1 flex flex-col min-h-0 relative h-full bg-background"
           >
-            <ArtifactPreview 
-              filePath={artifactPath} 
-              onClose={() => onCloseArtifact?.()} 
+            <ArtifactPreview
+              filePath={artifactPath}
+              onClose={() => onCloseArtifact?.()}
               className="flex-1 h-full w-full"
             />
           </motion.div>

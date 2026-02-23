@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { X, RefreshCw, ExternalLink, Loader2, Copy, Check, Code, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -10,7 +10,7 @@ interface ArtifactPreviewProps {
   className?: string;
 }
 
-export function ArtifactPreview({ filePath, onClose, className }: ArtifactPreviewProps) {
+export const ArtifactPreview = memo(function ArtifactPreview({ filePath, onClose, className }: ArtifactPreviewProps) {
   const [content, setContent] = useState<string>('');
   const [editedContent, setEditedContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
@@ -20,7 +20,7 @@ export function ArtifactPreview({ filePath, onClose, className }: ArtifactPrevie
   const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview');
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const fetchContent = async () => {
+  const fetchContent = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -34,24 +34,24 @@ export function ArtifactPreview({ filePath, onClose, className }: ArtifactPrevie
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filePath]);
 
   useEffect(() => {
     fetchContent();
-  }, [filePath]);
+  }, [fetchContent]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     fetchContent();
-  };
+  }, [fetchContent]);
 
-  const handleOpenNewTab = () => {
+  const handleOpenNewTab = useCallback(() => {
     // Create a blob URL to open in new tab
     const blob = new Blob([content], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
-  };
+  }, [content]);
 
-  const handleEditSource = async () => {
+  const handleEditSource = useCallback(async () => {
     try {
       await fetch('/api/open', {
         method: 'POST',
@@ -63,18 +63,18 @@ export function ArtifactPreview({ filePath, onClose, className }: ArtifactPrevie
     } catch (err) {
       console.error('Failed to open file in IDE:', err);
     }
-  };
+  }, [filePath]);
 
-  const handleToggleViewMode = () => {
+  const handleToggleViewMode = useCallback(() => {
     if (viewMode === 'preview') {
       setEditedContent(content); // Reset edited content to current saved content when entering code mode
       setViewMode('code');
     } else {
       setViewMode('preview');
     }
-  };
+  }, [viewMode, content]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
       const res = await fetch('/api/files/content', {
@@ -91,19 +91,21 @@ export function ArtifactPreview({ filePath, onClose, className }: ArtifactPrevie
       setViewMode('preview');
     } catch (err) {
       console.error('Failed to save file:', err);
-      // You could add a toast error notification here if you have a toast system
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [filePath, editedContent]);
 
-  const handleCopy = () => {
+  const handleCopy = useCallback(() => {
     if (!content) return;
     navigator.clipboard.writeText(viewMode === 'code' ? editedContent : content);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
-  };
+  }, [content, editedContent, viewMode]);
 
+  const handleEditContentChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setEditedContent(e.target.value);
+  }, []);
 
   return (
     <div className={cn("flex flex-col h-full bg-background/95 backdrop-blur-xl border-l border-border/40 shadow-2xl z-50 overflow-hidden", className)}>
@@ -121,13 +123,13 @@ export function ArtifactPreview({ filePath, onClose, className }: ArtifactPrevie
                 onClick={handleSave}
                 disabled={isSaving || editedContent === content}
                 className={cn(
-                  "relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md transition-all duration-200 group cursor-pointer",
+                  "relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md transition-colors duration-200 group cursor-pointer",
                   isSaving ? "text-primary/70 cursor-not-allowed" :
-                    editedContent !== content ? "text-primary hover:bg-primary/10 hover:shadow-sm hover:scale-105" : "text-muted-foreground/50 cursor-not-allowed"
+                    editedContent !== content ? "text-primary hover:bg-primary/10 hover:shadow-sm hover:scale-105 will-change-transform" : "text-muted-foreground/50 cursor-not-allowed"
                 )}
                 title="Save Changes"
               >
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 transition-transform duration-200" />}
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 transition-transform duration-200 will-change-transform" />}
               </button>
               <div className="w-[1px] h-4 bg-border/50 mx-0.5" />
             </>
@@ -136,33 +138,33 @@ export function ArtifactPreview({ filePath, onClose, className }: ArtifactPrevie
           <button
             onClick={handleToggleViewMode}
             className={cn(
-              "relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md transition-all duration-200 group cursor-pointer",
-              viewMode === 'code' ? "bg-primary/10 text-primary shadow-sm" : "text-muted-foreground hover:bg-background/80 hover:text-foreground hover:shadow-sm hover:scale-105"
+              "relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md transition-colors duration-200 group cursor-pointer",
+              viewMode === 'code' ? "bg-primary/10 text-primary shadow-sm" : "text-muted-foreground hover:bg-background/80 hover:text-foreground hover:shadow-sm hover:scale-105 will-change-transform"
             )}
             title={viewMode === 'code' ? "Preview Output" : "View Source Code"}
           >
-            <Code className="w-4 h-4 transition-transform duration-200" />
+            <Code className="w-4 h-4 transition-transform duration-200 will-change-transform" />
           </button>
           <div className="w-[1px] h-4 bg-border/50 mx-0.5" />
 
-          <button onClick={handleCopy} className="relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-background/80 hover:text-foreground hover:shadow-sm hover:scale-105 transition-all duration-200 group cursor-pointer" title="Copy Content">
-            {isCopied ? <Check className="w-4 h-4 text-green-500 transition-all duration-300 scale-110" /> : <Copy className="w-4 h-4 transition-transform duration-300" />}
+          <button onClick={handleCopy} className="relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-background/80 hover:text-foreground hover:shadow-sm hover:scale-105 transition-colors duration-200 group cursor-pointer will-change-transform" title="Copy Content">
+            {isCopied ? <Check className="w-4 h-4 text-green-500 transition-colors duration-300 scale-110 will-change-transform" /> : <Copy className="w-4 h-4 transition-transform duration-300 will-change-transform" />}
           </button>
           <div className="w-[1px] h-4 bg-border/50 mx-0.5" />
 
-          <button onClick={handleRefresh} className="relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-background/80 hover:text-foreground hover:shadow-sm hover:scale-105 transition-all duration-200 group cursor-pointer" title="Refresh">
-            <RefreshCw className={cn("w-4 h-4 transition-transform duration-500 group-hover:rotate-180", isLoading && "animate-spin")} />
+          <button onClick={handleRefresh} className="relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-background/80 hover:text-foreground hover:shadow-sm hover:scale-105 transition-colors duration-200 group cursor-pointer will-change-transform" title="Refresh">
+            <RefreshCw className={cn("w-4 h-4 transition-transform duration-500 group-hover:rotate-180 will-change-transform", isLoading && "animate-spin")} />
           </button>
 
           {viewMode === 'preview' && (
-            <button onClick={handleOpenNewTab} className="relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-background/80 hover:text-foreground hover:shadow-sm hover:scale-105 transition-all duration-200 group cursor-pointer" title="Open in New Tab">
-              <ExternalLink className="w-4 h-4 transition-transform duration-200 group-hover:-translate-y-[1px] group-hover:translate-x-[1px]" />
+            <button onClick={handleOpenNewTab} className="relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-background/80 hover:text-foreground hover:shadow-sm hover:scale-105 transition-colors duration-200 group cursor-pointer will-change-transform" title="Open in New Tab">
+              <ExternalLink className="w-4 h-4 transition-transform duration-200 group-hover:-translate-y-[1px] group-hover:translate-x-[1px] will-change-transform" />
             </button>
           )}
 
           <div className="w-[1px] h-4 bg-border/50 mx-0.5" />
-          <button onClick={onClose} className="relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-red-500/15 hover:text-red-600 hover:shadow-sm hover:scale-105 transition-all duration-200 group cursor-pointer" title="Close Preview">
-            <X className="w-4 h-4 transition-transform duration-200" />
+          <button onClick={onClose} className="relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-red-500/15 hover:text-red-600 hover:shadow-sm hover:scale-105 transition-colors duration-200 group cursor-pointer will-change-transform" title="Close Preview">
+            <X className="w-4 h-4 transition-transform duration-200 will-change-transform" />
           </button>
         </div>
       </div>
@@ -194,9 +196,9 @@ export function ArtifactPreview({ filePath, onClose, className }: ArtifactPrevie
         ) : viewMode === 'code' ? (
           <textarea
             value={editedContent}
-            onChange={(e) => setEditedContent(e.target.value)}
+            onChange={handleEditContentChange}
             spellCheck={false}
-            className="w-full h-full resize-none p-5 font-mono text-[13px] leading-relaxed bg-[var(--background)] text-[var(--foreground)] border-none focus:outline-none focus:ring-0 selection:bg-primary/20 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
+            className="w-full h-full resize-none p-5 font-mono text-[13px] leading-relaxed bg-[var(--background)] text-[var(--foreground)] border-none focus:outline-none focus:ring-0 selection:bg-primary/20 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent overscroll-contain"
             placeholder="File content..."
           />
         ) : (
@@ -211,4 +213,5 @@ export function ArtifactPreview({ filePath, onClose, className }: ArtifactPrevie
       </div>
     </div>
   );
-}
+});
+
