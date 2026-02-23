@@ -1134,10 +1134,10 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
       ? Array.from(new Set([...mergedSkillIds, ARTIFACT_SKILL_ID]))
       : mergedSkillIds;
     const skillPrefix = finalSkillIds.map((id) => `${INLINE_SKILL_COMMAND} ${id}`).join('\n');
-    const canvasInstruction = (!isExplicitSlashCommand && canvasEnabled)
-      ? 'Canvas mode: force artifact output. Generate a runnable single-file HTML artifact and provide the output .html path in your response.'
+    const artifactInstruction = (!isExplicitSlashCommand && canvasEnabled)
+      ? 'Artifact mode: force artifact output. Generate a runnable single-file HTML artifact and provide the output .html path in your response.'
       : '';
-    const bodyWithCanvas = [canvasInstruction, cleanedInput].filter(Boolean).join('\n');
+    const bodyWithCanvas = [artifactInstruction, cleanedInput].filter(Boolean).join('\n');
     const finalMessage = skillPrefix
       ? `${skillPrefix}${bodyWithCanvas ? `\n${bodyWithCanvas}` : ''}`
       : bodyWithCanvas;
@@ -1543,10 +1543,9 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                     ? "bg-primary/10 text-primary border-primary/40 hover:bg-primary/15"
                     : "bg-transparent text-muted-foreground border-border hover:bg-muted hover:text-foreground"
                 )}
-                title={canvasEnabled ? "Canvas mode enabled (click to disable)" : "Enable Canvas mode (force artifact generation)"}
+                title={canvasEnabled ? "Artifact mode enabled (click to disable)" : "Enable Artifact mode (force specialized output format)"}
               >
-                <FileCode className="w-3.5 h-3.5" />
-                <span>Canvas</span>
+                <span className="font-medium">Artifact</span>
                 {canvasEnabled && <X className="w-3 h-3 opacity-80" />}
               </button>
 
