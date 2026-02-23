@@ -53,11 +53,11 @@ out/
 .agent/
 .claude/
 .codex/
+src-tauri/resources/next-standalone/
 # Tooling
 gemini-home/
 .gemini/
 .npm-cache/
-.codex/
 
 .pnpm-store/
 

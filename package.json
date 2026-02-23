@@ -10,7 +10,7 @@
     "rebuild:node-native": "npm rebuild better-sqlite3",
     "build:web": "npm run rebuild:node-native && next build",
     "build": "npm run build:web",
-    "build:tauri-dist": "npm run build:web && node scripts/prepare-tauri-dist.cjs",
+    "build:tauri-dist": "npm run build:web && node scripts/prepare-tauri-dist.cjs && node scripts/prepare-tauri-server.cjs",
     "start": "next start",
     "tauri": "tauri",
     "lint": "eslint",

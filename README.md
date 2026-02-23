@@ -35,6 +35,7 @@ GGBond is a desktop AI coding cockpit built on top of Gemini CLI, now powered by
 
 - Frontend: Next.js + React UI (desktop webview content).
 - Desktop shell: Tauri 2.
+- Packaged runtime: bundled Next standalone server (for `/api/*` parity with `tauri dev`).
 - Runtime commands: Rust (`src-tauri`) with typed command bridge (`invoke`).
 - Terminal pipeline: PTY stream events (`pty-stream-*`) and command/input/stop controls.
 

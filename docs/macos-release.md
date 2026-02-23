@@ -40,6 +40,8 @@ git push origin v0.2.6
 - 上传到 GitHub Release
 - 在配置好 Apple 凭据时完成 macOS 公证
 
+注意：CI 现在会在缺少签名/公证密钥时直接失败，避免误发布“可安装但会被 Gatekeeper 拦截”的 macOS 包。
+
 ## 3) 发布后验证（macOS）
 
 下载 DMG 后可本地验证：

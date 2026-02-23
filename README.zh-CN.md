@@ -35,6 +35,7 @@ GGBond 是一个基于 Gemini CLI 的桌面 AI 编程工作台，当前已迁移
 
 - 前端：Next.js + React，作为桌面 WebView UI。
 - 桌面壳：Tauri 2。
+- 安装版运行时：内置 Next standalone server（保证 `/api/*` 与 `tauri dev` 行为一致）。
 - 后端命令：Rust（`src-tauri`）通过 `invoke` 暴露。
 - 终端链路：`pty-stream-*` 事件流，支持运行/输入/停止。
 

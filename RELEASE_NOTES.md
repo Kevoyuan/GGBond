@@ -1,29 +1,32 @@
-## v0.2.5 Latest
+## GGBond v0.2.6
 
-## GGBond v0.2.5
+## Highlights
 
-### Highlights
+- Added a **one-time legacy session import marker** to stop repeated migration scans and improve startup stability.
+- Added **bundled Next standalone server startup in Tauri release app** so packaged builds can serve `/api/*` endpoints.
+- Added **Tauri release workflow hardening** for macOS + Windows packaging with strict signing/notarization checks.
+- Updated release docs to a **Tauri-native macOS signing/notarization guide**.
+- Updated macOS bundle signing config to avoid broken ad-hoc signatures in local unsigned builds.
 
-- Rewrote project documentation to match the current desktop architecture and release workflow.
-- Clarified install/build instructions for macOS and Windows packages.
-- Standardized release notes and download naming for easier distribution.
+## Session Migration
 
-### Improvements
+- Legacy session DB merge now runs once and writes a marker file to avoid repeated imports.
+- Existing non-empty DB is treated as source-of-truth and migration is skipped safely.
+- Improves reliability for users who could not find historical sessions after upgrades.
 
-- `README.md`: updated product positioning, feature set, tech stack, and build commands.
-- `README.zh-CN.md`: synchronized Chinese documentation with the latest workflow.
-- Version bumped to `0.2.5` for release packaging.
+## Fixes
 
-### Downloads
+- `lib/db.ts`: one-time legacy migration marker + safer legacy import gate.
+- `src-tauri/src/lib.rs`: start bundled Next server in release mode and redirect app window to local server URL.
+- `scripts/prepare-tauri-server.cjs`: package Next standalone runtime into Tauri resources.
+- `src-tauri/tauri.conf.json`: include standalone server resources; set local ad-hoc signing fallback.
+- `.github/workflows/release-tauri.yml`: enforce required macOS signing/notarization secrets.
+- `docs/macos-release.md`: replaced old Electron flow with Tauri signing/notarization steps.
+- `README.md` / `README.zh-CN.md`: clarified signed release expectations for macOS users.
 
-- macOS (Apple Silicon): `ggbond_0.2.5_aarch64.dmg`
-- Windows installer (x64): `ggbond_0.2.5_x64-setup.exe`
+## Downloads
 
-Full Changelog: `v0.2.4...v0.2.5`
+- macOS (Apple Silicon): `ggbond_0.2.6_aarch64.dmg`
+- Windows (Intel/x64): `ggbond_0.2.6_x64-setup.exe`
 
-### Assets
-
-- `ggbond_0.2.5_aarch64.dmg`
-- `ggbond_0.2.5_x64-setup.exe`
-- Source code (zip)
-- Source code (tar.gz)
+Full Changelog: [`v0.2.5...v0.2.6`](https://github.com/Kevoyuan/GGBond/compare/v0.2.5...v0.2.6)
