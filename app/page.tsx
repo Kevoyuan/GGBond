@@ -562,8 +562,6 @@ export default function Home() {
   const fetchSessions = async () => {
     try {
       const dbRes = await fetch('/api/sessions');
-      const coreRes = await fetch('/api/sessions/core');
-
       let allSessions: Session[] = [];
 
       if (dbRes.ok) {
@@ -571,15 +569,13 @@ export default function Home() {
         allSessions = [...dbSessions];
       }
 
-      if (coreRes.ok) {
-        const coreSessions = await coreRes.json();
-        // Avoid duplicates if IDs match, though they shouldn't usually
-        const coreFiltered = coreSessions.filter((cs: Session) => !allSessions.some(s => s.id === cs.id));
-        allSessions = [...allSessions, ...coreFiltered];
-      }
-
       // Sort by updated_at desc
       allSessions.sort((a, b) => {
+        const countA = typeof a.message_count === 'number' ? a.message_count : 0;
+        const countB = typeof b.message_count === 'number' ? b.message_count : 0;
+        if (countA !== countB) {
+          return countB - countA;
+        }
         const timeA = new Date(a.updated_at || a.lastUpdated || 0).getTime();
         const timeB = new Date(b.updated_at || b.lastUpdated || 0).getTime();
         return timeB - timeA;
@@ -608,12 +604,8 @@ export default function Home() {
         headIdRef.current = null;
         return null;
       }
-      // Handle server errors (500, 503, etc.) gracefully - clear session state
+      // Handle server errors (500, 503, etc.) gracefully without wiping current UI state
       console.error(`Failed to load session: ${sessionId}, status: ${res.status}`);
-      setCurrentSessionId(null);
-      setMessagesMap(new Map());
-      setHeadId(null);
-      headIdRef.current = null;
       return null;
     }
 
@@ -2856,6 +2848,7 @@ export default function Home() {
               <ChatContainer
                 messages={messages}
                 isLoading={isLoading}
+                hasActiveSession={Boolean(currentSessionId)}
                 streamingStatus={streamingStatus}
                 previewFile={previewFile}
                 onClosePreview={() => setPreviewFile(null)}

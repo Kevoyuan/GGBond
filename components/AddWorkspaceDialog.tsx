@@ -193,6 +193,11 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
                                 Open macOS Privacy Settings
                             </button>
                         )}
+                        {errorCode === 'EWORKSPACE_TOO_BROAD' && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                                Example: <code className="text-primary/80 bg-primary/5 px-1 rounded">~/Projects/my-app</code>
+                            </p>
+                        )}
                     </div>
 
                     <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3 border border-border/40">

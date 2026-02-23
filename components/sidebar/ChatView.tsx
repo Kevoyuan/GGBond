@@ -26,6 +26,7 @@ interface Session {
     archived?: number | boolean;
     isCore?: boolean;
     lastUpdated?: string;
+    message_count?: number;
 }
 
 interface ChatViewProps {
@@ -266,9 +267,16 @@ export const ChatView = React.memo(function ChatView({
                                                     {session.title}
                                                 </div>
 
-                                                <span className="text-[10px] text-[var(--text-tertiary)] shrink-0 opacity-70 group-hover:opacity-0 transition-opacity">
-                                                    {formatSessionAge(session)}
-                                                </span>
+                                                <div className="flex items-center gap-1.5 shrink-0 opacity-70 group-hover:opacity-0 transition-opacity">
+                                                    {typeof session.message_count === 'number' && (
+                                                        <span className="text-[10px] text-[var(--text-tertiary)] min-w-[1.2rem] text-right">
+                                                            {session.message_count}
+                                                        </span>
+                                                    )}
+                                                    <span className="text-[10px] text-[var(--text-tertiary)]">
+                                                        {formatSessionAge(session)}
+                                                    </span>
+                                                </div>
                                             </div>
 
 

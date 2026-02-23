@@ -205,35 +205,48 @@ export const ResizeHandle = React.memo(function ResizeHandle({
   indicatorClassName,
 }: ResizeHandleProps) {
   const isHorizontal = direction === 'horizontal';
+  const [isHovered, setIsHovered] = useState(false);
 
   return (
     <div
       onMouseDown={onMouseDown}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       className={cn(
-        'flex items-center justify-center z-50 rounded-sm',
+        'flex items-center justify-center z-50 rounded-sm transition-colors duration-150',
         isHorizontal
-          ? 'w-2 h-full cursor-col-resize bg-[var(--bg-secondary)]/50 hover:bg-[var(--accent)]/30'
-          : 'h-2 cursor-row-resize flex items-center justify-center bg-[var(--bg-secondary)]/50 hover:bg-[var(--accent)]/30 shrink-0 -mt-0.5 z-10',
+          ? 'w-1.5 h-full'
+          : 'h-1.5 w-full flex items-center justify-center',
         isResizing && 'bg-[var(--accent)]/40',
         className
       )}
       style={{
+        // Show resize cursor on hover to indicate draggable area
+        // but actual resize only starts on mousedown + move
+        cursor: isHovered || isResizing
+          ? (isHorizontal ? 'col-resize' : 'row-resize')
+          : 'default',
+        // Hover feedback via background - visual hint
+        backgroundColor: isHovered && !isResizing
+          ? 'rgba(var(--accent-rgb), 0.15)'
+          : 'transparent',
         // Optimize rendering performance during resize
         ...(isResizing ? { willChange: 'background-color' } : {}),
         // Disable pointer events smoothing for more responsive drag
         touchAction: 'none',
       }}
     >
-      {/* Visible line indicator */}
+      {/* Visible line indicator - thin and subtle */}
       <div
         className={cn(
-          isHorizontal ? 'w-0.5 h-8 bg-[var(--border)]' : 'w-10 h-0.5 bg-[var(--border)]',
-          isResizing ? 'bg-[var(--accent)]' : 'group-hover:bg-[var(--accent)]/70',
+          isHorizontal ? 'w-0.5 h-8' : 'w-8 h-0.5',
+          isResizing ? 'bg-[var(--accent)]' : 'bg-[var(--border)]',
+          isHovered && !isResizing && 'bg-[var(--accent)]/60',
           indicatorClassName
         )}
         style={{
           // Remove transition during resize for instant feedback
-          transition: isResizing ? 'none' : undefined,
+          transition: isResizing ? 'none' : 'background-color 150ms ease',
         }}
       />
     </div>

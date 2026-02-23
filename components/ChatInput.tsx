@@ -686,6 +686,14 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
 
     const mentionBounds = getMentionBounds(value, cursorIndex);
     if (mentionBounds) {
+      const workspace = workspacePath?.trim();
+      if (!workspace) {
+        setFilteredMentions([]);
+        setActiveTrigger(null);
+        setShowCommands(false);
+        return;
+      }
+
       const reqId = ++mentionRequestCounter.current;
       const query = mentionBounds.query;
       const params = new URLSearchParams({
@@ -694,9 +702,7 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
         limit: '120',
         q: query,
       });
-      if (workspacePath) {
-        params.set('path', workspacePath);
-      }
+      params.set('path', workspace);
 
       try {
         const res = await fetch(`/api/files?${params.toString()}`);

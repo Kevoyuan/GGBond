@@ -21,9 +21,45 @@ const MENTION_SUPPORTED_EXTENSIONS = new Set([
   '.mp3', '.wav', '.ogg', '.m4a'
 ]);
 
+const MACOS_PRIVACY_DIR_NAMES = new Set([
+  'Desktop',
+  'Documents',
+  'Downloads',
+  'Music',
+  'Movies',
+  'Pictures',
+  'Library',
+]);
+
 function isMentionSupported(item: FileItem) {
   if (item.type === 'directory') return true;
   return !!item.extension && MENTION_SUPPORTED_EXTENSIONS.has(item.extension);
+}
+
+function isSameOrChildPath(candidate: string, base: string) {
+  const normalizedCandidate = path.resolve(candidate);
+  const normalizedBase = path.resolve(base);
+  const rel = path.relative(normalizedBase, normalizedCandidate);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+function shouldAvoidMacOSPrivacyTraversal(rootPath: string, entryPath: string, isDirectory: boolean) {
+  if (!isDirectory || process.platform !== 'darwin') {
+    return false;
+  }
+
+  const homeDir = os.homedir();
+  const protectedDirs = Array.from(MACOS_PRIVACY_DIR_NAMES).map((name) => path.join(homeDir, name));
+
+  // If the workspace itself is one of the protected directories, allow traversal.
+  const rootInsideProtected = protectedDirs.some((protectedDir) => isSameOrChildPath(rootPath, protectedDir));
+  if (rootInsideProtected) {
+    return false;
+  }
+
+  // Otherwise, avoid descending into protected directories from broad roots
+  // like "~" to prevent repeated macOS permission prompts.
+  return protectedDirs.some((protectedDir) => isSameOrChildPath(entryPath, protectedDir));
 }
 
 function resolveTargetPath(inputPath: string | null) {
@@ -72,7 +108,7 @@ async function walkFiles(
         continue;
       }
 
-      if (entry.isDirectory()) {
+      if (entry.isDirectory() && !shouldAvoidMacOSPrivacyTraversal(rootPath, entryPath, true)) {
         queue.push(entryPath);
       }
 
@@ -109,6 +145,18 @@ export async function GET(req: Request) {
   const mentionsMode = searchParams.get('mentions') === '1';
   const ignoreGitignore = searchParams.get('ignore') !== '0' && searchParams.get('ignore') !== 'false';
   const limit = Math.max(1, Math.min(500, Number(searchParams.get('limit') || 120)));
+
+  // Codex-style guardrail: indexed search should always be workspace-bounded.
+  if (indexMode && !requestedPath) {
+    return NextResponse.json(
+      {
+        error: 'Workspace path is required for indexed search',
+        code: 'WORKSPACE_REQUIRED',
+        hint: 'Please add/select a workspace before using @ file search.',
+      },
+      { status: 400 }
+    );
+  }
 
   // Default to current working directory if no path provided
   const targetPath = resolveTargetPath(requestedPath);

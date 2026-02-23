@@ -14,6 +14,7 @@ interface ChatContainerProps {
 
     messages: Message[];
     isLoading: boolean;
+    hasActiveSession?: boolean;
     previewFile: { name: string; path: string } | null;
     onClosePreview: () => void;
     settings: ChatSettings;
@@ -43,6 +44,7 @@ interface ChatContainerProps {
 export const ChatContainer = React.memo(function ChatContainer({
     messages,
     isLoading,
+    hasActiveSession = false,
     previewFile,
     onClosePreview,
     settings,
@@ -186,12 +188,25 @@ export const ChatContainer = React.memo(function ChatContainer({
                                         <div className="mb-6 flex justify-center">
                                             <GeminiIcon className="w-16 h-16" />
                                         </div>
-                                        <h2 className="text-2xl font-semibold tracking-tight">
-                                            How can I help you today?
-                                        </h2>
-                                        <p className="text-muted-foreground leading-relaxed">
-                                            I can help you write code, debug issues, or answer questions about your project.
-                                        </p>
+                                        {hasActiveSession ? (
+                                            <>
+                                                <h2 className="text-2xl font-semibold tracking-tight">
+                                                    This session is empty
+                                                </h2>
+                                                <p className="text-muted-foreground leading-relaxed">
+                                                    No messages were saved in this chat yet. Try selecting another chat from the sidebar.
+                                                </p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <h2 className="text-2xl font-semibold tracking-tight">
+                                                    How can I help you today?
+                                                </h2>
+                                                <p className="text-muted-foreground leading-relaxed">
+                                                    I can help you write code, debug issues, or answer questions about your project.
+                                                </p>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             ) : (
