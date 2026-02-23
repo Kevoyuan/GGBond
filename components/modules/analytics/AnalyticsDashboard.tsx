@@ -188,7 +188,7 @@ const TokenTimelineChart = memo(function TokenTimelineChart({
             return (
               <div key={bucket.key} className="group relative flex min-w-[18px] flex-1 flex-col items-center justify-end gap-2">
                 <div
-                  className="relative flex w-full max-w-[32px] flex-col justify-end overflow-hidden rounded-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 transition-all duration-200 hover:ring-2 hover:ring-primary/50 cursor-crosshair hover:scale-[1.02]"
+                  className="relative flex w-full max-w-[32px] flex-col justify-end overflow-hidden rounded-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 transition-[box-shadow,transform] duration-200 hover:ring-2 hover:ring-primary/50 cursor-crosshair hover:scale-[1.02] will-change-transform"
                   style={{ height: `${columnHeightPx}px` }}
                   onMouseMove={(event) => {
                     if (!chartRef.current) return;
@@ -384,7 +384,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
             <button
               key={p}
               onClick={() => setPeriod(p)}
-              className={`relative px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 z-10 ${p === period
+              className={`relative px-3 py-1.5 text-xs font-medium rounded-md transition-colors duration-200 z-10 ${p === period
                 ? 'text-white'
                 : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
                 }`}
@@ -399,7 +399,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="group p-4 bg-white/50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 hover:border-blue-500/20 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-300">
+          <div className="group p-4 bg-white/50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 hover:border-blue-500/20 hover:shadow-lg hover:shadow-blue-500/5 transition-[border-color,box-shadow] duration-300">
             <div className="flex items-center gap-2 text-zinc-500 mb-2">
               <div className="p-1.5 bg-green-500/10 rounded text-green-600 dark:text-green-400">
                 <DollarSign size={14} />
@@ -410,7 +410,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
             <div className="text-xs text-zinc-500 mt-1">{current.count} requests</div>
           </div>
 
-          <div className="group p-4 bg-white/50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 hover:border-purple-500/20 hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-300">
+          <div className="group p-4 bg-white/50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 hover:border-purple-500/20 hover:shadow-lg hover:shadow-purple-500/5 transition-[border-color,box-shadow] duration-300">
             <div className="flex items-center gap-2 text-zinc-500 mb-2">
               <div className="p-1.5 bg-purple-500/10 rounded text-purple-600 dark:text-purple-400">
                 <Zap size={14} />
@@ -453,7 +453,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
               {tokenSeries.map((point, index) => (
                 <div key={index} className="group relative flex-1 h-full flex flex-col justify-end">
                   <div
-                    className="w-full rounded-sm bg-blue-500/80 hover:bg-blue-500 transition-all duration-200 shadow-[0_0_10px_rgba(59,130,246,0.2)]"
+                    className="w-full rounded-sm bg-blue-500/80 hover:bg-blue-500 transition-colors duration-200 shadow-[0_0_10px_rgba(59,130,246,0.2)]"
                     style={{ height: `${Math.max((point.total / maxSeriesToken) * 100, 10)}%` }}
                     title={`Total: ${point.total.toLocaleString()}`}
                   />
@@ -471,10 +471,10 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
               <span className="font-mono text-zinc-400">{current.totalTokens.toLocaleString()} total</span>
             </div>
             <div className="flex h-4 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800 shadow-inner">
-              <div className="bg-blue-500 transition-all duration-500" style={{ width: `${(current.inputTokens / current.totalTokens) * 100}%` }} />
-              <div className="bg-emerald-500 transition-all duration-500" style={{ width: `${(current.outputTokens / current.totalTokens) * 100}%` }} />
+              <div className="bg-blue-500 transition-[width] duration-500 will-change-[width]" style={{ width: `${(current.inputTokens / current.totalTokens) * 100}%` }} />
+              <div className="bg-emerald-500 transition-[width] duration-500 will-change-[width]" style={{ width: `${(current.outputTokens / current.totalTokens) * 100}%` }} />
               {current.cachedTokens > 0 && (
-                <div className="bg-amber-500 transition-all duration-500" style={{ width: `${(current.cachedTokens / current.totalTokens) * 100}%` }} />
+                <div className="bg-amber-500 transition-[width] duration-500 will-change-[width]" style={{ width: `${(current.cachedTokens / current.totalTokens) * 100}%` }} />
               )}
             </div>
             <div className="flex gap-4 text-[10px] text-zinc-500 font-medium justify-center pt-1">
@@ -500,7 +500,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
             </div>
             <div className="relative h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
               <div
-                className={`h-full transition-all duration-500 rounded-full ${contextUsagePercent > 85 ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]' : contextUsagePercent > 65 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                className={`h-full transition-[width,background-color] duration-500 rounded-full will-change-[width] ${contextUsagePercent > 85 ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]' : contextUsagePercent > 65 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                 style={{ width: `${Math.max(contextUsagePercent, 1)}%` }}
               />
             </div>

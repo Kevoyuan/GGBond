@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
 import { Check, ChevronDown, GitBranch, Loader2, RefreshCw, Search, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -18,7 +18,7 @@ interface GitBranchSwitcherProps {
     className?: string;
 }
 
-export function GitBranchSwitcher({
+export const GitBranchSwitcher = memo(function GitBranchSwitcher({
     branch,
     branches,
     uncommitted = null,
@@ -51,21 +51,38 @@ export function GitBranchSwitcher({
         return list.filter(b => b.toLowerCase().includes(searchQuery.toLowerCase()));
     }, [branch, branches, searchQuery]);
 
+    const handleToggleOpen = useCallback(() => {
+        setOpen((prev) => !prev);
+    }, []);
+
+    const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchQuery(e.target.value);
+    }, []);
+
+    const handleRefreshClick = useCallback(() => {
+        void onRefresh?.();
+    }, [onRefresh]);
+
+    const handleBranchSelect = useCallback(async (item: string) => {
+        await onSelectBranch(item);
+        setOpen(false);
+    }, [onSelectBranch]);
+
     if (!branch) return null;
 
     return (
         <div ref={containerRef} className={cn('relative', className)}>
             <button
-                onClick={() => setOpen((prev) => !prev)}
+                onClick={handleToggleOpen}
                 className={cn(
-                    'group flex items-center gap-1.5 px-2 py-1 text-[12px] h-7 transition-all duration-200 overflow-hidden relative rounded-md',
+                    'group flex items-center gap-1.5 px-2 py-1 text-[12px] h-7 transition-colors duration-200 overflow-hidden relative rounded-md',
                     'hover:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
                 )}
                 title="Switch branch"
             >
                 <GitBranch className="w-3.5 h-3.5 shrink-0 transition-colors" />
                 <span className="max-w-[140px] truncate font-semibold tracking-tight">{branch}</span>
-                <ChevronDown className={cn('w-3 h-3 shrink-0 opacity-40 transition-transform duration-300', open && 'rotate-180')} />
+                <ChevronDown className={cn('w-3 h-3 shrink-0 opacity-40 transition-transform duration-300 will-change-transform', open && 'rotate-180')} />
             </button>
 
             {open && (
@@ -79,8 +96,8 @@ export function GitBranchSwitcher({
                                 type="text"
                                 placeholder="Search branches..."
                                 value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-zinc-100/50 dark:bg-zinc-900/60 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 focus:bg-white dark:focus:bg-zinc-800 border border-zinc-200 dark:border-zinc-800/50 focus:border-zinc-300 dark:focus:border-zinc-600/80 rounded-lg py-1.5 pl-8 pr-3 text-[12px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 transition-all outline-none"
+                                onChange={handleSearchChange}
+                                className="w-full bg-zinc-100/50 dark:bg-zinc-900/60 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 focus:bg-white dark:focus:bg-zinc-800 border border-zinc-200 dark:border-zinc-800/50 focus:border-zinc-300 dark:focus:border-zinc-600/80 rounded-lg py-1.5 pl-8 pr-3 text-[12px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 transition-colors outline-none"
                             />
                         </div>
                     </div>
@@ -88,14 +105,14 @@ export function GitBranchSwitcher({
                     <div className="flex items-center justify-between px-3 py-2 text-[9px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em] bg-zinc-50/50 dark:bg-zinc-900/40">
                         <span>Branches</span>
                         <button
-                            onClick={() => void onRefresh?.()}
+                            onClick={handleRefreshClick}
                             className="p-1 rounded-md hover:bg-zinc-200/50 dark:hover:bg-zinc-800/60 text-zinc-400 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-white transition-colors"
                         >
                             <RefreshCw className={cn('w-3 h-3', loading && 'animate-spin')} />
                         </button>
                     </div>
 
-                    <div className="max-h-64 overflow-auto py-1">
+                    <div className="max-h-64 overflow-auto py-1 overscroll-contain">
                         {branchList.length === 0 ? (
                             <div className="px-2 py-2 text-[11px] text-[var(--text-tertiary)]">No branches</div>
                         ) : (
@@ -105,14 +122,11 @@ export function GitBranchSwitcher({
                                 return (
                                     <button
                                         key={item}
-                                        onClick={async () => {
-                                            await onSelectBranch(item);
-                                            setOpen(false);
-                                        }}
+                                        onClick={() => handleBranchSelect(item)}
                                         disabled={isSwitching}
                                         className={cn(
-                                            'w-full flex items-center justify-between px-3 py-1.5 text-left transition-all duration-200 relative group/item',
-                                            'hover:bg-zinc-100 dark:hover:bg-zinc-800/60 disabled:opacity-50',
+                                            'w-full flex items-center justify-between px-3 py-1.5 text-left transition-colors duration-200 relative group/item',
+                                            'hover:bg-zinc-100 dark:hover:bg-zinc-800/60 disabled:opacity-50 cursor-pointer',
                                             isActive ? 'bg-zinc-100/80 dark:bg-zinc-800/40' : ''
                                         )}
                                     >
@@ -160,8 +174,8 @@ export function GitBranchSwitcher({
 
                     {/* Bottom Action */}
                     <div className="p-1.5 border-t border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/60">
-                        <button className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] font-medium text-zinc-500 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-zinc-800/80 rounded-lg transition-all group/new">
-                            <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
+                        <button className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] font-medium text-zinc-500 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-zinc-800/80 rounded-lg transition-colors group/new cursor-pointer">
+                            <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300 will-change-transform" />
                             <span>Create and checkout new branch...</span>
                         </button>
                     </div>
@@ -169,4 +183,5 @@ export function GitBranchSwitcher({
             )}
         </div>
     );
-}
+});
+
