@@ -249,8 +249,49 @@ function mergeSourceDbDataIfNeeded(sourceDbPath: string, targetDbPath: string, t
 function mergeKnownDbDataIfNeeded(targetDbPath: string, targetDb: Database.Database) {
   const sourceDbPaths = new Set<string>();
   sourceDbPaths.add(LEGACY_DB_PATH);
-  for (const home of getDefaultDataHomes()) {
+  const defaultHomes = getDefaultDataHomes();
+  for (const home of defaultHomes) {
     sourceDbPaths.add(path.join(home, 'ggbond.db'));
+  }
+
+  // Additional legacy locations from older desktop builds:
+  // - db directly under app data root (without gemini-home)
+  // - name variants used across historic app ids
+  const home = os.homedir();
+  if (process.platform === 'darwin') {
+    const roots = [
+      path.join(home, 'Library', 'Application Support', 'ggbond'),
+      path.join(home, 'Library', 'Application Support', 'GGBond'),
+      path.join(home, 'Library', 'Application Support', 'gg-bond'),
+    ];
+    for (const root of roots) {
+      sourceDbPaths.add(path.join(root, 'ggbond.db'));
+      sourceDbPaths.add(path.join(root, '.gemini', 'ggbond.db'));
+      sourceDbPaths.add(path.join(root, 'gemini-home', 'ggbond.db'));
+    }
+  } else if (process.platform === 'win32') {
+    const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+    const roots = [
+      path.join(appData, 'ggbond'),
+      path.join(appData, 'GGBond'),
+      path.join(appData, 'gg-bond'),
+    ];
+    for (const root of roots) {
+      sourceDbPaths.add(path.join(root, 'ggbond.db'));
+      sourceDbPaths.add(path.join(root, '.gemini', 'ggbond.db'));
+      sourceDbPaths.add(path.join(root, 'gemini-home', 'ggbond.db'));
+    }
+  } else {
+    const roots = [
+      path.join(home, '.local', 'share', 'ggbond'),
+      path.join(home, '.local', 'share', 'GGBond'),
+      path.join(home, '.local', 'share', 'gg-bond'),
+    ];
+    for (const root of roots) {
+      sourceDbPaths.add(path.join(root, 'ggbond.db'));
+      sourceDbPaths.add(path.join(root, '.gemini', 'ggbond.db'));
+      sourceDbPaths.add(path.join(root, 'gemini-home', 'ggbond.db'));
+    }
   }
 
   for (const sourceDbPath of sourceDbPaths) {
