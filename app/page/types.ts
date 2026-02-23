@@ -16,6 +16,7 @@ export interface Session {
   archived?: number | boolean;
   isCore?: boolean;
   lastUpdated?: string;
+  message_count?: number;
 }
 
 export interface ApiMessageRecord {

@@ -14,17 +14,20 @@ function getDefaultDataHomes(): string[] {
   if (process.platform === 'darwin') {
     homes.push(
       path.join(home, 'Library', 'Application Support', 'ggbond', 'gemini-home'),
+      path.join(home, 'Library', 'Application Support', 'GGBond', 'gemini-home'),
       path.join(home, 'Library', 'Application Support', 'gg-bond', 'gemini-home')
     );
   } else if (process.platform === 'win32') {
     const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
     homes.push(
       path.join(appData, 'ggbond', 'gemini-home'),
+      path.join(appData, 'GGBond', 'gemini-home'),
       path.join(appData, 'gg-bond', 'gemini-home')
     );
   } else {
     homes.push(
       path.join(home, '.local', 'share', 'ggbond', 'gemini-home'),
+      path.join(home, '.local', 'share', 'GGBond', 'gemini-home'),
       path.join(home, '.local', 'share', 'gg-bond', 'gemini-home')
     );
   }
@@ -74,6 +77,184 @@ function migrateLegacyDbIfNeeded(targetDbPath: string) {
     console.log(`[DB] Migrated legacy DB from ${LEGACY_DB_PATH} to ${targetDbPath}`);
   } catch (error) {
     console.warn('[DB] Failed to migrate legacy database:', error);
+  }
+}
+
+function mergeSourceDbDataIfNeeded(sourceDbPath: string, targetDbPath: string, targetDb: Database.Database) {
+  if (!sourceDbPath || sourceDbPath === targetDbPath) return;
+  if (!fs.existsSync(sourceDbPath)) return;
+  if (!fs.existsSync(targetDbPath)) return;
+
+  let legacyDb: Database.Database | null = null;
+  try {
+    legacyDb = new Database(sourceDbPath, { readonly: true });
+
+    const legacySessionColumns = (legacyDb.prepare('PRAGMA table_info(sessions)').all() as { name: string }[])
+      .map((col) => col.name);
+    const hasLegacyArchived = legacySessionColumns.includes('archived');
+    const targetSessionColumns = (targetDb.prepare('PRAGMA table_info(sessions)').all() as { name: string }[])
+      .map((col) => col.name);
+    const hasTargetArchived = targetSessionColumns.includes('archived');
+
+    const legacySessions = legacyDb.prepare(`
+      SELECT id, title, created_at, updated_at, workspace, branch, ${hasLegacyArchived ? 'archived' : '0 AS archived'}
+      FROM sessions
+      ORDER BY updated_at DESC
+    `).all() as Array<{
+      id: string;
+      title: string;
+      created_at: number;
+      updated_at: number;
+      workspace: string | null;
+      branch: string | null;
+      archived: number;
+    }>;
+
+    if (legacySessions.length === 0) return;
+
+    const targetSessionIds = new Set(
+      (targetDb.prepare('SELECT id FROM sessions').all() as Array<{ id: string }>).map((row) => row.id)
+    );
+    const missingSessions = legacySessions.filter((session) => !targetSessionIds.has(session.id));
+    if (missingSessions.length === 0) return;
+
+    const legacyMessageColumns = (legacyDb.prepare('PRAGMA table_info(messages)').all() as { name: string }[])
+      .map((col) => col.name);
+    const targetMessageColumns = (targetDb.prepare('PRAGMA table_info(messages)').all() as { name: string }[])
+      .map((col) => col.name);
+    const hasLegacyThought = legacyMessageColumns.includes('thought');
+    const hasLegacyCitations = legacyMessageColumns.includes('citations');
+    const hasLegacyImages = legacyMessageColumns.includes('images');
+    const hasLegacyParentId = legacyMessageColumns.includes('parent_id');
+    const hasLegacyUpdatedAt = legacyMessageColumns.includes('updated_at');
+    const hasTargetMsgUpdatedAt = targetMessageColumns.includes('updated_at');
+
+    const insertSession = hasTargetArchived
+      ? targetDb.prepare(`
+          INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch, archived)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `)
+      : targetDb.prepare(`
+          INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `);
+    const insertMessage = hasTargetMsgUpdatedAt
+      ? targetDb.prepare(`
+          INSERT INTO messages (session_id, role, content, stats, thought, citations, images, parent_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+      : targetDb.prepare(`
+          INSERT INTO messages (session_id, role, content, stats, thought, citations, images, parent_id, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+    const migrateTx = targetDb.transaction(() => {
+      for (const session of missingSessions) {
+        if (hasTargetArchived) {
+          insertSession.run(
+            session.id,
+            session.title || 'New Chat',
+            session.created_at || Date.now(),
+            session.updated_at || Date.now(),
+            session.workspace ?? null,
+            session.branch ?? null,
+            session.archived ? 1 : 0
+          );
+        } else {
+          insertSession.run(
+            session.id,
+            session.title || 'New Chat',
+            session.created_at || Date.now(),
+            session.updated_at || Date.now(),
+            session.workspace ?? null,
+            session.branch ?? null
+          );
+        }
+
+        const legacyMessages = legacyDb!.prepare(`
+          SELECT
+            id,
+            session_id,
+            role,
+            content,
+            stats,
+            ${hasLegacyThought ? 'thought' : 'NULL AS thought'},
+            ${hasLegacyCitations ? 'citations' : 'NULL AS citations'},
+            ${hasLegacyImages ? 'images' : 'NULL AS images'},
+            ${hasLegacyParentId ? 'parent_id' : 'NULL AS parent_id'},
+            created_at,
+            ${hasLegacyUpdatedAt ? 'updated_at' : 'NULL AS updated_at'}
+          FROM messages
+          WHERE session_id = ?
+          ORDER BY id ASC
+        `).all(session.id) as Array<{
+          id: number;
+          session_id: string;
+          role: string;
+          content: string;
+          stats: string | null;
+          thought: string | null;
+          citations: string | null;
+          images: string | null;
+          parent_id: number | null;
+          created_at: number;
+          updated_at: number | null;
+        }>;
+
+        const idMap = new Map<number, number>();
+        for (const msg of legacyMessages) {
+          const parentMapped = msg.parent_id ? idMap.get(msg.parent_id) ?? null : null;
+          const info = hasTargetMsgUpdatedAt
+            ? insertMessage.run(
+              session.id,
+              msg.role,
+              msg.content,
+              msg.stats ?? null,
+              msg.thought ?? null,
+              msg.citations ?? null,
+              msg.images ?? null,
+              parentMapped,
+              msg.created_at || Date.now(),
+              msg.updated_at ?? msg.created_at ?? Date.now()
+            )
+            : insertMessage.run(
+              session.id,
+              msg.role,
+              msg.content,
+              msg.stats ?? null,
+              msg.thought ?? null,
+              msg.citations ?? null,
+              msg.images ?? null,
+              parentMapped,
+              msg.created_at || Date.now()
+            );
+          idMap.set(msg.id, Number(info.lastInsertRowid));
+        }
+      }
+    });
+
+    migrateTx();
+    console.log(`[DB] Merged ${missingSessions.length} legacy session(s) from ${sourceDbPath}`);
+  } catch (error) {
+    console.warn(`[DB] Failed to merge legacy database data from ${sourceDbPath}:`, error);
+  } finally {
+    try {
+      legacyDb?.close();
+    } catch {
+      // Ignore close errors.
+    }
+  }
+}
+
+function mergeKnownDbDataIfNeeded(targetDbPath: string, targetDb: Database.Database) {
+  const sourceDbPaths = new Set<string>();
+  sourceDbPaths.add(LEGACY_DB_PATH);
+  for (const home of getDefaultDataHomes()) {
+    sourceDbPaths.add(path.join(home, 'ggbond.db'));
+  }
+
+  for (const sourceDbPath of sourceDbPaths) {
+    mergeSourceDbDataIfNeeded(sourceDbPath, targetDbPath, targetDb);
   }
 }
 
@@ -227,6 +408,7 @@ try {
   const tableInfo = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
   const hasWorkspace = tableInfo.some(col => col.name === 'workspace');
   const hasBranch = tableInfo.some(col => col.name === 'branch');
+  const hasArchived = tableInfo.some(col => col.name === 'archived');
 
   if (!hasWorkspace) {
     db.exec('ALTER TABLE sessions ADD COLUMN workspace TEXT');
@@ -234,6 +416,10 @@ try {
 
   if (!hasBranch) {
     db.exec('ALTER TABLE sessions ADD COLUMN branch TEXT');
+  }
+
+  if (!hasArchived) {
+    db.exec('ALTER TABLE sessions ADD COLUMN archived INTEGER DEFAULT 0');
   }
 } catch (error) {
   console.error('Failed to migrate sessions table:', error);
@@ -289,6 +475,13 @@ try {
   }
 } catch (error) {
   console.error('Failed to add updated_at column to messages:', error);
+}
+
+// Migration: merge data from legacy project-local DB when switching to user-level runtime home.
+try {
+  mergeKnownDbDataIfNeeded(dbPath, db);
+} catch (error) {
+  console.error('Failed to merge known legacy DB data:', error);
 }
 
 // Migration: Add error column to background_jobs if it doesn't exist

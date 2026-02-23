@@ -3,7 +3,15 @@ import db from '@/lib/db';
 
 export async function GET() {
   try {
-    const sessions = db.prepare('SELECT * FROM sessions ORDER BY updated_at DESC').all();
+    const sessions = db.prepare(`
+      SELECT
+        s.*,
+        COUNT(m.id) AS message_count
+      FROM sessions s
+      LEFT JOIN messages m ON m.session_id = s.id
+      GROUP BY s.id
+      ORDER BY s.updated_at DESC
+    `).all();
     return NextResponse.json(sessions);
   } catch (error) {
     console.error('Failed to fetch sessions:', error);
