@@ -56,6 +56,8 @@ GGBond 是一个基于 Gemini CLI 的桌面 AI 编程工作台，当前已迁移
 - macOS（Apple Silicon）：`ggbond_<version>_aarch64.dmg`
 - Windows 安装包：`ggbond_<version>_x64-setup.exe`（具体格式可能为 NSIS/MSI）
 
+官方发布包会进行代码签名；当 CI 已配置 Apple 凭据时，macOS 包会自动完成公证，终端用户不应再需要手动执行 `xattr`。
+
 ## 开发
 
 ```bash

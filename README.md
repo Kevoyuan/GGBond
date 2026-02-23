@@ -56,6 +56,8 @@ Download from [Releases](https://github.com/Kevoyuan/GGBond/releases):
 - macOS (Apple Silicon): `ggbond_<version>_aarch64.dmg`
 - Windows installer: `ggbond_<version>_x64-setup.exe` (or NSIS/MSI depending on target)
 
+Official release artifacts are code-signed. macOS release builds are notarized in CI when Apple credentials are configured, so end users should not need to run manual `xattr` commands.
+
 ## Development
 
 ```bash
