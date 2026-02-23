@@ -6,6 +6,7 @@ import { resolveRuntimeHome } from '@/lib/runtime-home';
 
 const LEGACY_HOME = path.join(process.cwd(), 'gemini-home');
 const LEGACY_DB_PATH = path.join(LEGACY_HOME, 'ggbond.db');
+const LEGACY_IMPORT_MARKER = '.legacy-db-import-v1.done';
 
 function getDefaultDataHomes(): string[] {
   const home = os.homedir();
@@ -299,6 +300,41 @@ function mergeKnownDbDataIfNeeded(targetDbPath: string, targetDb: Database.Datab
   }
 }
 
+function getLegacyImportMarkerPath(targetDbPath: string) {
+  return path.join(path.dirname(targetDbPath), LEGACY_IMPORT_MARKER);
+}
+
+function hasAnySessionRows(db: Database.Database): boolean {
+  try {
+    const row = db.prepare('SELECT COUNT(1) AS count FROM sessions').get() as { count: number } | undefined;
+    return Boolean(row && Number(row.count) > 0);
+  } catch {
+    return false;
+  }
+}
+
+function markLegacyImportDone(targetDbPath: string) {
+  const marker = getLegacyImportMarkerPath(targetDbPath);
+  try {
+    fs.writeFileSync(marker, String(Date.now()), 'utf8');
+  } catch (error) {
+    console.warn('[DB] Failed to write legacy import marker:', error);
+  }
+}
+
+function shouldRunLegacyImport(targetDbPath: string, db: Database.Database): boolean {
+  const marker = getLegacyImportMarkerPath(targetDbPath);
+  if (fs.existsSync(marker)) return false;
+
+  // If current DB already has data, treat it as source-of-truth and stop trying legacy imports.
+  if (hasAnySessionRows(db)) {
+    markLegacyImportDone(targetDbPath);
+    return false;
+  }
+
+  return true;
+}
+
 const dbPath = resolveDbPath();
 migrateLegacyDbIfNeeded(dbPath);
 const db = new Database(dbPath);
@@ -520,7 +556,10 @@ try {
 
 // Migration: merge data from legacy project-local DB when switching to user-level runtime home.
 try {
-  mergeKnownDbDataIfNeeded(dbPath, db);
+  if (shouldRunLegacyImport(dbPath, db)) {
+    mergeKnownDbDataIfNeeded(dbPath, db);
+    markLegacyImportDone(dbPath);
+  }
 } catch (error) {
   console.error('Failed to merge known legacy DB data:', error);
 }
