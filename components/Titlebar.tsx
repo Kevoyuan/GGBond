@@ -53,36 +53,53 @@ export const Titlebar = React.memo(function Titlebar({
             {/* Titlebar Left - Fixed at Panel Width */}
             <div
                 className={cn(
-                    "flex items-center justify-between px-4 shrink-0 transition-colors duration-200 ease-in-out border-r drag-region w-[var(--panel-width)]",
+                    "relative z-20 flex items-center justify-between px-4 shrink-0 transition-colors duration-200 ease-in-out border-r w-[var(--panel-width)]",
                     // When collapsed: match main content background, hide border
                     isCollapsed
                         ? "bg-[var(--bg-primary)] border-r-transparent"
                         : "bg-[var(--bg-secondary)] border-r-[var(--border-subtle)]"
                 )}
             >
-                {/* Left Group: Info */}
-                <div className="flex items-center gap-3 overflow-hidden">
-                    {/* Traffic Lights - Always visible */}
-                    <div className="flex gap-2 shrink-0 group">
-                        <div className="w-3 h-3 rounded-full bg-[#ff5f57] border-[0.5px] border-[#00000026] opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div className="w-3 h-3 rounded-full bg-[#febc2e] border-[0.5px] border-[#00000026] opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div className="w-3 h-3 rounded-full bg-[#28c840] border-[0.5px] border-[#00000026] opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
+                {/* Drag Region Background */}
+                <div data-tauri-drag-region className="absolute inset-0 z-0" />
 
+                {/* Left Group: Info */}
+                <div className="flex items-center gap-3 overflow-hidden pl-2 relative z-10 pointer-events-none">
+                    {/* Traffic Lights - Custom implementation for Frameless mode */}
+                    <div className="flex gap-2 shrink-0 group no-drag pointer-events-auto">
+                        <button
+                            onClick={async () => { const { getCurrentWindow } = await import('@tauri-apps/api/window'); getCurrentWindow().close(); }}
+                            className="w-3 h-3 rounded-full bg-[#ff5f57] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
+                        >
+                            <span className="opacity-0 group-hover:opacity-100 text-[#4c0000] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">×</span>
+                        </button>
+                        <button
+                            onClick={async () => { const { getCurrentWindow } = await import('@tauri-apps/api/window'); getCurrentWindow().minimize(); }}
+                            className="w-3 h-3 rounded-full bg-[#febc2e] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
+                        >
+                            <span className="opacity-0 group-hover:opacity-100 text-[#995700] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">−</span>
+                        </button>
+                        <button
+                            onClick={async () => { const { getCurrentWindow } = await import('@tauri-apps/api/window'); getCurrentWindow().toggleMaximize(); }}
+                            className="w-3 h-3 rounded-full bg-[#28c840] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
+                        >
+                            <span className="opacity-0 group-hover:opacity-100 text-[#006500] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">+</span>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Right Group: Actions - Fixed Position */}
-                <div className="flex items-center gap-1 shrink-0 no-drag">
+                <div className="flex items-center gap-1 shrink-0 no-drag relative z-30 pointer-events-none">
                     <button
                         onClick={onNewChat}
-                        className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+                        className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors pointer-events-auto"
                         title="New chat"
                     >
                         <SquarePen className="w-4 h-4" />
                     </button>
                     <button
                         onClick={onToggleCollapse}
-                        className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+                        className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors pointer-events-auto"
                         title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                     >
                         <PanelLeftClose
@@ -96,29 +113,34 @@ export const Titlebar = React.memo(function Titlebar({
             </div>
 
             {/* Titlebar Right */}
-            <div className="flex-1 flex items-center justify-between px-4 min-w-0 bg-[var(--bg-primary)] drag-region">
+            <div className="relative z-10 flex-1 flex items-center justify-between px-4 min-w-0 bg-[var(--bg-primary)]">
+                {/* Drag Region Background */}
+                <div data-tauri-drag-region className="absolute inset-0 z-0" />
+
                 {/* Left Side (Empty for now) */}
-                <div className="flex items-center gap-2 no-drag">
+                <div className="flex items-center gap-2 no-drag relative z-10 pointer-events-none">
                 </div>
 
                 {/* Right Side Info */}
-                <div className="flex items-center gap-4 no-drag">
+                <div className="flex items-center gap-4 no-drag relative z-10 pointer-events-none">
                     {/* Branch Info - Show first */}
                     {onSelectBranch ? (
-                        <GitBranchSwitcher
-                            branch={currentBranch ?? null}
-                            branches={branches}
-                            uncommitted={uncommitted}
-                            loading={branchLoading}
-                            switchingTo={branchSwitchingTo}
-                            onSelectBranch={onSelectBranch}
-                            onRefresh={onRefreshBranches}
-                        />
+                        <div className="pointer-events-auto">
+                            <GitBranchSwitcher
+                                branch={currentBranch ?? null}
+                                branches={branches}
+                                uncommitted={uncommitted}
+                                loading={branchLoading}
+                                switchingTo={branchSwitchingTo}
+                                onSelectBranch={onSelectBranch}
+                                onRefresh={onRefreshBranches}
+                            />
+                        </div>
                     ) : null}
 
                     {/* Stats - Token Usage Display with Hover Panel */}
                     {stats && (
-                        <div className="hidden md:block">
+                        <div className="hidden md:block pointer-events-auto">
                             <TokenUsageDisplay
                                 stats={{ ...stats, model: currentModel }}
                                 compact={true}
