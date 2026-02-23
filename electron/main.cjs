@@ -37,6 +37,46 @@ let START_URL = isDev
 const WINDOW_TITLE = 'GGBond';
 const TOGGLE_SHORTCUT = process.env.ELECTRON_TOGGLE_SHORTCUT || 'CommandOrControl+Shift+Space';
 
+function getStableDataHome() {
+  const home = os.homedir();
+  if (process.platform === 'darwin') {
+    return path.join(home, 'Library', 'Application Support', 'ggbond', 'gemini-home');
+  }
+  if (process.platform === 'win32') {
+    const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+    return path.join(appData, 'ggbond', 'gemini-home');
+  }
+  return path.join(home, '.local', 'share', 'ggbond', 'gemini-home');
+}
+
+function migrateLegacyUserDataHome(legacyHome, targetHome) {
+  if (!legacyHome || !targetHome) return;
+  const resolvedLegacy = path.resolve(legacyHome);
+  const resolvedTarget = path.resolve(targetHome);
+  if (resolvedLegacy === resolvedTarget) return;
+  if (!fs.existsSync(resolvedLegacy)) return;
+
+  try {
+    fs.mkdirSync(resolvedTarget, { recursive: true });
+
+    const legacyDbPath = path.join(resolvedLegacy, 'ggbond.db');
+    const targetDbPath = path.join(resolvedTarget, 'ggbond.db');
+    if (fs.existsSync(legacyDbPath) && !fs.existsSync(targetDbPath)) {
+      fs.copyFileSync(legacyDbPath, targetDbPath);
+      console.log(`[Electron] Migrated DB from legacy userData home: ${legacyDbPath} -> ${targetDbPath}`);
+    }
+
+    const legacyGeminiDir = path.join(resolvedLegacy, '.gemini');
+    const targetGeminiDir = path.join(resolvedTarget, '.gemini');
+    if (fs.existsSync(legacyGeminiDir) && !fs.existsSync(targetGeminiDir)) {
+      fs.cpSync(legacyGeminiDir, targetGeminiDir, { recursive: true });
+      console.log(`[Electron] Migrated .gemini from legacy userData home: ${legacyGeminiDir} -> ${targetGeminiDir}`);
+    }
+  } catch (error) {
+    console.warn('[Electron] Failed to migrate legacy userData home:', error);
+  }
+}
+
 // Set headless env var for child processes
 if (isHeadless) {
   process.env.GEMINI_HEADLESS = '1';
@@ -385,6 +425,15 @@ ipcMain.handle('dialog:validateDirectory', async (event, rawPath) => {
         ? path.join(os.homedir(), input.slice(2))
         : input;
 
+    if (resolvedPath === os.homedir()) {
+      return {
+        ok: false,
+        error: 'Please choose a specific project folder, not your Home directory (~).',
+        code: 'EWORKSPACE_TOO_BROAD',
+        hint: 'Selecting Home can trigger many macOS privacy prompts (Desktop/Music/Documents).'
+      };
+    }
+
     await fsp.access(resolvedPath);
     const stats = await fsp.stat(resolvedPath);
     if (!stats.isDirectory()) {
@@ -421,14 +470,25 @@ function setupMaximizeListener() {
 }
 
 app.whenReady().then(async () => {
-  // Ensure a writable data home for local app state (SQLite, etc.).
-  if (!process.env.GGBOND_DATA_HOME) {
-    process.env.GGBOND_DATA_HOME = path.join(app.getPath('userData'), 'gemini-home');
+  // Ensure a stable writable data home for local app state (SQLite, auth, skills).
+  // Avoid app-name/casing dependent userData paths to keep history/quota consistent.
+  const configuredHome = process.env.GGBOND_DATA_HOME && process.env.GGBOND_DATA_HOME.trim();
+  const stableHome = getStableDataHome();
+  const selectedDataHome = configuredHome || stableHome;
+  if (!configuredHome) {
+    process.env.GGBOND_DATA_HOME = selectedDataHome;
   }
+  if (!process.env.GEMINI_CLI_HOME) {
+    process.env.GEMINI_CLI_HOME = selectedDataHome;
+  }
+
+  const legacyUserDataHome = path.join(app.getPath('userData'), 'gemini-home');
+  migrateLegacyUserDataHome(legacyUserDataHome, selectedDataHome);
+
   try {
-    fs.mkdirSync(process.env.GGBOND_DATA_HOME, { recursive: true });
+    fs.mkdirSync(selectedDataHome, { recursive: true });
   } catch (error) {
-    console.warn('[Electron] Failed to create GGBOND_DATA_HOME:', process.env.GGBOND_DATA_HOME, error);
+    console.warn('[Electron] Failed to create GGBOND_DATA_HOME:', selectedDataHome, error);
   }
 
   if (isDev) {
