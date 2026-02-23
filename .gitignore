@@ -68,6 +68,7 @@ gemini-home/
 *.md
 !README.md
 !README.zh-CN.md
+!RELEASE_NOTES.md
 *.html
 next-env.d.ts
 tsconfig.tsbuildinfo
