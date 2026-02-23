@@ -2770,7 +2770,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[var(--bg-primary)] overflow-hidden font-sans antialiased text-[var(--text-primary)]">
+    <div className="flex flex-col h-screen w-full bg-[var(--bg-primary)] overflow-hidden font-sans antialiased text-[var(--text-primary)] rounded-[10px] border border-[var(--border-subtle)] shadow-sm">
       <ToastContainer toasts={toasts} onDismiss={dismissToast} position="top-right" />
 
       {/* Full-width Titlebar */}

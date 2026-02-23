@@ -34,11 +34,12 @@ export function PanelHeader({
 }: PanelHeaderProps) {
     return (
         <div className={cn(
-            "h-14 flex items-center justify-between px-4 bg-card z-20 transition-colors drag-region",
+            "relative h-14 flex items-center justify-between px-4 bg-card z-20 transition-colors",
             sticky && "sticky top-0",
             className
         )}>
-            <div className="flex items-center gap-2 overflow-hidden">
+            <div data-tauri-drag-region className="absolute inset-0 z-0" />
+            <div className="flex items-center gap-2 overflow-hidden relative z-10 pointer-events-none">
                 {Icon && (
                     <div className={cn("p-1.5 rounded-lg bg-primary/5", iconColor.replace('text-', 'bg-').replace('primary', 'primary/10'))}>
                         <Icon className={cn("w-3.5 h-3.5 shrink-0 transition-colors", iconColor)} />
@@ -56,7 +57,7 @@ export function PanelHeader({
                 </div>
             </div>
             {actions && (
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1 shrink-0 relative z-10 pointer-events-auto">
                     {actions}
                 </div>
             )}
