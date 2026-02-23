@@ -1,4 +1,4 @@
-## GGBond v0.2.6
+## GGBond v0.2.7
 
 ## Highlights
 
@@ -26,7 +26,7 @@
 
 ## Downloads
 
-- macOS (Apple Silicon): `ggbond_0.2.6_aarch64.dmg`
-- Windows (Intel/x64): `ggbond_0.2.6_x64-setup.exe`
+- macOS (Apple Silicon): `ggbond_0.2.7_aarch64.dmg`
+- Windows (Intel/x64): `ggbond_0.2.7_x64-setup.exe`
 
-Full Changelog: [`v0.2.5...v0.2.6`](https://github.com/Kevoyuan/GGBond/compare/v0.2.5...v0.2.6)
+Full Changelog: [`v0.2.6...v0.2.7`](https://github.com/Kevoyuan/GGBond/compare/v0.2.6...v0.2.7)
