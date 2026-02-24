@@ -354,6 +354,10 @@ function shouldRunCoreSessionImport(targetDbPath: string): boolean {
   return !fs.existsSync(marker);
 }
 
+function isNextProductionBuildPhase(): boolean {
+  return process.env.NEXT_PHASE === 'phase-production-build';
+}
+
 function collectSessionJsonFiles(rootDir: string, sink: string[]) {
   if (!fs.existsSync(rootDir)) return;
   const stack = [rootDir];
@@ -418,6 +422,7 @@ function mapCoreMessageRole(type: unknown): string {
 }
 
 function importCoreSessionJsonIfNeeded(targetDbPath: string, targetDb: Database.Database) {
+  if (isNextProductionBuildPhase()) return;
   if (!shouldRunCoreSessionImport(targetDbPath)) return;
 
   const runtimeHome = resolveRuntimeHome();
