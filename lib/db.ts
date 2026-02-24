@@ -7,6 +7,7 @@ import { resolveRuntimeHome } from '@/lib/runtime-home';
 const LEGACY_HOME = path.join(process.cwd(), 'gemini-home');
 const LEGACY_DB_PATH = path.join(LEGACY_HOME, 'ggbond.db');
 const LEGACY_IMPORT_MARKER = '.legacy-db-import-v1.done';
+const CORE_SESSION_IMPORT_MARKER = '.core-session-import-v1.done';
 
 function getDefaultDataHomes(): string[] {
   const home = os.homedir();
@@ -335,6 +336,205 @@ function shouldRunLegacyImport(targetDbPath: string, db: Database.Database): boo
   return true;
 }
 
+function getCoreSessionImportMarkerPath(targetDbPath: string) {
+  return path.join(path.dirname(targetDbPath), CORE_SESSION_IMPORT_MARKER);
+}
+
+function markCoreSessionImportDone(targetDbPath: string) {
+  const marker = getCoreSessionImportMarkerPath(targetDbPath);
+  try {
+    fs.writeFileSync(marker, String(Date.now()), 'utf8');
+  } catch (error) {
+    console.warn('[DB] Failed to write core session import marker:', error);
+  }
+}
+
+function shouldRunCoreSessionImport(targetDbPath: string): boolean {
+  const marker = getCoreSessionImportMarkerPath(targetDbPath);
+  return !fs.existsSync(marker);
+}
+
+function collectSessionJsonFiles(rootDir: string, sink: string[]) {
+  if (!fs.existsSync(rootDir)) return;
+  const stack = [rootDir];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    let entries: fs.Dirent[] = [];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+      if (entry.isFile() && entry.name.startsWith('session-') && entry.name.endsWith('.json')) {
+        sink.push(fullPath);
+      }
+    }
+  }
+}
+
+function parseSessionTimeToMs(raw: unknown): number {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  if (typeof raw === 'string') {
+    const parsed = Date.parse(raw);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return Date.now();
+}
+
+function extractSessionMessageContent(raw: unknown): string {
+  if (typeof raw === 'string') return raw;
+  if (Array.isArray(raw)) {
+    const parts = raw
+      .map((part) => {
+        if (!part) return '';
+        if (typeof part === 'string') return part;
+        if (typeof part === 'object' && 'text' in (part as Record<string, unknown>)) {
+          const text = (part as Record<string, unknown>).text;
+          return typeof text === 'string' ? text : '';
+        }
+        return '';
+      })
+      .filter(Boolean);
+    return parts.join('\n').trim();
+  }
+  if (raw === null || raw === undefined) return '';
+  try {
+    return JSON.stringify(raw);
+  } catch {
+    return String(raw);
+  }
+}
+
+function mapCoreMessageRole(type: unknown): string {
+  if (type === 'user') return 'user';
+  if (type === 'system') return 'system';
+  return 'assistant';
+}
+
+function importCoreSessionJsonIfNeeded(targetDbPath: string, targetDb: Database.Database) {
+  if (!shouldRunCoreSessionImport(targetDbPath)) return;
+
+  const runtimeHome = resolveRuntimeHome();
+  const candidates = [
+    path.join(runtimeHome, '.gemini', 'tmp'),
+    path.join(os.homedir(), '.gemini', 'tmp'),
+  ];
+  const files: string[] = [];
+  for (const candidate of candidates) {
+    collectSessionJsonFiles(candidate, files);
+  }
+
+  if (files.length === 0) {
+    markCoreSessionImportDone(targetDbPath);
+    return;
+  }
+
+  const uniqueFiles = [...new Set(files)];
+  const existingSessionIds = new Set(
+    (targetDb.prepare('SELECT id FROM sessions').all() as Array<{ id: string }>).map((row) => row.id)
+  );
+  const targetMessageColumns = (targetDb.prepare('PRAGMA table_info(messages)').all() as { name: string }[])
+    .map((col) => col.name);
+  const hasTargetMsgUpdatedAt = targetMessageColumns.includes('updated_at');
+
+  const insertSession = targetDb.prepare(`
+    INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch, archived)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertMessage = hasTargetMsgUpdatedAt
+    ? targetDb.prepare(`
+      INSERT INTO messages (session_id, role, content, stats, thought, citations, images, parent_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    : targetDb.prepare(`
+      INSERT INTO messages (session_id, role, content, stats, thought, citations, images, parent_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+  let imported = 0;
+  const importTx = targetDb.transaction(() => {
+    for (const filePath of uniqueFiles) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      } catch {
+        continue;
+      }
+
+      if (!parsed || typeof parsed !== 'object') continue;
+      const session = parsed as Record<string, unknown>;
+      const sessionId = typeof session.sessionId === 'string' ? session.sessionId : '';
+      if (!sessionId || existingSessionIds.has(sessionId)) continue;
+
+      const title = typeof session.summary === 'string' && session.summary.trim()
+        ? session.summary.trim()
+        : `Imported Session ${sessionId.slice(0, 8)}`;
+      const createdAt = parseSessionTimeToMs(session.startTime);
+      const updatedAt = parseSessionTimeToMs(session.lastUpdated);
+      const workspace = typeof session.projectHash === 'string'
+        ? `core:${session.projectHash}`
+        : null;
+
+      insertSession.run(sessionId, title, createdAt, updatedAt, workspace, null, 0);
+
+      const messages = Array.isArray(session.messages) ? session.messages : [];
+      for (const message of messages) {
+        if (!message || typeof message !== 'object') continue;
+        const msg = message as Record<string, unknown>;
+        const role = mapCoreMessageRole(msg.type);
+        const content = extractSessionMessageContent(msg.content) || '';
+        const timestamp = parseSessionTimeToMs(msg.timestamp);
+        const thought = msg.thoughts ? JSON.stringify(msg.thoughts) : null;
+        const stats = msg.tokens ? JSON.stringify({ tokens: msg.tokens }) : null;
+
+        if (hasTargetMsgUpdatedAt) {
+          insertMessage.run(
+            sessionId,
+            role,
+            content,
+            stats,
+            thought,
+            null,
+            null,
+            null,
+            timestamp,
+            timestamp
+          );
+        } else {
+          insertMessage.run(
+            sessionId,
+            role,
+            content,
+            stats,
+            thought,
+            null,
+            null,
+            null,
+            timestamp
+          );
+        }
+      }
+
+      existingSessionIds.add(sessionId);
+      imported += 1;
+    }
+  });
+
+  try {
+    importTx();
+    console.log(`[DB] Imported ${imported} session(s) from core session JSON files`);
+    markCoreSessionImportDone(targetDbPath);
+  } catch (error) {
+    console.error('[DB] Failed to import core session JSON files:', error);
+  }
+}
+
 const dbPath = resolveDbPath();
 migrateLegacyDbIfNeeded(dbPath);
 const db = new Database(dbPath);
@@ -560,6 +760,7 @@ try {
     mergeKnownDbDataIfNeeded(dbPath, db);
     markLegacyImportDone(dbPath);
   }
+  importCoreSessionJsonIfNeeded(dbPath, db);
 } catch (error) {
   console.error('Failed to merge known legacy DB data:', error);
 }
