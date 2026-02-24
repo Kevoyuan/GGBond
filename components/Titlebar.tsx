@@ -52,35 +52,55 @@ export const Titlebar = React.memo(function Titlebar({
         )}>
             {/* Titlebar Left - Fixed at Panel Width */}
             <div
+                data-tauri-drag-region
                 className={cn(
-                    "relative z-20 flex items-center justify-between px-4 shrink-0 transition-colors duration-200 ease-in-out border-r w-[var(--panel-width)]",
+                    "drag-region relative z-20 flex items-center justify-between px-4 shrink-0 transition-colors duration-200 ease-in-out border-r w-[var(--panel-width)]",
                     // When collapsed: match main content background, hide border
                     isCollapsed
                         ? "bg-[var(--bg-primary)] border-r-transparent"
                         : "bg-[var(--bg-secondary)] border-r-[var(--border-subtle)]"
                 )}
             >
-                {/* Drag Region Background */}
-                <div data-tauri-drag-region className="absolute inset-0 z-0" />
 
                 {/* Left Group: Info */}
                 <div className="flex items-center gap-3 overflow-hidden pl-2 relative z-10 pointer-events-none">
                     {/* Traffic Lights - Custom implementation for Frameless mode */}
                     <div className="flex gap-2 shrink-0 group no-drag pointer-events-auto">
                         <button
-                            onClick={async () => { const { getCurrentWindow } = await import('@tauri-apps/api/window'); getCurrentWindow().close(); }}
+                            onClick={async () => {
+                                try {
+                                    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+                                    getCurrentWindow().close();
+                                } catch (err) {
+                                    window.close();
+                                }
+                            }}
                             className="w-3 h-3 rounded-full bg-[#ff5f57] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
                         >
                             <span className="opacity-0 group-hover:opacity-100 text-[#4c0000] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">×</span>
                         </button>
                         <button
-                            onClick={async () => { const { getCurrentWindow } = await import('@tauri-apps/api/window'); getCurrentWindow().minimize(); }}
+                            onClick={async () => {
+                                try {
+                                    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+                                    getCurrentWindow().minimize();
+                                } catch (err) {
+                                    console.warn('Minimize not available in this environment');
+                                }
+                            }}
                             className="w-3 h-3 rounded-full bg-[#febc2e] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
                         >
                             <span className="opacity-0 group-hover:opacity-100 text-[#995700] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">−</span>
                         </button>
                         <button
-                            onClick={async () => { const { getCurrentWindow } = await import('@tauri-apps/api/window'); getCurrentWindow().toggleMaximize(); }}
+                            onClick={async () => {
+                                try {
+                                    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+                                    getCurrentWindow().toggleMaximize();
+                                } catch (err) {
+                                    console.warn('Maximize not available in this environment');
+                                }
+                            }}
                             className="w-3 h-3 rounded-full bg-[#28c840] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
                         >
                             <span className="opacity-0 group-hover:opacity-100 text-[#006500] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">+</span>
@@ -113,9 +133,7 @@ export const Titlebar = React.memo(function Titlebar({
             </div>
 
             {/* Titlebar Right */}
-            <div className="relative z-10 flex-1 flex items-center justify-between px-4 min-w-0 bg-[var(--bg-primary)]">
-                {/* Drag Region Background */}
-                <div data-tauri-drag-region className="absolute inset-0 z-0" />
+            <div data-tauri-drag-region className="drag-region relative z-10 flex-1 flex items-center justify-between px-4 min-w-0 bg-[var(--bg-primary)]">
 
                 {/* Left Side (Empty for now) */}
                 <div className="flex items-center gap-2 no-drag relative z-10 pointer-events-none">

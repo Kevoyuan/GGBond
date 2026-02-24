@@ -19,8 +19,7 @@ export function Header({
   currentBranch,
 }: HeaderProps) {
   return (
-    <div className="flex flex-col w-full shrink-0 z-20 relative bg-card">
-      <div data-tauri-drag-region className="absolute inset-0 z-0" />
+    <div data-tauri-drag-region className="drag-region flex flex-col w-full shrink-0 z-20 relative bg-card">
       <div className="h-[54px] w-full flex items-center justify-end pr-4 shrink-0 relative z-10 pointer-events-none">
         <div className="flex items-center gap-4 pointer-events-auto">
           <GitBranchTag branch={currentBranch ?? null} />
