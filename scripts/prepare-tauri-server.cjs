@@ -16,6 +16,10 @@ const BLOCKED_ENTRIES = [
   '.env.local',
   '.env.production',
   '.env.development',
+  // Prevent recursive resource nesting from previous packaged outputs.
+  'src-tauri',
+  'dist',
+  'out',
 ];
 
 function ensureDir(dir) {

@@ -54,6 +54,7 @@ out/
 .claude/
 .codex/
 src-tauri/resources/next-standalone/
+src-tauri/resources/node-runtime/
 # Tooling
 gemini-home/
 .gemini/

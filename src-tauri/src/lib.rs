@@ -73,6 +73,24 @@ fn resolve_next_server_entry(app: &tauri::AppHandle) -> Result<PathBuf, String> 
     ))
 }
 
+#[cfg(not(debug_assertions))]
+fn resolve_node_runtime(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let resource_dir = app.path().resource_dir().ok()?;
+    let file_name = if cfg!(target_os = "windows") {
+        "node.exe"
+    } else {
+        "node"
+    };
+    let candidates = [
+        resource_dir.join("node-runtime").join(file_name),
+        resource_dir
+            .join("resources")
+            .join("node-runtime")
+            .join(file_name),
+    ];
+    candidates.into_iter().find(|candidate| candidate.exists())
+}
+
 fn stop_next_server(app: &tauri::AppHandle) {
     let state = app.state::<NextServerState>();
     let mut guard = match state.child.lock() {
@@ -94,7 +112,11 @@ fn start_next_server_if_needed(app: &tauri::AppHandle) -> Result<String, String>
         .ok_or("Invalid Next server entry path")?
         .to_path_buf();
 
-    let mut command = Command::new("node");
+    let node_runtime = resolve_node_runtime(app);
+    let mut command = match node_runtime.as_ref() {
+        Some(runtime) => Command::new(runtime),
+        None => Command::new("node"),
+    };
     command
         .arg(&entry)
         .current_dir(&server_dir)
@@ -107,7 +129,13 @@ fn start_next_server_if_needed(app: &tauri::AppHandle) -> Result<String, String>
 
     let child = command
         .spawn()
-        .map_err(|e| format!("Failed to start bundled Next server: {e}"))?;
+        .map_err(|e| match node_runtime.as_ref() {
+            Some(runtime) => format!(
+                "Failed to start bundled Next server using packaged node runtime ({}): {e}",
+                runtime.display()
+            ),
+            None => format!("Failed to start bundled Next server via system node: {e}"),
+        })?;
 
     {
         let state = app.state::<NextServerState>();

@@ -1,6 +1,6 @@
 {
   "name": "ggbond",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "private": true,
   "author": "Your Name",
   "description": "GGBond - AI-powered coding assistant",
@@ -10,7 +10,7 @@
     "rebuild:node-native": "npm rebuild better-sqlite3",
     "build:web": "npm run rebuild:node-native && next build",
     "build": "npm run build:web",
-    "build:tauri-dist": "npm run build:web && node scripts/prepare-tauri-dist.cjs && node scripts/prepare-tauri-server.cjs",
+    "build:tauri-dist": "npm run build:web && node scripts/prepare-tauri-dist.cjs && node scripts/prepare-tauri-server.cjs && node scripts/prepare-node-runtime.cjs",
     "start": "next start",
     "tauri": "tauri",
     "lint": "eslint",
