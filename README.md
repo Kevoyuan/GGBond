@@ -1,6 +1,7 @@
 <div align="center">
   <img src="./public/icon.png" alt="GGBond Logo" width="128" />
-  <h1>GGBond</h1>
+  <h1>GGBond 🕶️</h1>
+  <p><strong>Your Personal Desktop AI Coding Cockpit, Powered by Gemini & Tauri.</strong></p>
 </div>
 
 <p align="center">
@@ -9,92 +10,96 @@
 
 <p align="center">
   <a href="https://github.com/Kevoyuan/GGBond/releases">
-    <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?color=black&style=flat-square" alt="Latest release" />
+    <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?color=black&style=for-the-badge" alt="Latest release" />
   </a>
   <a href="https://github.com/Kevoyuan/GGBond/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/License-MIT-black.svg?style=flat-square" alt="License" />
+    <img src="https://img.shields.io/badge/License-MIT-black.svg?style=for-the-badge" alt="License" />
   </a>
-  <img src="https://img.shields.io/badge/Desktop-Tauri%202-black.svg?style=flat-square" alt="Desktop" />
-  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-black.svg?style=flat-square" alt="Platform" />
+  <img src="https://img.shields.io/badge/Desktop-Tauri%202-black.svg?style=for-the-badge&logo=tauri&logoColor=white" alt="Desktop" />
+  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-black.svg?style=for-the-badge&logo=apple&logoColor=white" alt="Platform" />
 </p>
 
 <p align="center">
-  <img src="./public/screenshot.png" alt="GGBond screenshot" width="100%" />
+  <img src="./public/screenshot.png" alt="GGBond screenshot" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" width="100%" />
 </p>
 
-GGBond is a desktop AI coding cockpit built on top of Gemini CLI, now powered by a Tauri + Rust runtime.
+GGBond is not just another terminal wrapper—it's a full-fledged **desktop AI coding cockpit** built on top of the Gemini CLI, now supercharged with a Tauri + Rust runtime. Designed for developers who value speed, context, and intelligent workflows.
 
-## Highlights
+---
 
-- Rust-backed terminal streaming (`portable-pty`) for responsive command execution.
-- Visual AI workflow with branch graph + timeline and Plan Mode progress.
-- Workspace-first sessions with local SQLite persistence.
-- Lightweight Tauri packaging with optimized release profile.
+## ✨ Why GGBond?
 
-## Architecture
+*   ⚡️ **Blazing Fast Terminal**: Rust-backed terminal streaming via `portable-pty` for instantaneous, ultra-responsive command execution.
+*   🧠 **Visual AI Workflow**: See your thoughts turn into action with an intuitive branch graph, a rich timeline, and a dedicated **Plan Mode** for tracking progress.
+*   🔒 **Workspace First**: All your sessions are securely maintained with local SQLite persistence. Switch projects without losing AI context.
+*   📦 **Featherweight Core**: Aggressively optimized Tauri packaging ensures a minimal resource footprint while delivering desktop-class power.
 
-- Frontend: Next.js + React UI (desktop webview content).
-- Desktop shell: Tauri 2.
-- Packaged runtime: bundled Next standalone server (for `/api/*` parity with `tauri dev`).
-- Runtime commands: Rust (`src-tauri`) with typed command bridge (`invoke`).
-- Terminal pipeline: PTY stream events (`pty-stream-*`) and command/input/stop controls.
+## 🏗 Architecture
 
-## Tech Stack
+GGBond seamlessly bridges modern web tech with bare-metal performance:
 
-| Area | Stack |
-|---|---|
-| Desktop runtime | Tauri 2 |
-| Frontend | Next.js 15 + React 19 |
-| Language | TypeScript + Rust |
-| Terminal | `xterm` + Rust `portable-pty` |
-| Storage | `better-sqlite3` |
-| UI | Tailwind CSS 4 + Framer Motion |
+*   **Frontend**: Next.js 15 + React 19 (driving the desktop webview UI).
+*   **Desktop Shell & Runtime**: Tauri 2, bundled with a Next standalone server for flawless `/api/*` parity.
+*   **System Bridge**: Rust (`src-tauri`) handles typed commands (`invoke`) and robust background tasks.
+*   **Terminal Pipeline**: Event-driven PTY streams (`pty-stream-*`) manage inputs, outputs, and execution controls effortlessly.
 
-## Install
+## 🛠 Tech Stack
 
-Download from [Releases](https://github.com/Kevoyuan/GGBond/releases):
+| Domain | Technologies |
+| :--- | :--- |
+| **Core Shell** | ![Tauri](https://img.shields.io/badge/Tauri2-24C8DB?style=flat-square&logo=tauri&logoColor=white) ![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white) |
+| **Frontend** | ![Next.js](https://img.shields.io/badge/Next.js%2015-black?style=flat-square&logo=next.js&logoColor=white) ![React](https://img.shields.io/badge/React%2019-20232A?style=flat-square&logo=react&logoColor=61DAFB) |
+| **UI & Styling** | ![TailwindCSS](https://img.shields.io/badge/Tailwind_4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white) ![Framer](https://img.shields.io/badge/Framer_Motion-black?style=flat-square&logo=framer&logoColor=white) |
+| **Terminal** | `xterm.js` + `portable-pty` |
+| **Database** | `better-sqlite3` |
 
-- macOS (Apple Silicon): `ggbond_<version>_aarch64.dmg`
-- Windows installer: `ggbond_<version>_x64-setup.exe` (or NSIS/MSI depending on target)
+## 🚀 Quick Download
 
-Official release artifacts are code-signed. macOS release builds are notarized in CI when Apple credentials are configured, so end users should not need to run manual `xattr` commands.
+Grab the latest version from our [Releases page](https://github.com/Kevoyuan/GGBond/releases):
 
-## Development
+*   🍏 **macOS (Apple Silicon)**: `ggbond_<version>_aarch64.dmg`
+*   🪟 **Windows**: `ggbond_<version>_x64-setup.exe`
+
+> **Note**: Official release artifacts are code-signed. macOS release builds are notarized in CI, so you can launch GGBond right out of the box without running any manual `xattr` tricks!
+
+## 💻 Developer Setup
+
+Excited to tinker with GGBond? Here's how to get your environment ready:
 
 ```bash
 git clone https://github.com/Kevoyuan/GGBond.git
 cd GGBond
 npm install
 
-# Web dev for UI
+# Start the Web UI development server
 npm run dev
 
-# Tauri dev (desktop)
+# Start the Tauri desktop development app
 npm run tauri dev
 ```
 
-## Build
+## 📦 Building for Production
 
 ```bash
-# Build frontend and prepare dist for Tauri
+# 1. Build the frontend and prepare it for Tauri consumption
 npm run build:tauri-dist
 
-# Build desktop package for current host
+# 2. Package the desktop app for your current host OS
 npm run tauri build
 ```
 
-## Project Structure
+## 📂 Project Structure
 
 ```text
 GGBond/
-├── app/                 # Next.js pages and API routes
-├── components/          # UI components
-├── lib/                 # Frontend/runtime services
-├── scripts/             # Build and utility scripts
-├── src-tauri/           # Rust runtime and Tauri config
-└── docs/                # Operational and release docs
+├── app/                 # Next.js pages & API routes
+├── components/          # Reusable React components
+├── lib/                 # Frontend state & runtime services
+├── scripts/             # Build automation & utility scripts
+├── src-tauri/           # Rust native codebase & Tauri config
+└── docs/                # Operational guidelines & release docs
 ```
 
-## License
+## 📄 License
 
-MIT
+This project is licensed under the [MIT License](./LICENSE). Build great things!

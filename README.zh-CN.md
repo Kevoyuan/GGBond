@@ -1,6 +1,7 @@
 <div align="center">
   <img src="./public/icon.png" alt="GGBond Logo" width="128" />
-  <h1>GGBond</h1>
+  <h1>GGBond 🕶️</h1>
+  <p><strong>你的专属桌面 AI 编程座舱。由 Gemini 与 Tauri 强力驱动。</strong></p>
 </div>
 
 <p align="center">
@@ -9,92 +10,97 @@
 
 <p align="center">
   <a href="https://github.com/Kevoyuan/GGBond/releases">
-    <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?color=black&style=flat-square" alt="最新版本" />
+    <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?color=black&style=for-the-badge" alt="最新版本" />
   </a>
   <a href="https://github.com/Kevoyuan/GGBond/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/License-MIT-black.svg?style=flat-square" alt="许可证" />
+    <img src="https://img.shields.io/badge/License-MIT-black.svg?style=for-the-badge" alt="许可证" />
   </a>
-  <img src="https://img.shields.io/badge/Desktop-Tauri%202-black.svg?style=flat-square" alt="桌面运行时" />
-  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-black.svg?style=flat-square" alt="平台" />
+  <img src="https://img.shields.io/badge/Desktop-Tauri%202-black.svg?style=for-the-badge&logo=tauri&logoColor=white" alt="桌面运行时" />
+  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-black.svg?style=for-the-badge&logo=apple&logoColor=white" alt="平台" />
 </p>
 
 <p align="center">
-  <img src="./public/screenshot.png" alt="GGBond 截图" width="100%" />
+  <img src="./public/screenshot.png" alt="GGBond 截图" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" width="100%" />
 </p>
 
-GGBond 是一个基于 Gemini CLI 的桌面 AI 编程工作台，当前已迁移到 Tauri + Rust 运行时。
+GGBond 不仅仅是一个终端套壳——它是一个基于 Gemini CLI 构建的**全功能桌面 AI 编程工作台**，当前已全面升级至 Tauri + Rust 运行时。专为注重速度、上下文管理和智能工作流的开发者打造。
 
-## 关键能力
+---
 
-- Rust PTY 流式终端（`portable-pty`），命令执行更稳定。
-- AI 工作流可视化：分支图谱 + 时间线 + Plan Mode 进度。
-- 工作区优先的会话管理，配合本地 SQLite 持久化。
-- Tauri 体积优化发布，桌面包更轻量。
+## ✨ 核心特性
 
-## 架构说明
+*   ⚡️ **极致终端体验**：基于 Rust PTY（`portable-pty`）的流式终端，响应迅速，命令执行稳定无缝。
+*   🧠 **可视化 AI 工作流**：引入分支图谱、时间线记录以及专注任务的 **Plan Mode** 进度面板，让 AI 思考过程一目了然。
+*   🔒 **工作区优先级**：配合本地 SQLite 数据库进行持久化存储。无缝切换项目，不再丢失 AI 会话上下文。
+*   📦 **轻量级内核**：得益于 Tauri 的卓越优化，安装包极小，占用资源极低，却能提供最硬核的桌面级性能。
 
-- 前端：Next.js + React，作为桌面 WebView UI。
-- 桌面壳：Tauri 2。
-- 安装版运行时：内置 Next standalone server（保证 `/api/*` 与 `tauri dev` 行为一致）。
-- 后端命令：Rust（`src-tauri`）通过 `invoke` 暴露。
-- 终端链路：`pty-stream-*` 事件流，支持运行/输入/停止。
+## 🏗 架构设计
 
-## 技术栈
+GGBond 完美融合了现代 Web 技术与底层原生性能：
 
-| 模块 | 技术 |
-|---|---|
-| 桌面运行时 | Tauri 2 |
-| 前端 | Next.js 15 + React 19 |
-| 语言 | TypeScript + Rust |
-| 终端 | `xterm` + Rust `portable-pty` |
-| 存储 | `better-sqlite3` |
-| UI | Tailwind CSS 4 + Framer Motion |
+*   **前端视图**：Next.js 15 + React 19，作为桌面 WebView 的强劲驱动力。
+*   **桌面外壳**：Tauri 2，为桌面端量身定制。
+*   **独立服务器**：安装版内置 Next standalone server，确保 `/api/*` 环境与本地开发（`tauri dev`）行为完全一致。
+*   **原生通信**：基于 Rust (`src-tauri`) 的安全命令桥（`invoke`）处理底层调用。
+*   **终端链路**：`pty-stream-*` 事件流模型，高效支持终端的运行、输入拦截与中断控制。
 
-## 安装
+## 🛠 技术栈概览
 
-从 [Releases](https://github.com/Kevoyuan/GGBond/releases) 下载：
+| 模块 | 使用技术 |
+| :--- | :--- |
+| **桌面核心** | ![Tauri](https://img.shields.io/badge/Tauri2-24C8DB?style=flat-square&logo=tauri&logoColor=white) ![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white) |
+| **前端应用** | ![Next.js](https://img.shields.io/badge/Next.js%2015-black?style=flat-square&logo=next.js&logoColor=white) ![React](https://img.shields.io/badge/React%2019-20232A?style=flat-square&logo=react&logoColor=61DAFB) |
+| **界面样式** | ![TailwindCSS](https://img.shields.io/badge/Tailwind_4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white) ![Framer](https://img.shields.io/badge/Framer_Motion-black?style=flat-square&logo=framer&logoColor=white) |
+| **终端引擎** | `xterm.js` + `portable-pty` |
+| **数据持久化**| `better-sqlite3` |
 
-- macOS（Apple Silicon）：`ggbond_<version>_aarch64.dmg`
-- Windows 安装包：`ggbond_<version>_x64-setup.exe`（具体格式可能为 NSIS/MSI）
+## 🚀 快速开始
 
-官方发布包会进行代码签名；当 CI 已配置 Apple 凭据时，macOS 包会自动完成公证，终端用户不应再需要手动执行 `xattr`。
+前往 [Releases 页面](https://github.com/Kevoyuan/GGBond/releases) 下载最新版本：
 
-## 开发
+*   🍏 **macOS (Apple Silicon)**：`ggbond_<version>_aarch64.dmg`
+*   🪟 **Windows**：`ggbond_<version>_x64-setup.exe`
+
+> **提示**：官方发布包均已进行代码签名。macOS 包在 CI 中会自动完成 Apple 公证，终端用户下载后即可直接运行，无需再手动执行繁杂的 `xattr` 解除隔离命令。
+
+## 💻 本地开发
+
+想亲自动手改造 GGBond？请按照以下步骤搭建环境：
 
 ```bash
 git clone https://github.com/Kevoyuan/GGBond.git
 cd GGBond
 npm install
 
-# Web UI 开发
+# 启动 Web UI 开发环境
 npm run dev
 
-# Tauri 桌面开发
+# 启动 Tauri 桌面应用开发环境
 npm run tauri dev
 ```
 
-## 构建
+## 📦 打包构建
 
 ```bash
-# 构建前端并准备 Tauri 分发目录
+# 1. 编译前端并输出 Tauri 可读取的分发目录
 npm run build:tauri-dist
 
-# 构建当前系统对应桌面安装包
+# 2. 为当前操作系统构建桌面安装包
 npm run tauri build
 ```
 
-## 项目结构
+## 📂 项目结构
 
 ```text
 GGBond/
-├── app/                 # Next.js 页面与 API 路由
-├── components/          # UI 组件
-├── lib/                 # 前端/运行时服务
-├── scripts/             # 构建与工具脚本
-├── src-tauri/           # Rust 运行时与 Tauri 配置
-└── docs/                # 维护与发布文档
+├── app/                 # Next.js 页面与接口路由
+├── components/          # React 复用 UI 组件
+├── lib/                 # 前端状态与运行时服务层
+├── scripts/             # 构建流程与工程化脚本
+├── src-tauri/           # Rust 原生代码与 Tauri 配置
+└── docs/                # 操作手册与发布文档
 ```
 
-## 许可证
+## 📄 许可证
 
-MIT
+本项目基于 [MIT 许可证](./LICENSE) 开源。享受更优雅的 AI 编程体验吧！
