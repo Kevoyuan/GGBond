@@ -76,13 +76,20 @@ jobs:
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
       - name: Prepare App Store Connect API key
-        if: matrix.platform == 'macos-14' && secrets.APPLE_API_KEY_BASE64 != ''
+        if: matrix.platform == 'macos-14'
         shell: bash
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
         run: |
           set -euo pipefail
+          if [ -z "${APPLE_API_KEY_BASE64}" ] || [ -z "${APPLE_API_KEY_ID}" ]; then
+            echo "No App Store Connect API key configured; using Apple ID fallback if provided."
+            exit 0
+          fi
           mkdir -p "$HOME/.private_keys"
-          KEY_PATH="$HOME/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
-          echo "${{ secrets.APPLE_API_KEY_BASE64 }}" | base64 --decode > "$KEY_PATH"
+          KEY_PATH="$HOME/.private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
+          echo "${APPLE_API_KEY_BASE64}" | base64 --decode > "$KEY_PATH"
           chmod 600 "$KEY_PATH"
           echo "APPLE_API_KEY=$KEY_PATH" >> "$GITHUB_ENV"
 
