@@ -1,32 +1,38 @@
-## GGBond v0.2.7
+## GGBond v0.2.17
 
 ## Highlights
 
-- Added a **one-time legacy session import marker** to stop repeated migration scans and improve startup stability.
-- Added **bundled Next standalone server startup in Tauri release app** so packaged builds can serve `/api/*` endpoints.
-- Added **Tauri release workflow hardening** for macOS + Windows packaging with strict signing/notarization checks.
-- Updated release docs to a **Tauri-native macOS signing/notarization guide**.
-- Updated macOS bundle signing config to avoid broken ad-hoc signatures in local unsigned builds.
+- Fixed packaged app data mismatch by unifying runtime storage with **`~/.gemini`**.
+- Added storage diagnostics in app settings to show active DB/runtime paths.
+- Restored titlebar drag behavior and improved frameless interaction handling.
 
-## Session Migration
+## Storage & Runtime
 
-- Legacy session DB merge now runs once and writes a marker file to avoid repeated imports.
-- Existing non-empty DB is treated as source-of-truth and migration is skipped safely.
-- Improves reliability for users who could not find historical sessions after upgrades.
+- Unified runtime home and DB resolution to `~/.gemini` for packaged and dev parity.
+- Added storage debug API and UI panel:
+  - `DB Path`
+  - `Runtime Home`
+  - `GEMINI_CLI_HOME`
+  - session totals (active/archived)
+- Improved packaged startup flow:
+  - prefer bundled Node runtime
+  - fallback to system Node when needed
 
-## Fixes
+## Dependency & Build Updates
 
-- `lib/db.ts`: one-time legacy migration marker + safer legacy import gate.
-- `src-tauri/src/lib.rs`: start bundled Next server in release mode and redirect app window to local server URL.
-- `scripts/prepare-tauri-server.cjs`: package Next standalone runtime into Tauri resources.
-- `src-tauri/tauri.conf.json`: include standalone server resources; set local ad-hoc signing fallback.
-- `.github/workflows/release-tauri.yml`: enforce required macOS signing/notarization secrets.
-- `docs/macos-release.md`: replaced old Electron flow with Tauri signing/notarization steps.
-- `README.md` / `README.zh-CN.md`: clarified signed release expectations for macOS users.
+- `package.json`: bumped `@google/gemini-cli-core` to `^0.30.0`.
+- `src-tauri/Cargo.toml` / `src-tauri/Cargo.lock`: version `0.2.17`, crate type `rlib`.
+- Improved Tauri packaging/runtime scripts and config for desktop distribution.
+
+## UI & Window Behavior
+
+- Restored drag initiation on titlebar root mouse-down.
+- Added no-drag filtering for interactive elements (`button`, `input`, `select`, links, `.no-drag`).
+- Reduced drag/interaction conflicts for branch selector, stats hover panel, and titlebar actions.
 
 ## Downloads
 
-- macOS (Apple Silicon): `ggbond_0.2.7_aarch64.dmg`
-- Windows (Intel/x64): `ggbond_0.2.7_x64-setup.exe`
+- macOS (Apple Silicon): `ggbond_0.2.17_aarch64.dmg`
+- Windows (Intel/x64): `ggbond_0.2.17_x64-setup.exe`
 
-Full Changelog: [`v0.2.6...v0.2.7`](https://github.com/Kevoyuan/GGBond/compare/v0.2.6...v0.2.7)
+Full Changelog: [`v0.2.16...v0.2.17`](https://github.com/Kevoyuan/GGBond/compare/v0.2.16...v0.2.17)

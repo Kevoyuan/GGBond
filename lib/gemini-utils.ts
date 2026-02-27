@@ -2,7 +2,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { resolveRuntimeHome } from '@/lib/runtime-home';
+import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 const GEMINI_ORIGINAL_HOME = path.join(os.homedir(), '.gemini');
 
@@ -22,7 +22,7 @@ const CREDENTIAL_FILES = [
  * Also links (or copies) user skills so runtime and UI see the same skills set.
  */
 function ensureGeminiHome(targetHome: string): void {
-  const targetConfigDir = path.join(targetHome, '.gemini');
+  const targetConfigDir = resolveGeminiConfigDir(targetHome);
   const sourceSkillsDir = path.join(GEMINI_ORIGINAL_HOME, 'skills');
   const targetSkillsDir = path.join(targetConfigDir, 'skills');
 

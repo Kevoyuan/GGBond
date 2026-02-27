@@ -4,6 +4,7 @@ import path from 'node:path';
 import { CoreService } from '@/lib/core-service';
 import { getGeminiEnv } from '@/lib/gemini-utils';
 import { getMcpSecurityConfig } from '@/lib/config-service';
+import { resolveGeminiConfigDir } from '@/lib/runtime-home';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -22,7 +23,7 @@ const resolveSettingsPath = async () => {
   }
 
   const candidates = [
-    configuredHome ? path.join(configuredHome, '.gemini', 'settings.json') : '',
+    configuredHome ? path.join(resolveGeminiConfigDir(configuredHome), 'settings.json') : '',
     configuredHome ? path.join(configuredHome, 'settings.json') : '',
     path.join(process.env.HOME || '', '.gemini', 'settings.json'),
   ].filter(Boolean);

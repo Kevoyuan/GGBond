@@ -38,7 +38,7 @@ import type {
     PolicySettings,
 } from '@google/gemini-cli-core';
 import type { GeminiChat } from '@google/gemini-cli-core';
-import { resolveRuntimeHome } from '@/lib/runtime-home';
+import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 const MAX_TURNS = 100;
 
@@ -277,7 +277,7 @@ When you are in planning phase:
         console.log(`[CoreService] Using GEMINI_CLI_HOME=${runtimeHome}`);
 
         const settingsCandidates = [
-            process.env.GEMINI_CLI_HOME ? path.join(process.env.GEMINI_CLI_HOME, '.gemini', 'settings.json') : null,
+            process.env.GEMINI_CLI_HOME ? path.join(resolveGeminiConfigDir(process.env.GEMINI_CLI_HOME), 'settings.json') : null,
             Storage.getGlobalSettingsPath()
         ].filter(Boolean) as string[];
 

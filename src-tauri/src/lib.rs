@@ -91,6 +91,36 @@ fn resolve_node_runtime(app: &tauri::AppHandle) -> Option<PathBuf> {
     candidates.into_iter().find(|candidate| candidate.exists())
 }
 
+#[cfg(not(debug_assertions))]
+fn spawn_next_server(
+    entry: &PathBuf,
+    server_dir: &PathBuf,
+    port: u16,
+    runtime: Option<&PathBuf>,
+) -> Result<Child, String> {
+    let mut command = match runtime {
+        Some(path) => Command::new(path),
+        None => Command::new("node"),
+    };
+    command
+        .arg(entry)
+        .current_dir(server_dir)
+        .env("NODE_ENV", "production")
+        .env("HOSTNAME", NEXT_HOST)
+        .env("PORT", port.to_string())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit());
+
+    command.spawn().map_err(|e| match runtime {
+        Some(path) => format!(
+            "Failed to start bundled Next server using packaged node runtime ({}): {e}",
+            path.display()
+        ),
+        None => format!("Failed to start bundled Next server via system node: {e}"),
+    })
+}
+
 fn stop_next_server(app: &tauri::AppHandle) {
     let state = app.state::<NextServerState>();
     let mut guard = match state.child.lock() {
@@ -112,46 +142,48 @@ fn start_next_server_if_needed(app: &tauri::AppHandle) -> Result<String, String>
         .ok_or("Invalid Next server entry path")?
         .to_path_buf();
 
-    let node_runtime = resolve_node_runtime(app);
-    let mut command = match node_runtime.as_ref() {
-        Some(runtime) => Command::new(runtime),
-        None => Command::new("node"),
-    };
-    command
-        .arg(&entry)
-        .current_dir(&server_dir)
-        .env("NODE_ENV", "production")
-        .env("HOSTNAME", NEXT_HOST)
-        .env("PORT", port.to_string())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit());
-
-    let child = command
-        .spawn()
-        .map_err(|e| match node_runtime.as_ref() {
-            Some(runtime) => format!(
-                "Failed to start bundled Next server using packaged node runtime ({}): {e}",
-                runtime.display()
-            ),
-            None => format!("Failed to start bundled Next server via system node: {e}"),
-        })?;
-
-    {
-        let state = app.state::<NextServerState>();
-        let mut guard = state
-            .child
-            .lock()
-            .map_err(|_| "Failed to lock Next server state".to_string())?;
-        *guard = Some(child);
+    let bundled_runtime = resolve_node_runtime(app);
+    let mut attempts: Vec<Option<PathBuf>> = Vec::new();
+    if let Some(path) = bundled_runtime {
+        attempts.push(Some(path));
     }
+    attempts.push(None);
 
-    if !wait_for_port(port, NEXT_READY_TIMEOUT) {
+    let mut last_error: Option<String> = None;
+
+    for runtime in attempts {
+        let child = spawn_next_server(&entry, &server_dir, port, runtime.as_ref());
+        let child = match child {
+            Ok(child) => child,
+            Err(err) => {
+                last_error = Some(err);
+                continue;
+            }
+        };
+
+        {
+            let state = app.state::<NextServerState>();
+            let mut guard = state
+                .child
+                .lock()
+                .map_err(|_| "Failed to lock Next server state".to_string())?;
+            *guard = Some(child);
+        }
+
+        if wait_for_port(port, NEXT_READY_TIMEOUT) {
+            return Ok(format!("http://{NEXT_HOST}:{port}"));
+        }
+
         stop_next_server(app);
-        return Err("Bundled Next server did not become ready in time".to_string());
+        if runtime.is_some() {
+            eprintln!(
+                "Bundled node runtime failed to start Next server in time, falling back to system node..."
+            );
+        }
+        last_error = Some("Bundled Next server did not become ready in time".to_string());
     }
 
-    Ok(format!("http://{NEXT_HOST}:{port}"))
+    Err(last_error.unwrap_or_else(|| "Bundled Next server failed to start".to_string()))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

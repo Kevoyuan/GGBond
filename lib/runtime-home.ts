@@ -16,21 +16,13 @@ type RuntimeHomeCache = typeof globalThis & {
 const normalizeHome = (raw: string) => {
   const trimmed = raw.trim();
   if (!trimmed) return '';
-  const resolved = path.resolve(trimmed);
-  // Accept either "<root>" or "<root>/.gemini" and normalize to "<root>".
-  return path.basename(resolved) === '.gemini' ? path.dirname(resolved) : resolved;
+  return path.resolve(trimmed);
 };
 
 const getPlatformDefaultHome = () => {
   const home = os.homedir();
-  if (process.platform === 'darwin') {
-    return path.join(home, 'Library', 'Application Support', 'ggbond', 'gemini-home');
-  }
-  if (process.platform === 'win32') {
-    const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
-    return path.join(appData, 'ggbond', 'gemini-home');
-  }
-  return path.join(home, '.local', 'share', 'ggbond', 'gemini-home');
+  // Default to the native Gemini home for shared config/session visibility.
+  return path.join(home, '.gemini');
 };
 
 const selectRuntimeHome = (): { home: string; source: RuntimeHomeSource } => {
@@ -64,6 +56,13 @@ export const resolveRuntimeHome = () => {
   globalCache.__ggbondRuntimeHome = home;
   globalCache.__ggbondRuntimeHomeSource = source;
   return home;
+};
+
+export const resolveGeminiConfigDir = (homeOverride?: string) => {
+  const baseHome = homeOverride || resolveRuntimeHome();
+  return path.basename(baseHome) === '.gemini'
+    ? baseHome
+    : path.join(baseHome, '.gemini');
 };
 
 export const getRuntimeHomeSource = () => {

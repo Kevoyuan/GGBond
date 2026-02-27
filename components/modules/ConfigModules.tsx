@@ -233,12 +233,18 @@ export const ShortcutsPanel = memo(function ShortcutsPanel() {
 // ─── Module 15: System Info ──────────────────────────────
 export const SystemInfo = memo(function SystemInfo() {
   const [settings, setSettings] = useState<any>(null);
+  const [storageDebug, setStorageDebug] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/settings')
-      .then(r => r.json())
-      .then(setSettings)
+    Promise.all([
+      fetch('/api/settings').then((r) => r.json()),
+      fetch('/api/debug/storage').then((r) => r.json()),
+    ])
+      .then(([settingsData, storageData]) => {
+        setSettings(settingsData);
+        setStorageDebug(storageData);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -275,6 +281,48 @@ export const SystemInfo = memo(function SystemInfo() {
             </span>
           </div>
         ))}
+
+        <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800 space-y-2">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 px-1">
+            Storage Debug
+          </div>
+
+          <div className="p-2 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+            <div className="text-[10px] text-zinc-500 mb-1">DB Path</div>
+            <div className="text-[11px] font-mono break-all text-zinc-800 dark:text-zinc-200">
+              {storageDebug?.db?.dbPath || 'N/A'}
+            </div>
+          </div>
+
+          <div className="p-2 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+            <div className="text-[10px] text-zinc-500 mb-1">Runtime Home</div>
+            <div className="text-[11px] font-mono break-all text-zinc-800 dark:text-zinc-200">
+              {storageDebug?.runtimeHome || 'N/A'}
+            </div>
+          </div>
+
+          <div className="p-2 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+            <div className="text-[10px] text-zinc-500 mb-1">GEMINI_CLI_HOME</div>
+            <div className="text-[11px] font-mono break-all text-zinc-800 dark:text-zinc-200">
+              {storageDebug?.env?.GEMINI_CLI_HOME || 'N/A'}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="p-2 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/20 text-center">
+              <div className="text-[10px] text-zinc-500">Total</div>
+              <div className="text-xs font-mono text-zinc-800 dark:text-zinc-200">{storageDebug?.db?.totalSessions ?? '-'}</div>
+            </div>
+            <div className="p-2 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/20 text-center">
+              <div className="text-[10px] text-zinc-500">Active</div>
+              <div className="text-xs font-mono text-zinc-800 dark:text-zinc-200">{storageDebug?.db?.activeSessions ?? '-'}</div>
+            </div>
+            <div className="p-2 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/20 text-center">
+              <div className="text-[10px] text-zinc-500">Archived</div>
+              <div className="text-xs font-mono text-zinc-800 dark:text-zinc-200">{storageDebug?.db?.archivedSessions ?? '-'}</div>
+            </div>
+          </div>
+        </div>
       </div>
     </ModuleCard>
   );

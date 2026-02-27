@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { resolveRuntimeHome } from '@/lib/runtime-home';
+import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 const LEGACY_HOME = path.join(process.cwd(), 'gemini-home');
 const LEGACY_DB_PATH = path.join(LEGACY_HOME, 'ggbond.db');
@@ -427,7 +427,7 @@ function importCoreSessionJsonIfNeeded(targetDbPath: string, targetDb: Database.
 
   const runtimeHome = resolveRuntimeHome();
   const candidates = [
-    path.join(runtimeHome, '.gemini', 'tmp'),
+    path.join(resolveGeminiConfigDir(runtimeHome), 'tmp'),
     path.join(os.homedir(), '.gemini', 'tmp'),
   ];
   const files: string[] = [];
@@ -551,6 +551,24 @@ try {
   console.warn('[DB] Failed to apply pragmas:', error);
 }
 console.log(`[DB] Using database: ${dbPath}`);
+
+export function getDbDebugInfo() {
+  const tableInfo = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
+  const hasArchived = tableInfo.some((col) => col.name === 'archived');
+  const totalSessions = (db.prepare('SELECT COUNT(1) AS c FROM sessions').get() as { c: number } | undefined)?.c ?? 0;
+  const activeSessions = hasArchived
+    ? ((db.prepare('SELECT COUNT(1) AS c FROM sessions WHERE IFNULL(archived, 0) = 0').get() as { c: number } | undefined)?.c ?? 0)
+    : totalSessions;
+  const archivedSessions = hasArchived ? totalSessions - activeSessions : 0;
+
+  return {
+    dbPath,
+    totalSessions,
+    activeSessions,
+    archivedSessions,
+    hasArchivedColumn: hasArchived,
+  };
+}
 
 // Initialize tables
 db.exec(`

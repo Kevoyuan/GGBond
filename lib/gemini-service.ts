@@ -9,12 +9,11 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
 import { execSync, spawn } from 'child_process';
-import { resolveRuntimeHome } from '@/lib/runtime-home';
+import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 // ─── Paths ───────────────────────────────────────────────
 export function getGeminiHome(): string {
-    const rootHome = resolveRuntimeHome();
-    return path.join(rootHome, '.gemini');
+    return resolveGeminiConfigDir(resolveRuntimeHome());
 }
 
 export function getSettingsPath(): string {
@@ -602,7 +601,6 @@ export async function parseTelemetryLog(maxLines = 500): Promise<TelemetryEvent[
     const paths = [
         path.join(process.cwd(), '.gemini', 'telemetry.log'),
         path.join(process.cwd(), 'gemini-home', '.gemini', 'telemetry.log'),
-        path.join(getGeminiHome(), '.gemini', 'telemetry.log'),
         path.join(getGeminiHome(), 'telemetry.log'),
     ];
 
