@@ -18,13 +18,20 @@ export function Header({
   onShowStats,
   currentBranch,
 }: HeaderProps) {
-  return (
-    <div className="flex flex-col w-full shrink-0 z-20 relative bg-[var(--bg-primary)]">
-      {/* Drag Region Background */}
-      <div data-tauri-drag-region className="absolute inset-0 z-0 drag-region" />
+  const startDrag = async (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      await getCurrentWindow().startDragging();
+    } catch {
+      // noop outside Tauri
+    }
+  };
 
-      <div className="h-[54px] w-full flex items-center justify-end pr-4 shrink-0 relative z-10 pointer-events-none">
-        <div className="flex items-center gap-4 pointer-events-auto">
+  return (
+    <div onMouseDown={startDrag} className="flex flex-col w-full shrink-0 z-20 relative bg-[var(--bg-primary)]">
+      <div className="h-[54px] w-full flex items-center justify-end pr-4 shrink-0 relative z-10">
+        <div className="flex items-center gap-4" onMouseDown={(e) => e.stopPropagation()}>
           <GitBranchTag branch={currentBranch ?? null} />
 
           {stats && (
