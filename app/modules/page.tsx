@@ -99,11 +99,10 @@ export default function ModulesPage() {
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.id
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id
                     ? 'border-primary text-primary'
                     : 'border-transparent text-muted-foreground hover:text-foreground hover:border-zinc-300'
-                }`}
+                  }`}
               >
                 {tab.icon}
                 {tab.label}
@@ -117,13 +116,15 @@ export default function ModulesPage() {
           {activeTab === 'analytics' && (
             <section>
               <SectionTitle title="📊 Monitoring & Analytics" description="Token usage, cost tracking, and performance telemetry" />
-              <div className="grid lg:grid-cols-2 gap-4">
-                <AnalyticsDashboard />
-                <PerformancePanel />
-              </div>
-              <div className="grid lg:grid-cols-2 gap-4 mt-4">
-                <ToolStatsPanel />
-                <FileHeatmapPanel />
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="md:col-span-3">
+                  <AnalyticsDashboard />
+                </div>
+                <div className="md:col-span-3 grid lg:grid-cols-3 gap-4">
+                  <PerformancePanel />
+                  <ToolStatsPanel />
+                  <FileHeatmapPanel />
+                </div>
               </div>
             </section>
           )}
