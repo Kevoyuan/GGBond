@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
 import { ModuleCard } from '../ModuleCard';
-import { BarChart, DollarSign, Zap, Loader2, Gauge, Database, AlertTriangle } from 'lucide-react';
+import { BarChart, DollarSign, Zap, Loader2, Gauge, Database } from 'lucide-react';
 import { getModelInfo } from '@/lib/pricing';
 
 interface StatEntry {
@@ -49,17 +49,6 @@ interface TelemetryResponse {
   }>;
   tokensByModel: Record<string, { input: number; output: number; cached: number; thoughts: number }>;
 }
-
-interface QuotaResponse {
-  quota?: {
-    buckets?: Array<{
-      tokenType?: string;
-      modelId?: string;
-      remainingFraction?: number;
-    }>;
-  };
-}
-
 
 function readNumericValue(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -265,7 +254,6 @@ const TokenTimelineChart = memo(function TokenTimelineChart({
 export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryResponse | null>(null);
-  const [quota, setQuota] = useState<QuotaResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
 
@@ -275,12 +263,10 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
     Promise.all([
       fetch('/api/stats').then(r => r.json()),
       fetch('/api/telemetry').then(r => r.json()),
-      fetch('/api/quota').then(r => r.json()),
     ])
-      .then(([statsRes, telemetryRes, quotaRes]) => {
+      .then(([statsRes, telemetryRes]) => {
         setStats(statsRes);
         setTelemetry(telemetryRes);
-        setQuota(quotaRes);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -318,13 +304,6 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
   const cacheHitRate = useMemo(() => current.inputTokens > 0 ? (current.cachedTokens / current.inputTokens) * 100 : 0, [current]);
   const avgCostPerRequest = useMemo(() => current.count > 0 ? current.cost / current.count : 0, [current]);
   const costPer1k = useMemo(() => current.totalTokens > 0 ? (current.cost / current.totalTokens) * 1000 : 0, [current]);
-
-  const quotaBuckets = useMemo(() => quota?.quota?.buckets || [], [quota]);
-  const dailyQuota = useMemo(() => quotaBuckets.find(bucket => /day/i.test(bucket.tokenType || '')), [quotaBuckets]);
-  const rateLimit = useMemo(() => quotaBuckets.find(bucket => /minute|second|rate/i.test(bucket.tokenType || '')), [quotaBuckets]);
-  const dailyQuotaPercent = useMemo(() => dailyQuota?.remainingFraction !== undefined ? dailyQuota.remainingFraction * 100 : null, [dailyQuota]);
-  const rateLimitPercent = useMemo(() => rateLimit?.remainingFraction !== undefined ? rateLimit.remainingFraction * 100 : null, [rateLimit]);
-  const shouldWarnCompression = useMemo(() => cumulativeTokens > pricing.contextWindow * 0.9, [cumulativeTokens, pricing]);
 
   const timelinePeriod = useMemo<'today' | 'week' | 'month'>(() => period === 'daily' ? 'today' : period === 'weekly' ? 'week' : 'month', [period]);
   const timelineModeLabel = useMemo(() => timelinePeriod === 'today' ? 'Hourly View' : 'Daily View', [timelinePeriod]);
@@ -489,26 +468,6 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
 
         {/* Advanced token monitor & Quota */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Context Usage */}
-          <div className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Gauge size={14} className="text-zinc-400" />
-                <h4 className="text-xs font-semibold text-zinc-500">Context Window</h4>
-              </div>
-              <span className="text-[10px] font-mono text-zinc-400">{(pricing.contextWindow / 1000).toFixed(0)}k</span>
-            </div>
-            <div className="relative h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-              <div
-                className={`h-full transition-[width,background-color] duration-500 rounded-full will-change-[width] ${contextUsagePercent > 85 ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]' : contextUsagePercent > 65 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                style={{ width: `${Math.max(contextUsagePercent, 1)}%` }}
-              />
-            </div>
-            <div className="text-[11px] text-zinc-500 text-right font-medium">
-              {contextUsagePercent.toFixed(1)}% used
-            </div>
-          </div>
-
           {/* Cache Efficiency */}
           <div className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -521,24 +480,6 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
             </div>
             <div className="text-[10px] text-zinc-400 truncate">
               {formatCompactTokens(current.cachedTokens)} cached tokens
-            </div>
-          </div>
-
-          {/* Quota */}
-          <div className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-              <h4 className="text-xs font-semibold text-zinc-500">Live Quota</h4>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              <div className="p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded border border-zinc-100 dark:border-zinc-800">
-                <div className="text-zinc-400 text-[9px] uppercase font-bold tracking-wider mb-0.5">Daily</div>
-                <div className="font-mono font-medium text-zinc-700 dark:text-zinc-300">{dailyQuotaPercent === null ? 'N/A' : `${dailyQuotaPercent.toFixed(0)}%`}</div>
-              </div>
-              <div className="p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded border border-zinc-100 dark:border-zinc-800">
-                <div className="text-zinc-400 text-[9px] uppercase font-bold tracking-wider mb-0.5">Rate</div>
-                <div className="font-mono font-medium text-zinc-700 dark:text-zinc-300">{rateLimitPercent === null ? 'N/A' : `${rateLimitPercent.toFixed(0)}%`}</div>
-              </div>
             </div>
           </div>
 
@@ -559,15 +500,6 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
             </div>
           </div>
         </div>
-
-        {shouldWarnCompression && (
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400 animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex items-center gap-2 font-medium">
-              <AlertTriangle size={14} />
-              <span>High Context Usage ({contextUsagePercent.toFixed(0)}%). Consider using <span className="font-mono bg-amber-500/20 px-1 rounded">/compress</span> or resetting.</span>
-            </div>
-          </div>
-        )}
 
       </div>
     </ModuleCard>
