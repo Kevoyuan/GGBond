@@ -5,24 +5,24 @@ import { Select } from '@/components/ui/Select';
 
 // Types for config
 interface GeminiIgnoreConfig {
-    patterns: string[];
-    enabled: boolean;
+  patterns: string[];
+  enabled: boolean;
 }
 
 interface TrustedFolder {
-    id: string;
-    path: string;
-    description?: string;
-    addedAt: number;
+  id: string;
+  path: string;
+  description?: string;
+  addedAt: number;
 }
 
 interface CustomCommand {
-    id: string;
-    name: string;
-    description: string;
-    command: string;
-    enabled: boolean;
-    createdAt: number;
+  id: string;
+  name: string;
+  description: string;
+  command: string;
+  enabled: boolean;
+  createdAt: number;
 }
 
 interface McpSecurityConfig {
@@ -78,6 +78,7 @@ export interface ChatSettings {
     compressionThreshold: number;
     maxSessionTurns: number;
     tokenBudget: number;
+    maxRetries: number;
   };
 }
 
@@ -89,6 +90,7 @@ interface SettingsDialogProps {
 }
 
 const FALLBACK_MODELS = [
+  { id: 'gemini-3.1-pro-preview', name: 'gemini-3.1-pro-preview', icon: Code2 },
   { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', icon: Code2 },
   { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', icon: Zap },
   { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro', icon: Code2 },
@@ -99,7 +101,7 @@ const FALLBACK_MODELS = [
 export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDialogProps) {
   const [localSettings, setLocalSettings] = useState<ChatSettings>(settings);
   const [models, setModels] = useState<typeof FALLBACK_MODELS>(FALLBACK_MODELS);
-  const [defaultModel, setDefaultModel] = useState('gemini-3-pro-preview');
+  const [defaultModel, setDefaultModel] = useState('gemini-3.1-pro-preview');
   const [presets, setPresets] = useState<ModelPreset[]>([]);
   const [customTools, setCustomTools] = useState<CustomTool[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<string>('balanced');
@@ -164,7 +166,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
       if (configData.mcpSecurity) {
         setMcpSecurity(configData.mcpSecurity);
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, [open]);
 
   useEffect(() => {
@@ -185,6 +187,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
         compressionThreshold: settings.modelSettings?.compressionThreshold ?? 0.5,
         maxSessionTurns: settings.modelSettings?.maxSessionTurns ?? -1,
         tokenBudget: settings.modelSettings?.tokenBudget ?? 2000,
+        maxRetries: settings.modelSettings?.maxRetries ?? 3,
       }
     });
   }, [settings, open]);
@@ -214,23 +217,24 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
 
   const handleReset = () => {
     setLocalSettings({
-        model: defaultModel,
-        systemInstruction: '',
-        toolPermissionStrategy: 'safe',
-        ui: {
-          lowLatencyMode: true,
-          advancedMode: false,
-          footer: {
-            hideModelInfo: false,
-            hideContextPercentage: false,
-          },
-          showMemoryUsage: true,
+      model: defaultModel,
+      systemInstruction: '',
+      toolPermissionStrategy: 'safe',
+      ui: {
+        lowLatencyMode: true,
+        advancedMode: false,
+        footer: {
+          hideModelInfo: false,
+          hideContextPercentage: false,
         },
-        modelSettings: {
-          compressionThreshold: 0.5,
-          maxSessionTurns: -1,
-          tokenBudget: 2000,
-        }
+        showMemoryUsage: true,
+      },
+      modelSettings: {
+        compressionThreshold: 0.5,
+        maxSessionTurns: -1,
+        tokenBudget: 2000,
+        maxRetries: 3,
+      }
     });
   };
 
@@ -239,14 +243,14 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-background border rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh]">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b bg-muted/30">
           <div className="flex items-center gap-2 font-medium text-lg">
             <Settings className="w-5 h-5 text-primary" />
             Settings
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-1 hover:bg-muted rounded-full transition-colors"
           >
@@ -256,7 +260,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
 
         {/* Content */}
         <div className="p-6 space-y-6 overflow-y-auto">
-          
+
           {/* Preset Selection */}
           <Select
             label="Model Preset"
@@ -292,7 +296,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
           {/* System Instruction */}
           <div className="space-y-2">
             <label className="text-sm font-medium leading-none">System Instruction</label>
-            <textarea 
+            <textarea
               value={localSettings.systemInstruction}
               onChange={(e) => setLocalSettings(s => ({ ...s, systemInstruction: e.target.value }))}
               placeholder="e.g. You are a helpful coding assistant..."
@@ -344,10 +348,10 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
                 className="h-4 w-4 rounded border-gray-300"
               />
             </div>
-            
+
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">Hide Model Info (Footer)</label>
-              <input 
+              <input
                 type="checkbox"
                 checked={localSettings.ui.footer.hideModelInfo}
                 onChange={(e) => setLocalSettings(s => ({
@@ -360,7 +364,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
 
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">Hide Context Percentage</label>
-              <input 
+              <input
                 type="checkbox"
                 checked={localSettings.ui.footer.hideContextPercentage}
                 onChange={(e) => setLocalSettings(s => ({
@@ -373,12 +377,13 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
 
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">Show Memory Usage</label>
-              <input 
+              <input
                 type="checkbox"
                 checked={localSettings.ui.showMemoryUsage}
                 onChange={(e) => setLocalSettings(s => ({
                   ...s,
-                  ui: { ...s.ui, showMemoryUsage: e.target.checked } }
+                  ui: { ...s.ui, showMemoryUsage: e.target.checked }
+                }
                 ))}
                 className="h-4 w-4 rounded border-gray-300"
               />
@@ -426,6 +431,19 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
                 onChange={(e) => setLocalSettings(s => ({
                   ...s,
                   modelSettings: { ...s.modelSettings, tokenBudget: parseInt(e.target.value) }
+                }))}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Max Retries</label>
+              <input
+                type="number"
+                value={localSettings.modelSettings.maxRetries}
+                onChange={(e) => setLocalSettings(s => ({
+                  ...s,
+                  modelSettings: { ...s.modelSettings, maxRetries: parseInt(e.target.value) }
                 }))}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />

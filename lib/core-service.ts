@@ -75,6 +75,7 @@ export interface RuntimeModelSettings {
     compressionThreshold?: number;
     maxSessionTurns?: number;
     tokenBudget?: number;
+    maxRetries?: number;
 }
 
 type PendingConfirmationRequest = {
@@ -240,7 +241,7 @@ When you are in planning phase:
             this.applyRuntimeModelSettings(normalizedModelSettings);
             console.log('[CoreService] Approval mode (existing session):', this.config.getApprovalMode());
             if (this.messageBus && this.policyUpdaterMessageBus !== this.messageBus) {
-                createPolicyUpdater(this.config.getPolicyEngine(), this.messageBus);
+                createPolicyUpdater(this.config.getPolicyEngine(), this.messageBus, this.config.storage);
                 this.policyUpdaterMessageBus = this.messageBus;
             }
             if (this.messageBus && this.systemListenerMessageBus !== this.messageBus) {
@@ -254,7 +255,7 @@ When you are in planning phase:
                 await this.registerCustomTools();
                 await geminiClient.setTools();
                 this.chat = geminiClient.getChat();
-                
+
                 const fullSystemInstruction = (params.systemInstruction || '') + CoreService.NATIVE_PLAN_MODE_INSTRUCTION;
                 geminiClient.getChat().setSystemInstruction(fullSystemInstruction);
             } catch (error) {
@@ -275,6 +276,12 @@ When you are in planning phase:
         if (process.env.GGBOND_DATA_HOME !== runtimeHome) {
             process.env.GGBOND_DATA_HOME = runtimeHome;
         }
+
+        // v0.31.0 IDE Process Detection
+        if (!process.env.GEMINI_CLI_IDE_PID) {
+            process.env.GEMINI_CLI_IDE_PID = process.pid.toString();
+        }
+
         console.log(`[CoreService] Using GEMINI_CLI_HOME=${geminiCliHome}`);
 
         const settingsCandidates = [
@@ -402,7 +409,7 @@ When you are in planning phase:
         const geminiClient = this.config.getGeminiClient();
         this.ensureWriteTodosToolEnabled();
         await this.registerCustomTools();
-        
+
         const fullSystemInstruction = (params.systemInstruction || '') + CoreService.NATIVE_PLAN_MODE_INSTRUCTION;
 
         await geminiClient.setTools();
@@ -410,7 +417,7 @@ When you are in planning phase:
 
         this.messageBus = this.config.getMessageBus();
         if (this.messageBus && this.policyUpdaterMessageBus !== this.messageBus) {
-            createPolicyUpdater(this.config.getPolicyEngine(), this.messageBus);
+            createPolicyUpdater(this.config.getPolicyEngine(), this.messageBus, this.config.storage);
             this.policyUpdaterMessageBus = this.messageBus;
         }
 
@@ -450,6 +457,10 @@ When you are in planning phase:
             normalized.tokenBudget = Math.max(1, Math.floor(settings.tokenBudget));
         }
 
+        if (typeof settings.maxRetries === 'number' && Number.isFinite(settings.maxRetries)) {
+            normalized.maxRetries = Math.max(0, Math.floor(settings.maxRetries));
+        }
+
         return Object.keys(normalized).length > 0 ? normalized : undefined;
     }
 
@@ -464,6 +475,7 @@ When you are in planning phase:
             maxSessionTurns?: number;
             compressionThreshold?: number;
             summarizeToolOutput?: Record<string, { tokenBudget?: number }>;
+            maxRetries?: number;
         };
 
         if (settings.maxSessionTurns !== undefined) {
@@ -487,6 +499,10 @@ When you are in planning phase:
                     tokenBudget: settings.tokenBudget,
                 },
             };
+        }
+
+        if (settings.maxRetries !== undefined) {
+            runtimeConfig.maxRetries = settings.maxRetries;
         }
     }
 

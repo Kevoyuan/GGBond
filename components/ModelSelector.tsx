@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 
 // Fallback models when API is not available
 const FALLBACK_MODELS = [
+    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', icon: Code2 },
     { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', icon: Code2 },
     { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', icon: Zap },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', icon: Code2 },

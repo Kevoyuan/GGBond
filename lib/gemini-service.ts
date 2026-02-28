@@ -178,6 +178,8 @@ const FALLBACK_TOOLS = [
     { name: 'web_fetch', displayName: 'WebFetch', requiresApproval: false },
     { name: 'save_memory', displayName: 'SaveMemory', requiresApproval: false },
     { name: 'write_todos', displayName: 'WriteTodos', requiresApproval: false },
+    { name: 'browser', displayName: 'Browser', requiresApproval: true },
+    { name: 'browser_action', displayName: 'BrowserAction', requiresApproval: true },
 ];
 
 export async function getBuiltinTools(): Promise<typeof FALLBACK_TOOLS> {
@@ -303,6 +305,7 @@ export async function listExtensions(): Promise<string> {
 // Known models - dynamically retrieved from gemini-cli-core if available
 // This list is used as fallback when CoreService is not available
 const FALLBACK_MODELS = [
+    { id: 'gemini-3.1-pro-preview', name: 'gemini-3.1-pro-preview', tier: 'pro', contextWindow: '1M' },
     { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', tier: 'pro', contextWindow: '1M' },
     { id: 'gemini-3-flash-preview', name: 'gemini-3-flash-preview', tier: 'flash', contextWindow: '1M' },
     { id: 'gemini-2.5-pro', name: 'gemini-2.5-pro', tier: 'pro', contextWindow: '2M' },
@@ -324,7 +327,7 @@ const MODEL_METADATA: Record<string, { tier: string; contextWindow: string }> = 
 export async function getKnownModels() {
     // Try to get valid models from gemini-cli-core
     let validModels: Set<string> | null = null;
-    let isActive: ((model: string) => boolean) | null = null;
+    let isActive: ((model: string, useGemini3_1?: boolean) => boolean) | null = null;
     try {
         const { VALID_GEMINI_MODELS, isActiveModel } = await import('@google/gemini-cli-core');
         validModels = VALID_GEMINI_MODELS;
@@ -344,7 +347,7 @@ export async function getKnownModels() {
     if (validModels) {
         for (const modelId of validModels) {
             // Keep the list aligned with core active-model semantics.
-            if (isActive && !isActive(modelId)) {
+            if (isActive && !isActive(modelId, true)) {
                 continue;
             }
             const metadata = MODEL_METADATA[modelId] || { tier: 'unknown', contextWindow: '1M' };
