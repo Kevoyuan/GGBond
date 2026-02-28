@@ -250,10 +250,10 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }:
                       icon={<TrendingUp size={20} />}
                     />
                     <div className="grid lg:grid-cols-2 gap-6">
-                      <Suspense fallback={<ModuleLoader />}><AnalyticsDashboard /></Suspense>
+                      <div className="lg:col-span-2">
+                        <Suspense fallback={<ModuleLoader />}><AnalyticsDashboard /></Suspense>
+                      </div>
                       <Suspense fallback={<ModuleLoader />}><PerformancePanel /></Suspense>
-                    </div>
-                    <div className="grid lg:grid-cols-2 gap-6 mt-6">
                       <Suspense fallback={<ModuleLoader />}><ToolStatsPanel /></Suspense>
                       <Suspense fallback={<ModuleLoader />}><FileHeatmapPanel /></Suspense>
                     </div>
