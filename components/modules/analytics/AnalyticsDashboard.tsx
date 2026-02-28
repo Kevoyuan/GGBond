@@ -2,8 +2,9 @@
 
 import React, { useEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
 import { ModuleCard } from '../ModuleCard';
-import { BarChart, DollarSign, Zap, Loader2, Gauge, Database } from 'lucide-react';
+import { BarChart, DollarSign, Zap, Loader2, Gauge, Database, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getModelInfo } from '@/lib/pricing';
+import { format, subMonths } from 'date-fns';
 
 interface StatEntry {
   inputTokens: number;
@@ -256,12 +257,13 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
   const [telemetry, setTelemetry] = useState<TelemetryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [monthOffset, setMonthOffset] = useState<number>(0);
 
   // Stable fetch function
   const fetchData = useCallback(() => {
     setLoading(true);
     Promise.all([
-      fetch('/api/stats').then(r => r.json()),
+      fetch(`/api/stats?offset=${monthOffset}`).then(r => r.json()),
       fetch('/api/telemetry').then(r => r.json()),
     ])
       .then(([statsRes, telemetryRes]) => {
@@ -270,7 +272,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [monthOffset]);
 
   useEffect(() => {
     fetchData();
@@ -357,23 +359,49 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
   return (
     <ModuleCard title="Analytics" description="Usage & Cost Tracking" icon={BarChart}>
       <div className="space-y-6">
-        {/* Period Selector */}
-        <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg w-max relative">
-          {(['daily', 'weekly', 'monthly'] as const).map(p => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`relative px-3 py-1.5 text-xs font-medium rounded-md transition-colors duration-200 z-10 ${p === period
-                ? 'text-white'
-                : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
-                }`}
-            >
-              <span className="relative z-10">{p === 'daily' ? 'Today' : p === 'weekly' ? 'This Week' : 'This Month'}</span>
-              {p === period && (
-                <div className="absolute inset-0 bg-zinc-900 dark:bg-zinc-600 rounded-md shadow-sm" />
-              )}
-            </button>
-          ))}
+        <div className="flex justify-between items-center w-full">
+          {/* Period Selector */}
+          <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg w-max relative">
+            {(['daily', 'weekly', 'monthly'] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`relative px-3 py-1.5 text-xs font-medium rounded-md transition-colors duration-200 z-10 ${p === period
+                  ? 'text-white'
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  }`}
+              >
+                <span className="relative z-10">{p === 'daily' ? 'Today' : p === 'weekly' ? 'This Week' : 'This Month'}</span>
+                {p === period && (
+                  <div className="absolute inset-0 bg-zinc-900 dark:bg-zinc-600 rounded-md shadow-sm" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Historic Data Navigation (Visible only in monthly view) */}
+          {period === 'monthly' && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setMonthOffset(prev => prev + 1)}
+                className="p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 transition-colors"
+                title="Previous Month"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-xs font-mono text-zinc-500 min-w-[60px] text-center">
+                {format(subMonths(new Date(), monthOffset), 'MMM yyyy')}
+              </span>
+              <button
+                onClick={() => setMonthOffset(prev => Math.max(0, prev - 1))}
+                disabled={monthOffset === 0}
+                className="p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                title="Next Month"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* KPI Cards */}
