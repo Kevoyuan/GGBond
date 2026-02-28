@@ -48,8 +48,12 @@ function toMillis(value: number): number {
   return value < 10_000_000_000 ? value * 1000 : value;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const offsetStr = searchParams.get('offset');
+    const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
+
     // Fetch all messages with stats
     // We only care about 'model' messages that have stats
     const messages = db.prepare(`
@@ -59,10 +63,17 @@ export async function GET() {
     `).all() as { stats: string; created_at: number }[];
 
     const now = new Date();
-    const dayStart = startOfDay(now);
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday start
-    const monthStart = startOfMonth(now);
-    const monthEnd = endOfMonth(now);
+
+    // Import subMonths dynamically or add to import list at top if needed
+    // However since we have 'date-fns' imports above, let's just use it or do it manually
+    const { subMonths } = require('date-fns');
+
+    const targetMonth = offset > 0 ? subMonths(now, offset) : now;
+
+    const dayStart = offset > 0 ? startOfDay(targetMonth) : startOfDay(now);
+    const weekStart = offset > 0 ? startOfWeek(targetMonth, { weekStartsOn: 1 }) : startOfWeek(now, { weekStartsOn: 1 }); // Monday start
+    const monthStart = startOfMonth(targetMonth);
+    const monthEnd = endOfMonth(targetMonth);
     const monthDays = monthEnd.getDate();
 
     const stats: UsageStatsResponse = {
