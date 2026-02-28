@@ -12,6 +12,9 @@
   <a href="https://github.com/Kevoyuan/GGBond/releases">
     <img src="https://img.shields.io/github/v/release/Kevoyuan/GGBond?color=black&style=for-the-badge" alt="最新版本" />
   </a>
+  <a href="https://www.npmjs.com/package/@google/gemini-cli-core">
+    <img src="https://img.shields.io/npm/v/%40google%2Fgemini-cli-core?style=for-the-badge&label=gemini-cli-core" alt="gemini-cli-core 版本" />
+  </a>
   <a href="https://github.com/Kevoyuan/GGBond/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-black.svg?style=for-the-badge" alt="许可证" />
   </a>
