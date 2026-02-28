@@ -228,12 +228,12 @@ export const PerformancePanel = memo(function PerformancePanel() {
                     <motion.div variants={itemVariants} className="flex flex-col gap-3 rounded-lg border border-zinc-200/50 bg-zinc-50/30 p-3 dark:border-zinc-800/50 dark:bg-zinc-900/20">
                         <div className="flex items-center justify-between mb-1 border-b border-zinc-200/50 dark:border-zinc-800/50 pb-2">
                             <div className="flex items-center gap-2">
-                                <div className="h-1.5 w-1.5 rounded-full bg-purple-500" />
-                                <span className="text-[10px] font-semibold tracking-wider text-zinc-500">I/O DISTRIBUTION</span>
+                                <div className="h-2 w-2 rounded-full bg-purple-500" />
+                                <span className="text-xs font-semibold tracking-wider text-zinc-500">I/O DISTRIBUTION</span>
                             </div>
-                            <div className="flex gap-3 text-[9px] font-medium text-zinc-400">
-                                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" />Input</span>
-                                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Output</span>
+                            <div className="flex gap-3 text-[10px] font-medium text-zinc-400">
+                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500" />Input</span>
+                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" />Output</span>
                             </div>
                         </div>
                         <div className="flex flex-col gap-2.5 pt-1">
@@ -242,17 +242,17 @@ export const PerformancePanel = memo(function PerformancePanel() {
                                 const oPct = maxTokensPerModel > 0 ? (tokens.output / maxTokensPerModel) * 100 : 0;
 
                                 return (
-                                    <div key={model} className="flex flex-col gap-1.5 group">
+                                    <div key={model} className="flex flex-col gap-2 group">
                                         <div className="flex justify-between items-end">
-                                            <span className="truncate font-mono text-[10px] font-medium text-zinc-600 dark:text-zinc-400 transition-colors group-hover:text-zinc-900 dark:group-hover:text-zinc-200">{model}</span>
-                                            <div className="flex gap-2 font-mono text-[9px]">
+                                            <span className="truncate font-mono text-xs font-medium text-zinc-600 dark:text-zinc-400 transition-colors group-hover:text-zinc-900 dark:group-hover:text-zinc-200">{model}</span>
+                                            <div className="flex gap-2 font-mono text-[10px]">
                                                 <span className="text-blue-500/80">{(tokens.input / 1000).toFixed(1)}k</span>
                                                 <span className="text-zinc-400 opacity-50">+</span>
                                                 <span className="text-emerald-500/80">{(tokens.output / 1000).toFixed(1)}k</span>
                                             </div>
                                         </div>
                                         {/* Liquid Glass Track */}
-                                        <div className="relative flex h-1.5 w-full items-center gap-[1px] rounded-full bg-zinc-200/50 p-[1px] shadow-[inset_0_1px_1px_rgba(0,0,0,0.06)] dark:bg-zinc-800/50 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                                        <div className="relative flex h-2 w-full items-center gap-[1px] rounded-full bg-zinc-200/50 p-[1px] shadow-[inset_0_1px_1px_rgba(0,0,0,0.06)] dark:bg-zinc-800/50 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                                             <motion.div
                                                 initial={{ flexBasis: '0%' }}
                                                 animate={{ flexBasis: `${Math.max(iPct, 1)}%` }}
