@@ -3,6 +3,7 @@ import { SquarePen, PanelLeftClose, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TokenUsageDisplay } from './TokenUsageDisplay';
 import { GitBranchSwitcher } from './GitBranchSwitcher';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 interface TitlebarProps {
     isCollapsed: boolean;
@@ -52,9 +53,8 @@ export const Titlebar = React.memo(function Titlebar({
         );
     };
 
-    const withWindow = async (fn: (win: Awaited<ReturnType<typeof import('@tauri-apps/api/window')['getCurrentWindow']>>) => Promise<void> | void) => {
+    const withWindow = async (fn: (win: ReturnType<typeof getCurrentWindow>) => Promise<void> | void) => {
         try {
-            const { getCurrentWindow } = await import('@tauri-apps/api/window');
             const win = getCurrentWindow();
             await fn(win);
         } catch {

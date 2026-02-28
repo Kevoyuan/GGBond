@@ -25,6 +25,15 @@ const getPlatformDefaultHome = () => {
   return path.join(home, '.gemini');
 };
 
+export const resolveGeminiCliHome = (dataHome: string) => {
+  // gemini-cli-core treats GEMINI_CLI_HOME as the parent that contains ".gemini".
+  // If dataHome already points to "~/.gemini", CLI home should be "~".
+  if (path.basename(dataHome) === '.gemini') {
+    return path.dirname(dataHome);
+  }
+  return dataHome;
+};
+
 const selectRuntimeHome = (): { home: string; source: RuntimeHomeSource } => {
   const fromDataHome = normalizeHome(process.env.GGBOND_DATA_HOME || '');
   if (fromDataHome) return { home: fromDataHome, source: 'GGBOND_DATA_HOME' };
@@ -45,10 +54,11 @@ export const resolveRuntimeHome = () => {
   }
 
   const { home, source } = selectRuntimeHome();
+  const geminiCliHome = resolveGeminiCliHome(home);
   fs.mkdirSync(home, { recursive: true });
 
   process.env.GGBOND_DATA_HOME = home;
-  process.env.GEMINI_CLI_HOME = home;
+  process.env.GEMINI_CLI_HOME = geminiCliHome;
   if (!process.env.GGBOND_HOME) {
     process.env.GGBOND_HOME = home;
   }

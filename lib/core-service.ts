@@ -38,7 +38,7 @@ import type {
     PolicySettings,
 } from '@google/gemini-cli-core';
 import type { GeminiChat } from '@google/gemini-cli-core';
-import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
+import { resolveGeminiCliHome, resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 const MAX_TURNS = 100;
 
@@ -268,13 +268,14 @@ When you are in planning phase:
         const projectRoot = params.cwd || process.cwd();
         const checkpointingEnabled = isGitWorkspace(projectRoot);
         const runtimeHome = resolveRuntimeHome();
-        if (process.env.GEMINI_CLI_HOME !== runtimeHome) {
-            process.env.GEMINI_CLI_HOME = runtimeHome;
+        const geminiCliHome = resolveGeminiCliHome(runtimeHome);
+        if (process.env.GEMINI_CLI_HOME !== geminiCliHome) {
+            process.env.GEMINI_CLI_HOME = geminiCliHome;
         }
         if (process.env.GGBOND_DATA_HOME !== runtimeHome) {
             process.env.GGBOND_DATA_HOME = runtimeHome;
         }
-        console.log(`[CoreService] Using GEMINI_CLI_HOME=${runtimeHome}`);
+        console.log(`[CoreService] Using GEMINI_CLI_HOME=${geminiCliHome}`);
 
         const settingsCandidates = [
             process.env.GEMINI_CLI_HOME ? path.join(resolveGeminiConfigDir(process.env.GEMINI_CLI_HOME), 'settings.json') : null,

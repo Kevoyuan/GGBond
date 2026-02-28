@@ -528,14 +528,19 @@ export default function Home() {
     if (savedCollapsed) setIsSidebarCollapsed(savedCollapsed === 'true');
   }, []);
 
-  // Handle sidebarView changes - only expand sidebar for non-chat views
+  // Handle sidebar view transitions: auto-expand only when switching into a non-chat view.
+  // Do not force-expand on manual collapse while staying on the same view.
+  const prevSidebarViewRef = useRef<string | null>(null);
   useEffect(() => {
-    if (sidebarView && sidebarView !== 'chat') {
-      // If a non-chat view is requested (e.g., 'mcp'), expand sidebar
-      if (isSidebarCollapsed) {
-        setIsSidebarCollapsed(false);
-        localStorage.setItem('sidebar-collapsed', 'false');
-      }
+    const prev = prevSidebarViewRef.current;
+    prevSidebarViewRef.current = sidebarView;
+
+    const switchedView = prev !== sidebarView;
+    if (!switchedView) return;
+
+    if (sidebarView && sidebarView !== 'chat' && isSidebarCollapsed) {
+      setIsSidebarCollapsed(false);
+      localStorage.setItem('sidebar-collapsed', 'false');
     }
   }, [sidebarView, isSidebarCollapsed]);
 

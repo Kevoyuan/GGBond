@@ -2,7 +2,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
+import { resolveGeminiCliHome, resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 const GEMINI_ORIGINAL_HOME = path.join(os.homedir(), '.gemini');
 
@@ -65,12 +65,13 @@ export function getGeminiPath(): string {
 export function getGeminiEnv(): NodeJS.ProcessEnv {
   const selectedHome = resolveRuntimeHome();
   ensureGeminiHome(selectedHome);
+  const geminiCliHome = resolveGeminiCliHome(selectedHome);
 
   return {
     ...process.env,
     TERM: 'dumb',
     GEMINI_FORCE_FILE_STORAGE: 'true',
-    GEMINI_CLI_HOME: selectedHome,
+    GEMINI_CLI_HOME: geminiCliHome,
     GGBOND_DATA_HOME: selectedHome,
   };
 }
