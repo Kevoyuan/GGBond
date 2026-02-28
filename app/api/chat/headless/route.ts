@@ -1,260 +1,61 @@
-/**
- * Headless Chat API Endpoint
- * Provides automated chat without interactive confirmations
- * Automatically approves all safe tool executions
- */
-
 import { NextResponse } from 'next/server';
-import { CoreService } from '@/lib/core-service';
-import db from '@/lib/db';
-import { getGeminiEnv } from '@/lib/gemini-utils';
-import { execSync } from 'child_process';
-import { existsSync } from 'fs';
-import path from 'path';
-import {
-  ToolConfirmationOutcome,
-  VALID_GEMINI_MODELS,
-  isActiveModel,
-} from '@google/gemini-cli-core';
+import { POST as chatPost } from '@/app/api/chat/route';
 
-type AgentDefinitionLike = {
-  name: string;
-  displayName?: string;
-  description?: string;
-  kind?: 'local' | 'remote' | string;
-  promptConfig?: {
-    systemPrompt?: string;
-  };
-  modelConfig?: {
-    model?: string;
-  };
+type HeadlessChatBody = {
+  prompt?: string;
+  model?: string;
+  systemInstruction?: string;
+  sessionId?: string;
+  workspace?: string;
+  modelSettings?: Record<string, unknown>;
+  parentId?: string | number;
+  selectedAgent?: unknown;
+  images?: Array<{ dataUrl: string; type: string; name: string }>;
+  lowLatencyMode?: boolean;
+  mode?: 'code' | 'plan' | 'ask';
+  approvalMode?: string;
 };
 
-const buildAgentSystemInstruction = (agent: AgentDefinitionLike) => {
-  const parts: string[] = [
-    `Active agent: ${agent.displayName || agent.name}`,
-  ];
-
-  if (agent.description) {
-    parts.push(`Agent description: ${agent.description}`);
-  }
-
-  if (agent.kind === 'local' && agent.promptConfig?.systemPrompt) {
-    parts.push(`Agent system guidance:\n${agent.promptConfig.systemPrompt}`);
-  }
-
-  return parts.join('\n\n');
-};
-
-const DEFAULT_MODEL_FALLBACK_CHAIN = [
-  'gemini-3-pro-preview',
-  'gemini-3-flash-preview',
-  'gemini-2.5-pro',
-];
-
-function resolveSupportedModel(requestedModel: string | undefined): string {
-  const requested = (requestedModel || '').trim();
-  if (requested && isActiveModel(requested)) {
-    return requested;
-  }
-  if (requested) {
-    console.warn(`[headless] Unsupported model requested: ${requested}. Falling back to first available default.`);
-  }
-  for (const candidate of DEFAULT_MODEL_FALLBACK_CHAIN) {
-    if (isActiveModel(candidate) && VALID_GEMINI_MODELS.has(candidate)) {
-      return candidate;
-    }
-  }
-  return 'gemini-2.5-pro';
-}
+const isHeadlessEnabled = () =>
+  process.env.GEMINI_HEADLESS === '1' ||
+  process.env.GEMINI_HEADLESS === 'true';
 
 export async function POST(req: Request) {
   try {
-    const {
-      prompt,
-      model,
-      systemInstruction,
-      sessionId,
-      workspace,
-      modelSettings,
-      parentId,
-      selectedAgent,
-      images
-    } = await req.json();
-
-    // Check if headless mode is enabled
-    const isHeadless = process.env.GEMINI_HEADLESS === '1' ||
-      process.env.GEMINI_HEADLESS === 'true';
+    const isHeadless = isHeadlessEnabled();
 
     if (!isHeadless) {
-      // If not in headless mode, redirect to regular chat or return error
-      console.log('[headless] Warning: Called without headless mode enabled');
+      return NextResponse.json(
+        { error: 'Headless mode is disabled. Set GEMINI_HEADLESS=1 to enable /api/chat/headless.' },
+        { status: 400 }
+      );
     }
 
-    if (!prompt && (!images || images.length === 0)) {
-      return NextResponse.json({ error: 'Prompt or images are required' }, { status: 400 });
-    }
-
-    // In headless mode, always use 'yolo' (auto-approve) mode
-    let targetModel = resolveSupportedModel(model || 'gemini-3-pro-preview');
-
-    const env = getGeminiEnv();
-    if (env.GEMINI_CLI_HOME) {
-      process.env.GEMINI_CLI_HOME = env.GEMINI_CLI_HOME;
-    }
-
-    const core = CoreService.getInstance();
-
-    const finalSessionId = sessionId || crypto.randomUUID();
-
-    // Force YOLO mode for headless - auto-approve all tool executions
-    const coreApprovalMode = 'yolo';
-    console.log('[headless] Using approval mode: yolo (auto-approve)');
-
-    await core.initialize({
-      sessionId: finalSessionId,
-      model: targetModel,
-      cwd: (workspace && workspace !== 'Default') ? workspace : process.cwd(),
-      approvalMode: coreApprovalMode,
-      systemInstruction,
-      modelSettings
+    const body = await req.json() as HeadlessChatBody;
+    const forwardedReq = new Request(req.url, {
+      method: 'POST',
+      headers: req.headers,
+      // Native-aligned forwarding: do not inject route-level defaults or overrides.
+      body: JSON.stringify(body),
     });
 
-    let selectedAgentName: string | undefined;
-    if (typeof selectedAgent === 'string' && selectedAgent.trim()) {
-      selectedAgentName = selectedAgent.trim();
-    } else if (
-      selectedAgent &&
-      typeof selectedAgent === 'object' &&
-      typeof (selectedAgent as { name?: unknown }).name === 'string'
-    ) {
-      selectedAgentName = ((selectedAgent as { name: string }).name || '').trim() || undefined;
-    }
-
-    if (selectedAgentName) {
-      const agent = core.getAgentDefinition(selectedAgentName) as AgentDefinitionLike | null;
-      if (agent) {
-        const agentModel = agent.modelConfig?.model;
-        const supportedAgentModel = resolveSupportedModel(agentModel);
-        if (supportedAgentModel && supportedAgentModel !== targetModel) {
-          targetModel = supportedAgentModel;
-          await core.initialize({
-            sessionId: finalSessionId,
-            model: targetModel,
-            cwd: (workspace && workspace !== 'Default') ? workspace : process.cwd(),
-            approvalMode: coreApprovalMode,
-            systemInstruction,
-            modelSettings
-          });
-        }
-
-        const mergedInstruction = [systemInstruction, buildAgentSystemInstruction(agent)]
-          .filter((value): value is string => Boolean(value && value.trim()))
-          .join('\n\n');
-        core.setSystemInstruction(mergedInstruction);
-      }
-    }
-
-    // DB Setup
-    const now = Date.now();
-    const sessionBranch = (() => {
-      const cwd = workspace && workspace !== 'Default' ? workspace : process.cwd();
-      if (!cwd || !existsSync(cwd)) return null;
-      try {
-        return execSync('git rev-parse --abbrev-ref HEAD', {
-          cwd,
-          encoding: 'utf-8',
-          timeout: 1500,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        }).trim() || null;
-      } catch {
-        return null;
-      }
-    })();
-
-    const parseParentId = (rawParentId: unknown): number | null => {
-      if (rawParentId === null || rawParentId === undefined) return null;
-      const parsed = typeof rawParentId === 'number' ? rawParentId : Number(rawParentId);
-      if (!Number.isInteger(parsed) || parsed <= 0) return null;
-      return parsed;
-    };
-
-    const requestedParentId = parseParentId(parentId);
-    const sessionTitle = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
-
-    const ensureSessionRow = (timestamp: number) => {
-      const existing = db.prepare('SELECT id FROM sessions WHERE id = ?').get(finalSessionId);
-      if (!existing) {
-        db.prepare(`
-          INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).run(finalSessionId, sessionTitle, timestamp, timestamp, workspace || null, sessionBranch);
-      } else {
-        db.prepare('UPDATE sessions SET updated_at = ?, branch = COALESCE(branch, ?) WHERE id = ?')
-          .run(timestamp, sessionBranch, finalSessionId);
-      }
-    };
-
-    ensureSessionRow(now);
-    const userMessageId = db.prepare(`
-      INSERT INTO messages (session_id, role, content, created_at, model, parent_id)
-      VALUES (?, 'user', ?, ?, ?, ?)
-    `).run(finalSessionId, prompt, now, targetModel, requestedParentId).lastInsertRowid;
-
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          // Set up message bus to auto-approve tool calls in headless mode
-          const messageBus = core.messageBus;
-
-          if (messageBus) {
-            // Listen for tool confirmation requests and auto-approve
-            messageBus.on('tool-confirmation-request', async (payload: unknown) => {
-              const confirmationPayload = payload as { correlationId?: string; toolCallId?: string; toolName?: string };
-              console.log('[headless] Auto-approving tool:', confirmationPayload.toolName || 'unknown');
-              // In headless mode, auto-approve by calling submitConfirmation
-              try {
-                await core.submitConfirmation(confirmationPayload.correlationId || confirmationPayload.toolCallId || '', true);
-              } catch (e) {
-                console.warn('[headless] Failed to auto-approve:', e);
-              }
-            });
-          }
-
-          // Note: This is a placeholder - headless mode needs proper implementation with runTurn
-          // For now, return an error indicating this feature is not fully implemented
-          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'error', error: 'Headless mode is not fully implemented' })}\n\n`));
-          controller.close();
-        } catch (error) {
-          console.error('[headless] Stream error:', error);
-          controller.error(error);
-        }
-      }
-    });
-
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'X-Headless-Mode': 'true',
-      },
-    });
+    return chatPost(forwardedReq);
   } catch (error) {
-    console.error('[headless] Error:', error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Headless chat failed' }, { status: 500 });
+    console.error('[headless] Error forwarding to /api/chat:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Headless chat failed' },
+      { status: 500 }
+    );
   }
 }
 
 export async function GET() {
-  // Return headless mode status
-  const isHeadless = process.env.GEMINI_HEADLESS === '1' ||
-    process.env.GEMINI_HEADLESS === 'true';
+  const isHeadless = isHeadlessEnabled();
 
   return NextResponse.json({
     headless: isHeadless,
     message: isHeadless
-      ? 'Headless mode is enabled. Use POST to send messages.'
+      ? 'Headless mode is enabled. POST requests are forwarded to /api/chat without route-level overrides.'
       : 'Headless mode is disabled. Set GEMINI_HEADLESS=1 or use --headless flag.',
   });
 }

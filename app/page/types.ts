@@ -67,14 +67,6 @@ export interface ChatSnapshot {
 
 export const DEFAULT_TERMINAL_PANEL_HEIGHT = 360;
 
-export const ALLOWED_MODELS = new Set([
-  'gemini-3-pro-preview',
-  'gemini-3-flash-preview',
-  'gemini-2.5-pro',
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-]);
-
 export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   model: 'gemini-3-pro-preview',
   systemInstruction: '',
@@ -92,6 +84,7 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
     compressionThreshold: 0.5,
     maxSessionTurns: -1,
     tokenBudget: 2000,
+    maxRetries: 3,
   }
 };
 
@@ -184,8 +177,8 @@ export const buildTreeFromApiMessages = (rawMessages: ApiMessageRecord[]) => {
 
 export const normalizeChatSettings = (input: Partial<ChatSettings> | null | undefined): ChatSettings => {
   const safeInput = input || {};
-  const nextModel = ALLOWED_MODELS.has(safeInput.model || '')
-    ? (safeInput.model as string)
+  const nextModel = (typeof safeInput.model === 'string' && safeInput.model.trim())
+    ? safeInput.model.trim()
     : DEFAULT_CHAT_SETTINGS.model;
 
   return {
@@ -205,6 +198,7 @@ export const normalizeChatSettings = (input: Partial<ChatSettings> | null | unde
       compressionThreshold: safeInput.modelSettings?.compressionThreshold ?? DEFAULT_CHAT_SETTINGS.modelSettings.compressionThreshold,
       maxSessionTurns: safeInput.modelSettings?.maxSessionTurns ?? DEFAULT_CHAT_SETTINGS.modelSettings.maxSessionTurns,
       tokenBudget: safeInput.modelSettings?.tokenBudget ?? DEFAULT_CHAT_SETTINGS.modelSettings.tokenBudget,
+      maxRetries: safeInput.modelSettings?.maxRetries ?? DEFAULT_CHAT_SETTINGS.modelSettings.maxRetries,
     },
   };
 };

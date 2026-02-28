@@ -455,9 +455,6 @@ export default function Home() {
         if (parsed.model === 'gemini-3-pro') {
           parsed.model = 'gemini-3-pro-preview';
           migrated = true;
-        } else if (parsed.model === 'gemini-3.1-pro-preview') {
-          parsed.model = 'gemini-3-pro-preview';
-          migrated = true;
         } else if (parsed.model === 'gemini-3-flash') {
           parsed.model = 'gemini-3-flash-preview';
           migrated = true;

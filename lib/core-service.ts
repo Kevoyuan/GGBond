@@ -157,6 +157,9 @@ export class CoreService {
     private hookEventSubscribers = new Set<(payload: HookEventPayload) => void>();
     // Tool execution output subscribers
     private toolExecutionOutputSubscribers = new Set<(payload: ToolExecutionOutputPayload) => void>();
+    private lastToolsRefreshAt = 0;
+    private lastToolsRefreshSignature: string | null = null;
+    private static readonly TOOLS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
     private constructor() { }
 
@@ -247,19 +250,14 @@ When you are in planning phase:
             if (this.messageBus && this.systemListenerMessageBus !== this.messageBus) {
                 this.registerSystemEvents();
             }
-            // IMPORTANT: Refresh tools even for same session.
-            // Otherwise a chat instance created before a tools-format fix can keep stale invalid schemas.
+            const fullSystemInstruction = (params.systemInstruction || '') + CoreService.NATIVE_PLAN_MODE_INSTRUCTION;
             try {
+                await this.refreshToolsIfNeeded();
                 const geminiClient = this.config.getGeminiClient();
-                this.ensureWriteTodosToolEnabled();
-                await this.registerCustomTools();
-                await geminiClient.setTools();
-                this.chat = geminiClient.getChat();
-
-                const fullSystemInstruction = (params.systemInstruction || '') + CoreService.NATIVE_PLAN_MODE_INSTRUCTION;
                 geminiClient.getChat().setSystemInstruction(fullSystemInstruction);
+                this.chat = geminiClient.getChat();
             } catch (error) {
-                console.warn('[CoreService] Failed to refresh tools for existing session:', error);
+                console.warn('[CoreService] Failed to update existing session runtime state:', error);
             }
             return;
         }
@@ -325,6 +323,8 @@ When you are in planning phase:
                     ? (settings.telemetry as any)
                     : undefined,
         });
+        const enableConseca =
+            (settings?.security as { enableConseca?: unknown } | undefined)?.enableConseca === true;
 
         // 1. Initialize Config
         // Cast approvalMode to any to avoid Enum type issues if not exported correctly
@@ -340,10 +340,12 @@ When you are in planning phase:
             policyEngineConfig,
             recordResponses: '',
             telemetry: telemetrySettings,
+            enableConseca,
             // auth info is auto-detected from env/files by Config internal logic or we can pass explicit
             // For now let Config handle standard auth
         };
         console.log(`[CoreService] Checkpointing: ${checkpointingEnabled ? 'enabled' : 'disabled'} (git workspace: ${checkpointingEnabled})`);
+        console.log(`[CoreService] Conseca: ${enableConseca ? 'enabled' : 'disabled'}`);
 
         this.config = new Config(baseConfigOptions);
         try {
@@ -396,23 +398,10 @@ When you are in planning phase:
         }
 
         // 2. Setup / refresh tools on the core GeminiClient (CLI-aligned path)
-        this.ensureWriteTodosToolEnabled();
-        await this.registerCustomTools();
-        const registry = this.config.getToolRegistry();
-        const toolDeclarations = registry.getFunctionDeclarations();
-        console.log(
-            '[CoreService] Loaded tools:',
-            toolDeclarations
-                .map((t: { name?: string }) => t.name || '<unnamed>')
-                .join(', ')
-        );
-        const geminiClient = this.config.getGeminiClient();
-        this.ensureWriteTodosToolEnabled();
-        await this.registerCustomTools();
-
         const fullSystemInstruction = (params.systemInstruction || '') + CoreService.NATIVE_PLAN_MODE_INSTRUCTION;
 
-        await geminiClient.setTools();
+        await this.refreshToolsIfNeeded(true);
+        const geminiClient = this.config.getGeminiClient();
         geminiClient.getChat().setSystemInstruction(fullSystemInstruction);
 
         this.messageBus = this.config.getMessageBus();
@@ -533,14 +522,84 @@ When you are in planning phase:
         }
     }
 
+    private async refreshToolsIfNeeded(force = false) {
+        if (!this.config) {
+            return;
+        }
+
+        let enabledCustomTools: Array<{
+            name: string;
+            description: string;
+            schema?: Record<string, unknown>;
+            enabled?: boolean;
+        }> = [];
+
+        try {
+            const { getCustomTools } = await import('@/lib/gemini-service');
+            const customTools = await getCustomTools();
+            if (Array.isArray(customTools)) {
+                enabledCustomTools = customTools.filter((tool) => tool.enabled);
+            }
+        } catch (error) {
+            console.warn('[CoreService] Failed to read custom tools for refresh signature:', error);
+        }
+
+        const signature = JSON.stringify({
+            sessionId: this.config.getSessionId(),
+            model: this.config.getModel(),
+            tools: enabledCustomTools.map((tool) => ({
+                name: tool.name,
+                description: tool.description,
+                schema: tool.schema || {},
+            })),
+        });
+
+        const now = Date.now();
+        const refreshDueByTime = now - this.lastToolsRefreshAt >= CoreService.TOOLS_REFRESH_INTERVAL_MS;
+        const signatureChanged = this.lastToolsRefreshSignature !== signature;
+        const shouldRefresh = force || signatureChanged || refreshDueByTime;
+
+        if (!shouldRefresh) {
+            return;
+        }
+
+        this.ensureWriteTodosToolEnabled();
+        await this.registerCustomTools(enabledCustomTools);
+
+        const registry = this.config.getToolRegistry();
+        const toolDeclarations = registry.getFunctionDeclarations();
+        console.log(
+            '[CoreService] Loaded tools:',
+            toolDeclarations
+                .map((t: { name?: string }) => t.name || '<unnamed>')
+                .join(', ')
+        );
+
+        const geminiClient = this.config.getGeminiClient();
+        await geminiClient.setTools();
+        this.chat = geminiClient.getChat();
+        this.lastToolsRefreshAt = now;
+        this.lastToolsRefreshSignature = signature;
+    }
+
     // Register custom tools from settings
-    private async registerCustomTools() {
+    private async registerCustomTools(
+        customToolsInput?: Array<{
+            name: string;
+            description: string;
+            schema?: Record<string, unknown>;
+            enabled?: boolean;
+        }>
+    ) {
         if (!this.config) return;
 
         try {
-            // Dynamically import to avoid circular dependencies
-            const { getCustomTools } = await import('@/lib/gemini-service');
-            const customTools = await getCustomTools();
+            let customTools = customToolsInput;
+            if (!customTools) {
+                // Dynamically import to avoid circular dependencies
+                const { getCustomTools } = await import('@/lib/gemini-service');
+                customTools = await getCustomTools();
+            }
 
             if (!customTools || customTools.length === 0) {
                 return;

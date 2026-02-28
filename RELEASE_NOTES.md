@@ -1,3 +1,37 @@
+## GGBond v0.2.18
+
+## Highlights
+
+- Aligned chat/headless behavior to a **single `/api/chat` execution path** to avoid long-term drift.
+- Removed route-level hardcoded model/approval overrides and delegated more model behavior to **gemini-cli-core**.
+- Upgraded and aligned runtime integration with `@google/gemini-cli-core@0.31.0` behavior.
+- Improved CoreService initialization and runtime settings handling for stability/performance.
+
+## Core Alignment & Behavior
+
+- `/api/chat/headless` now forwards request payloads without route-level default injection.
+- Model handling now relies on core routing semantics instead of hardcoded active-model fallback chains.
+- Chat settings normalization no longer strips unknown model IDs from persisted settings.
+- Added/adjusted runtime initialization fields in CoreService for safer config parity.
+
+## Performance & Reliability
+
+- Reduced redundant work in chat/core session reinitialization paths.
+- Added targeted caching/throttling in critical hot paths to lower repeated overhead.
+- Preserved single source of truth for approval and mode behavior across entry routes.
+
+## Versioning
+
+- `package.json` / `package-lock.json`: `0.2.18`
+- `src-tauri/tauri.conf.json`: `0.2.18`
+- `src-tauri/Cargo.toml` / `src-tauri/Cargo.lock`: `0.2.18`
+
+## Downloads
+
+- macOS (Apple Silicon): `ggbond_0.2.18_aarch64.dmg`
+
+Full Changelog: [`v0.2.17...v0.2.18`](https://github.com/Kevoyuan/GGBond/compare/v0.2.17...v0.2.18)
+
 ## GGBond v0.2.17
 
 ## Highlights

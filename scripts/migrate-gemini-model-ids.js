@@ -6,7 +6,6 @@ const os = require('os');
 
 const replacements = {
   'gemini-3-pro': 'gemini-3-pro-preview',
-  'gemini-3.1-pro-preview': 'gemini-3-pro-preview',
   'gemini-3-flash': 'gemini-3-flash-preview',
 };
 

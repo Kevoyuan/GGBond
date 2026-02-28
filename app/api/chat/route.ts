@@ -16,8 +16,6 @@ import {
   CoreEvent,
   coreEvents,
   ApprovalMode,
-  VALID_GEMINI_MODELS,
-  isActiveModel,
 } from '@google/gemini-cli-core';
 
 type AgentDefinitionLike = {
@@ -61,26 +59,46 @@ function isSameOrChildPath(candidatePath: string, parentPath: string) {
   return candidate === parent || candidate.startsWith(`${parent}${path.sep}`);
 }
 
-const DEFAULT_MODEL_FALLBACK_CHAIN = [
-  'gemini-3-pro-preview',
-  'gemini-3-flash-preview',
-  'gemini-2.5-pro',
-];
+const GIT_BRANCH_CACHE_TTL_MS = 30_000;
+const gitBranchCache = new Map<string, { value: string | null; expiresAt: number }>();
 
-function resolveSupportedModel(requestedModel: string | undefined): string {
+function resolveRequestedModel(requestedModel: string | undefined): string {
   const requested = (requestedModel || '').trim();
-  if (requested && isActiveModel(requested)) {
-    return requested;
+  // Keep model routing native: defer model validity/alias handling to core.
+  return requested || 'auto';
+}
+
+function getCachedGitBranch(cwd: string): string | null {
+  if (!cwd || !existsSync(cwd)) {
+    return null;
   }
-  if (requested) {
-    console.warn(`[chat] Unsupported model requested: ${requested}. Falling back to first available default.`);
+
+  const normalized = path.resolve(cwd);
+  const now = Date.now();
+  const cached = gitBranchCache.get(normalized);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
   }
-  for (const candidate of DEFAULT_MODEL_FALLBACK_CHAIN) {
-    if (isActiveModel(candidate) && VALID_GEMINI_MODELS.has(candidate)) {
-      return candidate;
-    }
+
+  try {
+    const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+      cwd: normalized,
+      encoding: 'utf-8',
+      timeout: 1500,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim() || null;
+    gitBranchCache.set(normalized, {
+      value: branch,
+      expiresAt: now + GIT_BRANCH_CACHE_TTL_MS,
+    });
+    return branch;
+  } catch {
+    gitBranchCache.set(normalized, {
+      value: null,
+      expiresAt: now + GIT_BRANCH_CACHE_TTL_MS,
+    });
+    return null;
   }
-  return 'gemini-2.5-pro';
 }
 
 export async function POST(req: Request) {
@@ -114,7 +132,7 @@ export async function POST(req: Request) {
     }
 
     // Respect the model selected by UI/caller; do not silently downgrade.
-    let targetModel = resolveSupportedModel(model || 'gemini-3-pro-preview');
+    let targetModel = resolveRequestedModel(model);
 
     // Keep CoreService runtime home aligned with CLI env selection logic (skills/auth consistency).
     const env = getGeminiEnv();
@@ -166,17 +184,12 @@ export async function POST(req: Request) {
       const agent = core.getAgentDefinition(selectedAgentName) as AgentDefinitionLike | null;
       if (agent) {
         const agentModel = agent.modelConfig?.model;
-        const supportedAgentModel = resolveSupportedModel(agentModel);
-        if (supportedAgentModel && supportedAgentModel !== targetModel) {
-          targetModel = supportedAgentModel;
-          await core.initialize({
-            sessionId: finalSessionId,
-            model: targetModel,
-            cwd: (workspace && workspace !== 'Default') ? workspace : process.cwd(),
-            approvalMode: coreApprovalMode,
-            systemInstruction,
-            modelSettings
-          });
+        const requestedAgentModel = resolveRequestedModel(agentModel);
+        if (requestedAgentModel && requestedAgentModel !== targetModel) {
+          targetModel = requestedAgentModel;
+          if (core.config && core.config.getModel() !== targetModel) {
+            core.config.setModel(targetModel);
+          }
         }
 
         const mergedInstruction = [systemInstruction, buildAgentSystemInstruction(agent)]
@@ -193,20 +206,11 @@ export async function POST(req: Request) {
 
     // DB Logging Setup
     const now = Date.now();
-    const sessionBranch = (() => {
-      const cwd = workspace && workspace !== 'Default' ? workspace : process.cwd();
-      if (!cwd || !existsSync(cwd)) return null;
-      try {
-        return execSync('git rev-parse --abbrev-ref HEAD', {
-          cwd,
-          encoding: 'utf-8',
-          timeout: 1500,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        }).trim() || null;
-      } catch {
-        return null;
-      }
-    })();
+    const sessionWorkspace = workspace && workspace !== 'Default' ? workspace : process.cwd();
+    const existingSessionRow = db
+      .prepare('SELECT id, branch FROM sessions WHERE id = ?')
+      .get(finalSessionId) as { id: string; branch: string | null } | undefined;
+    const sessionBranch = existingSessionRow?.branch ?? getCachedGitBranch(sessionWorkspace);
 
     let userMessageId: number | bigint | null = null;
     const parseParentId = (rawParentId: unknown): number | null => {
@@ -219,8 +223,7 @@ export async function POST(req: Request) {
     const requestedParentId = parseParentId(parentId);
     const sessionTitle = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
     const ensureSessionRow = (timestamp: number) => {
-      const existing = db.prepare('SELECT id FROM sessions WHERE id = ?').get(finalSessionId);
-      if (!existing) {
+      if (!existingSessionRow) {
         db.prepare(`
           INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
           VALUES (?, ?, ?, ?, ?, ?)
@@ -282,13 +285,17 @@ export async function POST(req: Request) {
       toolCalls?: string
     ) => {
       const updateTs = Date.now();
+      if (thought !== undefined) {
+        persistedAssistantThought = thought;
+      }
+      const thoughtToPersist = persistedAssistantThought || null;
       try {
         if (assistantMessageDbId === null) {
           // Create new assistant message if doesn't exist
           const insertResult = db.prepare(`
             INSERT INTO messages (session_id, role, content, thought, parent_id, created_at)
             VALUES (?, 'model', ?, ?, ?, ?)
-          `).run(finalSessionId, content, thought || null, userMessageDbId, updateTs);
+          `).run(finalSessionId, content, thoughtToPersist, userMessageDbId, updateTs);
           assistantMessageDbId = Number(insertResult.lastInsertRowid);
 
           // Link background job to assistant message
@@ -298,21 +305,16 @@ export async function POST(req: Request) {
           `).run(assistantMessageDbId, updateTs, backgroundJobId);
         } else {
           // Update existing assistant message
-          const existing = db.prepare('SELECT content, thought FROM messages WHERE id = ?').get(assistantMessageDbId) as { content: string; thought: string | null } | undefined;
-          if (existing) {
-            const newContent = content;
-            const newThought = thought !== undefined ? thought : (existing.thought || '');
-            db.prepare(`
-              UPDATE messages SET content = ?, thought = ?, updated_at = ? WHERE id = ?
-            `).run(newContent, newThought || null, updateTs, assistantMessageDbId);
-          }
+          db.prepare(`
+            UPDATE messages SET content = ?, thought = ?, updated_at = ? WHERE id = ?
+          `).run(content, thoughtToPersist, updateTs, assistantMessageDbId);
         }
 
         // Update background job status
         db.prepare(`
           UPDATE background_jobs SET current_content = ?, current_thought = ?, current_tool_calls = ?, updated_at = ?
           WHERE id = ?
-        `).run(content, thought || null, toolCalls || null, updateTs, backgroundJobId);
+        `).run(content, thoughtToPersist, toolCalls || null, updateTs, backgroundJobId);
       } catch (e) {
         console.error('[DB] Failed to persist assistant message incrementally', e);
       }
@@ -744,21 +746,6 @@ export async function POST(req: Request) {
           }
 
           const unsubscribeConfirmation = coreWithConfirmation.subscribeConfirmationRequests((request) => {
-            const toolName =
-              request.toolCall && typeof request.toolCall === 'object'
-                ? String((request.toolCall as { name?: unknown }).name || '')
-                : '';
-
-            // Codex-like behavior: in safe mode, auto-approve low-risk planning tool.
-            if (coreApprovalMode === ApprovalMode.DEFAULT && toolName === 'write_todos') {
-              void core.submitConfirmation(
-                request.correlationId,
-                true,
-                ToolConfirmationOutcome.ProceedOnce
-              );
-              return;
-            }
-
             pendingConfirmationIds.add(request.correlationId);
             safeEnqueue({
               type: 'tool_confirmation',
