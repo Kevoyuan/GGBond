@@ -17,6 +17,8 @@ interface QuotaResponse {
     quota?: {
         buckets?: BucketInfo[];
     };
+    error?: string;
+    message?: string;
 }
 
 interface QuotaPanelProps {
@@ -77,16 +79,22 @@ export const QuotaPanel = memo(function QuotaPanel({ className }: QuotaPanelProp
                         <RefreshCw className="w-10 h-10 animate-spin mb-3" />
                         <p className="text-xs font-bold uppercase tracking-widest text-center">Syncing Resources...</p>
                     </div>
-                ) : error ? (
-                    <div className="p-6 bg-red-500/5 border border-red-500/20 rounded-2xl space-y-4 text-center group">
-                        <AlertCircle className="w-10 h-10 text-red-500 mx-auto opacity-50 group-hover:scale-110 transition-transform" />
+                ) : error || quota?.error ? (
+                    <div className="p-6 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-4 text-center group">
+                        <AlertCircle className="w-10 h-10 text-amber-500 mx-auto opacity-50 group-hover:scale-110 transition-transform" />
                         <div className="space-y-1">
-                            <p className="text-xs font-bold uppercase tracking-widest text-red-500">Synchronization Error</p>
-                            <p className="text-[11px] text-muted-foreground leading-relaxed">{error}</p>
+                            <p className="text-xs font-bold uppercase tracking-widest text-amber-500">Quota Unavailable</p>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">{quota?.message || error || 'Unable to fetch live quota'}</p>
+                            {quota?.error === 'NO_PROJECT' && (
+                                <p className="text-[10px] text-muted-foreground/60 mt-2">
+                                    Configure a Google Cloud project with<br/>
+                                    <code className="bg-muted px-1 rounded">gcloud auth application-default login</code>
+                                </p>
+                            )}
                         </div>
                         <button
                             onClick={fetchQuota}
-                            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-red-500/10 text-red-500 text-[10px] font-bold uppercase tracking-widest hover:bg-red-500/20 active:scale-95 transition-colors"
+                            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-amber-500/10 text-amber-500 text-[10px] font-bold uppercase tracking-widest hover:bg-amber-500/20 active:scale-95 transition-colors"
                         >
                             Retry Sync
                         </button>
