@@ -68,9 +68,9 @@ export const Titlebar = React.memo(function Titlebar({
         void withWindow((win) => win.startDragging());
     };
 
+    // Keep drag behavior in JS to avoid native drag-region swallowing button clicks in release builds.
     return (
         <div 
-            data-tauri-drag-region
             onMouseDown={startDrag}
             className={cn(
                 "h-[var(--titlebar-h)] flex items-stretch shrink-0 border-b border-[var(--border-subtle)] select-none bg-[var(--bg-secondary)] z-50",
@@ -80,7 +80,7 @@ export const Titlebar = React.memo(function Titlebar({
             {/* Titlebar Left - Fixed at Panel Width */}
             <div
                 onMouseDown={(e) => {
-                    // Allow the data-tauri-drag-region to handle it, but stop propagation on buttons
+                    // Keep button clicks from bubbling into the titlebar drag handler.
                     if ((e.target as HTMLElement).closest('button')) {
                         e.stopPropagation();
                     }
