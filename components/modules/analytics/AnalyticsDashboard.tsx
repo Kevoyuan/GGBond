@@ -5,6 +5,7 @@ import { ModuleCard } from '../ModuleCard';
 import { BarChart, DollarSign, Zap, Loader2, Gauge, Database, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getModelInfo } from '@/lib/pricing';
 import { format, subMonths } from 'date-fns';
+import { motion } from 'framer-motion';
 
 interface StatEntry {
   inputTokens: number;
@@ -50,6 +51,24 @@ interface TelemetryResponse {
   }>;
   tokensByModel: Record<string, { input: number; output: number; cached: number; thoughts: number }>;
 }
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05, delayChildren: 0.1 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 15, filter: 'blur(6px)' },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: 'blur(0px)',
+    transition: { stiffness: 100, damping: 20 }
+  }
+};
 
 function readNumericValue(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -219,7 +238,7 @@ const TokenTimelineChart = memo(function TokenTimelineChart({
             <div
               className="pointer-events-none absolute z-50 w-56 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 bg-white/95 dark:bg-zinc-900/95 p-3 shadow-xl backdrop-blur-md"
               style={{
-                left: `${hover.x}px`,
+                left: `${Math.min(Math.max(hover.x, 112), chartRef.current ? chartRef.current.clientWidth - 116 : hover.x)}px`,
                 top: `${Math.max(hover.y - 10, 8)}px`,
                 transform: 'translate(-50%, -100%)',
               }}
@@ -358,7 +377,12 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
 
   return (
     <ModuleCard title="Analytics" description="Usage & Cost Tracking" icon={BarChart}>
-      <div className="space-y-6">
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="space-y-6"
+      >
         <div className="flex justify-between items-center w-full">
           {/* Period Selector */}
           <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg w-max relative">
@@ -405,131 +429,141 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="group p-4 bg-white/50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 hover:border-blue-500/20 hover:shadow-lg hover:shadow-blue-500/5 transition-[border-color,box-shadow] duration-300">
-            <div className="flex items-center gap-2 text-zinc-500 mb-2">
-              <div className="p-1.5 bg-green-500/10 rounded text-green-600 dark:text-green-400">
-                <DollarSign size={14} />
+        <div className="grid grid-cols-4 gap-4">
+          <motion.div variants={itemVariants} className="group p-4 bg-zinc-50/50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 hover:border-green-500/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-colors duration-300">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-zinc-500">
+                <div className="flex items-center justify-center w-6 h-6 bg-green-500/10 rounded-md text-green-600 dark:text-green-400">
+                  <DollarSign size={14} />
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider">Est. Cost</span>
               </div>
-              <span className="text-xs font-semibold uppercase tracking-wider">Est. Cost</span>
             </div>
             <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 font-mono tracking-tight">${current.cost.toFixed(4)}</div>
-            <div className="text-xs text-zinc-500 mt-1">{current.count} requests</div>
-          </div>
+            <div className="text-xs text-zinc-500 mt-1 font-mono">{current.count} <span className="font-sans">requests</span></div>
+          </motion.div>
 
-          <div className="group p-4 bg-white/50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 hover:border-purple-500/20 hover:shadow-lg hover:shadow-purple-500/5 transition-[border-color,box-shadow] duration-300">
-            <div className="flex items-center gap-2 text-zinc-500 mb-2">
-              <div className="p-1.5 bg-purple-500/10 rounded text-purple-600 dark:text-purple-400">
-                <Zap size={14} />
+          <motion.div variants={itemVariants} className="group p-4 bg-zinc-50/50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 hover:border-purple-500/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-colors duration-300">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-zinc-500">
+                <div className="flex items-center justify-center w-6 h-6 bg-purple-500/10 rounded-md text-purple-600 dark:text-purple-400">
+                  <Zap size={14} />
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider">Tokens</span>
               </div>
-              <span className="text-xs font-semibold uppercase tracking-wider">Tokens</span>
             </div>
             <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 font-mono tracking-tight">
               {formatCompactTokens(current.totalTokens)}
             </div>
-            <div className="text-xs text-zinc-500 mt-1 flex gap-2">
-              <span><span className="text-blue-500">In:</span> {(current.inputTokens / 1000).toFixed(0)}k</span>
-              <span><span className="text-green-500">Out:</span> {(current.outputTokens / 1000).toFixed(0)}k</span>
+            <div className="relative mt-2 w-full flex h-1.5 items-center rounded-full bg-zinc-200/50 p-[1px] shadow-[inset_0_1px_1px_rgba(0,0,0,0.06)] dark:bg-zinc-800/50 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+              <div className="flex h-full w-full overflow-hidden rounded-full gap-[0.5px]">
+                <motion.div className="h-full shrink-0 bg-blue-500" initial={{ flexBasis: '0%' }} animate={{ flexBasis: `${(current.inputTokens / current.totalTokens) * 100}%` }} transition={{ duration: 1, ease: 'easeOut' }} style={{ willChange: 'flex-basis' }} />
+                <motion.div className="h-full shrink-0 bg-emerald-500" initial={{ flexBasis: '0%' }} animate={{ flexBasis: `${(current.outputTokens / current.totalTokens) * 100}%` }} transition={{ duration: 1, ease: 'easeOut', delay: 0.1 }} style={{ willChange: 'flex-basis' }} />
+              </div>
             </div>
-          </div>
+            <div className="flex justify-between items-center text-[9px] font-mono mt-1 opacity-60">
+              <span className="text-blue-500 font-medium">In: {(current.inputTokens / 1000).toFixed(1)}k</span>
+              <span className="text-emerald-500 font-medium">Out: {(current.outputTokens / 1000).toFixed(1)}k</span>
+            </div>
+          </motion.div>
+
+          {/* Cache Efficiency */}
+          <motion.div variants={itemVariants} className="group p-4 bg-zinc-50/50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 hover:border-amber-500/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-colors duration-300">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center justify-center w-6 h-6 bg-amber-500/10 rounded-md text-amber-600 dark:text-amber-400">
+                <Database size={14} />
+              </div>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Cache Effic</span>
+            </div>
+            <div className="text-2xl font-bold font-mono tracking-tight text-zinc-900 dark:text-zinc-100">{cacheHitRate.toFixed(1)}%</div>
+            <div className="text-xs text-zinc-500 mt-1 font-mono truncate">
+              {formatCompactTokens(current.cachedTokens)} <span className="font-sans">hit</span>
+            </div>
+          </motion.div>
+
+          {/* Unit Analytics */}
+          <motion.div variants={itemVariants} className="group p-4 bg-zinc-50/50 dark:bg-zinc-900/40 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 hover:border-pink-500/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-colors duration-300">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center justify-center w-6 h-6 bg-pink-500/10 rounded-md text-pink-600 dark:text-pink-400">
+                <DollarSign size={14} />
+              </div>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Unit Cost</span>
+            </div>
+            <div className="text-2xl font-bold font-mono tracking-tight text-zinc-900 dark:text-zinc-100">${avgCostPerRequest.toFixed(4)}</div>
+            <div className="flex justify-between mt-1 items-end">
+              <span className="text-xs font-mono text-zinc-500">${costPer1k.toFixed(3)} <span className="font-sans opacity-70">/ 1k tkns</span></span>
+            </div>
+          </motion.div>
         </div>
 
         {/* Timeline Chart Component */}
         {timelineBuckets.length > 0 && (
-          <TokenTimelineChart
-            buckets={timelineBuckets}
-            period={period}
-            timelineModeLabel={timelineModeLabel}
-            maxToken={maxTimelineToken}
-            chartModels={chartModels}
-            primaryModels={primaryModels}
-            modelColorMap={modelColorMap}
-            formatCompactTokens={formatCompactTokens}
-            shouldRenderDenseLabels={shouldRenderDenseLabels}
-          />
+          <motion.div variants={itemVariants}>
+            <TokenTimelineChart
+              buckets={timelineBuckets}
+              period={period}
+              timelineModeLabel={timelineModeLabel}
+              maxToken={maxTimelineToken}
+              chartModels={chartModels}
+              primaryModels={primaryModels}
+              modelColorMap={modelColorMap}
+              formatCompactTokens={formatCompactTokens}
+              shouldRenderDenseLabels={shouldRenderDenseLabels}
+            />
+          </motion.div>
         )}
 
         {/* Realtime token flow */}
         {tokenSeries.length > 0 && (
-          <div className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/30 p-4">
+          <motion.div variants={itemVariants} className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/30 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Realtime Token Flow</h4>
-              <span className="text-[10px] text-zinc-400 font-mono">live {tokenSeries.length} reqs</span>
+              <h4 className="text-xs font-semibold tracking-wider text-zinc-500 dark:text-zinc-400 uppercase">Realtime Flow</h4>
+              <span className="text-[10px] text-zinc-400 font-mono">LIVE // {tokenSeries.length} REQS</span>
             </div>
-            <div className="flex h-16 items-end gap-1.5">
+            <div className="flex h-16 items-end gap-[1px]">
               {tokenSeries.map((point, index) => (
-                <div key={index} className="group relative flex-1 h-full flex flex-col justify-end">
+                <div key={index} className="group relative flex-1 h-full flex flex-col justify-end bg-zinc-200/30 dark:bg-zinc-800/30 rounded-t-sm">
                   <div
-                    className="w-full rounded-sm bg-blue-500/80 hover:bg-blue-500 transition-colors duration-200 shadow-[0_0_10px_rgba(59,130,246,0.2)]"
+                    className="w-full rounded-t-sm bg-blue-500/80 hover:bg-blue-400 transition-colors duration-200 will-change-[height]"
                     style={{ height: `${Math.max((point.total / maxSeriesToken) * 100, 10)}%` }}
                     title={`Total: ${point.total.toLocaleString()}`}
                   />
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Breakdown Bar */}
         {current.totalTokens > 0 && (
-          <div className="space-y-2">
-            <div className="flex justify-between items-center text-xs font-semibold text-zinc-500">
+          <motion.div variants={itemVariants} className="space-y-2">
+            <div className="flex justify-between items-center text-[10px] font-semibold tracking-wider uppercase text-zinc-500">
               <span>Distribution</span>
               <span className="font-mono text-zinc-400">{current.totalTokens.toLocaleString()} total</span>
             </div>
-            <div className="flex h-4 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800 shadow-inner">
-              <div className="bg-blue-500 transition-[width] duration-500 will-change-[width]" style={{ width: `${(current.inputTokens / current.totalTokens) * 100}%` }} />
-              <div className="bg-emerald-500 transition-[width] duration-500 will-change-[width]" style={{ width: `${(current.outputTokens / current.totalTokens) * 100}%` }} />
-              {current.cachedTokens > 0 && (
-                <div className="bg-amber-500 transition-[width] duration-500 will-change-[width]" style={{ width: `${(current.cachedTokens / current.totalTokens) * 100}%` }} />
-              )}
+            {/* Liquid Glass Track */}
+            <div className="relative flex h-2 w-full items-center rounded-full bg-zinc-200/50 p-[1px] shadow-[inset_0_1px_1px_rgba(0,0,0,0.06)] dark:bg-zinc-800/50 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+              <div className="flex h-full w-full overflow-hidden rounded-full gap-[1px]">
+                <div className="h-full bg-blue-500 transition-[flex-basis] duration-500 will-change-[flex-basis]" style={{ flexBasis: `${(current.inputTokens / current.totalTokens) * 100}%` }} />
+                <div className="h-full bg-emerald-500 transition-[flex-basis] duration-500 will-change-[flex-basis]" style={{ flexBasis: `${(current.outputTokens / current.totalTokens) * 100}%` }} />
+                {current.cachedTokens > 0 && (
+                  <div className="h-full bg-amber-500 transition-[flex-basis] duration-500 will-change-[flex-basis]" style={{ flexBasis: `${(current.cachedTokens / current.totalTokens) * 100}%` }} />
+                )}
+              </div>
             </div>
             <div className="flex gap-4 text-[10px] text-zinc-500 font-medium justify-center pt-1">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500 shadow-sm" />Input</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm" />Output</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500" />Input</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" />Output</span>
               {current.cachedTokens > 0 && (
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 shadow-sm" />Cached</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500" />Cached</span>
               )}
             </div>
-          </div>
+          </motion.div>
         )}
 
-        {/* Advanced token monitor & Quota */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Cache Efficiency */}
-          <div className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Database size={14} className="text-zinc-400" />
-              <h4 className="text-xs font-semibold text-zinc-500">Cache Hit Rate</h4>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{cacheHitRate.toFixed(1)}%</div>
-              <div className="text-[10px] text-zinc-400">efficiency</div>
-            </div>
-            <div className="text-[10px] text-zinc-400 truncate">
-              {formatCompactTokens(current.cachedTokens)} cached tokens
-            </div>
-          </div>
 
-          {/* Cost Est */}
-          <div className="space-y-3 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <h4 className="text-xs font-semibold text-zinc-500">Unit Costs</h4>
-            </div>
-            <div className="flex justify-between items-end">
-              <div>
-                <div className="text-base font-bold text-zinc-900 dark:text-zinc-100">${avgCostPerRequest.toFixed(4)}</div>
-                <div className="text-[9px] text-zinc-400 uppercase tracking-wide font-medium">Avg / Req</div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">${costPer1k.toFixed(3)}</div>
-                <div className="text-[9px] text-zinc-400 uppercase tracking-wide font-medium">Per 1k</div>
-              </div>
-            </div>
-          </div>
-        </div>
 
-      </div>
+      </motion.div>
     </ModuleCard>
   );
 });
