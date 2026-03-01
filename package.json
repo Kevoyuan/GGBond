@@ -6,6 +6,7 @@
   "description": "GGBond - AI-powered coding assistant",
   "scripts": {
     "dev": "next dev",
+    "dev:all": "concurrently \"npm run dev\" \"npm run tauri dev\"",
     "doctor:node-native": "node scripts/ensure-node-native.cjs",
     "rebuild:node-native": "npm rebuild better-sqlite3",
     "build:web": "npm run rebuild:node-native && next build",
@@ -41,6 +42,7 @@
     "xterm": "^5.3.0"
   },
   "devDependencies": {
+    "concurrently": "^9.0.0",
     "@tailwindcss/postcss": "^4.2.0",
     "@tailwindcss/typography": "^0.5.16",
     "@tauri-apps/cli": "^2.0.0-rc.3",
