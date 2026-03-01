@@ -4,6 +4,49 @@ import fs from 'fs';
 import os from 'os';
 import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
+// Retry configuration for non-critical writes
+const RETRY_MAX_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 50;
+const RETRY_MAX_DELAY_MS = 500;
+
+/**
+ * Execute a database write operation with retry and exponential backoff.
+ * Designed for non-critical writes like background_jobs that can tolerate brief failures.
+ */
+function executeWithRetry<T>(operation: () => T, operationName: string): T | null {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < RETRY_MAX_ATTEMPTS; attempt++) {
+    try {
+      return operation();
+    } catch (error) {
+      lastError = error as Error;
+
+      // Check if it's a retryable error (database locked, busy, etc.)
+      const errorMessage = lastError.message.toLowerCase();
+      const isRetryable =
+        errorMessage.includes('database is locked') ||
+        errorMessage.includes('busy') ||
+        errorMessage.includes('sqlite_busy') ||
+        errorMessage.includes('sqlite_locked');
+
+      if (!isRetryable || attempt === RETRY_MAX_ATTEMPTS - 1) {
+        console.error(`[DB] ${operationName} failed after ${attempt + 1} attempt(s):`, lastError);
+        return null;
+      }
+
+      // Exponential backoff with jitter
+      const delay = Math.min(
+        RETRY_BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * RETRY_BASE_DELAY_MS,
+        RETRY_MAX_DELAY_MS
+      );
+      console.warn(`[DB] ${operationName} failed (attempt ${attempt + 1}), retrying in ${delay.toFixed(0)}ms...`);
+    }
+  }
+
+  return null;
+}
+
 const LEGACY_HOME = path.join(process.cwd(), 'gemini-home');
 const LEGACY_DB_PATH = path.join(LEGACY_HOME, 'ggbond.db');
 const LEGACY_IMPORT_MARKER = '.legacy-db-import-v1.done';
@@ -998,3 +1041,6 @@ export const chatSnapshots = {
     return stmt.run(sessionId);
   }
 };
+
+// Re-export the retry helper for use in other modules
+export { executeWithRetry };
