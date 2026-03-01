@@ -1,6 +1,13 @@
 {
     "identifier": "default",
     "description": "Capability for the main window",
+    "local": true,
+    "remote": {
+        "urls": [
+            "http://127.0.0.1:*",
+            "http://localhost:*"
+        ]
+    },
     "windows": [
         "*"
     ],
