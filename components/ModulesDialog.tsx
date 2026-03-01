@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, lazy, Suspense, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, BarChart3, MessageSquare, Settings, Brain, Palette, Loader2, LayoutGrid, TrendingUp, GitBranch, Cpu, Database, Sparkles, Terminal, Shield, Folder, Command, Activity, Clock, Layers, Globe, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -36,7 +36,7 @@ const BrowserSessionTrace = lazy(() => import('./modules/browser/BrowserSessionT
 const ContextPersistencePanel = lazy(() => import('./modules/browser/ContextPersistencePanel').then(m => ({ default: m.ContextPersistencePanel })));
 
 // Loading fallback component
-function ModuleLoader() {
+const ModuleLoader = memo(function ModuleLoader() {
   return (
     <div className="flex items-center justify-center h-[30rem] bg-muted/5 rounded-xl border border-dashed border-border/50">
       <div className="flex flex-col items-center gap-2">
@@ -45,7 +45,7 @@ function ModuleLoader() {
       </div>
     </div>
   );
-}
+});
 
 type TabId = 'analytics' | 'sessions' | 'system' | 'governance' | 'browser' | 'config';
 
@@ -70,7 +70,7 @@ interface ModulesDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-function SectionTitle({ title, description, icon }: { title: string; description: string; icon: React.ReactNode }) {
+const SectionTitle = memo(function SectionTitle({ title, description, icon }: { title: string; description: string; icon: React.ReactNode }) {
   return (
     <div className="mb-6 flex items-start gap-4 p-4 rounded-lg bg-muted/30 border border-border/50">
       <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
@@ -82,7 +82,7 @@ function SectionTitle({ title, description, icon }: { title: string; description
       </div>
     </div>
   );
-}
+});
 
 // Tab button component with improved accessibility
 const TabButton = React.memo(function TabButton({
@@ -144,6 +144,15 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }:
     setActiveTab(tabId);
     localStorage.setItem('modules-active-tab', tabId);
   }, []);
+
+  // Stable onClick handlers for tabs - prevents unnecessary re-renders of TabButton
+  const tabClickHandlers = useMemo(() => {
+    const handlers: Record<TabId, () => void> = {} as Record<TabId, () => void>;
+    tabs.forEach((tab) => {
+      handlers[tab.id] = () => handleTabChange(tab.id);
+    });
+    return handlers;
+  }, [handleTabChange, tabs]);
 
   const handleClose = useCallback(() => {
     onOpenChange(false);
@@ -231,7 +240,7 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }:
                 key={tab.id}
                 tab={tab}
                 isActive={activeTab === tab.id}
-                onClick={() => handleTabChange(tab.id)}
+                onClick={tabClickHandlers[tab.id]}
               />
             ))}
           </nav>
