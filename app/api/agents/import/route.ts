@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 import { Storage } from '@google/gemini-cli-core';
 import { CoreService } from '@/lib/core-service';
 
@@ -187,10 +188,11 @@ export async function GET(request: Request) {
     }
 
     // Default: scan common locations
+    const runtimeConfigDir = resolveGeminiConfigDir(resolveRuntimeHome());
     const possiblePaths = [
       path.join(process.env.HOME || '', '.claude', 'agents'),
       path.join(process.env.HOME || '', 'gemini', 'agents'),
-      path.join(process.env.HOME || '', '.gemini', 'agents'),
+      path.join(runtimeConfigDir, 'agents'),
     ];
 
     const importableAgents: { path: string; name: string }[] = [];

@@ -15,6 +15,15 @@ interface CommandFile {
   content: string;
 }
 
+const COMMANDS_CACHE_TTL_MS = 4000;
+let commandsCache: { data: CommandFile[]; expiresAt: number } | null = null;
+let commandsInFlight: Promise<CommandFile[]> | null = null;
+
+function invalidateCommandsCache() {
+  commandsCache = null;
+  commandsInFlight = null;
+}
+
 function getGeminiHome() {
   const fromEnv = process.env.GEMINI_CLI_HOME?.trim();
   if (fromEnv && fromEnv.length > 0) {
@@ -108,7 +117,17 @@ function isPathInsideAllowedWritableRoots(filePath: string) {
 
 export async function GET() {
   try {
-    const commands = await listCommandFiles();
+    const now = Date.now();
+    if (commandsCache && commandsCache.expiresAt > now) {
+      return NextResponse.json({ commands: commandsCache.data });
+    }
+    if (!commandsInFlight) {
+      commandsInFlight = listCommandFiles().finally(() => {
+        commandsInFlight = null;
+      });
+    }
+    const commands = await commandsInFlight;
+    commandsCache = { data: commands, expiresAt: Date.now() + COMMANDS_CACHE_TTL_MS };
     return NextResponse.json({ commands });
   } catch (error) {
     console.error('Failed to list command files:', error);
@@ -140,6 +159,7 @@ export async function POST(req: NextRequest) {
     ].join('\n');
 
     await fs.writeFile(filePath, content, 'utf-8');
+    invalidateCommandsCache();
 
     return NextResponse.json({ ok: true, path: filePath });
   } catch (error) {
@@ -161,6 +181,7 @@ export async function PUT(req: NextRequest) {
     }
 
     await fs.writeFile(resolve(path), content, 'utf-8');
+    invalidateCommandsCache();
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('Failed to update command file:', error);
@@ -182,6 +203,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     await fs.unlink(resolve(path));
+    invalidateCommandsCache();
     return NextResponse.json({ ok: true, deleted: basename(path) });
   } catch (error) {
     console.error('Failed to delete command file:', error);

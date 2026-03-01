@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import type { Dirent } from 'fs';
 import path from 'path';
 import os from 'os';
+import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 export interface Skill {
   id: string;
@@ -26,8 +27,17 @@ class UserInputError extends Error {
   }
 }
 
+const SKILLS_LIST_CACHE_TTL_MS = 4000;
+const skillsListCache = new Map<string, { data: unknown; expiresAt: number }>();
+const skillsListInFlight = new Map<string, Promise<unknown>>();
+
+function invalidateSkillsListCache() {
+  skillsListCache.clear();
+  skillsListInFlight.clear();
+}
+
 function resolveGeminiConfigRoot(homePath: string) {
-  return path.basename(homePath) === '.gemini' ? homePath : path.join(homePath, '.gemini');
+  return resolveGeminiConfigDir(homePath);
 }
 
 function getSkillDirs(envHome: string) {
@@ -238,7 +248,7 @@ async function unlinkExternalSkillDirectory(geminiHome: string, source: string) 
     if (resolvedRootTarget && isSameOrChildPath(resolvedRootTarget, resolvedSource)) {
       await fs.unlink(targetSkillsDir);
 
-      const fallbackSource = path.join(os.homedir(), '.gemini', 'skills');
+      const fallbackSource = path.join(resolveGeminiConfigDir(resolveRuntimeHome()), 'skills');
       const fallbackExists = await fs.access(fallbackSource).then(() => true).catch(() => false);
 
       if (fallbackExists && !isSameOrChildPath(fallbackSource, resolvedSource)) {
@@ -287,7 +297,7 @@ async function unlinkExternalSkillDirectory(geminiHome: string, source: string) 
 export async function GET(req: Request) {
   try {
     const env = getGeminiEnv();
-    const geminiHome = env.GEMINI_CLI_HOME || path.join(os.homedir(), '.gemini');
+    const geminiHome = env.GEMINI_CLI_HOME || resolveRuntimeHome();
     const { searchParams } = new URL(req.url);
     const queryName = searchParams.get('name');
     const includeContent = searchParams.get('content') === '1';
@@ -302,83 +312,107 @@ export async function GET(req: Request) {
       return NextResponse.json({ id: queryName, location: skillPath, content });
     }
 
-    const disabledSkills = await getDisabledSkills(geminiHome);
-    const skillDirs = getSkillDirs(geminiHome);
-    const merged = new Map<string, Skill>();
+    const cacheKey = JSON.stringify({
+      geminiHome,
+      queryName: queryName || '',
+      includeMeta,
+    });
+    const now = Date.now();
+    const cached = skillsListCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return NextResponse.json(cached.data);
+    }
+    const cachedInFlight = skillsListInFlight.get(cacheKey);
+    if (cachedInFlight) {
+      const data = await cachedInFlight;
+      return NextResponse.json(data);
+    }
 
-    for (const skillsDir of skillDirs) {
-      try {
-        await fs.access(skillsDir);
-      } catch {
-        continue;
-      }
+    const computePromise = (async () => {
+      const disabledSkills = await getDisabledSkills(geminiHome);
+      const skillDirs = getSkillDirs(geminiHome);
+      const merged = new Map<string, Skill>();
 
-      const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-      // Include symlinked skill folders; many external skills are mounted this way.
-      const directories = entries.filter((entry) => entry.isDirectory() || entry.isSymbolicLink());
-      const parsed = await Promise.all(
-        directories.map(async (dir) => {
-          const skillPath = path.join(skillsDir, dir.name, 'SKILL.md');
-          try {
-            const content = await fs.readFile(skillPath, 'utf-8');
-            const match = content.match(/^---\s*[\r\n]+([\s\S]*?)[\r\n]+---/);
-            let name = dir.name;
-            let description = '';
-            if (match) {
-              const frontmatter = match[1];
-              const nameMatch = frontmatter.match(/name:\s*(.*)/);
-              const descMatch = frontmatter.match(/description:\s*(.*)/);
-              if (nameMatch) name = nameMatch[1].trim();
-              if (descMatch) description = descMatch[1].trim();
+      for (const skillsDir of skillDirs) {
+        try {
+          await fs.access(skillsDir);
+        } catch {
+          continue;
+        }
+
+        const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+        // Include symlinked skill folders; many external skills are mounted this way.
+        const directories = entries.filter((entry) => entry.isDirectory() || entry.isSymbolicLink());
+        const parsed = await Promise.all(
+          directories.map(async (dir) => {
+            const skillPath = path.join(skillsDir, dir.name, 'SKILL.md');
+            try {
+              const content = await fs.readFile(skillPath, 'utf-8');
+              const match = content.match(/^---\s*[\r\n]+([\s\S]*?)[\r\n]+---/);
+              let name = dir.name;
+              let description = '';
+              if (match) {
+                const frontmatter = match[1];
+                const nameMatch = frontmatter.match(/name:\s*(.*)/);
+                const descMatch = frontmatter.match(/description:\s*(.*)/);
+                if (nameMatch) name = nameMatch[1].trim();
+                if (descMatch) description = descMatch[1].trim();
+              }
+
+              return {
+                id: dir.name,
+                name,
+                status: (disabledSkills.has(name) || disabledSkills.has(dir.name)) ? 'Disabled' : 'Enabled',
+                isBuiltIn: false,
+                description,
+                location: skillPath,
+                scope: inferSkillScope(
+                  skillPath,
+                  await fs.realpath(skillPath).catch(() => null)
+                )
+              } as Skill;
+            } catch {
+              return null;
             }
+          })
+        );
 
-            return {
-              id: dir.name,
-              name,
-              status: (disabledSkills.has(name) || disabledSkills.has(dir.name)) ? 'Disabled' : 'Enabled',
-              isBuiltIn: false,
-              description,
-              location: skillPath,
-              scope: inferSkillScope(
-                skillPath,
-                await fs.realpath(skillPath).catch(() => null)
-              )
-            } as Skill;
-          } catch {
-            return null;
+        for (const skill of parsed) {
+          if (!skill) continue;
+          if (!merged.has(skill.id)) {
+            merged.set(skill.id, skill);
           }
-        })
-      );
-
-      for (const skill of parsed) {
-        if (!skill) continue;
-        if (!merged.has(skill.id)) {
-          merged.set(skill.id, skill);
         }
       }
-    }
 
-    const sortedSkills = Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name));
+      const sortedSkills = Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name));
 
-    if (includeMeta) {
-      const sources = await Promise.all(
-        skillDirs.map(async (configuredPath) => {
-          let exists = false;
-          let resolvedPath: string | null = null;
-          try {
-            await fs.access(configuredPath);
-            exists = true;
-            resolvedPath = await fs.realpath(configuredPath).catch(() => configuredPath);
-          } catch {
-            exists = false;
-          }
-          return { configuredPath, resolvedPath, exists };
-        })
-      );
-      return NextResponse.json({ skills: sortedSkills, sources });
-    }
+      if (includeMeta) {
+        const sources = await Promise.all(
+          skillDirs.map(async (configuredPath) => {
+            let exists = false;
+            let resolvedPath: string | null = null;
+            try {
+              await fs.access(configuredPath);
+              exists = true;
+              resolvedPath = await fs.realpath(configuredPath).catch(() => configuredPath);
+            } catch {
+              exists = false;
+            }
+            return { configuredPath, resolvedPath, exists };
+          })
+        );
+        return { skills: sortedSkills, sources };
+      }
 
-    return NextResponse.json(sortedSkills);
+      return sortedSkills;
+    })();
+    skillsListInFlight.set(cacheKey, computePromise);
+    const payload = await computePromise.finally(() => {
+      skillsListInFlight.delete(cacheKey);
+    });
+    skillsListCache.set(cacheKey, { data: payload, expiresAt: Date.now() + SKILLS_LIST_CACHE_TTL_MS });
+    return NextResponse.json(payload);
 
   } catch (error) {
     console.error('API Error:', error);
@@ -391,7 +425,7 @@ export async function POST(req: Request) {
     const { action, name, source, content } = await req.json();
     const geminiPath = getGeminiPath();
     const env = getGeminiEnv();
-    const geminiHome = env.GEMINI_CLI_HOME || path.join(os.homedir(), '.gemini');
+    const geminiHome = env.GEMINI_CLI_HOME || resolveRuntimeHome();
 
     if (action === 'link_dir') {
       if (!source) return NextResponse.json({ error: 'Source path required' }, { status: 400 });
@@ -399,6 +433,7 @@ export async function POST(req: Request) {
       const conflictSuffix = summary.conflicts.length > 0
         ? ` conflicts: ${summary.conflicts.slice(0, 5).join(', ')}${summary.conflicts.length > 5 ? '...' : ''}.`
         : '';
+      invalidateSkillsListCache();
       return NextResponse.json({
         success: true,
         summary,
@@ -412,6 +447,7 @@ export async function POST(req: Request) {
       const rootNote = (summary as { removedRootSymlink?: boolean }).removedRootSymlink
         ? ' (removed root skills symlink)'
         : '';
+      invalidateSkillsListCache();
       return NextResponse.json({
         success: true,
         summary,
@@ -435,6 +471,7 @@ export async function POST(req: Request) {
       const skillPath = await resolveSkillFile(geminiHome, name);
       if (!skillPath) return NextResponse.json({ error: `Skill not found: ${name}` }, { status: 404 });
       await fs.writeFile(skillPath, content, 'utf-8');
+      invalidateSkillsListCache();
       return NextResponse.json({ success: true });
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
@@ -455,6 +492,7 @@ export async function POST(req: Request) {
       });
     });
 
+    invalidateSkillsListCache();
     return NextResponse.json({ success: true });
 
   } catch (error) {

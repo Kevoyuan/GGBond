@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { readFile, stat } from 'fs/promises';
-import { homedir } from 'os';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 export interface BrowserStatusView {
     available: boolean;
@@ -14,6 +14,10 @@ export interface BrowserStatusView {
     contextDirSize: number; // bytes
     lastCleanup: string | null;
 }
+
+const BROWSER_STATUS_CACHE_TTL_MS = 3000;
+let browserStatusCache: { data: BrowserStatusView; expiresAt: number } | null = null;
+let browserStatusInFlight: Promise<BrowserStatusView> | null = null;
 
 async function readJson(path: string): Promise<unknown> {
     try {
@@ -35,7 +39,18 @@ async function getDirSize(dir: string): Promise<number> {
 
 export async function GET() {
     try {
-        const globalSettings = await readJson(join(homedir(), '.gemini', 'settings.json'));
+        const now = Date.now();
+        if (browserStatusCache && browserStatusCache.expiresAt > now) {
+            return NextResponse.json(browserStatusCache.data);
+        }
+        if (browserStatusInFlight) {
+            const data = await browserStatusInFlight;
+            return NextResponse.json(data);
+        }
+
+        browserStatusInFlight = (async () => {
+        const runtimeConfigDir = resolveGeminiConfigDir(resolveRuntimeHome());
+        const globalSettings = await readJson(join(runtimeConfigDir, 'settings.json'));
         const workspaceSettings = await readJson(join(process.cwd(), '.gemini', 'settings.json'));
         const browserTelemetry = await readJson(join(process.cwd(), '.gemini', 'browser-telemetry.json'));
 
@@ -72,14 +87,14 @@ export async function GET() {
         const available = executableSource !== 'none';
         const persistenceEnabled = Boolean(w.browserContextPersistence ?? g.browserContextPersistence ?? false);
 
-        const contextDir = join(homedir(), '.gemini', 'browser-context');
+        const contextDir = join(runtimeConfigDir, 'browser-context');
         const contextDirSize = await getDirSize(contextDir);
 
         const successRate = Number(bt.success_rate ?? (available ? 100 : 0));
         const avgLatencyMs = Number(bt.avg_latency_ms ?? 0);
         const lastCleanup = (bt.last_cleanup as string) ?? null;
 
-        const data: BrowserStatusView = {
+            const data: BrowserStatusView = {
             available,
             executableSource,
             executablePath,
@@ -90,6 +105,13 @@ export async function GET() {
             lastCleanup,
         };
 
+            browserStatusCache = { data, expiresAt: Date.now() + BROWSER_STATUS_CACHE_TTL_MS };
+            return data;
+        })().finally(() => {
+            browserStatusInFlight = null;
+        });
+
+        const data = await browserStatusInFlight;
         return NextResponse.json(data);
     } catch (err) {
         console.error('[browser/status]', err);

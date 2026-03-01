@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { CoreService } from '@/lib/core-service';
-import { getGeminiEnv } from '@/lib/gemini-utils';
 import { getMcpSecurityConfig } from '@/lib/config-service';
-import { resolveGeminiConfigDir } from '@/lib/runtime-home';
+import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -15,18 +14,14 @@ type McpAction =
   | { action: 'details'; name: string }
   | { action: 'installExtension'; name: string; repoUrl: string };
 
-const resolveSettingsPath = async () => {
-  const env = getGeminiEnv();
-  const configuredHome = env.GEMINI_CLI_HOME || process.env.GEMINI_CLI_HOME || '';
-  if (configuredHome) {
-    process.env.GEMINI_CLI_HOME = configuredHome;
-  }
+const MCP_SETTINGS_CACHE_TTL_MS = 3000;
+let mcpSettingsCache: { data: JsonRecord; expiresAt: number } | null = null;
+let mcpSettingsInFlight: Promise<JsonRecord> | null = null;
 
-  const candidates = [
-    configuredHome ? path.join(resolveGeminiConfigDir(configuredHome), 'settings.json') : '',
-    configuredHome ? path.join(configuredHome, 'settings.json') : '',
-    path.join(process.env.HOME || '', '.gemini', 'settings.json'),
-  ].filter(Boolean);
+const resolveSettingsPath = async () => {
+  const runtimeHome = resolveRuntimeHome();
+  const configuredDir = resolveGeminiConfigDir(runtimeHome);
+  const candidates = [path.join(configuredDir, 'settings.json')];
 
   for (const candidate of candidates) {
     try {
@@ -42,19 +37,37 @@ const resolveSettingsPath = async () => {
 };
 
 const readSettings = async (): Promise<JsonRecord> => {
-  const settingsPath = await resolveSettingsPath();
-  try {
-    const content = await fs.readFile(settingsPath, 'utf-8');
-    return JSON.parse(content) as JsonRecord;
-  } catch {
-    return {};
+  const now = Date.now();
+  if (mcpSettingsCache && mcpSettingsCache.expiresAt > now) {
+    return mcpSettingsCache.data;
   }
+  if (mcpSettingsInFlight) {
+    return mcpSettingsInFlight;
+  }
+
+  mcpSettingsInFlight = (async () => {
+  const settingsPath = await resolveSettingsPath();
+    try {
+      const content = await fs.readFile(settingsPath, 'utf-8');
+      const parsed = JSON.parse(content) as JsonRecord;
+      mcpSettingsCache = { data: parsed, expiresAt: Date.now() + MCP_SETTINGS_CACHE_TTL_MS };
+      return parsed;
+    } catch {
+      mcpSettingsCache = { data: {}, expiresAt: Date.now() + MCP_SETTINGS_CACHE_TTL_MS };
+      return {};
+    } finally {
+      mcpSettingsInFlight = null;
+    }
+  })();
+  return mcpSettingsInFlight;
 };
 
 const writeSettings = async (settings: JsonRecord) => {
   const settingsPath = await resolveSettingsPath();
   await fs.mkdir(path.dirname(settingsPath), { recursive: true });
   await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+  mcpSettingsCache = { data: settings, expiresAt: Date.now() + MCP_SETTINGS_CACHE_TTL_MS };
+  mcpSettingsInFlight = null;
 };
 
 const normalizeServerConfig = (rawConfig: JsonRecord): JsonRecord => {

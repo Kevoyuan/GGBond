@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
-import { homedir } from 'os';
 import { join } from 'path';
+import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 export interface GovernanceSummaryView {
     approvalMode: string;
@@ -15,6 +15,10 @@ export interface GovernanceSummaryView {
     policyTiers: string[];
 }
 
+const GOVERNANCE_CACHE_TTL_MS = 3000;
+let governanceCache: { data: GovernanceSummaryView; expiresAt: number } | null = null;
+let governanceInFlight: Promise<GovernanceSummaryView> | null = null;
+
 async function readJsonFile(path: string): Promise<unknown> {
     try {
         const content = await readFile(path, 'utf-8');
@@ -26,7 +30,18 @@ async function readJsonFile(path: string): Promise<unknown> {
 
 export async function GET() {
     try {
-        const globalConfigPath = join(homedir(), '.gemini', 'settings.json');
+        const now = Date.now();
+        if (governanceCache && governanceCache.expiresAt > now) {
+            return NextResponse.json(governanceCache.data);
+        }
+        if (governanceInFlight) {
+            const data = await governanceInFlight;
+            return NextResponse.json(data);
+        }
+
+        governanceInFlight = (async () => {
+        const runtimeConfigDir = resolveGeminiConfigDir(resolveRuntimeHome());
+        const globalConfigPath = join(runtimeConfigDir, 'settings.json');
         const workspaceConfigPath = join(process.cwd(), '.gemini', 'settings.json');
         const telemetryPath = join(process.cwd(), '.gemini', 'telemetry.json');
 
@@ -76,7 +91,7 @@ export async function GET() {
         const policyTiers = ['built-in', 'user-defined'];
         if (workspaceConfig) policyTiers.push('workspace-defined');
 
-        const data: GovernanceSummaryView = {
+            const data: GovernanceSummaryView = {
             approvalMode,
             policySources: sources,
             conflictCount,
@@ -88,6 +103,13 @@ export async function GET() {
             policyTiers,
         };
 
+            governanceCache = { data, expiresAt: Date.now() + GOVERNANCE_CACHE_TTL_MS };
+            return data;
+        })().finally(() => {
+            governanceInFlight = null;
+        });
+
+        const data = await governanceInFlight;
         return NextResponse.json(data);
     } catch (err) {
         console.error('[governance/summary]', err);
