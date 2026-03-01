@@ -357,7 +357,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                 </div>
             </div>
 
-            <div className="flex-1 min-h-0 space-y-4 pr-1">
+            <div className="flex-1 min-h-0 flex flex-col space-y-4 pr-1">
                 <AnimatePresence mode="wait">
                     {showAdvanced && (
                         <motion.div
@@ -438,8 +438,8 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                     )}
                 </AnimatePresence>
 
-                <div className={cn("relative min-h-0", compact ? "flex-1" : "")}>
-                    <div className={cn("grid grid-cols-1 gap-3 px-1 py-1 custom-scrollbar", compact ? "h-full overflow-y-auto" : "max-h-[450px] overflow-y-auto")}>
+                <div className={cn("relative min-h-0", compact ? "flex-1 flex flex-col" : "")}>
+                    <div className={cn("grid grid-cols-1 gap-3 px-1 py-1 scrollbar-thin", compact ? "flex-1 overflow-y-auto" : "max-h-[450px] overflow-y-auto")}>
                         <AnimatePresence mode="popLayout">
                             {filteredSkills.length === 0 ? (
                                 <motion.div
@@ -512,9 +512,9 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
 
     if (compact) {
         return (
-            <div className={cn("flex flex-col h-full bg-card/30", className)}>
+            <div className={cn("flex flex-col h-full bg-zinc-900/5 dark:bg-zinc-950/10", className)}>
                 <PanelHeader title="Skills Registry" icon={Puzzle} badge={skills.length} actions={headerActions} />
-                <div className="flex-1 min-h-0 p-4">
+                <div className="flex-1 min-h-0 flex flex-col p-3">
                     {loading && skills.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 opacity-40">
                             <Loader2 size={24} className="animate-spin mb-3 text-blue-500" />
