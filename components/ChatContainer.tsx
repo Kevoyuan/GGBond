@@ -9,6 +9,7 @@ import { FileViewer } from './FileViewer';
 import { cn } from '@/lib/utils';
 import { ChatSettings } from './SettingsDialog';
 import { TaskProgressDock, TodoItem } from './TaskProgressDock';
+import { UncommittedFilesList } from './UncommittedFilesList';
 
 interface ChatContainerProps {
 
@@ -39,6 +40,13 @@ interface ChatContainerProps {
     onOpenArtifact?: (filePath: string) => void;
     onInputHeightChange?: (height: number) => void;
     streamingStatus?: string;
+    uncommitted?: {
+        added: number;
+        removed: number;
+        untracked: number;
+        hasChanges: boolean;
+        files: Array<{ file: string; added: number; removed: number; isUntracked?: boolean }>;
+    } | null;
 }
 
 export const ChatContainer = React.memo(function ChatContainer({
@@ -68,7 +76,8 @@ export const ChatContainer = React.memo(function ChatContainer({
     onToggleTerminal,
     onOpenArtifact,
     onInputHeightChange,
-    streamingStatus
+    streamingStatus,
+    uncommitted
 }: ChatContainerProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -283,6 +292,8 @@ export const ChatContainer = React.memo(function ChatContainer({
 
 
                     {latestTodos && latestTodos.length > 0 && <TaskProgressDock todos={latestTodos} />}
+
+                    <UncommittedFilesList uncommitted={uncommitted} />
 
                     <ChatInput
                         onSend={onSendMessage}

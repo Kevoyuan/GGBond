@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 
+interface FileDiffStat {
+    file: string;
+    added: number;
+    removed: number;
+    isUntracked?: boolean;
+}
+
 interface BranchResponse {
     branch?: string | null;
     branches?: string[];
@@ -8,6 +15,7 @@ interface BranchResponse {
         removed: number;
         untracked: number;
         hasChanges: boolean;
+        files: FileDiffStat[];
     } | null;
     error?: string;
 }

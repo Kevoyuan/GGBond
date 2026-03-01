@@ -11,30 +11,35 @@ function runGit(path: string, args: string[]) {
     }).trim();
 }
 
+type FileDiffStat = {
+    file: string;
+    added: number;
+    removed: number;
+    isUntracked?: boolean;
+};
+
 type UncommittedStats = {
     added: number;
     removed: number;
     untracked: number;
     hasChanges: boolean;
+    files: FileDiffStat[];
 };
 
-function parseNumstat(raw: string) {
+function parseNumstat(raw: string): FileDiffStat[] {
     return raw
         .split('\n')
         .map((line) => line.trim())
         .filter(Boolean)
-        .reduce(
-            (acc, line) => {
-                const [addedRaw, removedRaw] = line.split('\t');
-                const added = Number.isFinite(Number(addedRaw)) ? Number(addedRaw) : 0;
-                const removed = Number.isFinite(Number(removedRaw)) ? Number(removedRaw) : 0;
-                return {
-                    added: acc.added + added,
-                    removed: acc.removed + removed,
-                };
-            },
-            { added: 0, removed: 0 }
-        );
+        .map((line) => {
+            const parts = line.split('\t');
+            if (parts.length < 3) return null;
+            const added = parseInt(parts[0], 10) || 0;
+            const removed = parseInt(parts[1], 10) || 0;
+            const file = parts[2];
+            return { file, added, removed };
+        })
+        .filter((item): item is FileDiffStat => item !== null);
 }
 
 function getUncommittedStats(path: string): UncommittedStats {
@@ -58,22 +63,45 @@ function getUncommittedStats(path: string): UncommittedStats {
         untrackedRaw = '';
     }
 
-    const unstaged = parseNumstat(unstagedRaw);
-    const staged = parseNumstat(stagedRaw);
-    const untracked = untrackedRaw
+    const unstagedFiles = parseNumstat(unstagedRaw);
+    const stagedFiles = parseNumstat(stagedRaw);
+    
+    // Merge staged and unstaged
+    const fileMap = new Map<string, FileDiffStat>();
+    [...unstagedFiles, ...stagedFiles].forEach(f => {
+        const existing = fileMap.get(f.file);
+        if (existing) {
+            existing.added += f.added;
+            existing.removed += f.removed;
+        } else {
+            fileMap.set(f.file, { ...f });
+        }
+    });
+
+    const untrackedFiles = untrackedRaw
         .split('\n')
         .map((line) => line.trim())
-        .filter(Boolean).length;
+        .filter(Boolean)
+        .map(file => ({ file, added: 0, removed: 0, isUntracked: true }));
 
-    const added = unstaged.added + staged.added;
-    const removed = unstaged.removed + staged.removed;
-    const hasChanges = added > 0 || removed > 0 || untracked > 0;
+    untrackedFiles.forEach(f => {
+        if (!fileMap.has(f.file)) {
+            fileMap.set(f.file, f);
+        }
+    });
+
+    const files = Array.from(fileMap.values());
+    const added = files.reduce((sum, f) => sum + f.added, 0);
+    const removed = files.reduce((sum, f) => sum + f.removed, 0);
+    const untrackedCount = untrackedFiles.length;
+    const hasChanges = files.length > 0;
 
     return {
         added,
         removed,
-        untracked,
+        untracked: untrackedCount,
         hasChanges,
+        files
     };
 }
 
