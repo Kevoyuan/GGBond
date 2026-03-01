@@ -23,7 +23,7 @@ interface PanelHeaderProps {
  * PanelHeader - 侧边栏面板的统一样式标题栏
  * 设计规范: h-14 (56px), text-xs uppercase bold, backdrop-blur-md
  */
-export function PanelHeader({
+export const PanelHeader = React.memo(function PanelHeader({
     title,
     icon: Icon,
     iconColor = 'text-primary',
@@ -63,4 +63,4 @@ export function PanelHeader({
             )}
         </div>
     );
-}
+});

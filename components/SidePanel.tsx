@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback, useMemo, useEffect } from 'react';
+import React, { useRef, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Message } from '@/components/MessageBubble';
 import { ConversationGraph, GraphMessage } from '@/components/ConversationGraph';
@@ -49,7 +49,7 @@ function summarizeBranchContent(content: string): string {
   return '[tool call]';
 }
 
-export function SidePanel({
+export const SidePanel = React.memo(function SidePanel({
   sidePanelType,
   sidePanelWidth,
   setSidePanelWidth,
@@ -122,7 +122,7 @@ export function SidePanel({
   const highlightMessage = useCallback((id: string) => {
     const el = document.getElementById(`message-${id}`);
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.scrollIntoView({ behavior: 'auto', block: 'center' });
       el.classList.add('message-highlight');
 
       // Wait for scroll (approx 450ms) before starting the 800ms removal timer
@@ -133,6 +133,14 @@ export function SidePanel({
       }, 450);
     }
   }, []);
+
+  // Stable callback for message click
+  const handleMessageClick = useCallback((index: number) => {
+    const msg = messages[index];
+    if (msg && msg.id) {
+      highlightMessage(msg.id);
+    }
+  }, [messages, highlightMessage]);
 
   return (
     <div
@@ -192,12 +200,7 @@ export function SidePanel({
             <MessageTimeline
               messages={messages}
               currentIndex={messages.length - 1}
-              onMessageClick={(index) => {
-                const msg = messages[index];
-                if (msg && msg.id) {
-                  highlightMessage(msg.id);
-                }
-              }}
+              onMessageClick={handleMessageClick}
             />
           </motion.div>
         )}
@@ -230,4 +233,4 @@ export function SidePanel({
       />
     </div>
   );
-}
+});
