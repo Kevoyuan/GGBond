@@ -42,6 +42,59 @@ import { resolveGeminiCliHome, resolveGeminiConfigDir, resolveRuntimeHome } from
 
 const MAX_TURNS = 100;
 
+// Retry configuration for CoreService initialization
+const INIT_RETRY_MAX_ATTEMPTS = 3;
+const INIT_RETRY_BASE_DELAY_MS = 1000;
+const INIT_RETRY_MAX_DELAY_MS = 5000;
+
+/**
+ * Execute an async operation with retry and exponential backoff.
+ * Designed for CoreService initialization failures.
+ */
+async function executeWithRetry<T>(
+    operation: () => Promise<T>,
+    operationName: string,
+    maxAttempts: number = INIT_RETRY_MAX_ATTEMPTS
+): Promise<T> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            return await operation();
+        } catch (error) {
+            lastError = error as Error;
+
+            // Check if it's a retryable error (network, auth, transient failures)
+            const errorMessage = lastError.message.toLowerCase();
+            const isRetryable =
+                errorMessage.includes('network') ||
+                errorMessage.includes('timeout') ||
+                errorMessage.includes('econnrefused') ||
+                errorMessage.includes('auth') ||
+                errorMessage.includes('token') ||
+                errorMessage.includes('rate limit') ||
+                errorMessage.includes('429') ||
+                errorMessage.includes('503') ||
+                errorMessage.includes('service unavailable');
+
+            if (!isRetryable || attempt === maxAttempts - 1) {
+                console.error(`[CoreService] ${operationName} failed after ${attempt + 1} attempt(s):`, lastError);
+                throw lastError;
+            }
+
+            // Exponential backoff with jitter
+            const delay = Math.min(
+                INIT_RETRY_BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * INIT_RETRY_BASE_DELAY_MS,
+                INIT_RETRY_MAX_DELAY_MS
+            );
+            console.warn(`[CoreService] ${operationName} failed (attempt ${attempt + 1}/${maxAttempts}), retrying in ${delay.toFixed(0)}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+
+    throw lastError;
+}
+
 function isGitWorkspace(startDir: string): boolean {
     let current = path.resolve(startDir);
 
@@ -349,7 +402,11 @@ When you are in planning phase:
 
         this.config = new Config(baseConfigOptions);
         try {
-            await this.config.initialize();
+            await executeWithRetry(
+                () => this.config!.initialize(),
+                'Config.initialize',
+                3
+            );
         } catch (error) {
             if (!checkpointingEnabled) {
                 throw error;
@@ -359,7 +416,11 @@ When you are in planning phase:
                 ...baseConfigOptions,
                 checkpointing: false,
             });
-            await this.config.initialize();
+            await executeWithRetry(
+                () => this.config!.initialize(),
+                'Config.initialize (no checkpointing)',
+                3
+            );
         }
         try {
             if (this.config.getApprovalMode() !== normalizedApprovalMode) {
@@ -377,20 +438,36 @@ When you are in planning phase:
         try {
             if (authType) {
                 console.log(`[CoreService] Refreshing auth with ${authType}...`);
-                await this.config.refreshAuth(authType);
+                await executeWithRetry(
+                    () => this.config!.refreshAuth(authType),
+                    `Config.refreshAuth(${authType})`,
+                    2
+                );
             } else {
                 console.log('[CoreService] No auth type in settings, trying USE_GEMINI default...');
-                await this.config.refreshAuth(AuthType.USE_GEMINI);
+                await executeWithRetry(
+                    () => this.config!.refreshAuth(AuthType.USE_GEMINI),
+                    'Config.refreshAuth(USE_GEMINI)',
+                    2
+                );
             }
         } catch (error) {
             console.warn(`[CoreService] Failed to refresh auth with ${authType || 'USE_GEMINI'}, trying fallback:`, error);
             try {
                 // Fallback: if we tried LOGIN_WITH_GOOGLE and failed, try USE_GEMINI
                 if (authType === AuthType.LOGIN_WITH_GOOGLE) {
-                    await this.config.refreshAuth(AuthType.USE_GEMINI);
+                    await executeWithRetry(
+                        () => this.config!.refreshAuth(AuthType.USE_GEMINI),
+                        'Config.refreshAuth(USE_GEMINI fallback)',
+                        2
+                    );
                 } else {
                     // If we tried USE_GEMINI (or something else) and failed, try LOGIN_WITH_GOOGLE?
-                    await this.config.refreshAuth(AuthType.LOGIN_WITH_GOOGLE);
+                    await executeWithRetry(
+                        () => this.config!.refreshAuth(AuthType.LOGIN_WITH_GOOGLE),
+                        'Config.refreshAuth(LOGIN_WITH_GOOGLE fallback)',
+                        2
+                    );
                 }
             } catch (e) {
                 console.error('[CoreService] Failed to refresh auth (fallback):', e);
