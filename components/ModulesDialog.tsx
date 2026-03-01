@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, lazy, Suspense, memo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronLeft, BarChart3, MessageSquare, Settings, Brain, Palette, Loader2, LayoutGrid, TrendingUp, GitBranch, Cpu, Database, Sparkles, Terminal, Shield, Folder, Command, Activity, Clock, Layers } from 'lucide-react';
+import { X, ChevronLeft, BarChart3, MessageSquare, Settings, Brain, Palette, Loader2, LayoutGrid, TrendingUp, GitBranch, Cpu, Database, Sparkles, Terminal, Shield, Folder, Command, Activity, Clock, Layers, Globe, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,6 +25,16 @@ const AuthManager = lazy(() => import('./modules/ActionModules').then(m => ({ de
 const FileManager = lazy(() => import('./modules/ActionModules').then(m => ({ default: m.FileManager })));
 const CustomCommandManager = lazy(() => import('./modules/CommandModules').then(m => ({ default: m.CustomCommandManager })));
 
+// Governance Tab
+const PolicyHealthPanel = lazy(() => import('./modules/governance/PolicyHealthPanel').then(m => ({ default: m.PolicyHealthPanel })));
+const ModelSteeringPanel = lazy(() => import('./modules/governance/ModelSteeringPanel').then(m => ({ default: m.ModelSteeringPanel })));
+const ExecutionGuardrailsPanel = lazy(() => import('./modules/governance/ExecutionGuardrailsPanel').then(m => ({ default: m.ExecutionGuardrailsPanel })));
+
+// Browser Tab
+const BrowserRuntimePanel = lazy(() => import('./modules/browser/BrowserRuntimePanel').then(m => ({ default: m.BrowserRuntimePanel })));
+const BrowserSessionTrace = lazy(() => import('./modules/browser/BrowserSessionTrace').then(m => ({ default: m.BrowserSessionTrace })));
+const ContextPersistencePanel = lazy(() => import('./modules/browser/ContextPersistencePanel').then(m => ({ default: m.ContextPersistencePanel })));
+
 // Loading fallback component
 function ModuleLoader() {
   return (
@@ -34,7 +44,7 @@ function ModuleLoader() {
   );
 }
 
-type TabId = 'analytics' | 'sessions' | 'system' | 'context' | 'config';
+type TabId = 'analytics' | 'sessions' | 'system' | 'governance' | 'browser' | 'config';
 
 interface Tab {
   id: TabId;
@@ -47,7 +57,8 @@ const tabs: Tab[] = [
   { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={16} />, description: 'Usage metrics and performance' },
   { id: 'sessions', label: 'Sessions', icon: <MessageSquare size={16} />, description: 'Chat history and checkpoints' },
   { id: 'system', label: 'System', icon: <Settings size={16} />, description: 'MCP, tools and extensions' },
-  { id: 'context', label: 'Context', icon: <Brain size={16} />, description: 'Memory and project context' },
+  { id: 'governance', label: 'Governance', icon: <Shield size={16} />, description: 'Policy health, model steering, and execution guardrails' },
+  { id: 'browser', label: 'Browser', icon: <Globe size={16} />, description: 'Experimental browser agent status and session trace' },
   { id: 'config', label: 'Config', icon: <Palette size={16} />, description: 'Settings and preferences' },
 ];
 
@@ -295,21 +306,39 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }:
                   </section>
                 )}
 
-                {/* Tab 4: Context & Memory */}
-                {activeTab === 'context' && (
+                {/* Tab 4: Governance */}
+                {activeTab === 'governance' && (
                   <section>
                     <SectionTitle
-                      title="Context & Memory"
-                      description="GEMINI.md, directories, and project-level context"
-                      icon={<Database size={20} />}
+                      title="Governance"
+                      description="Policy health, model steering, and execution guardrails — aligned with gemini-cli-core v0.31"
+                      icon={<Shield size={20} />}
                     />
-                    <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                      <Suspense fallback={<ModuleLoader />}><DirectoryManager /></Suspense>
+                    <div className="grid lg:grid-cols-3 gap-6">
+                      <Suspense fallback={<ModuleLoader />}><PolicyHealthPanel /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><ModelSteeringPanel /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><ExecutionGuardrailsPanel /></Suspense>
                     </div>
                   </section>
                 )}
 
-                {/* Tab 5: Configuration */}
+                {/* Tab 5: Browser Agent */}
+                {activeTab === 'browser' && (
+                  <section>
+                    <SectionTitle
+                      title="Browser Agent"
+                      description="Experimental browser tool runtime, session trace, and context persistence (v0.31)"
+                      icon={<Globe size={20} />}
+                    />
+                    <div className="grid lg:grid-cols-3 gap-6">
+                      <Suspense fallback={<ModuleLoader />}><BrowserRuntimePanel /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><BrowserSessionTrace /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><ContextPersistencePanel /></Suspense>
+                    </div>
+                  </section>
+                )}
+
+                {/* Tab 6: Configuration */}
                 {activeTab === 'config' && (
                   <section>
                     <SectionTitle
