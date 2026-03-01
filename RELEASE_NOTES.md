@@ -1,3 +1,31 @@
+## GGBond v0.3.0
+
+## Highlights
+
+- **Liquid Glass Aesthetic**: Unified the sidebar, module dialogs, and panels with a sleek "Liquid Glass" design.
+- **Analytics & Performance**: Redesigned dashboard with historical data navigation and real-time performance tracking.
+- **Extreme Performance**: Optimized layout-shift mitigation and GPU-accelerated transitions.
+
+## UI & Analytics Overhaul
+
+- Redesigned `PerformancePanel` and `AnalyticsDashboard` with smooth animations and better I/O visualization.
+- Added historical data browsing with month navigation in the analytics view.
+- Unified `ActionModules`, `CommandModules`, and `SystemModules` styling.
+- Improved `ModulesDialog` grid layout and responsiveness.
+
+## Fixes
+
+- `components/AnalyticsDashboard.tsx`: fixed quota display duplication and improved error handling.
+- `components/PerformancePanel.tsx`: fixed layout thrashing during resize.
+- `src-tauri/src/pty.rs`: ensured robust IPC stream handling for high-throughput terminal output.
+
+## Downloads
+
+- macOS (Apple Silicon): `ggbond_0.3.0_aarch64.dmg`
+- Windows (Intel/x64): `ggbond_0.3.0_x64-setup.exe`
+
+Full Changelog: [`v0.2.19...v0.3.0`](https://github.com/Kevoyuan/GGBond/compare/v0.2.19...v0.3.0)
+
 ## GGBond v0.2.18
 
 ## Highlights

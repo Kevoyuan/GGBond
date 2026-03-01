@@ -26,6 +26,9 @@ const eslintConfig = defineConfig([
     "repro_*.js",
     "repro_*.ts",
     "tsconfig.tsbuildinfo",
+    // CommonJS config files (require is expected)
+    "next.config.js",
+    "scripts/*.cjs",
   ]),
 ]);
 
