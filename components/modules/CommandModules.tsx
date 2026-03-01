@@ -134,7 +134,7 @@ export const CustomCommandManager = memo(function CustomCommandManager() {
       title="Custom Commands"
       description={`${commands.length} TOML commands`}
       icon={TerminalSquare}
-      className="h-[40rem] flex flex-col"
+      className="h-[30rem] flex flex-col"
       actions={
         <button onClick={fetchCommands} className="p-1.5 text-zinc-500 hover:text-blue-600 transition-colors" title="Refresh">
           <RefreshCw size={14} />

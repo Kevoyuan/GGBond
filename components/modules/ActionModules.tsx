@@ -71,7 +71,7 @@ export const ShellManager = memo(function ShellManager() {
       title="Shell & Permissions"
       description={`Sandbox: ${config.sandbox || 'none'}`}
       icon={Terminal}
-      className="h-[40rem] flex flex-col"
+      className="h-[30rem] flex flex-col"
     >
       <div className="flex-1 min-h-[0] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
         {/* Sandbox Mode */}
@@ -228,7 +228,7 @@ export const AuthManager = memo(function AuthManager() {
       title="Authentication"
       description={authTypeLabels[auth.type] || auth.type}
       icon={Key}
-      className="h-[40rem] flex flex-col"
+      className="h-[30rem] flex flex-col"
     >
       <div className="flex-1 min-h-[0] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
         {/* Auth Type Badge */}

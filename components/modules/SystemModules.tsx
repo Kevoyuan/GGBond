@@ -44,7 +44,7 @@ export const ToolManager = memo(function ToolManager() {
       title="Built-in Tools"
       description={`Sandbox: ${config.sandbox} · Approval: ${config.approvalMode}`}
       icon={Hammer}
-      className="h-[40rem] flex flex-col"
+      className="h-[30rem] flex flex-col"
     >
       <div className="flex-1 min-h-[0] overflow-y-auto space-y-1.5 pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
         {tools.map(tool => (

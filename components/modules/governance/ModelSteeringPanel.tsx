@@ -60,7 +60,7 @@ export const ModelSteeringPanel = memo(function ModelSteeringPanel() {
 
     if (loading) {
         return (
-            <ModuleCard title="Model Steering" description="Active profile & routing" icon={Cpu} className="h-[40rem] flex flex-col">
+            <ModuleCard title="Model Steering" description="Active profile & routing" icon={Cpu} className="h-[30rem] flex flex-col">
                 <div className="flex items-center justify-center flex-1"><Loader2 size={16} className="animate-spin text-muted-foreground" /></div>
             </ModuleCard>
         );
@@ -68,7 +68,7 @@ export const ModelSteeringPanel = memo(function ModelSteeringPanel() {
 
     if (error || !data) {
         return (
-            <ModuleCard title="Model Steering" description="Active profile & routing" icon={Cpu} className="h-[40rem] flex flex-col">
+            <ModuleCard title="Model Steering" description="Active profile & routing" icon={Cpu} className="h-[30rem] flex flex-col">
                 <div className="flex flex-col items-center justify-center flex-1 gap-3 text-center">
                     <AlertTriangle size={20} className="text-amber-500" />
                     <p className="text-xs text-zinc-500">Fetch failed</p>
@@ -86,7 +86,7 @@ export const ModelSteeringPanel = memo(function ModelSteeringPanel() {
             title="Model Steering"
             description={`${data.activeModel} · ${data.activeProfile}`}
             icon={Cpu}
-            className="h-[40rem] flex flex-col"
+            className="h-[30rem] flex flex-col"
             actions={
                 <button onClick={fetch_} className="p-1 text-zinc-500 hover:text-blue-600 transition-colors" title="Refresh">
                     <RefreshCw size={13} />

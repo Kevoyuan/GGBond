@@ -48,7 +48,7 @@ export const BrowserSessionTrace = memo(function BrowserSessionTrace() {
 
     if (loading) {
         return (
-            <ModuleCard title="Session Trace" description="Browser action history" icon={Activity} className="h-[40rem] flex flex-col">
+            <ModuleCard title="Session Trace" description="Browser action history" icon={Activity} className="h-[30rem] flex flex-col">
                 <div className="flex items-center justify-center flex-1"><Loader2 size={16} className="animate-spin text-muted-foreground" /></div>
             </ModuleCard>
         );
@@ -59,7 +59,7 @@ export const BrowserSessionTrace = memo(function BrowserSessionTrace() {
             title="Session Trace"
             description={traces.length > 0 ? `${traces.length} actions` : 'No actions recorded'}
             icon={Activity}
-            className="h-[40rem] flex flex-col"
+            className="h-[30rem] flex flex-col"
             actions={
                 <button onClick={fetch_} className="p-1 text-zinc-500 hover:text-blue-600 transition-colors" title="Refresh">
                     <RefreshCw size={13} />

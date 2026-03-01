@@ -86,7 +86,7 @@ export function ToolStatsPanel() {
   const overallSuccessRate = totalExecutions > 0 ? (totalSuccesses / totalExecutions) * 100 : 0;
 
   return (
-    <ModuleCard title="Tool Success Rates" description="Track tool execution reliability" icon={TrendingUp} className="h-[48rem]">
+    <ModuleCard title="Tool Success Rates" description="Track tool execution reliability" icon={TrendingUp} className="h-[30rem]">
       <motion.div
         variants={containerVariants}
         initial="hidden"

@@ -51,7 +51,7 @@ export const ChatManager = memo(function ChatManager() {
       title="Sessions"
       description={`${sessions.length} total`}
       icon={MessageSquare}
-      className="h-[40rem] flex flex-col"
+      className="h-[30rem] flex flex-col"
       actions={
         <button onClick={fetchSessions} className="p-1 text-zinc-500 hover:text-blue-600 transition-colors" title="Refresh">
           <RefreshCw size={14} />

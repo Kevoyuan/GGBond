@@ -100,34 +100,32 @@ export function FileHeatmapPanel() {
   const maxFileOps = Math.max(...files.map(f => f.total), 1);
 
   return (
-    <ModuleCard title="File Operation Heatmap" description="Most edited files in your project" icon={FolderOpen}>
-      <div className="space-y-3">
+    <ModuleCard title="File Operation Heatmap" description="Most edited files in your project" icon={FolderOpen} className="h-[30rem] flex flex-col">
+      <div className="flex-1 min-h-[0] overflow-y-auto pr-1 space-y-4 scrollbar-thin">
         {/* View toggle */}
         <div className="flex gap-1">
           <button
             onClick={() => setView('files')}
-            className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${
-              view === 'files'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
+            className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${view === 'files'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
           >
             Top Files
           </button>
           <button
             onClick={() => setView('heatmap')}
-            className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${
-              view === 'heatmap'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
+            className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${view === 'heatmap'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
           >
             Directory Heatmap
           </button>
         </div>
 
         {view === 'files' ? (
-          <div className="space-y-2 max-h-72 overflow-y-auto">
+          <div className="space-y-2">
             {files.slice(0, 15).map((file, idx) => (
               <div
                 key={file.filePath}

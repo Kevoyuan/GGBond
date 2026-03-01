@@ -80,7 +80,7 @@ export const CheckpointManager = memo(function CheckpointManager() {
 
   if (loading) {
     return (
-      <ModuleCard title="Checkpointing" description="/chat save | /chat list | /chat resume" icon={BookmarkCheck} className="h-[40rem] flex flex-col">
+      <ModuleCard title="Checkpointing" description="/chat save | /chat list | /chat resume" icon={BookmarkCheck} className="h-[30rem] flex flex-col">
         <div className="flex items-center justify-center flex-1"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
       </ModuleCard>
     );

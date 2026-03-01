@@ -110,7 +110,7 @@ export const PerformancePanel = memo(function PerformancePanel() {
             title="Performance"
             description={`${data.totalEvents} captured ops`}
             icon={Activity}
-            className="h-[48rem]"
+            className="h-[30rem]"
             actions={
                 <div className="flex items-center gap-3">
                     <motion.div

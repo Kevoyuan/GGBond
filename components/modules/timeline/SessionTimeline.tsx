@@ -26,7 +26,7 @@ export function SessionTimeline() {
 
   if (loading) {
     return (
-      <ModuleCard title="Session Timeline" description="Recent sessions" icon={GitBranch} className="h-[40rem] flex flex-col">
+      <ModuleCard title="Session Timeline" description="Recent sessions" icon={GitBranch} className="h-[30rem] flex flex-col">
         <div className="flex items-center justify-center py-12 flex-1"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
       </ModuleCard>
     );
@@ -48,7 +48,7 @@ export function SessionTimeline() {
   };
 
   return (
-    <ModuleCard title="Session Timeline" description={`${sessions.length} recent sessions`} icon={GitBranch} className="h-[40rem] flex flex-col">
+    <ModuleCard title="Session Timeline" description={`${sessions.length} recent sessions`} icon={GitBranch} className="h-[30rem] flex flex-col">
       <div className="flex-1 min-h-[0] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
         {sessions.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted-foreground italic">No sessions yet</div>
