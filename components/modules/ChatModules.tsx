@@ -51,13 +51,14 @@ export const ChatManager = memo(function ChatManager() {
       title="Sessions"
       description={`${sessions.length} total`}
       icon={MessageSquare}
+      className="h-[40rem] flex flex-col"
       actions={
         <button onClick={fetchSessions} className="p-1 text-zinc-500 hover:text-blue-600 transition-colors" title="Refresh">
           <RefreshCw size={14} />
         </button>
       }
     >
-      <div className="space-y-2 max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800 pr-1">
+      <div className="flex-1 min-h-[0] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800 pr-2 space-y-2">
         {sessions.length === 0 ? (
           <div className="text-center py-8">
             <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800/50 rounded-full flex items-center justify-center mx-auto mb-2 text-zinc-400">
@@ -66,15 +67,15 @@ export const ChatManager = memo(function ChatManager() {
             <div className="text-xs font-medium text-zinc-500">No sessions yet</div>
             <div className="text-[10px] text-zinc-400 mt-1">Start a new chat to see it here</div>
           </div>
-        ) : sessions.slice(0, 8).map(session => (
-          <div key={session.id} className="group relative flex flex-col p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-sm cursor-pointer">
-            <div className="flex items-center justify-between mb-1">
+        ) : sessions.slice(0, 15).map(session => (
+          <div key={session.id} className="group relative flex flex-col p-3 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,0.8)] dark:hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all duration-300 cursor-pointer">
+            <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-2 max-w-[calc(100%-60px)]">
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-                <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate font-mono tracking-tight">{session.title || 'Untitled Session'}</div>
+                <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate font-mono tracking-tight">{session.title || 'Untitled Session'}</div>
               </div>
-              <span className="text-[10px] text-zinc-400 font-mono flex items-center gap-1 shrink-0">
-                <Clock size={10} />
+              <span className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold flex items-center gap-1 shrink-0 bg-zinc-50 dark:bg-zinc-800 px-1 py-0.5 rounded-sm border border-zinc-200 dark:border-zinc-700">
+                <Clock size={8} />
                 {formatTime(session.updated_at)}
               </span>
             </div>

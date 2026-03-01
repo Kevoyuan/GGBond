@@ -80,8 +80,8 @@ export const CheckpointManager = memo(function CheckpointManager() {
 
   if (loading) {
     return (
-      <ModuleCard title="Checkpointing" description="/chat save | /chat list | /chat resume" icon={BookmarkCheck}>
-        <div className="flex items-center justify-center py-8"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
+      <ModuleCard title="Checkpointing" description="/chat save | /chat list | /chat resume" icon={BookmarkCheck} className="h-[40rem] flex flex-col">
+        <div className="flex items-center justify-center flex-1"><Loader2 size={18} className="animate-spin text-muted-foreground" /></div>
       </ModuleCard>
     );
   }
@@ -91,13 +91,14 @@ export const CheckpointManager = memo(function CheckpointManager() {
       title="Checkpointing"
       description={`${sessions.length} resumable sessions`}
       icon={BookmarkCheck}
+      className="h-[40rem] flex flex-col w-full"
       actions={
         <button onClick={fetchAllSessions} className="p-1.5 text-zinc-500 hover:text-blue-600 transition-colors" title="Refresh">
           <RefreshCw size={14} />
         </button>
       }
     >
-      <div className="space-y-4">
+      <div className="flex-1 min-h-[0] flex flex-col gap-4">
         <div className="grid md:grid-cols-3 gap-2">
           <button
             onClick={() => copyCommand('/chat save milestone-1')}
@@ -133,11 +134,11 @@ export const CheckpointManager = memo(function CheckpointManager() {
           </button>
         </div>
 
-        <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white/50 dark:bg-zinc-900/20">
-          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 backdrop-blur-sm">
+        <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white/50 dark:bg-zinc-900/20 flex flex-col flex-1 min-h-[0]">
+          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 backdrop-blur-sm shrink-0">
             Session History Proxy (for /resume)
           </div>
-          <div className="max-h-[260px] overflow-auto divide-y divide-zinc-100 dark:divide-zinc-800/50 custom-scrollbar">
+          <div className="flex-1 min-h-[0] overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800/50 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
             {recent.length === 0 ? (
               <div className="py-8 text-center text-xs text-muted-foreground italic">No session data yet</div>
             ) : (
