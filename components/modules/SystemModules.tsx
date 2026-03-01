@@ -44,28 +44,29 @@ export const ToolManager = memo(function ToolManager() {
       title="Built-in Tools"
       description={`Sandbox: ${config.sandbox} · Approval: ${config.approvalMode}`}
       icon={Hammer}
+      className="h-[40rem] flex flex-col"
     >
-      <div className="space-y-2">
+      <div className="flex-1 min-h-[0] overflow-y-auto space-y-1.5 pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
         {tools.map(tool => (
-          <div key={tool.name} className="flex items-center justify-between p-2.5 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors group">
+          <div key={tool.name} className="flex items-center justify-between p-2 border border-zinc-200/50 dark:border-zinc-800/50 rounded-lg bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,0.8)] dark:hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all duration-300 group">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{tool.name}</span>
+                <span className="font-mono text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">{tool.name}</span>
                 {tool.requiresApproval && (
-                  <span className="shrink-0 px-1.5 py-0.5 text-[10px] uppercase font-bold tracking-wider bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 rounded border border-amber-200 dark:border-amber-500/20">
+                  <span className="shrink-0 px-1.5 py-0.5 text-[9px] uppercase font-bold tracking-widest bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 rounded-sm border border-amber-200 dark:border-amber-500/20">
                     Approval
                   </span>
                 )}
               </div>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">{tool.displayName}</span>
+              <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium truncate opacity-80">{tool.displayName}</span>
             </div>
             <div className="shrink-0 ml-2">
               {tool.isExcluded ? (
-                <span className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 rounded border border-red-200 dark:border-red-500/20"><XCircle size={12} /> Excluded</span>
+                <span className="flex items-center gap-1.5 text-[9px] uppercase font-bold tracking-widest text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-1.5 py-0.5 rounded-sm border border-red-200 dark:border-red-500/20"><XCircle size={10} /> Excluded</span>
               ) : tool.isCore ? (
-                <span className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-500/20"><CheckCircle size={12} /> Core</span>
+                <span className="flex items-center gap-1.5 text-[9px] uppercase font-bold tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded-sm border border-blue-200 dark:border-blue-500/20"><CheckCircle size={10} /> Core</span>
               ) : (
-                <span className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 text-transparent group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors"><CheckCircle size={12} /> Active</span>
+                <span className="flex items-center gap-1.5 text-[9px] uppercase font-bold tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded-sm border border-emerald-200 dark:border-emerald-500/20 transition-colors"><CheckCircle size={10} /> Active</span>
               )}
             </div>
           </div>
