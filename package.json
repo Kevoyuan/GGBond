@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:all": "concurrently \"npm run dev\" \"npm run tauri dev\"",
+    "restart": "bash scripts/restart-tauri.sh",
     "doctor:node-native": "node scripts/ensure-node-native.cjs",
     "rebuild:node-native": "npm rebuild better-sqlite3",
     "build:web": "npm run rebuild:node-native && next build",
