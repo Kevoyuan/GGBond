@@ -110,6 +110,7 @@ export const PerformancePanel = memo(function PerformancePanel() {
             title="Performance"
             description={`${data.totalEvents} captured ops`}
             icon={Activity}
+            className="h-[48rem]"
             actions={
                 <div className="flex items-center gap-3">
                     <motion.div
@@ -136,10 +137,10 @@ export const PerformancePanel = memo(function PerformancePanel() {
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
-                className="flex flex-col gap-5 pt-1"
+                className="flex h-full flex-col gap-5 pt-1 overflow-y-auto pr-2"
             >
                 {/* Latency Matrix */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 shrink-0">
                     {[
                         { label: 'Avg API', value: s.avgApiLatencyMs },
                         { label: 'P95 API', value: s.p95ApiLatencyMs },
@@ -186,33 +187,36 @@ export const PerformancePanel = memo(function PerformancePanel() {
 
                 {/* Top Tools Distribution */}
                 {topTools.length > 0 && (
-                    <motion.div variants={itemVariants} className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between border-b border-zinc-200/50 pb-1.5 dark:border-zinc-800/50">
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Active Instruments</span>
-                            <Activity size={12} className="text-zinc-400" />
+                    <motion.div variants={itemVariants} className="flex flex-col gap-3 rounded-lg border border-zinc-200/50 bg-zinc-50/30 p-3 dark:border-zinc-800/50 dark:bg-zinc-900/20">
+                        <div className="flex items-center justify-between border-b border-zinc-200/50 pb-2 dark:border-zinc-800/50">
+                            <span className="text-xs font-semibold tracking-wider text-zinc-500">ACTIVE INSTRUMENTS</span>
+                            <Activity size={14} className="text-zinc-500" />
                         </div>
-                        <div className="flex flex-col gap-2.5">
+                        <div className="flex flex-col gap-3 pt-1">
                             {topTools.map(([name, info]) => {
                                 const successRate = info.count > 0 ? (info.success / info.count * 100) : 100;
                                 return (
                                     <div key={name} className="group relative flex items-center justify-between gap-3 text-xs">
                                         <div className="flex min-w-0 flex-1 items-center gap-2">
-                                            <span className="truncate font-mono text-[11px] font-medium text-zinc-700 dark:text-zinc-300">
+                                            <span className="truncate font-mono text-xs font-medium text-zinc-600 dark:text-zinc-400 transition-colors group-hover:text-zinc-900 dark:group-hover:text-zinc-200">
                                                 {name}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                            <div className="flex h-1.5 w-16 overflow-hidden rounded-full bg-zinc-100 shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)] dark:bg-zinc-800/80">
-                                                <motion.div
-                                                    initial={{ width: 0 }}
-                                                    animate={{ width: `${successRate}%` }}
-                                                    transition={{ duration: 1, ease: 'easeOut' }}
-                                                    className={`h-full rounded-full ${successRate < 100 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                                                />
+                                            <div className="relative flex h-2 w-16 items-center rounded-full bg-zinc-200/50 p-[1px] shadow-[inset_0_1px_1px_rgba(0,0,0,0.06)] dark:bg-zinc-800/50 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                                                <div className="flex h-full w-full overflow-hidden rounded-full gap-[1px]">
+                                                    <motion.div
+                                                        initial={{ flexBasis: '0%' }}
+                                                        animate={{ flexBasis: `${successRate}%` }}
+                                                        transition={{ duration: 0.8, ease: 'easeOut' }}
+                                                        style={{ willChange: 'flex-basis' }}
+                                                        className={`h-full shrink-0 ${successRate < 100 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                                    />
+                                                </div>
                                             </div>
                                             <div className="flex w-14 justify-end gap-1.5 font-mono text-[10px] text-zinc-500">
                                                 <span>{info.count}x</span>
-                                                <span className="text-zinc-400">·</span>
+                                                <span className="text-zinc-400 opacity-50">+</span>
                                                 <span>{Math.round(info.avgLatency)}ms</span>
                                             </div>
                                         </div>
