@@ -27,7 +27,8 @@ export const SettingsManager = memo(function SettingsManager() {
     fetch('/api/models')
       .then(r => r.json())
       .then(data => {
-        setCurrentModel(data.current || '');
+        const modelVal = data.current;
+        setCurrentModel(typeof modelVal === 'object' && modelVal !== null ? (modelVal as any).name : (modelVal || ''));
         setModels(data.known || []);
         setCustomAliases(data.customAliases || {});
       })
