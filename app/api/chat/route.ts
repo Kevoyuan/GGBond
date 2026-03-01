@@ -263,7 +263,7 @@ export async function POST(req: Request) {
         : (typeof userMessageId === 'number' ? userMessageId : null);
 
     try {
-      executeWithRetry(
+      await executeWithRetry(
         () =>
           db
             .prepare(
@@ -297,7 +297,7 @@ export async function POST(req: Request) {
           assistantMessageDbId = Number(insertResult.lastInsertRowid);
 
           // Link background job to assistant message
-          executeWithRetry(
+          await executeWithRetry(
             () =>
               db
                 .prepare(`UPDATE background_jobs SET user_message_id = ?, updated_at = ? WHERE id = ?`)
@@ -312,7 +312,7 @@ export async function POST(req: Request) {
         }
 
         // Update background job status
-        executeWithRetry(
+        await executeWithRetry(
           () =>
             db
               .prepare(
@@ -330,7 +330,7 @@ export async function POST(req: Request) {
     const markBackgroundJobCompleted = (error?: string) => {
       const completedTs = Date.now();
       try {
-        executeWithRetry(
+        await executeWithRetry(
           () =>
             db
               .prepare(

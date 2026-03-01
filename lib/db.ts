@@ -13,7 +13,7 @@ const RETRY_MAX_DELAY_MS = 500;
  * Execute a database write operation with retry and exponential backoff.
  * Designed for non-critical writes like background_jobs that can tolerate brief failures.
  */
-function executeWithRetry<T>(operation: () => T, operationName: string): T | null {
+async function executeWithRetry<T>(operation: () => T, operationName: string): Promise<T | null> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < RETRY_MAX_ATTEMPTS; attempt++) {
@@ -40,7 +40,8 @@ function executeWithRetry<T>(operation: () => T, operationName: string): T | nul
         RETRY_BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * RETRY_BASE_DELAY_MS,
         RETRY_MAX_DELAY_MS
       );
-      console.warn(`[DB] ${operationName} failed (attempt ${attempt + 1}), retrying in ${delay.toFixed(0)}ms...`);
+      console.warn(`[DB] ${operationName} failed (attempt ${attempt + 1}/${RETRY_MAX_ATTEMPTS}), retrying in ${delay.toFixed(0)}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
 
