@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User, Info, BookOpen, Layout, Laptop, Keyboard, Monitor, Key, Bug, Github, FileCode, Eye, LogOut } from 'lucide-react';
@@ -5,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ModelSelector } from './ModelSelector';
+import { useChatContext } from '@/app/contexts/ChatContext';
 
 interface UploadedImage {
   id: string;
@@ -145,6 +148,7 @@ const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
 
 export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange, prefillRequest, compressionThreshold = 0.5 }: ChatInputProps) {
   const [input, setInput] = useState('');
+  const { activeContextFiles, removeContextFile } = useChatContext();
   const [showCommands, setShowCommands] = useState(false);
   const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | '#' | 'skill' | null>(null);
   const [showModeMenu, setShowModeMenu] = useState(false);

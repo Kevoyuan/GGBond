@@ -35,6 +35,8 @@ import {
 // Import hooks
 import { useChatCommands } from '@/app/page/hooks/useChatCommands';
 
+import { ChatProvider } from './contexts/ChatContext';
+
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -2846,36 +2848,38 @@ export default function Home() {
         <main className="flex-1 flex min-w-0 bg-[var(--bg-primary)] relative">
           {/* Chat Area + Terminal (vertical stack) */}
           <div className="flex-1 flex flex-col min-w-0">
-            <ToolExecutionOutputProvider initialSessionId={currentSessionId}>
-              <ChatContainer
-                messages={messages}
-                isLoading={isLoading}
-                hasActiveSession={Boolean(currentSessionId)}
-                streamingStatus={streamingStatus}
-                previewFile={previewFile}
-                onClosePreview={() => setPreviewFile(null)}
-                settings={settings}
-                onSendMessage={handleSendMessage}
-                onStopMessage={handleStopMessage}
-                onUndoTool={handleUndoTool}
-                onUndoMessage={handleUndoMessage}
-                inputPrefillRequest={inputPrefillRequest}
-                onRetry={handleRetry}
-                onCancel={handleCancel}
-                onModelChange={handleModelChange}
-                currentModel={settings.model}
-                sessionStats={sessionStats}
-                currentContextUsage={currentContextUsage}
-                mode={mode}
-                onModeChange={handleModeChange}
-                approvalMode={approvalMode}
-                onApprovalModeChange={handleApprovalModeChange}
-                workspacePath={currentWorkspace || undefined}
-                showTerminal={showTerminal}
-                onToggleTerminal={() => setShowTerminal(!showTerminal)}
-                onOpenArtifact={openArtifact}
-              />
-            </ToolExecutionOutputProvider>
+            <ChatProvider key={currentSessionId || 'none'}>
+              <ToolExecutionOutputProvider initialSessionId={currentSessionId}>
+                <ChatContainer
+                  messages={messages}
+                  isLoading={isLoading}
+                  hasActiveSession={Boolean(currentSessionId)}
+                  streamingStatus={streamingStatus}
+                  previewFile={previewFile}
+                  onClosePreview={() => setPreviewFile(null)}
+                  settings={settings}
+                  onSendMessage={handleSendMessage}
+                  onStopMessage={handleStopMessage}
+                  onUndoTool={handleUndoTool}
+                  onUndoMessage={handleUndoMessage}
+                  inputPrefillRequest={inputPrefillRequest}
+                  onRetry={handleRetry}
+                  onCancel={handleCancel}
+                  onModelChange={handleModelChange}
+                  currentModel={settings.model}
+                  sessionStats={sessionStats}
+                  currentContextUsage={currentContextUsage}
+                  mode={mode}
+                  onModeChange={handleModeChange}
+                  approvalMode={approvalMode}
+                  onApprovalModeChange={handleApprovalModeChange}
+                  workspacePath={currentWorkspace || undefined}
+                  showTerminal={showTerminal}
+                  onToggleTerminal={() => setShowTerminal(!showTerminal)}
+                  onOpenArtifact={openArtifact}
+                />
+              </ToolExecutionOutputProvider>
+            </ChatProvider>
 
             {/* Terminal Panel */}
             {showTerminal && (

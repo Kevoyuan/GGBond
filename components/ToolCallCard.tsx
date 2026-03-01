@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     ChevronRight,
     Check,
@@ -18,9 +18,11 @@ import {
     Edit,
     Play,
     RotateCcw,
+    FileCode,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ShellToolView, EditToolView, WriteToolView, ReadToolView, DefaultToolView } from './views';
+import { useChatContext } from '@/app/contexts/ChatContext';
 
 interface ToolCallCardProps {
     toolId?: string;
@@ -155,6 +157,22 @@ export const ToolCallCard = React.memo(function ToolCallCard({
     onRetry,
     onCancel
 }: ToolCallCardProps) {
+    const { addContextFile } = useChatContext();
+
+    useEffect(() => {
+        if (status === 'completed' && (
+            toolName.toLowerCase().includes('edit') || 
+            toolName.toLowerCase().includes('replace') || 
+            toolName.toLowerCase().includes('write') || 
+            toolName.toLowerCase().includes('create')
+        )) {
+            const rawPath = args.path || args.file_path || args.filePath || args.file;
+            if (rawPath && typeof rawPath === 'string') {
+                addContextFile(rawPath);
+            }
+        }
+    }, [status, toolName, args, addContextFile]);
+
     const isReadTool = toolName.toLowerCase().includes('read') || toolName.toLowerCase().includes('view') || toolName.toLowerCase().includes('cat') || toolName.toLowerCase().includes('fetch');
     const isShellTool = toolName.toLowerCase().includes('run_shell_command') || toolName.toLowerCase().includes('execute') || toolName.toLowerCase().includes('shell') || toolName.toLowerCase().includes('bash');
     const [expanded, setExpanded] = useState(isReadTool || (status === 'running' && isShellTool));

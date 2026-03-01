@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ChatProvider } from "./contexts/ChatContext";
 
 export const metadata: Metadata = {
   title: "GGBond",
