@@ -11,6 +11,35 @@ import path from 'path';
 import { execSync, spawn } from 'child_process';
 import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
+const SETTINGS_CACHE_TTL_MS = 2000;
+const CLI_READ_CACHE_TTL_MS = 5000;
+
+let settingsCache: {
+    value: Record<string, any>;
+    expiresAt: number;
+} | null = null;
+let settingsInFlight: Promise<Record<string, any>> | null = null;
+
+const cliCommandInFlight = new Map<string, Promise<string>>();
+const cliCommandCache = new Map<string, { value: string; expiresAt: number }>();
+
+function buildCommandKey(args: string[]): string {
+    return args.join('\u0000');
+}
+
+function isReadOnlyCliCommand(args: string[]): boolean {
+    if (args.length === 2 && args[0] === 'extensions' && args[1] === 'list') return true;
+    return false;
+}
+
+export function invalidateGeminiCommandCache(args?: string[]): void {
+    if (!args || args.length === 0) {
+        cliCommandCache.clear();
+        return;
+    }
+    cliCommandCache.delete(buildCommandKey(args));
+}
+
 // ─── Paths ───────────────────────────────────────────────
 export function getGeminiHome(): string {
     return resolveGeminiConfigDir(resolveRuntimeHome());
@@ -26,18 +55,44 @@ export function getProjectSettingsPath(cwd?: string): string {
 
 // ─── Settings Read/Write ─────────────────────────────────
 export async function readSettings(): Promise<Record<string, any>> {
-    const settingsPath = getSettingsPath();
-    try {
-        const content = await fsp.readFile(settingsPath, 'utf-8');
-        return JSON.parse(content);
-    } catch {
-        return {};
+    const now = Date.now();
+    if (settingsCache && settingsCache.expiresAt > now) {
+        return settingsCache.value;
     }
+    if (settingsInFlight) {
+        return settingsInFlight;
+    }
+    const settingsPath = getSettingsPath();
+    settingsInFlight = (async () => {
+        try {
+            const content = await fsp.readFile(settingsPath, 'utf-8');
+            const parsed = JSON.parse(content);
+            settingsCache = {
+                value: parsed,
+                expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS,
+            };
+            return parsed;
+        } catch {
+            settingsCache = {
+                value: {},
+                expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS,
+            };
+            return {};
+        } finally {
+            settingsInFlight = null;
+        }
+    })();
+    return settingsInFlight;
 }
 
 export async function writeSettings(settings: Record<string, any>): Promise<void> {
     const settingsPath = getSettingsPath();
     await fsp.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+    settingsCache = {
+        value: settings,
+        expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS,
+    };
+    settingsInFlight = null;
 }
 
 export async function mergeSettings(partial: Record<string, any>): Promise<Record<string, any>> {
@@ -645,7 +700,23 @@ export async function setIncludedDirectories(dirs: string[]): Promise<void> {
 
 // ─── CLI Execution ───────────────────────────────────────
 export function runGeminiCommand(args: string[]): Promise<string> {
-    return new Promise((resolve, reject) => {
+    const key = buildCommandKey(args);
+    const readOnly = isReadOnlyCliCommand(args);
+    const now = Date.now();
+
+    if (readOnly) {
+        const cached = cliCommandCache.get(key);
+        if (cached && cached.expiresAt > now) {
+            return Promise.resolve(cached.value);
+        }
+    }
+
+    const inFlight = cliCommandInFlight.get(key);
+    if (inFlight) {
+        return inFlight;
+    }
+
+    const commandPromise = new Promise<string>((resolve, reject) => {
         let geminiPath: string;
         try {
             geminiPath = execSync('which gemini').toString().trim();
@@ -668,11 +739,21 @@ export function runGeminiCommand(args: string[]): Promise<string> {
             if (code !== 0) {
                 reject(new Error(stderr || `Command exited with code ${code}`));
             } else {
+                if (readOnly) {
+                    cliCommandCache.set(key, {
+                        value: stdout,
+                        expiresAt: Date.now() + CLI_READ_CACHE_TTL_MS,
+                    });
+                }
                 resolve(stdout);
             }
         });
 
         child.on('error', reject);
+    });
+    cliCommandInFlight.set(key, commandPromise);
+    return commandPromise.finally(() => {
+        cliCommandInFlight.delete(key);
     });
 }
 
