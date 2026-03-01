@@ -164,9 +164,22 @@ export const ContentRenderer = React.memo(function ContentRenderer({
                 if (React.isValidElement(child) && (child.props as { className?: string })?.className?.includes('task-list-item')) {
                     return true;
                 }
-                // Also check for checkbox pattern in string representation
-                const childStr = String(child);
-                return childStr.includes('[ ]') || childStr.includes('[x]') || childStr.includes('[X]');
+                
+                // Safer check for raw checkbox string patterns
+                if (React.isValidElement(child)) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const liChildren = React.Children.toArray((child.props as any).children);
+                    let firstChild = liChildren[0];
+                    // Handle wrapped in <p> tag
+                    if (React.isValidElement(firstChild) && firstChild.type === 'p') {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        firstChild = React.Children.toArray((firstChild.props as any).children)[0];
+                    }
+                    if (typeof firstChild === 'string') {
+                        return /^\s*\[(\s|x|X|~|\/)\]/.test(firstChild);
+                    }
+                }
+                return false;
             });
 
             if (hasCheckboxes) {
@@ -184,70 +197,93 @@ export const ContentRenderer = React.memo(function ContentRenderer({
             return <ol {...props} className="list-decimal list-inside my-2 space-y-2">{children}</ol>;
         },
         li({ children, ...props }) {
-            // Check if this is a task list item
-            const childStr = String(children);
-            const isCheckbox = /^\s*\[(\s|x|X|~|\/)\]/.test(childStr);
-            const checkboxMatch = childStr.match(/^\s*\[(\s|x|X|~|\/)\]\s*(.*)$/);
+            // Safely convert children to an array to prevent breaking React elements
+            const childrenArray = React.Children.toArray(children);
+            let firstChild = childrenArray[0];
+            
+            // Check if wrapped in paragraph (loose lists might wrap in <p>)
+            const isParagraphWrap = React.isValidElement(firstChild) && firstChild.type === 'p';
+            if (isParagraphWrap) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const pChildren = React.Children.toArray((firstChild.props as any).children);
+                if (pChildren.length > 0 && typeof pChildren[0] === 'string') {
+                    firstChild = pChildren[0];
+                }
+            }
 
-            if (isCheckbox && checkboxMatch) {
-                const status = checkboxMatch[1].trim();
-                const content = checkboxMatch[2];
-                let statusClass = 'border-zinc-300 dark:border-zinc-600 text-muted-foreground';
-                let icon = null;
+            // --- 1. Check if Task List Item ---
+            if (typeof firstChild === 'string') {
+                const checkboxMatch = firstChild.match(/^\s*\[(\s|x|X|~|\/)\]\s*(.*)$/);
+                
+                if (checkboxMatch) {
+                    const status = checkboxMatch[1].trim() || ' ';
+                    const remainingText = checkboxMatch[2];
+                    
+                    // Strip the "[ ] " from the first node, keeping remaining text and other nodes
+                    if (isParagraphWrap) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const pChildren = React.Children.toArray((childrenArray[0] as React.ReactElement).props.children);
+                        pChildren[0] = remainingText;
+                        childrenArray[0] = React.cloneElement(childrenArray[0] as React.ReactElement, {}, ...pChildren);
+                    } else {
+                        childrenArray[0] = remainingText;
+                    }
 
-                if (status === 'x' || status === 'X') {
-                    statusClass = 'bg-green-500/20 border-green-500 text-green-500';
-                    icon = (
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
+                    let statusClass = 'border-zinc-300 dark:border-zinc-600 text-muted-foreground';
+                    let icon = null;
+
+                    if (status === 'x' || status === 'X') {
+                        statusClass = 'bg-green-500/20 border-green-500 text-green-500';
+                        icon = <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>;
+                    } else if (status === '/') {
+                        statusClass = 'bg-blue-500/20 border-blue-500 text-blue-500 animate-pulse';
+                        icon = <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>;
+                    } else if (status === '~') {
+                        statusClass = 'bg-amber-500/20 border-amber-500 text-amber-500';
+                        icon = <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>;
+                    }
+
+                    return (
+                        <li {...props} className="flex items-start gap-3 group">
+                            <div className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center shrink-0 ${statusClass}`}>
+                                {icon}
+                            </div>
+                            <div className={`flex-1 pt-0.5 ${(status === 'x' || status === 'X') ? 'line-through text-muted-foreground' : ''}`}>
+                                {childrenArray}
+                            </div>
+                        </li>
                     );
-                } else if (status === '/') {
-                    statusClass = 'bg-blue-500/20 border-blue-500 text-blue-500 animate-pulse';
-                    icon = (
-                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                    );
-                } else if (status === '~') {
-                    statusClass = 'bg-amber-500/20 border-amber-500 text-amber-500';
-                    icon = (
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                        </svg>
-                    );
-                } else {
-                    statusClass = 'border-zinc-300 dark:border-zinc-600 text-muted-foreground';
                 }
 
-                return (
-                    <li {...props} className="flex items-start gap-3 group">
-                        <div className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center shrink-0 ${statusClass}`}>
-                            {icon}
-                        </div>
-                        <div className={`flex-1 pt-0.5 ${status === 'x' || status === 'X' ? 'line-through text-muted-foreground' : ''}`}>
-                            {content}
-                        </div>
-                    </li>
-                );
+                // --- 2. Check if Plan Step (Numbered) ---
+                const planStepMatch = firstChild.match(/^(\d+)[\.\)]\s+(.*)$/);
+                if (planStepMatch) {
+                    const number = planStepMatch[1];
+                    const remainingText = planStepMatch[2];
+
+                    if (isParagraphWrap) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const pChildren = React.Children.toArray((childrenArray[0] as React.ReactElement).props.children);
+                        pChildren[0] = remainingText;
+                        childrenArray[0] = React.cloneElement(childrenArray[0] as React.ReactElement, {}, ...pChildren);
+                    } else {
+                        childrenArray[0] = remainingText;
+                    }
+
+                    return (
+                        <li {...props} className="flex items-start gap-3 group">
+                            <div className="mt-0.5 w-6 h-6 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center shrink-0 text-xs font-bold">
+                                {number}
+                            </div>
+                            <div className="flex-1 pt-0.5">
+                                {childrenArray}
+                            </div>
+                        </li>
+                    );
+                }
             }
 
-            // Check if this looks like a plan step (numbered with period or similar pattern)
-            const isPlanStep = /^\d+[\.\)]\s+/.test(childStr);
-
-            if (isPlanStep) {
-                return (
-                    <li {...props} className="flex items-start gap-3 group">
-                        <div className="mt-0.5 w-6 h-6 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center shrink-0 text-xs font-bold">
-                            {childStr.match(/^(\d+)/)?.[1] || '?'}
-                        </div>
-                        <div className="flex-1 pt-0.5">
-                            {childStr.replace(/^\d+[\.\)]\s*/, '')}
-                        </div>
-                    </li>
-                );
-            }
-
+            // Fallback for regular list items
             return <li {...props}>{injectSkillRefs(children, skillMetaMap)}</li>;
         },
         code({ className, children, ...props }) {
