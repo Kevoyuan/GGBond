@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState, memo } from 'react';
 import { ModuleCard } from './ModuleCard';
-import { BookmarkCheck, Loader2, RefreshCw, Copy, Clock3, ArchiveRestore, Save } from 'lucide-react';
+import { BookmarkCheck, Loader2, RefreshCw, Copy, Clock3, ArchiveRestore, Save, GitBranch, ArrowRight } from 'lucide-react';
 
 interface SessionItem {
   id: string;
@@ -98,81 +98,77 @@ export const CheckpointManager = memo(function CheckpointManager() {
         </button>
       }
     >
-      <div className="flex-1 min-h-[0] flex flex-col gap-4">
-        <div className="grid md:grid-cols-3 gap-2">
+      <div className="flex-1 min-h-[0] flex flex-col gap-3">
+        {/* Dense Utility Bar */}
+        <div className="flex gap-2 p-1.5 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50 shrink-0">
           <button
             onClick={() => copyCommand('/chat save milestone-1')}
-            className="text-left p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 hover:border-purple-300 dark:hover:border-purple-700/50 hover:shadow-sm transition-all group"
+            className="flex-1 flex items-center justify-center gap-2 py-1.5 px-2 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-700/50 hover:border-purple-300 dark:hover:border-purple-800 transition-all group"
           >
-            <div className="flex items-center gap-2 mb-1">
-              <Save size={14} className="text-purple-500 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Save Checkpoint</span>
-            </div>
-            <div className="text-[10px] font-mono text-zinc-400 group-hover:text-purple-600 dark:group-hover:text-purple-400">/chat save &lt;tag&gt;</div>
+            <Save size={10} className="text-purple-500" />
+            <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 font-mono tracking-tight group-hover:text-purple-600">SAVE</span>
           </button>
 
           <button
             onClick={() => copyCommand('/chat list')}
-            className="text-left p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 hover:border-blue-300 dark:hover:border-blue-700/50 hover:shadow-sm transition-all group"
+            className="flex-1 flex items-center justify-center gap-2 py-1.5 px-2 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-700/50 hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
           >
-            <div className="flex items-center gap-2 mb-1">
-              <Clock3 size={14} className="text-blue-500 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">List Checkpoints</span>
-            </div>
-            <div className="text-[10px] font-mono text-zinc-400 group-hover:text-blue-600 dark:group-hover:text-blue-400">/chat list</div>
+            <Clock3 size={10} className="text-blue-500" />
+            <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 font-mono tracking-tight group-hover:text-blue-600">LIST</span>
           </button>
 
           <button
-            onClick={() => copyCommand('/chat resume <tag>')}
-            className="text-left p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 hover:border-emerald-300 dark:hover:border-emerald-700/50 hover:shadow-sm transition-all group"
+            onClick={() => copyCommand('/chat resume milestone-1')}
+            className="flex-1 flex items-center justify-center gap-2 py-1.5 px-2 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-700/50 hover:border-emerald-300 dark:hover:border-emerald-800 transition-all group"
           >
-            <div className="flex items-center gap-2 mb-1">
-              <ArchiveRestore size={14} className="text-emerald-500 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Resume Checkpoint</span>
-            </div>
-            <div className="text-[10px] font-mono text-zinc-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">/chat resume &lt;tag&gt;</div>
+            <ArchiveRestore size={10} className="text-emerald-500" />
+            <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 font-mono tracking-tight group-hover:text-emerald-600">RESUME</span>
           </button>
         </div>
 
-        <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white/50 dark:bg-zinc-900/20 flex flex-col flex-1 min-h-[0]">
-          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 backdrop-blur-sm shrink-0">
-            Session History Proxy (for /resume)
-          </div>
-          <div className="flex-1 min-h-[0] overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800/50 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
-            {recent.length === 0 ? (
-              <div className="py-8 text-center text-xs text-muted-foreground italic">No session data yet</div>
-            ) : (
-              recent.map((session) => (
-                <div key={session.id} className="px-3 py-3 flex items-start justify-between gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors group">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 truncate">{session.title || session.id}</span>
-                      {session.isCore && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50">CORE</span>}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] font-mono text-zinc-400 bg-zinc-100 dark:bg-zinc-800/50 px-1 rounded">{session.id.slice(0, 8)}...</span>
-                      {session.workspace && (
-                        <span className="text-[10px] text-zinc-500 truncate max-w-[150px] flex items-center gap-1">
-                          <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600"></span>
-                          {session.workspace.split('/').pop()}
-                        </span>
-                      )}
-                    </div>
+        <div className="flex-1 min-h-[0] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800 pr-2 space-y-2">
+          {recent.length === 0 ? (
+            <div className="py-8 text-center text-xs text-muted-foreground italic">No session data yet</div>
+          ) : (
+            recent.map((session) => (
+              <div key={session.id} className="group relative flex flex-col p-1.5 rounded-md border border-zinc-200/40 dark:border-zinc-800/40 bg-white/30 dark:bg-zinc-900/10 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)] transition-all duration-200 cursor-pointer">
+                <div className="flex items-center justify-between mb-0.5">
+                  <div className="flex items-center gap-1.5 max-w-[calc(100%-50px)]">
+                    <div className="w-1.2 h-1.2 rounded-full bg-blue-500 shrink-0 shadow-[0_0_4px_rgba(59,130,246,0.5)]" />
+                    <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate font-mono tracking-tight leading-tight">{session.title || 'Untitled Session'}</div>
+                    {session.isCore && <span className="px-1 py-0.5 rounded-[2px] text-[8px] font-bold bg-amber-100/50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-500 border border-amber-200/50 dark:border-amber-800/30 shrink-0">CORE</span>}
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-[10px] text-zinc-400 font-mono">{formatAgo(session.updated_at ?? session.lastUpdated)}</span>
+                  <span className="text-[9px] font-mono text-zinc-500 dark:text-zinc-400 flex items-center gap-1 shrink-0 bg-zinc-50/80 dark:bg-zinc-800/80 px-1 py-0.5 rounded-sm border border-zinc-200/50 dark:border-zinc-700/50">
+                    {formatAgo(session.updated_at ?? session.lastUpdated)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pl-2.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[9px] text-zinc-500 dark:text-zinc-400 font-mono bg-zinc-100/80 dark:bg-zinc-800/50 px-1 rounded-sm border border-zinc-200/50 dark:border-zinc-700/50 shrink-0">
+                      {session.id.slice(0, 7)}
+                    </span>
+                    {session.workspace && (
+                      <div className="flex items-center gap-1 text-[9px] text-zinc-500 dark:text-zinc-400 truncate font-medium">
+                        <GitBranch size={8} className="opacity-70" />
+                        <span className="truncate">{session.workspace.split('/').pop()}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
-                      onClick={() => copyCommand(`/resume ${session.id}`)}
-                      className="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded opacity-0 group-hover:opacity-100 transition-all"
-                      title="Copy /resume command"
+                      onClick={(e) => { e.stopPropagation(); copyCommand(`/resume ${session.id}`); }}
+                      className="p-1 text-zinc-400 hover:text-blue-600 transition-colors"
+                      title="Copy resume command"
                     >
-                      <Copy size={12} />
+                      <Copy size={10} />
                     </button>
+                    <ArrowRight size={10} className="text-zinc-400 dark:text-zinc-600 translate-x-1 group-hover:translate-x-0 transition-transform duration-200" />
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </ModuleCard>
