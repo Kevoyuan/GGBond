@@ -91,7 +91,7 @@ export function StateSnapshotDisplay({ content }: StateSnapshotDisplayProps) {
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-primary transition-all duration-500 ease-out" 
+                        className="h-full bg-primary transition-[width] duration-500 ease-out" 
                         style={{ width: `${progress}%` }} 
                       />
                     </div>

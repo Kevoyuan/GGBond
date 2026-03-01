@@ -49,7 +49,7 @@ export const FileTree = React.memo(function FileTree({ initialPath, onFileSelect
                 actions={
                     <button
                         onClick={() => setRefreshToken(prev => prev + 1)}
-                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                         title="Refresh"
                     >
                         <RefreshCw className="w-3.5 h-3.5" />

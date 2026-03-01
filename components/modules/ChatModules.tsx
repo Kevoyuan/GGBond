@@ -68,7 +68,7 @@ export const ChatManager = memo(function ChatManager() {
             <div className="text-[10px] text-zinc-400 mt-1">Start a new chat to see it here</div>
           </div>
         ) : sessions.slice(0, 20).map(session => (
-          <div key={session.id} className="group relative flex flex-col p-1.5 rounded-md border border-zinc-200/40 dark:border-zinc-800/40 bg-white/30 dark:bg-zinc-900/10 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)] transition-all duration-200 cursor-pointer">
+          <div key={session.id} className="group relative flex flex-col p-1.5 rounded-md border border-zinc-200/40 dark:border-zinc-800/40 bg-white/30 dark:bg-zinc-900/10 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)] transition-colors duration-200 cursor-pointer">
             <div className="flex items-center justify-between mb-0.5">
               <div className="flex items-center gap-1.5 max-w-[calc(100%-50px)]">
                 <div className="w-1.2 h-1.2 rounded-full bg-blue-500 shrink-0 shadow-[0_0_4px_rgba(59,130,246,0.5)]" />

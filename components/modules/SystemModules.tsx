@@ -48,7 +48,7 @@ export const ToolManager = memo(function ToolManager() {
     >
       <div className="flex-1 min-h-[0] overflow-y-auto space-y-1.5 pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
         {tools.map(tool => (
-          <div key={tool.name} className="flex items-center justify-between p-2 border border-zinc-200/50 dark:border-zinc-800/50 rounded-lg bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,0.8)] dark:hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all duration-300 group">
+          <div key={tool.name} className="flex items-center justify-between p-2 border border-zinc-200/50 dark:border-zinc-800/50 rounded-lg bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,0.8)] dark:hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.02)] transition-colors duration-300 group">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">{tool.name}</span>
@@ -173,7 +173,7 @@ export const MCPManager = memo(function MCPManager() {
                 {server.timeout && <span className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500">{server.timeout / 1000}s</span>}
                 <button
                   onClick={() => handleRemove(server.name)}
-                  className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-all"
+                  className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-colors transition-opacity duration-200"
                   title="Remove"
                 >
                   <Trash2 size={14} />
@@ -205,7 +205,7 @@ export const MCPManager = memo(function MCPManager() {
         ) : (
           <button
             onClick={() => setShowAdd(true)}
-            className="w-full py-2 border border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-medium text-zinc-500 hover:text-blue-600 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 flex items-center justify-center gap-2 transition-all"
+            className="w-full py-2 border border-dashed border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-medium text-zinc-500 hover:text-blue-600 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 flex items-center justify-center gap-2 transition-colors"
           >
             <Plus size={14} /> Add MCP Server
           </button>
@@ -283,7 +283,7 @@ export const ExtensionManager = memo(function ExtensionManager() {
               </div>
               <button
                 onClick={() => handleUninstall(ext.name)}
-                className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded opacity-0 group-hover:opacity-100 transition-all"
+                className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded opacity-0 group-hover:opacity-100 transition-colors transition-opacity duration-200"
               >
                 <Trash2 size={14} />
               </button>

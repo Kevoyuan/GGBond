@@ -103,7 +103,7 @@ export const CheckpointManager = memo(function CheckpointManager() {
         <div className="flex gap-2 p-1.5 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50 shrink-0">
           <button
             onClick={() => copyCommand('/chat save milestone-1')}
-            className="flex-1 flex items-center justify-center gap-2 py-1.5 px-2 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-700/50 hover:border-purple-300 dark:hover:border-purple-800 transition-all group"
+            className="flex-1 flex items-center justify-center gap-2 py-1.5 px-2 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-700/50 hover:border-purple-300 dark:hover:border-purple-800 transition-colors group"
           >
             <Save size={10} className="text-purple-500" />
             <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 font-mono tracking-tight group-hover:text-purple-600">SAVE</span>
@@ -111,7 +111,7 @@ export const CheckpointManager = memo(function CheckpointManager() {
 
           <button
             onClick={() => copyCommand('/chat list')}
-            className="flex-1 flex items-center justify-center gap-2 py-1.5 px-2 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-700/50 hover:border-blue-300 dark:hover:border-blue-800 transition-all group"
+            className="flex-1 flex items-center justify-center gap-2 py-1.5 px-2 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-700/50 hover:border-blue-300 dark:hover:border-blue-800 transition-colors group"
           >
             <Clock3 size={10} className="text-blue-500" />
             <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 font-mono tracking-tight group-hover:text-blue-600">LIST</span>
@@ -119,7 +119,7 @@ export const CheckpointManager = memo(function CheckpointManager() {
 
           <button
             onClick={() => copyCommand('/chat resume milestone-1')}
-            className="flex-1 flex items-center justify-center gap-2 py-1.5 px-2 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-700/50 hover:border-emerald-300 dark:hover:border-emerald-800 transition-all group"
+            className="flex-1 flex items-center justify-center gap-2 py-1.5 px-2 rounded-md bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-700/50 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors group"
           >
             <ArchiveRestore size={10} className="text-emerald-500" />
             <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 font-mono tracking-tight group-hover:text-emerald-600">RESUME</span>
@@ -131,7 +131,7 @@ export const CheckpointManager = memo(function CheckpointManager() {
             <div className="py-8 text-center text-xs text-muted-foreground italic">No session data yet</div>
           ) : (
             recent.map((session) => (
-              <div key={session.id} className="group relative flex flex-col p-1.5 rounded-md border border-zinc-200/40 dark:border-zinc-800/40 bg-white/30 dark:bg-zinc-900/10 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)] transition-all duration-200 cursor-pointer">
+              <div key={session.id} className="group relative flex flex-col p-1.5 rounded-md border border-zinc-200/40 dark:border-zinc-800/40 bg-white/30 dark:bg-zinc-900/10 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)] transition-colors duration-200 cursor-pointer">
                 <div className="flex items-center justify-between mb-0.5">
                   <div className="flex items-center gap-1.5 max-w-[calc(100%-50px)]">
                     <div className="w-1.2 h-1.2 rounded-full bg-blue-500 shrink-0 shadow-[0_0_4px_rgba(59,130,246,0.5)]" />

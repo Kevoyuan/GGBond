@@ -63,7 +63,7 @@ const SkillItem = memo(function SkillItem({
             exit={{ opacity: 0, scale: 0.95 }}
             whileHover={{ y: -2 }}
             className={cn(
-                "group relative p-3 rounded-xl transition-all duration-300 cursor-pointer border",
+                "group relative p-3 rounded-xl transition-colors duration-300 cursor-pointer border",
                 selected
                     ? "bg-blue-50/80 dark:bg-blue-500/10 border-blue-300 dark:border-blue-500/50 shadow-md ring-1 ring-blue-500/10"
                     : "bg-white/60 dark:bg-zinc-900/40 border-zinc-200/50 dark:border-zinc-800/80 hover:bg-white dark:hover:bg-zinc-800/60 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-sm"
@@ -293,7 +293,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                     <button
                         onClick={() => setStatusFilter(prev => prev === 'enabled' ? 'all' : 'enabled')}
                         className={cn(
-                            "px-3 py-2.5 rounded-xl border transition-all duration-200 text-left group relative overflow-hidden",
+                            "px-3 py-2.5 rounded-xl border transition-colors duration-200 text-left group relative overflow-hidden",
                             statusFilter === 'enabled'
                                 ? "border-emerald-500/50 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
                                 : "border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 hover:border-emerald-500/30 hover:bg-emerald-500/5"
@@ -308,7 +308,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                     <button
                         onClick={() => setStatusFilter(prev => prev === 'disabled' ? 'all' : 'disabled')}
                         className={cn(
-                            "px-3 py-2.5 rounded-xl border transition-all duration-200 text-left group relative overflow-hidden",
+                            "px-3 py-2.5 rounded-xl border transition-colors duration-200 text-left group relative overflow-hidden",
                             statusFilter === 'disabled'
                                 ? "border-zinc-400/50 bg-zinc-400/10 shadow-[0_0_15px_rgba(161,161,170,0.1)]"
                                 : "border-zinc-200/50 dark:border-zinc-800/50 bg-white/50 dark:bg-zinc-900/40 hover:border-zinc-400/30 hover:bg-zinc-400/5"
@@ -475,7 +475,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                 <motion.div key="load-more" layout className="col-span-full py-4 text-center">
                                     <button
                                         onClick={() => setDisplayLimit(prev => prev + 40)}
-                                        className="px-6 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all border border-zinc-200 dark:border-zinc-700"
+                                        className="px-6 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700"
                                     >
                                         Load More ({filteredSkills.length - displayLimit} remaining)
                                     </button>

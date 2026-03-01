@@ -269,7 +269,7 @@ export function ExtensionsGalleryDialog({ open, onClose, onInstalled }: Extensio
                                 return (
                                     <div
                                         key={ext.id}
-                                        className="group p-5 rounded-xl border border-border/50 bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-all duration-200 flex flex-col cursor-pointer"
+                                        className="group p-5 rounded-xl border border-border/50 bg-card/40 hover:bg-card/80 hover:border-primary/30 transition-colors duration-200 flex flex-col cursor-pointer"
                                         onClick={() => setSelectedExtension(ext)}
                                     >
                                         <div className="flex items-start justify-between mb-3">

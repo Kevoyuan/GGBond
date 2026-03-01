@@ -112,7 +112,7 @@ export function ToolStatsPanel() {
             <motion.div
               key={tool.toolName}
               variants={itemVariants}
-              className="group flex flex-col gap-1.5 shrink-0 rounded-lg border border-zinc-200/40 bg-white/50 px-2.5 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all hover:bg-zinc-50 hover:shadow-md dark:border-zinc-800/40 dark:bg-zinc-900/20 dark:hover:bg-zinc-800/40"
+              className="group flex flex-col gap-1.5 shrink-0 rounded-lg border border-zinc-200/40 bg-white/50 px-2.5 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-colors hover:bg-zinc-50 hover:shadow-md dark:border-zinc-800/40 dark:bg-zinc-900/20 dark:hover:bg-zinc-800/40"
             >
               <div className="flex items-center justify-between">
                 <span className="flex-1 truncate font-mono text-xs font-medium text-zinc-700 transition-colors group-hover:text-zinc-900 dark:text-zinc-300 dark:group-hover:text-zinc-100" title={tool.toolName}>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 
 interface ChatContextType {
   activeContextFiles: string[];
@@ -29,8 +29,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setActiveContextFiles([]);
   }, []);
 
+  const value = useMemo(() => ({
+    activeContextFiles,
+    addContextFile,
+    removeContextFile,
+    clearContextFiles,
+  }), [activeContextFiles, addContextFile, removeContextFile, clearContextFiles]);
+
   return (
-    <ChatContext.Provider value={{ activeContextFiles, addContextFile, removeContextFile, clearContextFiles }}>
+    <ChatContext.Provider value={value}>
       {children}
     </ChatContext.Provider>
   );

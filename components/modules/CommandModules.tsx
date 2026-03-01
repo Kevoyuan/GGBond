@@ -146,7 +146,7 @@ export const CustomCommandManager = memo(function CustomCommandManager() {
         <div className="flex flex-col gap-2 h-1/2 min-h-[0] overflow-hidden">
           <button
             onClick={() => setShowCreate(true)}
-            className="w-full py-2.5 px-3 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 text-xs font-medium text-zinc-500 hover:text-blue-600 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 flex items-center justify-center gap-2 transition-all"
+            className="w-full py-2.5 px-3 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 text-xs font-medium text-zinc-500 hover:text-blue-600 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 flex items-center justify-center gap-2 transition-colors"
           >
             <Plus size={14} /> New Command
           </button>
@@ -160,7 +160,7 @@ export const CustomCommandManager = memo(function CustomCommandManager() {
                   <button
                     key={item.id}
                     onClick={() => onSelect(item)}
-                    className={`w-full text-left p-2 rounded-md transition-all border ${item.id === selectedId
+                    className={`w-full text-left p-2 rounded-md transition-colors border ${item.id === selectedId
                       ? 'bg-blue-50/80 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]'
                       : 'border-transparent hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 hover:border-zinc-200/50 dark:hover:border-zinc-700/50 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,0.8)] dark:hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.02)]'
                       }`}

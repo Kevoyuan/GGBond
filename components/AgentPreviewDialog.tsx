@@ -208,7 +208,7 @@ export function AgentPreviewDialog({ open, onOpenChange, agent, onSuccess }: Age
                                     value={task}
                                     onChange={(e) => setTask(e.target.value)}
                                     placeholder="Describe the problem or task for this agent..."
-                                    className="w-full h-32 px-4 py-3 rounded-xl border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none text-sm transition-all"
+                                    className="w-full h-32 px-4 py-3 rounded-xl border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none text-sm transition-colors"
                                     disabled={submitting}
                                 />
                             </div>
@@ -225,7 +225,7 @@ export function AgentPreviewDialog({ open, onOpenChange, agent, onSuccess }: Age
                                         value={workspace}
                                         onChange={(e) => setWorkspace(e.target.value)}
                                         placeholder="Current directory by default"
-                                        className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:ring-2 focus:ring-primary/20 transition-all font-mono"
+                                        className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:ring-2 focus:ring-primary/20 transition-colors font-mono"
                                         disabled={submitting}
                                     />
                                 </div>
@@ -257,7 +257,7 @@ export function AgentPreviewDialog({ open, onOpenChange, agent, onSuccess }: Age
                             <button
                                 onClick={handleRun}
                                 disabled={!task.trim() || submitting}
-                                className="w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+                                className="w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors transition-transform shadow-lg shadow-primary/20 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
                             >
                                 {submitting ? (
                                     <>

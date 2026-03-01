@@ -26,7 +26,7 @@ function MiniBar({ value, max, color }: { value: number; max: number; color: str
     return (
         <div className="flex items-center gap-2">
             <div className="flex-1 h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
+                <div className={cn("h-full rounded-full transition-[width]", color)} style={{ width: `${pct}%` }} />
             </div>
             <span className="text-[9px] font-mono text-zinc-500 w-6 text-right">{value}</span>
         </div>

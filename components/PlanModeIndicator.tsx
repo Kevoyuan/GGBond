@@ -82,7 +82,7 @@ export const PlanModeIndicator = React.memo(function PlanModeIndicator({
         exit={{ opacity: 0, y: 10 }}
         transition={{ duration: 0.2 }}
         className={cn(
-          "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all duration-300",
+          "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors duration-300",
           config.bgColor,
           config.color
         )}

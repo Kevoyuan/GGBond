@@ -127,7 +127,7 @@ export const PerformancePanel = memo(function PerformancePanel() {
                     </motion.div>
                     <button
                         onClick={fetchTelemetry}
-                        className="group flex h-6 w-6 items-center justify-center rounded-md border border-zinc-200/50 bg-white/50 text-zinc-500 transition-all hover:bg-zinc-100 dark:border-zinc-800/50 dark:bg-zinc-900/50 dark:hover:bg-zinc-800 active:scale-[0.96]"
+                        className="group flex h-6 w-6 items-center justify-center rounded-md border border-zinc-200/50 bg-white/50 text-zinc-500 transition-colors hover:bg-zinc-100 dark:border-zinc-800/50 dark:bg-zinc-900/50 dark:hover:bg-zinc-800 active:scale-[0.96]"
                     >
                         <RefreshCw size={12} className="transition-transform group-hover:rotate-180" />
                     </button>

@@ -308,7 +308,7 @@ export function CreateAgentDialog({ open, onOpenChange, onSuccess }: CreateAgent
                         key={tool}
                         onClick={() => toggleTool(tool)}
                         className={cn(
-                          "px-2.5 py-1 text-xs rounded-md border transition-all flex items-center gap-1.5",
+                          "px-2.5 py-1 text-xs rounded-md border transition-colors flex items-center gap-1.5",
                           selectedTools.includes(tool)
                             ? "bg-primary/10 text-primary border-primary/30"
                             : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"

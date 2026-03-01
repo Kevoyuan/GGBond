@@ -90,7 +90,7 @@ export const BrowserSessionTrace = memo(function BrowserSessionTrace() {
                         })();
                         return (
                             <div key={trace.id} className={cn(
-                                "group relative flex flex-col p-1.5 rounded-md border transition-all duration-200",
+                                "group relative flex flex-col p-1.5 rounded-md border transition-colors duration-200",
                                 meta.bg
                             )}>
                                 <div className="flex items-center justify-between mb-0.5">

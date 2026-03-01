@@ -16,7 +16,7 @@ export const NavListItem = React.memo(function NavListItem({ active, onClick, ic
         <div
             onClick={onClick}
             className={cn(
-                "group flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-all duration-150 select-none",
+                "group flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors duration-150 select-none",
                 active
                     ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
                     : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"

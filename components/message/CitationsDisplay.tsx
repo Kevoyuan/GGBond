@@ -44,7 +44,7 @@ export const CitationsDisplay = React.memo(function CitationsDisplay({ citations
                             target="_blank"
                             rel="noopener noreferrer"
                             className={cn(
-                                "flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-all text-[11px] font-medium",
+                                "flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors text-[11px] font-medium",
                                 isUrl ? "text-primary hover:border-primary/30" : "text-muted-foreground cursor-default"
                             )}
                         >

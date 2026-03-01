@@ -14,7 +14,7 @@ interface ModuleCardProps {
 export const ModuleCard = React.memo(function ModuleCard({ title, description, icon: Icon, className, children, actions }: ModuleCardProps) {
   return (
     <div className={cn(
-      "group relative flex flex-col h-full overflow-hidden rounded-xl transition-all duration-300",
+      "group relative flex flex-col h-full overflow-hidden rounded-xl transition-colors transition-shadow duration-300",
       "bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md",
       "border border-zinc-200/50 dark:border-zinc-800/50",
       "shadow-sm hover:shadow-md dark:shadow-none",

@@ -68,7 +68,7 @@ export const SettingsManager = memo(function SettingsManager() {
               onClick={() => handleSwitch(model.id)}
               disabled={saving}
               className={cn(
-                "w-full text-left p-3 rounded-lg border transition-all duration-300 group relative overflow-hidden",
+                "w-full text-left p-3 rounded-lg border transition-colors duration-300 group relative overflow-hidden",
                 isCurrent
                   ? "bg-blue-500/5 border-blue-500/30 dark:bg-blue-500/10 dark:border-blue-500/40 shadow-[0_0_15px_-3px_rgba(59,130,246,0.2),inset_0_1px_0_rgba(255,255,255,0.05)]"
                   : "bg-white/50 dark:bg-zinc-900/40 border-zinc-200/50 dark:border-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
@@ -235,7 +235,7 @@ export const ShortcutsPanel = memo(function ShortcutsPanel() {
     <ModuleCard title="Shortcuts" description="System Bindings" icon={Command} className="h-[30rem] flex flex-col">
       <div className="flex-1 min-h-[0] overflow-y-auto space-y-1 pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
         {shortcuts.map(s => (
-          <div key={s.key} className="flex items-center justify-between py-1.5 px-3 rounded-xl hover:bg-zinc-500/5 transition-all duration-300 group border border-transparent hover:border-zinc-200/50 dark:hover:border-zinc-800/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+          <div key={s.key} className="flex items-center justify-between py-1.5 px-3 rounded-xl hover:bg-zinc-500/5 transition-colors duration-300 group border border-transparent hover:border-zinc-200/50 dark:hover:border-zinc-800/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
             <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors tracking-tight">
               {s.desc}
             </span>

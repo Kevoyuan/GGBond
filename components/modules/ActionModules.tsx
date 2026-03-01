@@ -366,7 +366,7 @@ export const FileManager = memo(function FileManager() {
               key={file.path}
               onClick={() => file.type === 'directory' && fetchFiles(file.path)}
               className={cn(
-                "w-full text-left py-1.5 px-2 text-sm rounded-md flex items-center gap-2 transition-all duration-200 group border border-transparent",
+                "w-full text-left py-1.5 px-2 text-sm rounded-md flex items-center gap-2 transition-colors duration-200 group border border-transparent",
                 file.type === 'directory'
                   ? "hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer text-zinc-900 dark:text-zinc-100 hover:border-blue-100 dark:hover:border-blue-900/30"
                   : "text-zinc-500 dark:text-zinc-400 cursor-default hover:bg-zinc-50 dark:hover:bg-zinc-800/30"

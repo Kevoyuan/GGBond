@@ -318,7 +318,7 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onDelete, onNavigateToC
   return (
     <div
       className={cn(
-        "rounded-xl border transition-all duration-300 group overflow-hidden",
+        "rounded-xl border transition-colors duration-300 group overflow-hidden",
         isExpanded
           ? "bg-white/80 dark:bg-zinc-900/60 border-zinc-300 dark:border-zinc-700 shadow-[0_4px_12px_rgba(0,0,0,0.05)]"
           : "bg-white/40 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700"
@@ -330,7 +330,7 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onDelete, onNavigateToC
         onClick={onToggleExpand}
       >
         <div className={cn(
-          "p-1.5 rounded-lg border shrink-0 transition-all",
+          "p-1.5 rounded-lg border shrink-0 transition-colors",
           status.bg, status.border, status.color, status.glow
         )}>
           {status.icon}
@@ -359,7 +359,7 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onDelete, onNavigateToC
           </span>
           {run.status !== 'running' && run.status !== 'pending' && (
             <div
-              className="flex items-center opacity-0 group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 cursor-default"
+              className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity transition-transform translate-x-1 group-hover:translate-x-0 cursor-default"
               onMouseLeave={() => setShowDeleteConfirm(false)}
             >
               {showDeleteConfirm ? (

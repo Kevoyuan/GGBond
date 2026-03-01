@@ -19,7 +19,7 @@ function SparkBars({ values, color }: { values: number[]; color: string }) {
             {values.map((v, i) => (
                 <div
                     key={i}
-                    className={cn("rounded-sm transition-all", color)}
+                    className={cn("rounded-sm transition-[height]", color)}
                     style={{ height: `${Math.round((v / max) * 100)}%`, width: '8px', minHeight: '2px' }}
                 />
             ))}
@@ -101,11 +101,11 @@ export const ExecutionGuardrailsPanel = memo(function ExecutionGuardrailsPanel()
                     </div>
                     <div className="flex rounded-full overflow-hidden h-2.5 mb-2 border border-zinc-200 dark:border-zinc-700">
                         <div
-                            className="bg-emerald-400 dark:bg-emerald-500 transition-all"
+                            className="bg-emerald-400 dark:bg-emerald-500 transition-[width]"
                             style={{ width: `${confirmPct}%` }}
                         />
                         <div
-                            className="bg-red-400 dark:bg-red-500 transition-all flex-1"
+                            className="bg-red-400 dark:bg-red-500 transition-[width] flex-1"
                         />
                     </div>
                     <div className="flex items-center justify-between text-[9px] font-mono text-zinc-500">

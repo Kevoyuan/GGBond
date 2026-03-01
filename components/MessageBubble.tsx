@@ -239,7 +239,7 @@ export const MessageBubble = React.memo(function MessageBubble({
               <div className="mt-2 pl-[30px]">
                 <button
                   onClick={() => onOpenArtifact(artifactPath)}
-                  className="group/artifact relative inline-flex items-center justify-center px-5 py-2 rounded-full border border-[#ccaee3]/30 bg-[#ccaee3]/10 hover:bg-[#ccaee3]/20 backdrop-blur-sm transition-all duration-300 shadow-sm hover:shadow-md hover:border-[#ccaee3]/50 hover:-translate-y-[1px] overflow-hidden"
+                  className="group/artifact relative inline-flex items-center justify-center px-5 py-2 rounded-full border border-[#ccaee3]/30 bg-[#ccaee3]/10 hover:bg-[#ccaee3]/20 backdrop-blur-sm transition-colors duration-300 shadow-sm hover:shadow-md hover:border-[#ccaee3]/50 hover:-translate-y-[1px] overflow-hidden"
                   title="Open artifact preview"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-[#ccaee3]/0 via-[#ccaee3]/30 to-[#ccaee3]/0 translate-x-[-100%] group-hover/artifact:translate-x-[100%] transition-transform duration-700 ease-in-out" />

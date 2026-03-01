@@ -145,7 +145,7 @@ export default function CreateAgentPage() {
                   onClick={() => canProceed() && setCurrentStep(step.id)}
                   disabled={step.id !== currentStep && !canProceed() && currentStep !== step.id}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                     currentStep === step.id
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -303,7 +303,7 @@ export default function CreateAgentPage() {
                         key={tool}
                         onClick={() => toggleTool(tool)}
                         className={cn(
-                          "px-4 py-2 text-sm rounded-lg border transition-all flex items-center gap-2",
+                          "px-4 py-2 text-sm rounded-lg border transition-colors flex items-center gap-2",
                           selectedTools.includes(tool)
                             ? "bg-primary/10 text-primary border-primary/30"
                             : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"

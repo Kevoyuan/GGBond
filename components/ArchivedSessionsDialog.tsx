@@ -70,7 +70,7 @@ export function ArchivedSessionsDialog({
 
       {/* Dialog */}
       <div className={cn(
-        "relative w-full max-w-lg mx-4 bg-background border rounded-xl shadow-2xl transform transition-all",
+        "relative w-full max-w-lg mx-4 bg-background border rounded-xl shadow-2xl transform transition-transform transition-opacity",
         open ? "opacity-100 scale-100" : "opacity-0 scale-95"
       )}>
         {/* Header */}

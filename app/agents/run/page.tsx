@@ -222,7 +222,7 @@ function RunAgentContent() {
                     key={agent.name}
                     onClick={() => setSelectedAgent(agent)}
                     className={cn(
-                      "w-full text-left p-3 rounded-lg border transition-all",
+                      "w-full text-left p-3 rounded-lg border transition-colors",
                       selectedAgent?.name === agent.name
                         ? "border-primary bg-primary/5 ring-1 ring-primary/20"
                         : "border-border hover:bg-muted/50"

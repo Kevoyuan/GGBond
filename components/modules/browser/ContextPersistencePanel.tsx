@@ -127,7 +127,7 @@ export const ContextPersistencePanel = memo(function ContextPersistencePanel() {
                             <div className="h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                                 <div
                                     className={cn(
-                                        "h-full rounded-full transition-all",
+                                        "h-full rounded-full transition-[width]",
                                         data.contextDirSize > 150_000_000 ? "bg-red-400" :
                                             data.contextDirSize > 50_000_000 ? "bg-amber-400" :
                                                 "bg-blue-400"

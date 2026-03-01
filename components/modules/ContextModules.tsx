@@ -78,7 +78,7 @@ export const MemoryManager = memo(function MemoryManager() {
         ) : (
           files.map((file, i) => (
             <div key={file.path} className={cn(
-              "p-3 rounded-lg border transition-all duration-200",
+              "p-3 rounded-lg border transition-colors duration-200",
               file.scope === 'global'
                 ? "border-blue-200 dark:border-blue-900/30 bg-blue-50/50 dark:bg-blue-900/10 hover:border-blue-300 dark:hover:border-blue-800"
                 : "border-amber-200 dark:border-amber-900/30 bg-amber-50/50 dark:bg-amber-900/10 hover:border-amber-300 dark:hover:border-amber-800"
@@ -180,14 +180,14 @@ export const DirectoryManager = memo(function DirectoryManager() {
         ) : (
           <div className="space-y-1">
             {dirs.map(dir => (
-              <div key={dir} className="flex items-center justify-between py-2 px-2.5 rounded-lg border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all group">
+              <div key={dir} className="flex items-center justify-between py-2 px-2.5 rounded-lg border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors group">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <FolderOpen size={14} className="text-blue-500 fill-blue-500/20 shrink-0" />
                   <span className="text-sm text-zinc-700 dark:text-zinc-300 font-mono truncate">{dir}</span>
                 </div>
                 <button
                   onClick={() => handleRemove(dir)}
-                  className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-all"
+                  className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <Trash2 size={14} />
                 </button>

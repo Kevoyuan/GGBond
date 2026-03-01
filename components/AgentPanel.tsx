@@ -459,7 +459,7 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                         <div
                                             key={agent.name}
                                             className={cn(
-                                                "relative p-3.5 border rounded-xl transition-all duration-300 cursor-pointer group overflow-hidden",
+                                                "relative p-3.5 border rounded-xl transition-colors duration-300 cursor-pointer group overflow-hidden",
                                                 selectedAgentName === agent.name
                                                     ? "bg-blue-500/[0.08] dark:bg-blue-500/10 border-blue-400/50 dark:border-blue-500/50 shadow-[0_4px_20px_-4px_rgba(59,130,246,0.15),inset_0_1px_0_rgba(255,255,255,0.05)] ring-1 ring-blue-500/10"
                                                     : "bg-white/40 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/80 hover:bg-white dark:hover:bg-zinc-800/60 hover:border-blue-500/30 hover:shadow-[0_8px_16px_-4px_rgba(0,0,0,0.04)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
@@ -475,7 +475,7 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                                     <div className="flex items-center gap-2 mb-1">
                                                         <div
                                                             className={cn(
-                                                                "w-2 h-2 rounded-full shrink-0 transition-all duration-500 shadow-[0_0_8px_rgba(var(--status-rgb),0.4)]",
+                                                                "w-2 h-2 rounded-full shrink-0 transition-colors duration-500 shadow-[0_0_8px_rgba(var(--status-rgb),0.4)]",
                                                                 isUserAgent(agent.name) ? "bg-emerald-500 animate-pulse" : "bg-blue-500"
                                                             )}
                                                         />
@@ -489,14 +489,14 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                                 </div>
                                                 <button
                                                     onClick={(e) => handleUseAgent(e, agent.name)}
-                                                    className="p-1.5 text-zinc-400 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all shrink-0"
+                                                    className="p-1.5 text-zinc-400 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors shrink-0"
                                                     title="Add to chat"
                                                 >
                                                     <PlusCircle size={15} />
                                                 </button>
                                             </div>
 
-                                            <div className="absolute top-2 right-9 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0 z-20">
+                                            <div className="absolute top-2 right-9 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-[opacity,transform] duration-300 translate-x-2 group-hover:translate-x-0 z-20">
                                                 {isUserAgent(agent.name) && (
                                                     <div
                                                         className="flex items-center"
@@ -508,7 +508,7 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                                                     e.stopPropagation();
                                                                     confirmDelete(agent.name, (name) => handleAction('delete', name));
                                                                 }}
-                                                                className="px-2.5 py-1 text-[10px] font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all shadow-lg border border-red-500/20"
+                                                                className="px-2.5 py-1 text-[10px] font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-lg border border-red-500/20"
                                                             >
                                                                 Confirm
                                                             </button>
@@ -518,7 +518,7 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                                                     e.stopPropagation();
                                                                     startDelete(agent.name);
                                                                 }}
-                                                                className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                                                className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                                                                 title="Delete"
                                                                 disabled={actionLoading === `delete:${agent.name}`}
                                                             >

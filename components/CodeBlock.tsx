@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { Copy, Check, ChevronDown, ChevronRight, Terminal } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -17,7 +17,7 @@ const VISIBLE_LINES = 10;
 
 const SHELL_LANGUAGES = ['bash', 'sh', 'shell', 'zsh', 'powershell', 'ps1'];
 
-export function CodeBlock({ language, code, collapsible = true }: CodeBlockProps) {
+export const CodeBlock = memo(function CodeBlock({ language, code, collapsible = true }: CodeBlockProps) {
     const [copied, setCopied] = useState(false);
     const lineCount = code.split('\n').length;
     const shouldCollapse = collapsible && lineCount > COLLAPSE_THRESHOLD;
@@ -127,4 +127,4 @@ export function CodeBlock({ language, code, collapsible = true }: CodeBlockProps
             )}
         </div>
     );
-}
+});

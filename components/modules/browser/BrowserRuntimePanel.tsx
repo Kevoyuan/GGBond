@@ -23,7 +23,7 @@ function SuccessRateBar({ value }: { value: number }) {
     return (
         <div className="flex items-center gap-2">
             <div className="flex-1 h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${value}%` }} />
+                <div className={cn("h-full rounded-full transition-[width]", color)} style={{ width: `${value}%` }} />
             </div>
             <span className={cn("text-xs font-mono font-bold w-8 text-right",
                 value >= 80 ? "text-emerald-600 dark:text-emerald-400" :

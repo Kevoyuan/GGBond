@@ -1484,7 +1484,7 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                 <button
                   onClick={() => setShowModeMenu(!showModeMenu)}
                   className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer z-20 relative",
+                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-colors duration-200 cursor-pointer z-20 relative",
                     "bg-transparent text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                   title={`Mode: ${currentMode.label}`}
