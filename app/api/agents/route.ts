@@ -127,17 +127,17 @@ function getUserAgents(): { name: string; displayName?: string; description: str
 }
 
 type AgentDefinitionLike = {
-  name: string;
-  displayName?: string;
-  description?: string;
-  kind?: 'local' | 'remote' | string;
-  promptConfig?: {
-    systemPrompt?: string;
-  };
-  modelConfig?: {
-    model?: string;
-  };
-  content?: string;
+    name: string;
+    displayName?: string;
+    description?: string;
+    kind?: 'local' | 'remote' | string;
+    promptConfig?: {
+        systemPrompt?: string;
+    };
+    modelConfig?: {
+        model?: string;
+    };
+    content?: string;
 };
 
 export async function GET() {
@@ -154,7 +154,17 @@ export async function GET() {
             const core = CoreService.getInstance();
             if (core.config) {
                 const coreAgents = core.config.getAgentRegistry().getAllDefinitions() || [];
-                coreAgents.forEach(agent => agentsMap.set(agent.name, agent));
+                // Only extract plain data fields to avoid circular references
+                // (AgentDefinition objects hold refs back into Config/ToolRegistry)
+                coreAgents.forEach((agent: AgentDefinitionLike) => agentsMap.set(agent.name, {
+                    name: agent.name,
+                    displayName: agent.displayName,
+                    description: agent.description,
+                    kind: agent.kind,
+                    content: agent.content,
+                    promptConfig: agent.promptConfig ? { systemPrompt: agent.promptConfig.systemPrompt } : undefined,
+                    modelConfig: agent.modelConfig ? { model: agent.modelConfig.model } : undefined,
+                }));
             }
         } catch (e) {
             console.warn('[agents] Failed to get agents from CoreService:', e);
