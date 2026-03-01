@@ -20,7 +20,11 @@ export async function GET(req: NextRequest) {
   const core = CoreService.getInstance();
 
   // Verify session is initialized
-  if (!core.config || core.config.getSessionId() !== sessionId) {
+  const serverSessionId = core.config?.getSessionId();
+  console.log(`[tool-output/stream] Request sessionId: ${sessionId}, Server sessionId: ${serverSessionId}`);
+
+  if (!core.config || serverSessionId !== sessionId) {
+    console.log(`[tool-output/stream] Session validation failed: core.config exists: ${!!core.config}`);
     return NextResponse.json(
       { error: 'Session not initialized or mismatch' },
       { status: 400 }
@@ -74,4 +78,25 @@ export async function GET(req: NextRequest) {
       'Connection': 'keep-alive',
     },
   });
+}
+
+// Lightweight HEAD handler for pre-flight session validation.
+// The client uses this to detect a 400 (session mismatch) before opening an EventSource,
+// since EventSource.onerror cannot distinguish HTTP status codes.
+export async function HEAD(req: NextRequest) {
+  const searchParams = req.nextUrl.searchParams;
+  const sessionId = searchParams.get('sessionId');
+
+  if (!sessionId) {
+    return new NextResponse(null, { status: 400 });
+  }
+
+  const core = CoreService.getInstance();
+  const serverSessionId = core.config?.getSessionId();
+
+  if (!core.config || serverSessionId !== sessionId) {
+    return new NextResponse(null, { status: 400 });
+  }
+
+  return new NextResponse(null, { status: 200 });
 }
