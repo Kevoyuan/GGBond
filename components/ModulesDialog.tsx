@@ -286,7 +286,7 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }:
                       description="Built-in tools, system capabilities, and command extensions"
                       icon={<Cpu size={20} />}
                     />
-                    <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="grid lg:grid-cols-2 2xl:grid-cols-4 gap-4 xl:gap-6">
                       <Suspense fallback={<ModuleLoader />}><ToolManager /></Suspense>
                       <Suspense fallback={<ModuleLoader />}><CustomCommandManager /></Suspense>
                       <Suspense fallback={<ModuleLoader />}><ShellManager /></Suspense>
