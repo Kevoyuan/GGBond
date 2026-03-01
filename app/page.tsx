@@ -573,13 +573,8 @@ export default function Home() {
         allSessions = [...dbSessions];
       }
 
-      // Sort by updated_at desc
+      // Sort by updated_at desc (most recent first)
       allSessions.sort((a, b) => {
-        const countA = typeof a.message_count === 'number' ? a.message_count : 0;
-        const countB = typeof b.message_count === 'number' ? b.message_count : 0;
-        if (countA !== countB) {
-          return countB - countA;
-        }
         const timeA = new Date(a.updated_at || a.lastUpdated || 0).getTime();
         const timeB = new Date(b.updated_at || b.lastUpdated || 0).getTime();
         return timeB - timeA;
