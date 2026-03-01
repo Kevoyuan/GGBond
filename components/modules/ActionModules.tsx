@@ -7,6 +7,7 @@ import { ModuleCard } from './ModuleCard';
 import { Terminal, Lock, FileText, ShieldCheck, Key, Loader2, CheckCircle, XCircle, Folder, File, ChevronLeft, HardDrive, Monitor, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { Select } from '@/components/ui/Select';
 
 // ─── Module 12: Shell Permission Control ─────────────────
 export const ShellManager = memo(function ShellManager() {
@@ -70,52 +71,41 @@ export const ShellManager = memo(function ShellManager() {
       title="Shell & Permissions"
       description={`Sandbox: ${config.sandbox || 'none'}`}
       icon={Terminal}
+      className="h-[40rem] flex flex-col"
     >
-      <div className="space-y-4">
+      <div className="flex-1 min-h-[0] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
         {/* Sandbox Mode */}
-        <div className="p-3 bg-zinc-50/50 dark:bg-zinc-900/30 rounded-lg border border-zinc-200/50 dark:border-zinc-800">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <ShieldCheck size={14} className="text-blue-500" />
-              <span className="font-medium text-sm">Sandbox Mode</span>
-            </div>
-            <select
-              value={sandboxMode}
-              onChange={(e) => setSandboxMode(e.target.value)}
-              className={cn(
-                "text-[10px] uppercase font-bold tracking-wider rounded border px-2 py-0.5 cursor-pointer",
-                sandboxMode === 'docker'
-                  ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
-                  : sandboxMode === 'none'
-                    ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
-                    : "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700"
-              )}
-            >
-              <option value="none">none</option>
-              <option value="docker">docker</option>
-            </select>
+        <div className="p-3 bg-white/50 dark:bg-zinc-900/30 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.02)] space-y-3">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={14} className="text-blue-500" />
+            <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">Sandbox Mode</span>
           </div>
-          <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
-            none: Execute tools directly. docker: Run tools in isolated containers.
-          </p>
+          <Select
+            value={sandboxMode}
+            onChange={setSandboxMode}
+            options={[
+              { id: 'none', name: 'none', description: 'Execute tools directly on host', icon: Monitor },
+              { id: 'docker', name: 'docker', description: 'Run tools in isolated containers', icon: ShieldCheck }
+            ]}
+          />
         </div>
 
         {/* Headless Mode */}
-        <div className="p-3 bg-zinc-50/50 dark:bg-zinc-900/30 rounded-lg border border-zinc-200/50 dark:border-zinc-800">
+        <div className="p-3 bg-white/50 dark:bg-zinc-900/30 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.02)]">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Monitor size={14} className={headlessMode ? "text-emerald-500" : "text-zinc-400"} />
-              <span className="font-medium text-sm">Headless Mode</span>
+              <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">Headless Mode</span>
             </div>
             <button
               onClick={() => setHeadlessMode(!headlessMode)}
               className={cn(
                 "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                headlessMode ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600"
+                headlessMode ? "bg-emerald-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)]" : "bg-zinc-300 dark:bg-zinc-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)]"
               )}
             >
               <span className={cn(
-                "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform",
+                "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm",
                 headlessMode ? "translate-x-4.5" : "translate-x-0.5"
               )} />
             </button>
@@ -130,57 +120,63 @@ export const ShellManager = memo(function ShellManager() {
           <button
             onClick={handleSaveConfig}
             disabled={saving}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-medium rounded-lg transition-colors"
+            className="w-full h-9 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-colors shadow-sm"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {saving ? 'Saving...' : 'Save Configuration'}
           </button>
         )}
 
-        {/* Dangerous Tools (require approval) */}
-        <div>
-          <h4 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 flex items-center gap-1">
-            <Lock size={10} /> Require Approval ({dangerousTools.length})
-          </h4>
-          <div className="space-y-1">
-            {dangerousTools.map((tool: any) => (
-              <div key={tool.name} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800">
-                <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300">{tool.name}</span>
-                {tool.isExcluded ? (
-                  <XCircle size={14} className="text-red-500" />
-                ) : (
-                  <CheckCircle size={14} className="text-amber-500" />
-                )}
-              </div>
-            ))}
+        <div className="grid grid-cols-2 gap-3 pt-2">
+          {/* Dangerous Tools */}
+          <div className="bg-zinc-50/50 dark:bg-zinc-900/20 p-2 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50">
+            <h4 className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2 flex items-center gap-1.5 px-1">
+              <Lock size={10} /> Require Approval ({dangerousTools.length})
+            </h4>
+            <div className="space-y-[2px]">
+              {dangerousTools.map((tool: any) => (
+                <div key={tool.name} className="flex items-center justify-between py-1 px-1.5 rounded bg-white/50 dark:bg-zinc-900/50 border border-zinc-200/30 dark:border-zinc-800/30 shadow-[0_1px_1px_rgba(0,0,0,0.02)]">
+                  <span className="text-[10px] font-mono font-bold text-zinc-700 dark:text-zinc-300 truncate">{tool.name}</span>
+                  {tool.isExcluded ? (
+                    <XCircle size={12} className="text-red-500 shrink-0" />
+                  ) : (
+                    <CheckCircle size={12} className="text-amber-500 shrink-0" />
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Safe Tools */}
-        <div>
-          <h4 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 flex items-center gap-1">
-            <CheckCircle size={10} /> Auto-Approved ({safeTools.length})
-          </h4>
-          <div className="space-y-1">
-            {safeTools.map((tool: any) => (
-              <div key={tool.name} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800">
-                <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300">{tool.name}</span>
-                <CheckCircle size={14} className="text-emerald-500" />
-              </div>
-            ))}
+          {/* Safe Tools */}
+          <div className="bg-zinc-50/50 dark:bg-zinc-900/20 p-2 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50">
+            <h4 className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-2 flex items-center gap-1.5 px-1">
+              <CheckCircle size={10} /> Auto-Approved ({safeTools.length})
+            </h4>
+            <div className="space-y-[2px]">
+              {safeTools.map((tool: any) => (
+                <div key={tool.name} className="flex items-center justify-between py-1 px-1.5 rounded bg-white/50 dark:bg-zinc-900/50 border border-zinc-200/30 dark:border-zinc-800/30 shadow-[0_1px_1px_rgba(0,0,0,0.02)]">
+                  <span className="text-[10px] font-mono font-bold text-zinc-700 dark:text-zinc-300 truncate">{tool.name}</span>
+                  <CheckCircle size={12} className="text-emerald-500 shrink-0" />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Shell Config */}
         {config.shell && Object.keys(config.shell).length > 0 && (
-          <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
-            <h4 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Shell Config</h4>
-            {Object.entries(config.shell).map(([k, v]) => (
-              <div key={k} className="flex justify-between items-center py-1.5 text-sm group">
-                <span className="text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300 transition-colors">{k}</span>
-                <span className="font-mono text-zinc-900 dark:text-zinc-100 text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">{String(v)}</span>
-              </div>
-            ))}
+          <div className="p-3 bg-zinc-50/50 dark:bg-zinc-900/20 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50 space-y-2">
+            <h4 className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-1.5">
+              <Terminal size={10} /> Shell Environment
+            </h4>
+            <div className="space-y-1">
+              {Object.entries(config.shell).map(([k, v]) => (
+                <div key={k} className="flex justify-between items-center py-1">
+                  <span className="text-xs text-zinc-500 font-medium">{k}</span>
+                  <span className="font-mono text-zinc-900 dark:text-zinc-100 text-[10px] bg-white dark:bg-zinc-800 px-1.5 py-0.5 rounded shadow-sm border border-zinc-200/50 dark:border-zinc-700/50">{String(v)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -228,15 +224,22 @@ export const AuthManager = memo(function AuthManager() {
   };
 
   return (
-    <ModuleCard title="Authentication" description={authTypeLabels[auth.type] || auth.type} icon={Key}>
-      <div className="space-y-4">
+    <ModuleCard
+      title="Authentication"
+      description={authTypeLabels[auth.type] || auth.type}
+      icon={Key}
+      className="h-[40rem] flex flex-col"
+    >
+      <div className="flex-1 min-h-[0] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
         {/* Auth Type Badge */}
-        <div className="p-3 bg-emerald-50/50 dark:bg-emerald-500/10 rounded-lg border border-emerald-200/50 dark:border-emerald-500/20">
-          <div className="flex items-center gap-2">
-            <CheckCircle size={16} className="text-emerald-600 dark:text-emerald-400" />
+        <div className="p-3 bg-emerald-50/50 dark:bg-emerald-500/10 rounded-lg border border-emerald-200/50 dark:border-emerald-500/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+              <CheckCircle size={16} />
+            </div>
             <div>
-              <div className="font-bold text-sm text-emerald-800 dark:text-emerald-300">Authenticated</div>
-              <div className="text-xs text-emerald-600/80 dark:text-emerald-400/80">{authTypeLabels[auth.type] || auth.type}</div>
+              <div className="font-bold text-sm text-emerald-900 dark:text-emerald-100">Authenticated</div>
+              <div className="text-xs font-mono text-emerald-700/80 dark:text-emerald-400/80">{authTypeLabels[auth.type] || auth.type}</div>
             </div>
           </div>
         </div>
@@ -244,58 +247,60 @@ export const AuthManager = memo(function AuthManager() {
         {/* Account Info */}
         {auth.accounts && auth.accounts.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Linked Accounts</h4>
-            {auth.accounts.map((acc, i) => (
-              <div key={i} className="flex items-center gap-2.5 p-2 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50/50 dark:bg-zinc-900/30">
-                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-blue-700 dark:text-blue-300 text-xs font-bold ring-2 ring-white dark:ring-zinc-900 shadow-sm">
-                  {(acc.email || '?')[0].toUpperCase()}
+            <h4 className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 px-1">Linked Profiles</h4>
+            <div className="space-y-1.5">
+              {auth.accounts.map((acc, i) => (
+                <div key={i} className="flex items-center gap-3 p-2 border border-zinc-200/50 dark:border-zinc-800/50 rounded-lg bg-white/50 dark:bg-zinc-900/30 shadow-[0_1px_2px_rgba(0,0,0,0.02),inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-blue-700 dark:text-blue-300 text-xs font-bold ring-2 ring-white dark:ring-zinc-900 shadow-sm shrink-0">
+                    {(acc.email || '?')[0].toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    {acc.displayName && <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{acc.displayName}</div>}
+                    <div className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate font-mono opacity-80">{acc.email}</div>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  {acc.displayName && <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{acc.displayName}</div>}
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate font-mono">{acc.email}</div>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
         {/* Status Badges */}
         <div className="flex gap-2 flex-wrap">
           <span className={cn(
-            "px-2 py-1 text-[10px] uppercase font-bold tracking-wider rounded border transition-colors",
+            "px-2 py-1 text-[9px] uppercase font-bold tracking-widest rounded-md border shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]",
             auth.hasOAuthCreds
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
-              : "bg-zinc-50 text-zinc-500 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700"
+              ? "bg-emerald-50 text-emerald-700 border-emerald-200/50 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+              : "bg-zinc-50 text-zinc-500 border-zinc-200/50 dark:bg-zinc-800/50 dark:text-zinc-400 dark:border-zinc-800"
           )}>
-            OAuth: {auth.hasOAuthCreds ? '✓' : '✗'}
+            OAuth {auth.hasOAuthCreds ? 'Active' : 'Missing'}
           </span>
           <span className={cn(
-            "px-2 py-1 text-[10px] uppercase font-bold tracking-wider rounded border transition-colors",
+            "px-2 py-1 text-[9px] uppercase font-bold tracking-widest rounded-md border shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]",
             auth.hasApiKey
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
-              : "bg-zinc-50 text-zinc-500 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700"
+              ? "bg-amber-50 text-amber-700 border-amber-200/50 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
+              : "bg-zinc-50 text-zinc-500 border-zinc-200/50 dark:bg-zinc-800/50 dark:text-zinc-400 dark:border-zinc-800"
           )}>
-            API Key: {auth.hasApiKey ? '✓' : '✗'}
+            API Key {auth.hasApiKey ? 'Loaded' : 'Missing'}
           </span>
         </div>
 
         {/* IDs */}
-        <div className="space-y-1 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+        <div className="space-y-1 pt-3 border-t border-zinc-200/50 dark:border-zinc-800/50">
           {auth.userId && (
-            <div className="flex justify-between items-center py-1 text-sm">
-              <span className="text-zinc-500 text-[10px] uppercase tracking-wider font-bold">User ID</span>
+            <div className="flex justify-between items-center py-1.5 text-sm p-2 rounded-lg bg-zinc-50/50 dark:bg-zinc-900/20 border border-transparent hover:border-zinc-200/30 dark:hover:border-zinc-800/30">
+              <span className="text-zinc-500 text-[9px] uppercase tracking-widest font-bold">User Identity</span>
               <Tooltip content={auth.userId} side="top">
-                <span className="font-mono text-xs text-zinc-700 dark:text-zinc-300 max-w-[150px] truncate bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded cursor-help">
+                <span className="font-mono text-[10px] text-zinc-800 dark:text-zinc-200 max-w-[150px] truncate bg-white dark:bg-zinc-800 px-2 py-1 rounded shadow-[0_1px_2px_rgba(0,0,0,0.02)] border border-zinc-200/30 dark:border-zinc-700/50 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors">
                   {auth.userId}
                 </span>
               </Tooltip>
             </div>
           )}
           {auth.accountId && (
-            <div className="flex justify-between items-center py-1 text-sm">
-              <span className="text-zinc-500 text-[10px] uppercase tracking-wider font-bold">Account ID</span>
+            <div className="flex justify-between items-center py-1.5 text-sm p-2 rounded-lg bg-zinc-50/50 dark:bg-zinc-900/20 border border-transparent hover:border-zinc-200/30 dark:hover:border-zinc-800/30">
+              <span className="text-zinc-500 text-[9px] uppercase tracking-widest font-bold">Account Root</span>
               <Tooltip content={auth.accountId} side="top">
-                <span className="font-mono text-xs text-zinc-700 dark:text-zinc-300 max-w-[150px] truncate bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded cursor-help">
+                <span className="font-mono text-[10px] text-zinc-800 dark:text-zinc-200 max-w-[150px] truncate bg-white dark:bg-zinc-800 px-2 py-1 rounded shadow-[0_1px_2px_rgba(0,0,0,0.02)] border border-zinc-200/30 dark:border-zinc-700/50 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors">
                   {auth.accountId}
                 </span>
               </Tooltip>
