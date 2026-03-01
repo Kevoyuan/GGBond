@@ -61,10 +61,10 @@ export async function GET() {
 
         // Workspace overrides global
         const rawModel = w.model ?? g.model ?? 'gemini-2.0-flash';
-        const activeModel = (typeof rawModel === 'object' && rawModel !== null ? (rawModel as any).name : rawModel) as string;
+        const activeModel = (typeof rawModel === 'object' && rawModel !== null ? (rawModel as Record<string, unknown>).name : rawModel) as string;
 
         const rawProfile = w.profile ?? g.profile ?? 'default';
-        const activeProfile = (typeof rawProfile === 'object' && rawProfile !== null ? (rawProfile as any).name : rawProfile) as string;
+        const activeProfile = (typeof rawProfile === 'object' && rawProfile !== null ? (rawProfile as Record<string, unknown>).name : rawProfile) as string;
 
         const approvalMode = (w.approvalMode ?? g.approvalMode ?? 'default') as string;
 

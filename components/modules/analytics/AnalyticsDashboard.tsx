@@ -121,7 +121,22 @@ const TokenTimelineChart = memo(function TokenTimelineChart({
   shouldRenderDenseLabels: boolean;
 }) {
   const [hover, setHover] = useState<TimelineHoverState | null>(null);
+  const [chartWidth, setChartWidth] = useState(0);
   const chartRef = useRef<HTMLDivElement | null>(null);
+
+  // Update chart width in effect to avoid accessing ref during render
+  useEffect(() => {
+    if (!chartRef.current) return;
+    const updateWidth = () => {
+      if (chartRef.current) {
+        setChartWidth(chartRef.current.clientWidth);
+      }
+    };
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(chartRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!chartRef.current) return;
@@ -238,7 +253,7 @@ const TokenTimelineChart = memo(function TokenTimelineChart({
             <div
               className="pointer-events-none absolute z-50 w-56 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 bg-white/95 dark:bg-zinc-900/95 p-3 shadow-xl backdrop-blur-md"
               style={{
-                left: `${Math.min(Math.max(hover.x, 112), chartRef.current ? chartRef.current.clientWidth - 116 : hover.x)}px`,
+                left: `${Math.min(Math.max(hover.x, 112), chartWidth > 0 ? chartWidth - 116 : hover.x)}px`,
                 top: `${Math.max(hover.y - 10, 8)}px`,
                 transform: 'translate(-50%, -100%)',
               }}

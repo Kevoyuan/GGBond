@@ -1,5 +1,6 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
@@ -18,6 +19,30 @@ import {
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
 import 'xterm/css/xterm.css';
+
+interface TerminalTheme {
+  foreground?: string;
+  background?: string;
+  cursor?: string;
+  cursorAccent?: string;
+  selectionBackground?: string;
+  black?: string;
+  red?: string;
+  green?: string;
+  yellow?: string;
+  blue?: string;
+  magenta?: string;
+  cyan?: string;
+  white?: string;
+  brightBlack?: string;
+  brightRed?: string;
+  brightGreen?: string;
+  brightYellow?: string;
+  brightBlue?: string;
+  brightMagenta?: string;
+  brightCyan?: string;
+  brightWhite?: string;
+}
 
 interface TerminalPanelProps {
   workspacePath?: string;
@@ -93,7 +118,7 @@ interface TerminalSession {
     dispose: () => void;
     onData: (cb: (data: string) => void) => void;
     element?: HTMLElement;
-    options: { theme?: any };
+    options: { theme?: TerminalTheme };
   } | null;
   fitAddon?: { fit: () => void } | null;
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { calculateCost } from '@/lib/pricing';
-import { addDays, endOfMonth, format, startOfDay, startOfMonth, startOfWeek } from 'date-fns';
+import { addDays, endOfMonth, format, startOfDay, startOfMonth, startOfWeek, subMonths } from 'date-fns';
 
 interface StatEntry {
   inputTokens: number;
@@ -63,10 +63,6 @@ export async function GET(request: Request) {
     `).all() as { stats: string; created_at: number }[];
 
     const now = new Date();
-
-    // Import subMonths dynamically or add to import list at top if needed
-    // However since we have 'date-fns' imports above, let's just use it or do it manually
-    const { subMonths } = require('date-fns');
 
     const targetMonth = offset > 0 ? subMonths(now, offset) : now;
 

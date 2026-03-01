@@ -57,9 +57,10 @@ export const PerformancePanel = memo(function PerformancePanel() {
 
     // calculate maximum tokens across all models to establish 100% width baseline
     const maxTokensPerModel = useMemo(() => {
-        if (!data?.tokensByModel) return 1;
+        const tokens = data?.tokensByModel;
+        if (!tokens) return 1;
         let max = 1;
-        Object.values(data.tokensByModel).forEach(t => {
+        Object.values(tokens).forEach(t => {
             const sum = t.input + t.output;
             if (sum > max) max = sum;
         });
