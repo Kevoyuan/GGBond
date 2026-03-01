@@ -1,10 +1,15 @@
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, PtySize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tauri::{AppHandle, Emitter, Manager, State};
 use thiserror::Error;
+
+// Output loss detection configuration
+const OUTPUT_TIMEOUT_MS: u64 = 30_000; // 30 seconds timeout
+const HEARTBEAT_CHECK_INTERVAL_MS: u64 = 5_000; // Check every 5 seconds
 
 #[derive(Default)]
 pub struct PtyState {
@@ -15,6 +20,7 @@ struct PtyControl {
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
     writer: Mutex<Box<dyn Write + Send>>,
     stop_requested: AtomicBool,
+    last_output_time: AtomicU64, // Unix timestamp in milliseconds
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -157,11 +163,17 @@ pub async fn run_terminal_stream(
         killer: Mutex::new(child.clone_killer()),
         writer: Mutex::new(writer),
         stop_requested: AtomicBool::new(false),
+        last_output_time: AtomicU64::new(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64
+        ),
     });
 
     {
         let mut controls = state.controls.lock().map_err(|_| AppError::StatePoisoned)?;
-        controls.insert(entry_id.clone(), control);
+        controls.insert(entry_id.clone(), control.clone());
     }
 
     let event = event_name(&entry_id);
@@ -199,8 +211,57 @@ pub async fn run_terminal_stream(
     });
 
     let app_for_reader = app_handle.clone();
+    let control_for_output = control.clone();
     tokio::spawn(async move {
+        // Track last output time for heartbeat detection
+        let mut last_output = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        // Heartbeat task to detect output loss
+        let heartbeat_app = app_for_reader.clone();
+        let heartbeat_event = reader_event.clone();
+        let heartbeat_handle = tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_millis(HEARTBEAT_CHECK_INTERVAL_MS)).await;
+
+                let current_time = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64;
+
+                // Check if we haven't received output for too long
+                if current_time - last_output > OUTPUT_TIMEOUT_MS {
+                    let _ = heartbeat_app.emit(
+                        &heartbeat_event,
+                        TerminalStreamEvent {
+                            event_type: "error".to_string(),
+                            chunk: None,
+                            message: Some("Output timeout: no data received for 30 seconds".to_string()),
+                            run_id: None,
+                            cwd: None,
+                            exit_code: None,
+                            timed_out: Some(true),
+                            stopped: None,
+                            duration_ms: None,
+                        },
+                    );
+                    break;
+                }
+            }
+        });
+
         while let Some(chunk) = rx.recv().await {
+            // Update last output time
+            last_output = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64;
+
+            // Also update the shared control for external access
+            control_for_output.last_output_time.store(last_output, Ordering::Relaxed);
+
             let _ = app_for_reader.emit(
                 &reader_event,
                 TerminalStreamEvent {
@@ -216,6 +277,9 @@ pub async fn run_terminal_stream(
                 },
             );
         }
+
+        // Stop the heartbeat task when output ends
+        heartbeat_handle.abort();
     });
 
     let app_for_exit = app_handle.clone();
