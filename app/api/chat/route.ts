@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 import { CoreService } from '@/lib/core-service';
 import db from '@/lib/db';
-import { getGeminiEnv } from '@/lib/gemini-utils';
 import { calculateCost } from '@/lib/pricing';
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
@@ -133,12 +132,6 @@ export async function POST(req: Request) {
 
     // Respect the model selected by UI/caller; do not silently downgrade.
     let targetModel = resolveRequestedModel(model);
-
-    // Keep CoreService runtime home aligned with CLI env selection logic (skills/auth consistency).
-    const env = getGeminiEnv();
-    if (env.GEMINI_CLI_HOME) {
-      process.env.GEMINI_CLI_HOME = env.GEMINI_CLI_HOME;
-    }
 
     // Initialize CoreService
     const core = CoreService.getInstance();

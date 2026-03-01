@@ -22,7 +22,7 @@ export async function GET() {
       },
       db: dbInfo,
       expectedPaths: {
-        geminiDb: path.join(os.homedir(), '.gemini', 'ggbond.db'),
+        geminiDb: path.join(geminiConfigDir, 'ggbond.db'),
         legacyAppSupportDb: path.join(os.homedir(), 'Library', 'Application Support', 'ggbond', 'gemini-home', 'ggbond.db'),
       },
       now: Date.now(),
@@ -35,4 +35,3 @@ export async function GET() {
     );
   }
 }
-

@@ -428,7 +428,6 @@ function importCoreSessionJsonIfNeeded(targetDbPath: string, targetDb: Database.
   const runtimeHome = resolveRuntimeHome();
   const candidates = [
     path.join(resolveGeminiConfigDir(runtimeHome), 'tmp'),
-    path.join(os.homedir(), '.gemini', 'tmp'),
   ];
   const files: string[] = [];
   for (const candidate of candidates) {
