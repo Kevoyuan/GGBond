@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { CoreService } from '@/lib/core-service';
-import db from '@/lib/db';
+import db, { executeWithRetry } from '@/lib/db';
 import { calculateCost } from '@/lib/pricing';
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
@@ -263,10 +263,15 @@ export async function POST(req: Request) {
         : (typeof userMessageId === 'number' ? userMessageId : null);
 
     try {
-      db.prepare(`
-        INSERT INTO background_jobs (id, session_id, user_message_id, status, created_at, updated_at)
-        VALUES (?, ?, ?, 'running', ?, ?)
-      `).run(backgroundJobId, finalSessionId, userMessageDbId, now, now);
+      executeWithRetry(
+        () =>
+          db
+            .prepare(
+              `INSERT INTO background_jobs (id, session_id, user_message_id, status, created_at, updated_at) VALUES (?, ?, ?, 'running', ?, ?)`
+            )
+            .run(backgroundJobId, finalSessionId, userMessageDbId, now, now),
+        'background_jobs INSERT'
+      );
     } catch (e) {
       console.error('[DB] Failed to create background job', e);
     }
@@ -292,10 +297,13 @@ export async function POST(req: Request) {
           assistantMessageDbId = Number(insertResult.lastInsertRowid);
 
           // Link background job to assistant message
-          db.prepare(`
-            UPDATE background_jobs SET user_message_id = ?, updated_at = ?
-            WHERE id = ?
-          `).run(assistantMessageDbId, updateTs, backgroundJobId);
+          executeWithRetry(
+            () =>
+              db
+                .prepare(`UPDATE background_jobs SET user_message_id = ?, updated_at = ? WHERE id = ?`)
+                .run(assistantMessageDbId, updateTs, backgroundJobId),
+            'background_jobs UPDATE (user_message_id)'
+          );
         } else {
           // Update existing assistant message
           db.prepare(`
@@ -304,10 +312,15 @@ export async function POST(req: Request) {
         }
 
         // Update background job status
-        db.prepare(`
-          UPDATE background_jobs SET current_content = ?, current_thought = ?, current_tool_calls = ?, updated_at = ?
-          WHERE id = ?
-        `).run(content, thoughtToPersist, toolCalls || null, updateTs, backgroundJobId);
+        executeWithRetry(
+          () =>
+            db
+              .prepare(
+                `UPDATE background_jobs SET current_content = ?, current_thought = ?, current_tool_calls = ?, updated_at = ? WHERE id = ?`
+              )
+              .run(content, thoughtToPersist, toolCalls || null, updateTs, backgroundJobId),
+          'background_jobs UPDATE (content)'
+        );
       } catch (e) {
         console.error('[DB] Failed to persist assistant message incrementally', e);
       }
@@ -317,10 +330,22 @@ export async function POST(req: Request) {
     const markBackgroundJobCompleted = (error?: string) => {
       const completedTs = Date.now();
       try {
-        db.prepare(`
-          UPDATE background_jobs SET status = ?, current_content = ?, updated_at = ?, completed_at = ?, error = ?
-          WHERE id = ?
-        `).run(error ? 'failed' : 'completed', persistedAssistantContent, completedTs, completedTs, error || null, backgroundJobId);
+        executeWithRetry(
+          () =>
+            db
+              .prepare(
+                `UPDATE background_jobs SET status = ?, current_content = ?, updated_at = ?, completed_at = ?, error = ? WHERE id = ?`
+              )
+              .run(
+                error ? 'failed' : 'completed',
+                persistedAssistantContent,
+                completedTs,
+                completedTs,
+                error || null,
+                backgroundJobId
+              ),
+          'background_jobs UPDATE (completed)'
+        );
       } catch (e) {
         console.error('[DB] Failed to mark background job completed', e);
       }
@@ -564,8 +589,12 @@ export async function POST(req: Request) {
         // Clearing stale subscribers prevents closed-controller callbacks from prior turns.
         coreWithConfirmation.clearConfirmationSubscribers?.();
 
+        // Confirmation queue timeout: 5 minutes (300000ms)
+        const CONFIRMATION_TIMEOUT_MS = 5 * 60 * 1000;
+
         let cleanupMessageBusListeners = () => { };
-        const pendingConfirmationIds = new Set<string>();
+        // Use Map to track confirmation request start times for timeout detection
+        const pendingConfirmations = new Map<string, number>();
         const toolNameByCallId = new Map<string, string>();
         const checkpointByCallId = new Map<string, string>();
         const toolStartTimeByCallId = new Map<string, number>();
@@ -614,12 +643,33 @@ export async function POST(req: Request) {
           }
         };
         const processQueuedConfirmations = async () => {
-          if (isPollingConfirmationQueue || pendingConfirmationIds.size === 0) {
+          if (isPollingConfirmationQueue || pendingConfirmations.size === 0) {
             return;
           }
           isPollingConfirmationQueue = true;
+          const now = Date.now();
           try {
-            const ids = Array.from(pendingConfirmationIds);
+            // Check for timed-out confirmations first
+            const timedOutIds: string[] = [];
+            for (const [id, startTime] of pendingConfirmations) {
+              if (now - startTime > CONFIRMATION_TIMEOUT_MS) {
+                timedOutIds.push(id);
+              }
+            }
+
+            // Auto-reject timed-out confirmations
+            for (const correlationId of timedOutIds) {
+              console.warn(`[chat/stream] Confirmation timed out after ${CONFIRMATION_TIMEOUT_MS}ms, auto-rejecting: ${correlationId}`);
+              try {
+                await core.submitConfirmation(correlationId, false, 'timeout', undefined);
+              } catch (e) {
+                console.error('[chat/stream] Failed to auto-reject timed-out confirmation:', e);
+              }
+              pendingConfirmations.delete(correlationId);
+              db.prepare('DELETE FROM confirmation_queue WHERE correlation_id = ?').run(correlationId);
+            }
+
+            const ids = Array.from(pendingConfirmations.keys());
             const placeholders = ids.map(() => '?').join(', ');
             const queuedRows = db.prepare(
               `SELECT correlation_id, confirmed, outcome, payload
@@ -651,7 +701,7 @@ export async function POST(req: Request) {
                 (row.outcome ?? undefined) as ToolConfirmationOutcome | undefined,
                 parsedPayload as ToolConfirmationPayload | undefined
               );
-              pendingConfirmationIds.delete(row.correlation_id);
+              pendingConfirmations.delete(row.correlation_id);
               db.prepare('DELETE FROM confirmation_queue WHERE correlation_id = ?').run(row.correlation_id);
             }
           } catch (error) {
@@ -739,7 +789,8 @@ export async function POST(req: Request) {
           }
 
           const unsubscribeConfirmation = coreWithConfirmation.subscribeConfirmationRequests((request) => {
-            pendingConfirmationIds.add(request.correlationId);
+            // Track confirmation start time for timeout detection
+            pendingConfirmations.set(request.correlationId, Date.now());
             safeEnqueue({
               type: 'tool_confirmation',
               correlationId: request.correlationId,
