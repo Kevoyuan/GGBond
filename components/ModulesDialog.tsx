@@ -38,8 +38,11 @@ const ContextPersistencePanel = lazy(() => import('./modules/browser/ContextPers
 // Loading fallback component
 function ModuleLoader() {
   return (
-    <div className="flex items-center justify-center py-12">
-      <Loader2 size={20} className="animate-spin text-muted-foreground" />
+    <div className="flex items-center justify-center h-[30rem] bg-muted/5 rounded-xl border border-dashed border-border/50">
+      <div className="flex flex-col items-center gap-2">
+        <Loader2 size={24} className="animate-spin text-primary/40" />
+        <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/50">Initializing Module</span>
+      </div>
     </div>
   );
 }
@@ -198,7 +201,7 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }:
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-7xl max-h-[92vh] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden relative z-10"
+        className="w-full max-w-7xl h-[90vh] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden relative z-10"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-muted/50 to-transparent shrink-0">
@@ -235,7 +238,7 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }:
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 min-h-0 bg-muted/5">
+        <div className="flex-1 overflow-y-auto p-6 bg-muted/5 min-h-0">
           {!isLoaded ? (
             <div className="flex items-center justify-center h-full min-h-[400px]">
               <div className="flex flex-col items-center gap-3">
