@@ -37,9 +37,13 @@ export const MemoryManager = memo(function MemoryManager() {
     setSaving(true);
     try {
       await fetch('/api/memory', {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: files[editingIdx].path, content: editContent }),
+        body: JSON.stringify({
+          action: 'update',
+          path: files[editingIdx].path,
+          content: editContent
+        }),
       });
       setEditingIdx(null);
       fetchFiles();

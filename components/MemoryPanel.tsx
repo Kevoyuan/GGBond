@@ -86,7 +86,12 @@ export const MemoryPanel = memo(function MemoryPanel({ onFileSelect, className, 
             const res = await fetch(endpoint);
             if (res.ok) {
                 const data = await res.json();
-                setFiles(data.files || []);
+                // The API returns an array of objects: { path, content, size, scope }
+                // or sometimes an object with a 'files' property if using an older version of the API
+                const filePaths = Array.isArray(data)
+                    ? data.map((f: any) => f.path)
+                    : (data.files || []);
+                setFiles(filePaths);
                 setError(null);
             } else {
                 setError('Failed to fetch memory files');
