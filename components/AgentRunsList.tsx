@@ -202,14 +202,14 @@ export function AgentRunsList({ className, onNavigateToChat, refreshTrigger = 0 
 
       {/* Stats bar */}
       {runs.length > 0 && (
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
+        <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-zinc-500/60 font-mono">
+          <span className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-            {completedCount} completed
+            {completedCount} Completed
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1.5">
             <XCircle className="w-3 h-3 text-red-500" />
-            {failedCount} failed
+            {failedCount} Failed
           </span>
         </div>
       )}
@@ -276,35 +276,39 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onDelete, onNavigateToC
     switch (status) {
       case 'running':
         return {
-          icon: <Loader2 className="w-4 h-4 animate-spin" />,
+          icon: <Loader2 className="w-3.5 h-3.5 animate-spin" />,
           color: 'text-blue-500',
           bg: 'bg-blue-500/10',
-          border: 'border-blue-500/30',
-          label: 'Running'
+          border: 'border-blue-500/20',
+          label: 'RUNNING',
+          glow: 'shadow-[0_0_8px_rgba(59,130,246,0.4)]'
         };
       case 'completed':
         return {
-          icon: <CheckCircle2 className="w-4 h-4" />,
+          icon: <CheckCircle2 className="w-3.5 h-3.5" />,
           color: 'text-emerald-500',
           bg: 'bg-emerald-500/10',
-          border: 'border-emerald-500/30',
-          label: 'Completed'
+          border: 'border-emerald-500/20',
+          label: 'SUCCESS',
+          glow: ''
         };
       case 'failed':
         return {
-          icon: <XCircle className="w-4 h-4" />,
+          icon: <XCircle className="w-3.5 h-3.5" />,
           color: 'text-red-500',
           bg: 'bg-red-500/10',
-          border: 'border-red-500/30',
-          label: 'Failed'
+          border: 'border-red-500/20',
+          label: 'FAILED',
+          glow: ''
         };
       default:
         return {
-          icon: <Clock className="w-4 h-4" />,
-          color: 'text-zinc-400',
-          bg: 'bg-zinc-500/10',
-          border: 'border-zinc-500/30',
-          label: 'Pending'
+          icon: <Clock className="w-3.5 h-3.5" />,
+          color: 'text-zinc-500',
+          bg: 'bg-zinc-500/5',
+          border: 'border-zinc-500/10',
+          label: 'WAITING',
+          glow: ''
         };
     }
   };
@@ -314,9 +318,10 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onDelete, onNavigateToC
   return (
     <div
       className={cn(
-        "rounded-xl border transition-colors duration-200 group",
-        status.bg, status.border,
-        isExpanded && "ring-1 ring-primary/20"
+        "rounded-xl border transition-all duration-300 group overflow-hidden",
+        isExpanded
+          ? "bg-white/80 dark:bg-zinc-900/60 border-zinc-300 dark:border-zinc-700 shadow-[0_4px_12px_rgba(0,0,0,0.05)]"
+          : "bg-white/40 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700"
       )}
     >
       {/* Card Header */}
@@ -324,34 +329,37 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onDelete, onNavigateToC
         className="flex items-center gap-3 p-3 cursor-pointer"
         onClick={onToggleExpand}
       >
-        <div className={cn("p-2 rounded-lg bg-background/50", status.color)}>
+        <div className={cn(
+          "p-1.5 rounded-lg border shrink-0 transition-all",
+          status.bg, status.border, status.color, status.glow
+        )}>
           {status.icon}
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-sm truncate">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="font-bold text-[12px] tracking-tight text-zinc-800 dark:text-zinc-100 truncate group-hover:text-blue-500 transition-colors">
               {run.agent_display_name || run.agent_name}
             </span>
             <span className={cn(
-              "text-xs px-2 py-0.5 rounded-full font-medium",
+              "text-[9px] px-1.5 py-0.5 rounded font-mono font-bold tracking-wider",
               status.bg, status.color
             )}>
               {status.label}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground truncate mt-0.5">
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium truncate italic opacity-80">
             {run.task}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
+          <span className="text-[10px] font-mono font-bold text-zinc-400 tabular-nums">
             {getDuration(run.created_at, run.completed_at)}
           </span>
           {run.status !== 'running' && run.status !== 'pending' && (
             <div
-              className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity"
+              className="flex items-center opacity-0 group-hover:opacity-100 transition-all translate-x-1 group-hover:translate-x-0 cursor-default"
               onMouseLeave={() => setShowDeleteConfirm(false)}
             >
               {showDeleteConfirm ? (
@@ -360,7 +368,7 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onDelete, onNavigateToC
                     e.stopPropagation();
                     onDelete(e);
                   }}
-                  className="px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors animate-in fade-in slide-in-from-right-1 duration-200"
+                  className="px-2 py-0.5 text-[9px] font-bold bg-red-600 text-white rounded hover:bg-red-700 transition-colors shadow-lg border border-red-500/20"
                 >
                   Confirm
                 </button>
@@ -370,7 +378,7 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onDelete, onNavigateToC
                     e.stopPropagation();
                     setShowDeleteConfirm(true);
                   }}
-                  className="p-1 rounded-md text-muted-foreground/40 hover:text-primary transition-colors"
+                  className="p-1.5 rounded-md text-zinc-400 hover:text-red-500 hover:bg-red-500/10 transition-colors"
                   title="Delete run"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -379,9 +387,9 @@ function AgentRunCard({ run, isExpanded, onToggleExpand, onDelete, onNavigateToC
             </div>
           )}
           {isExpanded ? (
-            <ChevronUp className="w-4 h-4 text-muted-foreground" />
+            <ChevronUp size={14} className="text-zinc-400" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            <ChevronDown size={14} className="text-zinc-400" />
           )}
         </div>
       </div>

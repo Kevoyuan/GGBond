@@ -282,9 +282,9 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                 style={{ height: `${agentListHeight}px` }}
             >
                 {/* Fixed controls - kept out of scroll area for stability */}
-                <div className="px-3 pt-3 pb-2 space-y-3 bg-card/10 border-b border-border/10">
+                <div className="px-3 py-1.5 space-y-1.5 bg-zinc-900/5 dark:bg-zinc-950/20 border-b border-border/5">
                     {/* Filter Tabs (Segmented Control style) */}
-                    <div className="flex p-1 bg-muted/30 rounded-lg relative overflow-hidden">
+                    <div className="flex p-0.5 bg-zinc-200/50 dark:bg-zinc-900/50 rounded-lg relative overflow-hidden border border-zinc-200/20 dark:border-zinc-800/20">
                         {[
                             { key: 'all', label: 'All', count: agents.length, icon: Layers },
                             { key: 'user', label: 'User', count: userCount, icon: User },
@@ -294,25 +294,25 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                 <button
                                     onClick={() => setScopeFilter(item.key as 'all' | 'user' | 'built-in')}
                                     className={cn(
-                                        "relative px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md flex items-center justify-center gap-1.5 z-10 transition-colors w-full",
+                                        "relative px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center justify-center gap-1.5 z-10 transition-colors w-full",
                                         scopeFilter === item.key
-                                            ? "text-primary-foreground"
-                                            : "text-muted-foreground hover:text-foreground"
+                                            ? "text-zinc-900 dark:text-zinc-100"
+                                            : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
                                     )}
                                 >
                                     {scopeFilter === item.key && (
                                         <motion.div
                                             layoutId="activeTab"
-                                            className="absolute inset-0 bg-primary rounded-md shadow-sm"
+                                            className="absolute inset-0 bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-zinc-200/10 dark:border-zinc-100/5"
                                             transition={{ type: "spring", bounce: 0.2, duration: 0.3 }}
                                         />
                                     )}
-                                    <item.icon size={16} className="relative z-10" />
+                                    <item.icon size={13} className="relative z-10" />
                                     <span className={cn(
                                         "relative z-10 px-1 py-0.5 rounded text-[9px] min-w-[16px] text-center font-mono leading-none transition-colors",
                                         scopeFilter === item.key
-                                            ? "bg-primary-foreground/20 text-primary-foreground"
-                                            : "bg-muted text-muted-foreground"
+                                            ? "bg-zinc-100 dark:bg-black/40"
+                                            : "bg-zinc-200/40 dark:bg-zinc-800/40"
                                     )}>
                                         {item.count}
                                     </span>
@@ -459,8 +459,10 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                         <div
                                             key={agent.name}
                                             className={cn(
-                                                "relative p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer group",
-                                                selectedAgentName === agent.name && "bg-primary/5 border-primary ring-1 ring-primary/20"
+                                                "relative p-3.5 border rounded-xl transition-all duration-300 cursor-pointer group overflow-hidden",
+                                                selectedAgentName === agent.name
+                                                    ? "bg-blue-500/[0.08] dark:bg-blue-500/10 border-blue-400/50 dark:border-blue-500/50 shadow-[0_4px_20px_-4px_rgba(59,130,246,0.15),inset_0_1px_0_rgba(255,255,255,0.05)] ring-1 ring-blue-500/10"
+                                                    : "bg-white/40 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/80 hover:bg-white dark:hover:bg-zinc-800/60 hover:border-blue-500/30 hover:shadow-[0_8px_16px_-4px_rgba(0,0,0,0.04)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
                                             )}
                                             onClick={() => {
                                                 setPreviewAgent(agent);
@@ -468,33 +470,33 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                                 onSelectAgent(agent);
                                             }}
                                         >
-                                            <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-3 relative z-10">
                                                 <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-2 mb-0.5">
-                                                        <span
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <div
                                                             className={cn(
-                                                                "inline-block w-1.5 h-1.5 rounded-full shrink-0",
-                                                                isUserAgent(agent.name) ? "bg-emerald-500" : "bg-primary"
+                                                                "w-2 h-2 rounded-full shrink-0 transition-all duration-500 shadow-[0_0_8px_rgba(var(--status-rgb),0.4)]",
+                                                                isUserAgent(agent.name) ? "bg-emerald-500 animate-pulse" : "bg-blue-500"
                                                             )}
                                                         />
-                                                        <span className="font-semibold text-[13px] text-foreground truncate">
+                                                        <span className="font-bold text-[13px] text-zinc-800 dark:text-zinc-100 truncate group-hover:text-blue-500 transition-colors tracking-tight">
                                                             {agent.displayName || agent.name}
                                                         </span>
                                                     </div>
-                                                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-tight">
+                                                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium line-clamp-2 leading-tight h-[28px]">
                                                         {agent.description}
                                                     </p>
                                                 </div>
                                                 <button
                                                     onClick={(e) => handleUseAgent(e, agent.name)}
-                                                    className="p-1 px-[5px] text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors shrink-0"
+                                                    className="p-1.5 text-zinc-400 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all shrink-0"
                                                     title="Add to chat"
                                                 >
-                                                    <PlusCircle size={14} className="stroke-[2.5]" />
+                                                    <PlusCircle size={15} />
                                                 </button>
                                             </div>
 
-                                            <div className="absolute top-2 right-8 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-colors">
+                                            <div className="absolute top-2 right-9 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0 z-20">
                                                 {isUserAgent(agent.name) && (
                                                     <div
                                                         className="flex items-center"
@@ -506,7 +508,7 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                                                     e.stopPropagation();
                                                                     confirmDelete(agent.name, (name) => handleAction('delete', name));
                                                                 }}
-                                                                className="px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors animate-in fade-in slide-in-from-right-2 duration-200"
+                                                                className="px-2.5 py-1 text-[10px] font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all shadow-lg border border-red-500/20"
                                                             >
                                                                 Confirm
                                                             </button>
@@ -516,20 +518,26 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                                                     e.stopPropagation();
                                                                     startDelete(agent.name);
                                                                 }}
-                                                                className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
+                                                                className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
                                                                 title="Delete"
                                                                 disabled={actionLoading === `delete:${agent.name}`}
                                                             >
                                                                 {actionLoading === `delete:${agent.name}` ? (
-                                                                    <Loader2 size={12} className="animate-spin" />
+                                                                    <Loader2 size={13} className="animate-spin" />
                                                                 ) : (
-                                                                    <Trash size={12} />
+                                                                    <Trash size={13} />
                                                                 )}
                                                             </button>
                                                         )}
                                                     </div>
                                                 )}
                                             </div>
+
+                                            {/* Glow Accent */}
+                                            <div className={cn(
+                                                "absolute -right-4 -top-4 w-16 h-16 rounded-full blur-2xl opacity-0 group-hover:opacity-30 transition-opacity duration-700",
+                                                isUserAgent(agent.name) ? "bg-emerald-500" : "bg-blue-500"
+                                            )} />
                                         </div>
                                     ))
                                 )}
