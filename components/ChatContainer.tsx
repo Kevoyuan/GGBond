@@ -293,7 +293,7 @@ export const ChatContainer = React.memo(function ChatContainer({
 
                     {latestTodos && latestTodos.length > 0 && <TaskProgressDock todos={latestTodos} />}
 
-                    <UncommittedFilesList uncommitted={uncommitted} />
+                    <UncommittedFilesList uncommitted={uncommitted ?? null} />
 
                     <ChatInput
                         onSend={onSendMessage}

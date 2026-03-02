@@ -327,7 +327,7 @@ export async function POST(req: Request) {
     };
 
     // Mark background job as completed
-    const markBackgroundJobCompleted = (error?: string) => {
+    const markBackgroundJobCompleted = async (error?: string) => {
       const completedTs = Date.now();
       try {
         await executeWithRetry(
@@ -661,7 +661,7 @@ export async function POST(req: Request) {
             for (const correlationId of timedOutIds) {
               console.warn(`[chat/stream] Confirmation timed out after ${CONFIRMATION_TIMEOUT_MS}ms, auto-rejecting: ${correlationId}`);
               try {
-                await core.submitConfirmation(correlationId, false, 'timeout', undefined);
+                await core.submitConfirmation(correlationId, false, undefined, undefined);
               } catch (e) {
                 console.error('[chat/stream] Failed to auto-reject timed-out confirmation:', e);
               }

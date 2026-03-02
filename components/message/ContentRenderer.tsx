@@ -200,12 +200,12 @@ export const ContentRenderer = React.memo(function ContentRenderer({
             // Safely convert children to an array to prevent breaking React elements
             const childrenArray = React.Children.toArray(children);
             let firstChild = childrenArray[0];
-            
+
             // Check if wrapped in paragraph (loose lists might wrap in <p>)
             const isParagraphWrap = React.isValidElement(firstChild) && firstChild.type === 'p';
-            if (isParagraphWrap) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const pChildren = React.Children.toArray((firstChild.props as any).children);
+            const element = isParagraphWrap ? firstChild as React.ReactElement<{ children?: React.ReactNode }> : null;
+            if (isParagraphWrap && element) {
+                const pChildren = React.Children.toArray(element.props.children);
                 if (pChildren.length > 0 && typeof pChildren[0] === 'string') {
                     firstChild = pChildren[0];
                 }
@@ -220,11 +220,10 @@ export const ContentRenderer = React.memo(function ContentRenderer({
                     const remainingText = checkboxMatch[2];
                     
                     // Strip the "[ ] " from the first node, keeping remaining text and other nodes
-                    if (isParagraphWrap) {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const pChildren = React.Children.toArray((childrenArray[0] as React.ReactElement).props.children);
+                    if (isParagraphWrap && element) {
+                        const pChildren = React.Children.toArray(element.props.children);
                         pChildren[0] = remainingText;
-                        childrenArray[0] = React.cloneElement(childrenArray[0] as React.ReactElement, {}, ...pChildren);
+                        childrenArray[0] = React.cloneElement(element, {}, ...pChildren);
                     } else {
                         childrenArray[0] = remainingText;
                     }
@@ -261,11 +260,10 @@ export const ContentRenderer = React.memo(function ContentRenderer({
                     const number = planStepMatch[1];
                     const remainingText = planStepMatch[2];
 
-                    if (isParagraphWrap) {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const pChildren = React.Children.toArray((childrenArray[0] as React.ReactElement).props.children);
+                    if (isParagraphWrap && element) {
+                        const pChildren = React.Children.toArray(element.props.children);
                         pChildren[0] = remainingText;
-                        childrenArray[0] = React.cloneElement(childrenArray[0] as React.ReactElement, {}, ...pChildren);
+                        childrenArray[0] = React.cloneElement(element, {}, ...pChildren);
                     } else {
                         childrenArray[0] = remainingText;
                     }
