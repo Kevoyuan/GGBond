@@ -1,3 +1,28 @@
+## GGBond v0.3.2
+
+## Highlights
+
+- Aligned the app with `@google/gemini-cli-core@0.32.0`.
+- Added workspace-scoped model steering in the governance panel.
+- Improved plan-mode approval flow and interactive shell behavior.
+
+## Gemini CLI Core v0.32.0 Alignment
+
+- Upgraded `@google/gemini-cli-core` to `0.32.0`.
+- Added workspace-level model/profile overrides via the new governance steering API and UI.
+- Improved plan mode handling:
+  - external editor support for plan review
+  - better multi-select question handling
+- Added interactive shell autocompletion plumbing for terminal sessions.
+- Parallelized extension command loading to reduce startup and discovery overhead.
+
+## Downloads
+
+- macOS (Apple Silicon): `ggbond_0.3.2_aarch64.dmg`
+- Windows (Intel/x64): `ggbond_0.3.2_x64-setup.exe`
+
+Full Changelog: [`v0.3.1...v0.3.2`](https://github.com/Kevoyuan/GGBond/compare/v0.3.1...v0.3.2)
+
 ## GGBond v0.3.0
 
 ## Highlights
