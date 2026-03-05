@@ -53,6 +53,29 @@ export function getProjectSettingsPath(cwd?: string): string {
     return path.join(cwd || process.cwd(), '.gemini', 'settings.json');
 }
 
+export async function readProjectSettings(cwd?: string): Promise<Record<string, any>> {
+    const settingsPath = getProjectSettingsPath(cwd);
+    try {
+        const content = await fsp.readFile(settingsPath, 'utf-8');
+        return JSON.parse(content);
+    } catch {
+        return {};
+    }
+}
+
+export async function writeProjectSettings(settings: Record<string, any>, cwd?: string): Promise<void> {
+    const settingsPath = getProjectSettingsPath(cwd);
+    await fsp.mkdir(path.dirname(settingsPath), { recursive: true });
+    await fsp.writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+}
+
+export async function mergeProjectSettings(partial: Record<string, any>, cwd?: string): Promise<Record<string, any>> {
+    const current = await readProjectSettings(cwd);
+    const merged = deepMerge(current, partial);
+    await writeProjectSettings(merged, cwd);
+    return merged;
+}
+
 // ─── Settings Read/Write ─────────────────────────────────
 export async function readSettings(): Promise<Record<string, any>> {
     const now = Date.now();

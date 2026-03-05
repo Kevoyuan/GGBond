@@ -16,8 +16,8 @@ export interface GovernanceSummaryView {
 }
 
 const GOVERNANCE_CACHE_TTL_MS = 3000;
-let governanceCache: { data: GovernanceSummaryView; expiresAt: number } | null = null;
-let governanceInFlight: Promise<GovernanceSummaryView> | null = null;
+let governanceCache: { key: string; data: GovernanceSummaryView; expiresAt: number } | null = null;
+const governanceInFlight = new Map<string, Promise<GovernanceSummaryView>>();
 
 async function readJsonFile(path: string): Promise<unknown> {
     try {
@@ -28,22 +28,28 @@ async function readJsonFile(path: string): Promise<unknown> {
     }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
     try {
+        const { searchParams } = new URL(req.url);
+        const rawWorkspacePath = searchParams.get('workspacePath');
+        const workspacePath = rawWorkspacePath && rawWorkspacePath.trim() && rawWorkspacePath !== 'Default'
+            ? rawWorkspacePath.trim()
+            : process.cwd();
         const now = Date.now();
-        if (governanceCache && governanceCache.expiresAt > now) {
+        if (governanceCache && governanceCache.key === workspacePath && governanceCache.expiresAt > now) {
             return NextResponse.json(governanceCache.data);
         }
-        if (governanceInFlight) {
-            const data = await governanceInFlight;
+        const inFlight = governanceInFlight.get(workspacePath);
+        if (inFlight) {
+            const data = await inFlight;
             return NextResponse.json(data);
         }
 
-        governanceInFlight = (async () => {
+        const nextInFlight = (async () => {
         const runtimeConfigDir = resolveGeminiConfigDir(resolveRuntimeHome());
         const globalConfigPath = join(runtimeConfigDir, 'settings.json');
-        const workspaceConfigPath = join(process.cwd(), '.gemini', 'settings.json');
-        const telemetryPath = join(process.cwd(), '.gemini', 'telemetry.json');
+        const workspaceConfigPath = join(workspacePath, '.gemini', 'settings.json');
+        const telemetryPath = join(workspacePath, '.gemini', 'telemetry.json');
 
         const [globalConfig, workspaceConfig, telemetry] = await Promise.all([
             readJsonFile(globalConfigPath),
@@ -103,13 +109,14 @@ export async function GET() {
             policyTiers,
         };
 
-            governanceCache = { data, expiresAt: Date.now() + GOVERNANCE_CACHE_TTL_MS };
+            governanceCache = { key: workspacePath, data, expiresAt: Date.now() + GOVERNANCE_CACHE_TTL_MS };
             return data;
         })().finally(() => {
-            governanceInFlight = null;
+            governanceInFlight.delete(workspacePath);
         });
+        governanceInFlight.set(workspacePath, nextInFlight);
 
-        const data = await governanceInFlight;
+        const data = await nextInFlight;
         return NextResponse.json(data);
     } catch (err) {
         console.error('[governance/summary]', err);

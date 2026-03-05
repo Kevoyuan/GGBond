@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils';
 
 export interface Question {
+    id?: string;
     question: string;
     header: string;
     type?: 'choice' | 'text' | 'yesno';
@@ -51,10 +52,9 @@ export function QuestionPanel({ questions, title, correlationId, onSubmit, onCan
 
     const isComplete = () => {
         return questions.every((q, i) => {
+            if (q.multiSelect) return (answers[i] as string[]).length > 0;
             if (q.type === 'yesno') return typeof answers[i] === 'boolean';
             if (q.type === 'choice') return answers[i] !== '';
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            if (q.multiSelect) return (answers[i] as any[]).length > 0;
             return answers[i] !== '';
         });
     };

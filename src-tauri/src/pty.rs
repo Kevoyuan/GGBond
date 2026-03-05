@@ -83,7 +83,13 @@ fn default_shell() -> String {
     }
 }
 
-fn build_command(shell: String, command: &str, cwd: Option<String>, env: Option<HashMap<String, String>>) -> CommandBuilder {
+fn build_command(
+    shell: String,
+    command: &str,
+    cwd: Option<String>,
+    env: Option<HashMap<String, String>>,
+    interactive_autocomplete: bool,
+) -> CommandBuilder {
     let mut cmd = CommandBuilder::new(shell);
     cmd.env("TERM", "xterm-256color");
 
@@ -100,7 +106,11 @@ fn build_command(shell: String, command: &str, cwd: Option<String>, env: Option<
     if cfg!(windows) {
         cmd.args(["/d", "/s", "/c", command]);
     } else {
-        cmd.args(["-lc", command]);
+        if interactive_autocomplete {
+            cmd.args(["-lic", command]);
+        } else {
+            cmd.args(["-lc", command]);
+        }
     }
 
     cmd
@@ -126,6 +136,7 @@ pub async fn run_terminal_stream(
     command: String,
     cwd: Option<String>,
     shell: Option<String>,
+    interactive_autocomplete: Option<bool>,
     env: Option<HashMap<String, String>>,
     app_handle: AppHandle,
     state: State<'_, PtyState>,
@@ -142,7 +153,13 @@ pub async fn run_terminal_stream(
 
     let shell_to_use = shell.unwrap_or_else(default_shell);
     let resolved_cwd = cwd.clone();
-    let cmd = build_command(shell_to_use, &command, cwd, env);
+    let cmd = build_command(
+        shell_to_use,
+        &command,
+        cwd,
+        env,
+        interactive_autocomplete.unwrap_or(true),
+    );
 
     let mut child = pair
         .slave

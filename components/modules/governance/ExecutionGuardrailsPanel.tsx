@@ -30,22 +30,29 @@ function SparkBars({ values, color }: { values: number[]; color: string }) {
 // Simulated last-7-hour data
 const SIMULATED_TREND = [3, 5, 2, 8, 4, 6, 3];
 
-export const ExecutionGuardrailsPanel = memo(function ExecutionGuardrailsPanel() {
+interface ExecutionGuardrailsPanelProps {
+    workspacePath?: string | null;
+}
+
+export const ExecutionGuardrailsPanel = memo(function ExecutionGuardrailsPanel({ workspacePath }: ExecutionGuardrailsPanelProps) {
     const [data, setData] = useState<GovernanceSummaryView | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+    const query = workspacePath?.trim()
+        ? `?workspacePath=${encodeURIComponent(workspacePath.trim())}`
+        : '';
 
     const fetch_ = () => {
         setLoading(true);
         setError(false);
-        fetch('/api/governance/summary')
+        fetch(`/api/governance/summary${query}`)
             .then(r => r.json())
             .then(setData)
             .catch(() => setError(true))
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { fetch_(); }, []);
+    useEffect(() => { fetch_(); }, [workspacePath]);
 
     if (loading) {
         return (

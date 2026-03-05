@@ -25,22 +25,29 @@ const APPROVAL_MODE_META: Record<string, { label: string; color: string; desc: s
     unknown: { label: 'Unknown', color: 'zinc', desc: 'Could not read approval mode' },
 };
 
-export const PolicyHealthPanel = memo(function PolicyHealthPanel() {
+interface PolicyHealthPanelProps {
+    workspacePath?: string | null;
+}
+
+export const PolicyHealthPanel = memo(function PolicyHealthPanel({ workspacePath }: PolicyHealthPanelProps) {
     const [data, setData] = useState<GovernanceSummaryView | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+    const query = workspacePath?.trim()
+        ? `?workspacePath=${encodeURIComponent(workspacePath.trim())}`
+        : '';
 
     const fetch_ = () => {
         setLoading(true);
         setError(false);
-        fetch('/api/governance/summary')
+        fetch(`/api/governance/summary${query}`)
             .then(r => r.json())
             .then(setData)
             .catch(() => setError(true))
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { fetch_(); }, []);
+    useEffect(() => { fetch_(); }, [workspacePath]);
 
     if (loading) {
         return (

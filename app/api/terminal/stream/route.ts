@@ -24,6 +24,7 @@ type TerminalStreamRequestBody = {
   command?: unknown;
   cwd?: unknown;
   shell?: unknown;
+  interactiveAutocomplete?: unknown;
   env?: unknown;
 };
 
@@ -71,7 +72,7 @@ const buildRuntimeEnv = (rawEnv: unknown) => {
   return runtimeEnv;
 };
 
-const getShellCommand = (command: string, shellOverride: string | null) => {
+const getShellCommand = (command: string, shellOverride: string | null, interactiveAutocomplete: boolean) => {
   const resolvedShell = shellOverride || (process.platform === 'win32'
     ? process.env.ComSpec || 'cmd.exe'
     : process.env.SHELL || '/bin/zsh');
@@ -85,7 +86,7 @@ const getShellCommand = (command: string, shellOverride: string | null) => {
 
   return {
     shell: resolvedShell,
-    args: ['-lc', command],
+    args: [interactiveAutocomplete ? '-lic' : '-lc', command],
   };
 };
 
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
 
   const cwd = await resolveWorkingDirectory(body.cwd);
   const shellOverride = sanitizeShell(body.shell);
+  const interactiveAutocomplete = body.interactiveAutocomplete !== false;
   const runtimeEnv = buildRuntimeEnv(body.env);
   const runId = randomUUID();
 
@@ -134,7 +136,7 @@ export async function POST(req: NextRequest) {
         controller.close();
       };
 
-      const { shell, args } = getShellCommand(command, shellOverride);
+      const { shell, args } = getShellCommand(command, shellOverride, interactiveAutocomplete);
       const pty = spawnPty(shell, args, {
         cwd,
         env: runtimeEnv,

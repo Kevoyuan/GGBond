@@ -68,6 +68,7 @@ const tabs: Tab[] = [
 interface ModulesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  workspacePath?: string | null;
 }
 
 const SectionTitle = memo(function SectionTitle({ title, description, icon }: { title: string; description: string; icon: React.ReactNode }) {
@@ -120,7 +121,7 @@ const TabButton = React.memo(function TabButton({
   );
 });
 
-export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }: ModulesDialogProps) {
+export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange, workspacePath }: ModulesDialogProps) {
   const [activeTab, setActiveTab] = useState<TabId>('analytics');
   const [isLoaded, setIsLoaded] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
@@ -323,13 +324,13 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange }:
                   <section>
                     <SectionTitle
                       title="Governance"
-                      description="Policy health, model steering, and execution guardrails — aligned with gemini-cli-core v0.31"
+                      description="Policy health, model steering, and execution guardrails — aligned with gemini-cli-core v0.32"
                       icon={<Shield size={20} />}
                     />
                     <div className="grid lg:grid-cols-3 gap-6">
-                      <Suspense fallback={<ModuleLoader />}><PolicyHealthPanel /></Suspense>
-                      <Suspense fallback={<ModuleLoader />}><ModelSteeringPanel /></Suspense>
-                      <Suspense fallback={<ModuleLoader />}><ExecutionGuardrailsPanel /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><PolicyHealthPanel workspacePath={workspacePath} /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><ModelSteeringPanel workspacePath={workspacePath} /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><ExecutionGuardrailsPanel workspacePath={workspacePath} /></Suspense>
                     </div>
                   </section>
                 )}

@@ -78,6 +78,7 @@ interface TerminalEnvironmentConfig {
   shell: string;
   defaultCwd: string;
   envText: string;
+  interactiveAutocomplete: boolean;
   actions: TerminalAction[];
   selectedActionId: string;
 }
@@ -427,6 +428,7 @@ const createDefaultEnvironment = (workspacePath?: string): TerminalEnvironmentCo
   shell: '',
   defaultCwd: workspacePath || '',
   envText: '',
+  interactiveAutocomplete: true,
   actions: [
     {
       id: DEFAULT_ACTION_ID,
@@ -467,6 +469,10 @@ const normalizeEnvironment = (
     shell: toStringOrEmpty(source.shell).trim(),
     defaultCwd: toStringOrEmpty(source.defaultCwd).trim() || base.defaultCwd,
     envText: toStringOrEmpty(source.envText),
+    interactiveAutocomplete:
+      typeof source.interactiveAutocomplete === 'boolean'
+        ? source.interactiveAutocomplete
+        : base.interactiveAutocomplete,
     actions,
     selectedActionId: hasSelectedAction ? selectedActionId : actions[0].id,
   };
@@ -1027,6 +1033,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
             command: executedCommand,
             cwd: getCurrentWorkingDirectory(session) || null,
             shell: shellOverride || null,
+            interactiveAutocomplete: environment.interactiveAutocomplete,
             env: Object.keys(envVariables).length > 0 ? envVariables : null,
           });
         } else {
@@ -1037,6 +1044,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
               command: executedCommand,
               cwd: getCurrentWorkingDirectory(session) || undefined,
               shell: shellOverride || undefined,
+              interactiveAutocomplete: environment.interactiveAutocomplete,
               env: Object.keys(envVariables).length > 0 ? envVariables : undefined,
             }),
             signal: abortController.signal,
@@ -1821,6 +1829,22 @@ export const TerminalPanel = React.memo(function TerminalPanel({
                   className="w-full bg-background text-sm font-mono text-foreground border border-border/70 rounded-md px-3 py-3 resize-y focus:outline-none focus:ring-1 focus:ring-ring"
                   placeholder={`NODE_ENV=development\nPORT=3000`}
                 />
+              </label>
+
+              <label className="flex items-center gap-2 rounded-md border border-border/70 px-3 py-2 bg-muted/10">
+                <input
+                  type="checkbox"
+                  checked={environment.interactiveAutocomplete}
+                  onChange={(event) =>
+                    setEnvironment((prev) => ({
+                      ...prev,
+                      interactiveAutocomplete: event.target.checked,
+                    }))
+                  }
+                />
+                <span className="text-xs text-muted-foreground">
+                  Interactive shell autocompletion
+                </span>
               </label>
 
               <div className="space-y-2">

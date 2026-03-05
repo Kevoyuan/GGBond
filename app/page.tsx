@@ -2477,13 +2477,19 @@ export default function Home() {
 
     const normalizedAnswers = Object.fromEntries(
       answers.map((answer, index) => {
+        const question = pendingQuestion.questions[index];
+        const answerKey =
+          (question && typeof question === 'object' && typeof (question as { id?: unknown }).id === 'string' && (question as { id: string }).id.trim())
+            ? (question as { id: string }).id.trim()
+            : String(index);
+
         if (Array.isArray(answer)) {
-          return [String(index), answer.join(', ')];
+          return [answerKey, answer.map((item) => String(item))];
         }
         if (answer === null || answer === undefined) {
-          return [String(index), ''];
+          return [answerKey, ''];
         }
-        return [String(index), String(answer)];
+        return [answerKey, String(answer)];
       })
     );
 

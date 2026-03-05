@@ -54,6 +54,20 @@ export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset 
         prompt,
     } = details;
 
+    const handleOpenPlan = async () => {
+        const planPath = typeof details.planPath === 'string' ? details.planPath.trim() : '';
+        if (!planPath) return;
+        try {
+            await fetch('/api/open', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: planPath }),
+            });
+        } catch (error) {
+            console.error('Failed to open plan file:', error);
+        }
+    };
+
     let Icon = AlertTriangle;
     let accent = 'text-amber-400';
     let button = 'bg-amber-600 hover:bg-amber-500';
@@ -130,9 +144,30 @@ export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset 
                             <span className="font-medium text-foreground">{toolDisplayName || toolName || 'unknown'}</span>
                         </div>
                     )}
+
+                    {type === 'exit_plan_mode' && (
+                        <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">
+                                Review the plan, adjust it if needed, then start implementation.
+                            </p>
+                            {details.planPath && (
+                                <div className="rounded-md border border-border/70 bg-black/25 px-2.5 py-2 font-mono text-xs text-zinc-100 break-all">
+                                    {details.planPath}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex items-center justify-end gap-2 border-t border-border/70 bg-muted/10 px-3 py-2.5">
+                    {type === 'exit_plan_mode' && details.planPath && (
+                        <button
+                            onClick={handleOpenPlan}
+                            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground border border-border hover:bg-muted hover:text-foreground transition-colors mr-auto"
+                        >
+                            Open in Editor
+                        </button>
+                    )}
                     <button
                         onClick={onCancel}
                         className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"

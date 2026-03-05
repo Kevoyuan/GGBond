@@ -94,12 +94,15 @@ async function listCommandFiles() {
 
   try {
     const extensionDirs = await fs.readdir(extensionRoot, { withFileTypes: true });
-    for (const dirent of extensionDirs) {
-      if (!dirent.isDirectory()) {
-        continue;
-      }
-      const commandsDir = join(extensionRoot, dirent.name, 'commands');
-      const commands = await readCommandFilesFromDir(commandsDir, 'extension', false);
+    const commandsByExtension = await Promise.all(
+      extensionDirs
+        .filter((dirent) => dirent.isDirectory())
+        .map((dirent) => {
+          const commandsDir = join(extensionRoot, dirent.name, 'commands');
+          return readCommandFilesFromDir(commandsDir, 'extension', false);
+        })
+    );
+    for (const commands of commandsByExtension) {
       extensionCommands.push(...commands);
     }
   } catch {

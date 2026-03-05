@@ -447,7 +447,7 @@ export const Sidebar = React.memo(function Sidebar({
         />
       )}
 
-      <ModulesDialog open={showModulesDialog} onOpenChange={setShowModulesDialog} />
+      <ModulesDialog open={showModulesDialog} onOpenChange={setShowModulesDialog} workspacePath={currentWorkspace || null} />
     </div>
   );
 });
