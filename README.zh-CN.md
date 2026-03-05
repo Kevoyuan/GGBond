@@ -26,7 +26,7 @@
   <img src="./public/screenshot.png" alt="GGBond 截图" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" width="100%" />
 </p>
 
-GGBond 不仅仅是一个终端套壳——它是一个基于 Gemini CLI 构建的**全功能桌面 AI 编程工作台**，当前已全面升级至 Tauri + Rust 运行时。专为注重速度、上下文管理和智能工作流的开发者打造。
+GGBond 不仅仅是一个终端套壳——它是一个基于 [Gemini CLI](https://github.com/google-gemini/gemini-cli)（[GitHub Repo](https://github.com/google-gemini/gemini-cli) | [官网](https://www.npmjs.com/package/@google/gemini-cli)）构建的**全功能桌面 AI 编程工作台**，当前已全面升级至 Tauri + Rust 运行时。专为注重速度、上下文管理和智能工作流的开发者打造。
 
 ---
 

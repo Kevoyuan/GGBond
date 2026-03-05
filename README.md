@@ -26,7 +26,7 @@
   <img src="./public/screenshot.png" alt="GGBond screenshot" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" width="100%" />
 </p>
 
-GGBond is not just another terminal wrapper—it's a full-fledged **desktop AI coding cockpit** built on top of the Gemini CLI, now supercharged with a Tauri + Rust runtime. Designed for developers who value speed, context, and intelligent workflows.
+GGBond is not just another terminal wrapper—it's a full-fledged **desktop AI coding cockpit** built on top of the [Gemini CLI](https://github.com/google-gemini/gemini-cli) ([GitHub Repo](https://github.com/google-gemini/gemini-cli) | [Official Website](https://www.npmjs.com/package/@google/gemini-cli)), now supercharged with a Tauri + Rust runtime. Designed for developers who value speed, context, and intelligent workflows.
 
 ---
 
