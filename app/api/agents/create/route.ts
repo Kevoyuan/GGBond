@@ -113,8 +113,9 @@ ${systemPrompt || 'You are a helpful AI assistant.'}
     // 10. Reload agent registry to pick up the new agent
     try {
       const core = CoreService.getInstance();
-      if (core.config) {
-        await core.config.getAgentRegistry().reload();
+      const registry = core.config?.getAgentRegistry?.() as { reload?: () => Promise<void> | void } | undefined;
+      if (registry?.reload) {
+        await registry.reload();
       }
     } catch (e) {
       // Agent might not be initialized yet, that's okay

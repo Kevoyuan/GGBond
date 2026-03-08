@@ -93,8 +93,9 @@ export async function POST(request: Request) {
       if (results.length > 0) {
         try {
           const core = CoreService.getInstance();
-          if (core.config) {
-            await core.config.getAgentRegistry().reload();
+          const registry = core.config?.getAgentRegistry?.() as { reload?: () => Promise<void> | void } | undefined;
+          if (registry?.reload) {
+            await registry.reload();
           }
         } catch (e) {
           console.warn('[agents/import] Failed to reload agent registry:', e);
@@ -129,8 +130,9 @@ export async function POST(request: Request) {
     // Reload agent registry
     try {
       const core = CoreService.getInstance();
-      if (core.config) {
-        await core.config.getAgentRegistry().reload();
+      const registry = core.config?.getAgentRegistry?.() as { reload?: () => Promise<void> | void } | undefined;
+      if (registry?.reload) {
+        await registry.reload();
       }
     } catch (e) {
       console.warn('[agents/import] Failed to reload agent registry:', e);

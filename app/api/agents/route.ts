@@ -8,19 +8,30 @@ import fs from 'fs';
 // Fallback built-in agents when CoreService is not available
 const FALLBACK_BUILT_IN_AGENTS = ['codebase-investigator', 'cli-help-agent', 'generalist-agent'];
 
+function getCoreAgentDefinitions(): AgentDefinitionLike[] {
+    try {
+        const core = CoreService.getInstance();
+        const registry = core.config?.getAgentRegistry?.() as
+            | { getAllDefinitions?: () => unknown[] }
+            | undefined;
+        const definitions = registry?.getAllDefinitions?.();
+        return Array.isArray(definitions) ? (definitions as AgentDefinitionLike[]) : [];
+    } catch (error) {
+        console.warn('[agents] Failed to read agent definitions from CoreService:', error);
+        return [];
+    }
+}
+
 // Dynamically get built-in agents from CoreService or fallback
 async function getBuiltInAgents(): Promise<string[]> {
     try {
-        const core = CoreService.getInstance();
-        if (core.config) {
-            const agents = core.config.getAgentRegistry().getAllDefinitions?.() || [];
-            // Filter for built-in agents (typically marked as local kind)
-            const builtIn = agents
-                .filter((agent: { kind?: string }) => agent.kind === 'builtin' || agent.kind === 'local')
-                .map((agent: { name: string }) => agent.name);
-            if (builtIn.length > 0) {
-                return builtIn;
-            }
+        const agents = getCoreAgentDefinitions();
+        // Filter for built-in agents (typically marked as local kind)
+        const builtIn = agents
+            .filter((agent: { kind?: string }) => agent.kind === 'builtin' || agent.kind === 'local')
+            .map((agent: { name: string }) => agent.name);
+        if (builtIn.length > 0) {
+            return builtIn;
         }
     } catch (error) {
         console.warn('[agents] Failed to get built-in agents from CoreService:', error);
@@ -151,21 +162,18 @@ export async function GET() {
 
         // 2. Try to get agents from CoreService
         try {
-            const core = CoreService.getInstance();
-            if (core.config) {
-                const coreAgents = core.config.getAgentRegistry().getAllDefinitions() || [];
-                // Only extract plain data fields to avoid circular references
-                // (AgentDefinition objects hold refs back into Config/ToolRegistry)
-                coreAgents.forEach((agent: AgentDefinitionLike) => agentsMap.set(agent.name, {
-                    name: agent.name,
-                    displayName: agent.displayName,
-                    description: agent.description,
-                    kind: agent.kind,
-                    content: agent.content,
-                    promptConfig: agent.promptConfig ? { systemPrompt: agent.promptConfig.systemPrompt } : undefined,
-                    modelConfig: agent.modelConfig ? { model: agent.modelConfig.model } : undefined,
-                }));
-            }
+            const coreAgents = getCoreAgentDefinitions();
+            // Only extract plain data fields to avoid circular references
+            // (AgentDefinition objects hold refs back into Config/ToolRegistry)
+            coreAgents.forEach((agent: AgentDefinitionLike) => agentsMap.set(agent.name, {
+                name: agent.name,
+                displayName: agent.displayName,
+                description: agent.description,
+                kind: agent.kind,
+                content: agent.content,
+                promptConfig: agent.promptConfig ? { systemPrompt: agent.promptConfig.systemPrompt } : undefined,
+                modelConfig: agent.modelConfig ? { model: agent.modelConfig.model } : undefined,
+            }));
         } catch (e) {
             console.warn('[agents] Failed to get agents from CoreService:', e);
         }
