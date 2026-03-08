@@ -192,10 +192,11 @@ function StatusPill({
 
 
 const INLINE_SKILL_TOKEN_MARKER = '\u200B';
-const INLINE_SKILL_TOKEN_SOURCE = `([A-Za-z0-9._/\\-\u2011]+)${INLINE_SKILL_TOKEN_MARKER}`;
+const INLINE_SKILL_TOKEN_SOURCE = `([A-Za-z0-9._/\\\\-\u2011]+)${INLINE_SKILL_TOKEN_MARKER}`;
 const INLINE_SKILL_COMMAND = '/skills';
 const LEGACY_INLINE_SKILL_COMMAND = '/skill';
 const ARTIFACT_SKILL_ID = 'web-artifacts-builder';
+const SKILL_COMMAND_PREFIX = '__skill__:';
 const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
   'list',
   'enable',
@@ -607,12 +608,14 @@ export const ChatInput = React.memo(function ChatInput({
         if (res.ok) {
           const skills: SkillRecord[] = await res.json();
           setSkillRecords(skills);
-          const skillCommands = skills.map((skill) => ({
-            command: `${INLINE_SKILL_COMMAND} ${skill.id}`,
-            description: skill.description || `Use ${skill.name} skill`,
-            icon: Sparkles,
-            group: 'Skills'
-          }));
+          const skillCommands = skills
+            .filter((skill) => skill.status === 'Enabled')
+            .map((skill) => ({
+              command: `${SKILL_COMMAND_PREFIX}${skill.id}`,
+              description: skill.description || `Use ${skill.name} skill`,
+              icon: Sparkles,
+              group: 'Skills'
+            }));
           setInstalledSkills(skillCommands);
         }
       } catch (error) {
@@ -807,10 +810,18 @@ export const ChatInput = React.memo(function ChatInput({
       // Combine base commands and skills
       const allCommands = [...BASE_COMMANDS, ...installedSkills];
 
-      const matches = allCommands.filter(c =>
-        c.command.toLowerCase().startsWith(search) ||
-        (search.length > 1 && c.description.toLowerCase().includes(search.replace(/^\//, '')))
-      );
+      const searchWithoutSlash = search.replace(/^\//, '');
+      const matches = allCommands.filter(c => {
+        if (c.command.startsWith(SKILL_COMMAND_PREFIX)) {
+          // For skill items, match against skill ID and description
+          const skillId = c.command.slice(SKILL_COMMAND_PREFIX.length).toLowerCase();
+          if (search === '/') return true; // Show all skills when just typing /
+          return skillId.includes(searchWithoutSlash) ||
+            c.description.toLowerCase().includes(searchWithoutSlash);
+        }
+        return c.command.toLowerCase().startsWith(search) ||
+          (search.length > 1 && c.description.toLowerCase().includes(searchWithoutSlash));
+      });
 
       // Sort: Built-in first, then Skills
       matches.sort((a, b) => {
@@ -1070,6 +1081,25 @@ export const ChatInput = React.memo(function ChatInput({
       end++;
     }
     const suffix = textAfter.slice(end);
+
+    if (cmd.startsWith(SKILL_COMMAND_PREFIX)) {
+      const skillId = cmd.slice(SKILL_COMMAND_PREFIX.length);
+      const { value: newValue, cursor: newCursorPos } = insertSkillCommand(textBefore, suffix, skillId);
+      setInput(newValue);
+      setCursorPosition(newCursorPos);
+      cursorRef.current = { start: newCursorPos, end: newCursorPos };
+      setShowCommands(false);
+      setActiveTrigger(null);
+
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+          cursorRef.current = { start: newCursorPos, end: newCursorPos };
+        }
+      }, 0);
+      return;
+    }
 
     if (cmd.startsWith(`${INLINE_SKILL_COMMAND} `) || cmd.startsWith(`${LEGACY_INLINE_SKILL_COMMAND} `)) {
       const skillId = cmd
@@ -1506,7 +1536,7 @@ export const ChatInput = React.memo(function ChatInput({
                         <cmd.icon className="w-3 h-3" />
                       </div>
                       <div className="flex flex-col min-w-0">
-                        <span className="font-medium">{cmd.command}</span>
+                        <span className="font-medium">{cmd.command.startsWith(SKILL_COMMAND_PREFIX) ? cmd.command.slice(SKILL_COMMAND_PREFIX.length) : cmd.command}</span>
                         <span className="text-[10px] opacity-70 truncate">{cmd.description}</span>
                       </div>
                     </button>
@@ -1556,8 +1586,8 @@ export const ChatInput = React.memo(function ChatInput({
                     <Sparkles className="w-3 h-3" />
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="font-medium truncate">{INLINE_SKILL_COMMAND} {skill.id}</span>
-                    <span className="text-[10px] opacity-70 truncate">{skill.name}</span>
+                    <span className="font-medium truncate">{skill.id}</span>
+                    <span className="text-[10px] opacity-70 truncate">{skill.description || skill.name}</span>
                   </div>
                 </button>
               ))}
@@ -1594,7 +1624,7 @@ export const ChatInput = React.memo(function ChatInput({
           <div className="relative min-h-[40px] max-h-[200px]">
             {input.length === 0 && (
               <div className="pointer-events-none absolute inset-0 px-2 py-1 text-sm text-muted-foreground z-20">
-                Ask anything… (Type / for commands, @ for files, # for agents, /skills id for inline skill)
+                Ask anything… (Type / for commands & skills, @ for files, # for agents)
               </div>
             )}
 
