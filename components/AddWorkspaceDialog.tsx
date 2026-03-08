@@ -33,8 +33,10 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
         try {
             const { invoke } = await import('@tauri-apps/api/core');
             const selectedPath = await invoke('plugin:dialog|open', {
-                directory: true,
-                multiple: false
+                options: {
+                    directory: true,
+                    multiple: false,
+                }
             });
             if (selectedPath && typeof selectedPath === 'string') {
                 setPath(selectedPath);
@@ -43,8 +45,9 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
                 setErrorHint(null);
             }
         } catch (err) {
-            console.error('Failed to open directory picker:', err);
-            setError('Failed to open file picker');
+            console.warn('Failed to open directory picker:', err);
+            const errMsg = err instanceof Error ? err.message : String(err);
+            setError(`无法打开文件选择器: ${errMsg}`);
             setErrorCode(null);
             setErrorHint(null);
         }
@@ -156,7 +159,7 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
                                 <FolderOpen className="w-4 h-4" />
                             </button>
                         </div>
-                                {error && (
+                        {error && (
                             <div className="flex items-center gap-1.5 text-xs text-destructive mt-2">
                                 <AlertCircle className="w-3.5 h-3.5" />
                                 <span>{error}</span>
