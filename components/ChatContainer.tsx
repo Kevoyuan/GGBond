@@ -208,9 +208,13 @@ export const ChatContainer = React.memo(function ChatContainer({
             }
         };
 
-        void loadSteeringSummary();
+        // Delay steering fetch to avoid blocking first-screen compilation
+        const timer = setTimeout(() => {
+            if (!cancelled) void loadSteeringSummary();
+        }, 3000);
         return () => {
             cancelled = true;
+            clearTimeout(timer);
         };
     }, [workspacePath]);
 

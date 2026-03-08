@@ -42,26 +42,30 @@ export function ModelSelector({
     const [models, setModels] = useState<typeof FALLBACK_MODELS>(FALLBACK_MODELS);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    // Fetch models from API on mount
+    // Fetch models from API after a short delay to avoid blocking first-screen compilation.
+    // FALLBACK_MODELS are rendered immediately for instant UI.
     useEffect(() => {
-        fetch('/api/models')
-            .then(r => r.json())
-            .then(data => {
-                const modelList: typeof FALLBACK_MODELS = (data.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
-                    id: m.id,
-                    name: m.name || formatModelName(m.id),
-                    icon: getModelIcon(m.tier),
-                }));
-                const deduped = modelList.filter(
-                    (model, index, self) => self.findIndex((item) => item.id === model.id) === index
-                );
-                if (deduped.length > 0) {
-                    setModels(deduped);
-                }
-            })
-            .catch(() => {
-                // Use fallback on error
-            });
+        const timer = setTimeout(() => {
+            fetch('/api/models')
+                .then(r => r.json())
+                .then(data => {
+                    const modelList: typeof FALLBACK_MODELS = (data.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
+                        id: m.id,
+                        name: m.name || formatModelName(m.id),
+                        icon: getModelIcon(m.tier),
+                    }));
+                    const deduped = modelList.filter(
+                        (model, index, self) => self.findIndex((item) => item.id === model.id) === index
+                    );
+                    if (deduped.length > 0) {
+                        setModels(deduped);
+                    }
+                })
+                .catch(() => {
+                    // Use fallback on error
+                });
+        }, 2000);
+        return () => clearTimeout(timer);
     }, []);
 
     const allModels = showInherit
