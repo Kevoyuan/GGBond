@@ -1565,12 +1565,18 @@ When you are in planning phase:
 
     public getAgents() {
         if (!this.config) return [];
-        return this.config.getAgentRegistry().getAllDefinitions();
+        const registry = this.config.getAgentRegistry?.() as
+            | { getAllDefinitions?: () => unknown[] }
+            | undefined;
+        return registry?.getAllDefinitions?.() || [];
     }
 
     public getAgentDefinition(name: string) {
         if (!this.config) return null;
-        return this.config.getAgentRegistry().getDefinition(name) ?? null;
+        const registry = this.config.getAgentRegistry?.() as
+            | { getDefinition?: (agentName: string) => unknown }
+            | undefined;
+        return registry?.getDefinition?.(name) ?? null;
     }
 
     public setSystemInstruction(systemInstruction?: string) {
