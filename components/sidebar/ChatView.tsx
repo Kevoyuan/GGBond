@@ -9,7 +9,8 @@ import {
     Archive,
     Trash2,
     RotateCcw,
-    MessageSquare
+    MessageSquare,
+    MoreHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './PanelHeader';
@@ -67,7 +68,19 @@ export const ChatView = React.memo(function ChatView({
 }: ChatViewProps & { searchTerm?: string }) {
     // Internal state for workspace collapse
     const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set());
+    const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(new Set());
     const [showArchived, setShowArchived] = useState(false);
+
+    const VISIBLE_SESSION_LIMIT = 10;
+
+    const toggleExpanded = useCallback((workspace: string) => {
+        setExpandedWorkspaces(prev => {
+            const next = new Set(prev);
+            if (next.has(workspace)) next.delete(workspace);
+            else next.add(workspace);
+            return next;
+        });
+    }, []);
     const { pendingId, startDelete, confirmDelete, handleMouseLeave, isPending } = useConfirmDelete<string>();
 
     const toggleWorkspace = useCallback((workspace: string) => {
@@ -226,93 +239,111 @@ export const ChatView = React.memo(function ChatView({
                         </div>
 
                         {/* Session List */}
-                        {!collapsedWorkspaces.has(workspace) && (
-                            <div className="ml-2 pl-2 border-l border-[var(--border-subtle)] flex flex-col gap-0.5 mt-0.5">
-                                {list.map((session) => {
-                                    const isSessionRunning = runningSessionIds.includes(session.id);
-                                    const isActive = currentSessionId === session.id;
-                                    const isUnread = unreadSessionIds.includes(session.id);
+                        {!collapsedWorkspaces.has(workspace) && (() => {
+                            const isExpanded = expandedWorkspaces.has(workspace) || !!searchTerm;
+                            const visibleList = isExpanded ? list : list.slice(0, VISIBLE_SESSION_LIMIT);
+                            const hiddenCount = list.length - VISIBLE_SESSION_LIMIT;
+                            const showExpandButton = !searchTerm && hiddenCount > 0;
 
-                                    return (
-                                        <div
-                                            key={session.id}
-                                            className={cn(
-                                                "group relative flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors border border-transparent select-none",
-                                                isActive
-                                                    ? "bg-[var(--bg-active)]"
-                                                    : "hover:bg-[var(--bg-hover)]"
-                                            )}
-                                            onClick={() => handleSelectSession(session.id)}
-                                            onMouseLeave={() => handleMouseLeave(session.id)}
-                                        >
-                                            {/* Status Dot */}
-                                            <div className="shrink-0">
-                                                {isSessionRunning ? (
-                                                    <div className="w-2 h-2 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
-                                                ) : isUnread ? (
-                                                    <div className="w-2 h-2 rounded-full bg-[var(--orange)] shadow-[0_0_4px_rgba(251,146,60,0.4)]" />
-                                                ) : isActive ? (
-                                                    <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-[0_0_4px_rgba(124,92,252,0.4)]" />
-                                                ) : (
-                                                    <div className="w-2 h-2 rounded-full bg-[var(--border)] group-hover:bg-[var(--text-tertiary)] transition-colors" />
+                            return (
+                                <div className="ml-2 pl-2 border-l border-[var(--border-subtle)] flex flex-col gap-0.5 mt-0.5">
+                                    {visibleList.map((session) => {
+                                        const isSessionRunning = runningSessionIds.includes(session.id);
+                                        const isActive = currentSessionId === session.id;
+                                        const isUnread = unreadSessionIds.includes(session.id);
+
+                                        return (
+                                            <div
+                                                key={session.id}
+                                                className={cn(
+                                                    "group relative flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors border border-transparent select-none",
+                                                    isActive
+                                                        ? "bg-[var(--bg-active)]"
+                                                        : "hover:bg-[var(--bg-hover)]"
                                                 )}
-                                            </div>
-
-                                            {/* Item Info */}
-                                            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                                                <div className={cn(
-                                                    "text-[13px] font-medium truncate leading-none",
-                                                    isActive ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"
-                                                )}>
-                                                    {session.title}
-                                                </div>
-
-                                                <div className="flex items-center gap-1.5 shrink-0 opacity-70 group-hover:opacity-0 transition-opacity">
-                                                    {typeof session.message_count === 'number' && (
-                                                        <span className="text-[10px] text-[var(--text-tertiary)] min-w-[1.2rem] text-right">
-                                                            {session.message_count}
-                                                        </span>
+                                                onClick={() => handleSelectSession(session.id)}
+                                                onMouseLeave={() => handleMouseLeave(session.id)}
+                                            >
+                                                {/* Status Dot */}
+                                                <div className="shrink-0">
+                                                    {isSessionRunning ? (
+                                                        <div className="w-2 h-2 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
+                                                    ) : isUnread ? (
+                                                        <div className="w-2 h-2 rounded-full bg-[var(--orange)] shadow-[0_0_4px_rgba(251,146,60,0.4)]" />
+                                                    ) : isActive ? (
+                                                        <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-[0_0_4px_rgba(124,92,252,0.4)]" />
+                                                    ) : (
+                                                        <div className="w-2 h-2 rounded-full bg-[var(--border)] group-hover:bg-[var(--text-tertiary)] transition-colors" />
                                                     )}
-                                                    <span className="text-[10px] text-[var(--text-tertiary)]">
-                                                        {formatSessionAge(session)}
-                                                    </span>
                                                 </div>
+
+                                                {/* Item Info */}
+                                                <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                                                    <div className={cn(
+                                                        "text-[13px] font-medium truncate leading-none",
+                                                        isActive ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"
+                                                    )}>
+                                                        {session.title}
+                                                    </div>
+
+                                                    <div className="flex items-center gap-1.5 shrink-0 opacity-70 group-hover:opacity-0 transition-opacity">
+                                                        {typeof session.message_count === 'number' && (
+                                                            <span className="text-[10px] text-[var(--text-tertiary)] min-w-[1.2rem] text-right">
+                                                                {session.message_count}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-[10px] text-[var(--text-tertiary)]">
+                                                            {formatSessionAge(session)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+
+                                                {/* Delete Action - Absolute Position Overlay to prevent jitter and space compression */}
+                                                <div className={cn(
+                                                    "absolute right-1 top-0 bottom-0 w-14 flex items-center justify-end pr-1 opacity-0 group-hover:opacity-100 transition-colors z-10 pointer-events-none",
+                                                    isPending(session.id) && "opacity-100",
+                                                    isActive ? "bg-gradient-to-l from-[var(--bg-active)] via-[var(--bg-active)] to-transparent" : "bg-gradient-to-l from-[var(--bg-hover)] via-[var(--bg-hover)] to-transparent"
+                                                )}>
+                                                    {isPending(session.id) ? (
+                                                        <button
+                                                            onClick={(e) => handleConfirmDelete(e, session.id)}
+                                                            className="pointer-events-auto flex items-center justify-center w-full h-6 rounded bg-[var(--red)] text-white text-[10px] font-medium hover:bg-red-600 transition-colors shadow-sm animate-in fade-in zoom-in-95 duration-200"
+                                                        >
+                                                            Archive
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleStartDelete(session.id);
+                                                            }}
+                                                            className="pointer-events-auto p-1.5 hover:bg-[var(--bg-tertiary)] hover:text-[var(--orange)] rounded transition-colors"
+                                                            title="Archive Chat"
+                                                        >
+                                                            <Archive className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                </div>
+
+
                                             </div>
+                                        );
+                                    })}
 
-
-                                            {/* Delete Action - Absolute Position Overlay to prevent jitter and space compression */}
-                                            <div className={cn(
-                                                "absolute right-1 top-0 bottom-0 w-14 flex items-center justify-end pr-1 opacity-0 group-hover:opacity-100 transition-colors z-10 pointer-events-none",
-                                                isPending(session.id) && "opacity-100",
-                                                isActive ? "bg-gradient-to-l from-[var(--bg-active)] via-[var(--bg-active)] to-transparent" : "bg-gradient-to-l from-[var(--bg-hover)] via-[var(--bg-hover)] to-transparent"
-                                            )}>
-                                                {isPending(session.id) ? (
-                                                    <button
-                                                        onClick={(e) => handleConfirmDelete(e, session.id)}
-                                                        className="pointer-events-auto flex items-center justify-center w-full h-6 rounded bg-[var(--red)] text-white text-[10px] font-medium hover:bg-red-600 transition-colors shadow-sm animate-in fade-in zoom-in-95 duration-200"
-                                                    >
-                                                        Archive
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleStartDelete(session.id);
-                                                        }}
-                                                        className="pointer-events-auto p-1.5 hover:bg-[var(--bg-tertiary)] hover:text-[var(--orange)] rounded transition-colors"
-                                                        title="Archive Chat"
-                                                    >
-                                                        <Archive className="w-3.5 h-3.5" />
-                                                    </button>
-                                                )}
-                                            </div>
-
-
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+                                    {/* Expand / Collapse toggle */}
+                                    {showExpandButton && (
+                                        <button
+                                            onClick={() => toggleExpanded(workspace)}
+                                            className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors text-[12px] select-none"
+                                        >
+                                            <MoreHorizontal className="w-3.5 h-3.5" />
+                                            {isExpanded ? '收起' : `展开显示 (${hiddenCount})`}
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })()}
                     </div>
                 ))}
 
