@@ -9,6 +9,7 @@ interface TitlebarProps {
     isCollapsed: boolean;
     onToggleCollapse: () => void;
     onNewChat: () => void;
+    nativeWindowControls?: boolean;
     stats?: {
         inputTokens: number;
         outputTokens: number;
@@ -35,6 +36,7 @@ export const Titlebar = React.memo(function Titlebar({
     isCollapsed,
     onToggleCollapse,
     onNewChat,
+    nativeWindowControls = false,
     stats,
     currentBranch,
     branches = [],
@@ -95,33 +97,36 @@ export const Titlebar = React.memo(function Titlebar({
             >
                 {/* Left Group: Info */}
                 <div className="flex items-center gap-3 overflow-hidden pl-2 relative z-10">
-                    {/* Traffic Lights - Custom implementation for Frameless mode */}
-                    <div className="flex gap-2 shrink-0 group no-drag" onMouseDown={(e) => e.stopPropagation()}>
-                        <button
-                            onClick={async () => {
-                                try {
-                                    await withWindow((win) => win.close());
-                                } catch {
-                                    window.close();
-                                }
-                            }}
-                            className="w-3 h-3 rounded-full bg-[#ff5f57] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
-                        >
-                            <span className="opacity-0 group-hover:opacity-100 text-[#4c0000] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">×</span>
-                        </button>
-                        <button
-                            onClick={() => void withWindow((win) => win.minimize())}
-                            className="w-3 h-3 rounded-full bg-[#febc2e] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
-                        >
-                            <span className="opacity-0 group-hover:opacity-100 text-[#995700] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">−</span>
-                        </button>
-                        <button
-                            onClick={() => void withWindow((win) => win.toggleMaximize())}
-                            className="w-3 h-3 rounded-full bg-[#28c840] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
-                        >
-                            <span className="opacity-0 group-hover:opacity-100 text-[#006500] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">+</span>
-                        </button>
-                    </div>
+                    {nativeWindowControls ? (
+                        <div aria-hidden="true" className="h-3 w-[54px] shrink-0" />
+                    ) : (
+                        <div className="flex gap-2 shrink-0 group no-drag" onMouseDown={(e) => e.stopPropagation()}>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await withWindow((win) => win.close());
+                                    } catch {
+                                        window.close();
+                                    }
+                                }}
+                                className="w-3 h-3 rounded-full bg-[#ff5f57] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
+                            >
+                                <span className="opacity-0 group-hover:opacity-100 text-[#4c0000] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">×</span>
+                            </button>
+                            <button
+                                onClick={() => void withWindow((win) => win.minimize())}
+                                className="w-3 h-3 rounded-full bg-[#febc2e] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
+                            >
+                                <span className="opacity-0 group-hover:opacity-100 text-[#995700] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">−</span>
+                            </button>
+                            <button
+                                onClick={() => void withWindow((win) => win.toggleMaximize())}
+                                className="w-3 h-3 rounded-full bg-[#28c840] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
+                            >
+                                <span className="opacity-0 group-hover:opacity-100 text-[#006500] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">+</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Right Group: Actions - Fixed Position */}
