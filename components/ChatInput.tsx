@@ -1371,41 +1371,42 @@ export const ChatInput = React.memo(function ChatInput({
         <span
           key={`${isAgent ? 'agent' : 'skill'}-${match.index}-${id}`}
           className={cn(
-            "pointer-events-auto relative inline-flex align-baseline translate-y-[1px]",
+            "pointer-events-auto relative inline-flex align-baseline",
             isAgent ? "group/agent" : "group/skill"
           )}
         >
-          {/* Layout Anchor - MUST MATCH TEXTAREA EXACTLY FOR CURSOR ALIGNMENT */}
-          <span className="invisible select-none">{fullToken}</span>
-
-          {/* Visual Badge - Option B: Modern Minimalist (Standardized Layout) */}
+          {/* Visual Badge perfectly constrained by textarea natural text width */}
           <span className={cn(
-            "absolute left-[0.5px] right-[0.5px] top-1/2 -translate-y-[55%] h-[20px] rounded-full border flex items-center transition-colors duration-200 select-none z-0 hover:z-10 shadow-sm",
+            "relative select-none z-0 hover:z-10 transition-colors duration-200",
+            // We replicate the exact style of SkillBadge.tsx but use box-shadow 
+            // for horizontal padding to protect textarea cursor mapping.
+            // Using outline instead of border entirely avoids layout width expansion.
+            "rounded shadow-[0_0_0_1px]",
+            "outline outline-1 outline-offset-[1px]",
             isAgent
-              ? "bg-slate-100 border-slate-300 text-slate-900 dark:bg-slate-200 dark:border-slate-400 dark:text-slate-950"
-              : "bg-white border-slate-200 text-slate-800 dark:bg-slate-100 dark:border-slate-300 dark:text-slate-900"
+              ? "bg-blue-100 text-blue-900 shadow-blue-100 outline-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:shadow-blue-900/40 dark:outline-blue-700/50"
+              : "bg-violet-100 text-violet-900 shadow-violet-100 outline-violet-300 dark:bg-violet-900/40 dark:text-violet-300 dark:shadow-violet-900/40 dark:outline-violet-700/50"
           )}>
-            <span className="max-w-full text-[12px] leading-none font-medium font-sans tracking-tight pl-2 pr-6 whitespace-nowrap">
-              {id}
-            </span>
-
-            {/* Close Button - Refined for Minimalist style */}
-            <button
-              type="button"
-              className={cn(
-                "absolute right-0 -top-1 h-3.5 w-3.5 rounded-full bg-slate-800 text-white border-none shadow-sm opacity-0 flex items-center justify-center hover:bg-slate-950 transition-colors duration-200 z-20",
-                isAgent ? "group-hover/agent:opacity-100" : "group-hover/skill:opacity-100"
-              )}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                removeSkillTokenRange(tokenStart, tokenEnd);
-              }}
-              aria-label={`Remove ${isAgent ? 'agent' : 'skill'} ${id}`}
-            >
-              <X className="w-2.5 h-2.5 stroke-[3px]" />
-            </button>
+            {/* Remove any vertical padding or inline-block so it doesn't artificially expand line height and overlap text below */}
+            <span className="whitespace-pre-wrap relative z-10">{fullToken}</span>
           </span>
+
+          {/* Close Button - Brought inward so it doesn't get clipped by the overflow-y-auto wrapper */}
+          <button
+            type="button"
+            className={cn(
+              "absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full bg-slate-800/90 text-white border border-white/20 shadow-sm opacity-0 flex items-center justify-center hover:bg-slate-950 transition-colors duration-200 z-20",
+              isAgent ? "group-hover/agent:opacity-100" : "group-hover/skill:opacity-100"
+            )}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              removeSkillTokenRange(tokenStart, tokenEnd);
+            }}
+            aria-label={`Remove ${isAgent ? 'agent' : 'skill'} ${id}`}
+          >
+            <X className="w-2 h-2 stroke-[3px]" />
+          </button>
         </span>
       );
       lastIndex = regex.lastIndex;
