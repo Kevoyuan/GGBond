@@ -33,9 +33,13 @@ const nextConfig = {
       : ignored
         ? [ignored]
         : [];
+    // Ignore all /Volumes/ paths except the project directory itself,
+    // plus node_modules to reduce Watchpack scan noise.
+    const projectDir = path.resolve(__dirname).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     config.watchOptions.ignored = [
       ...ignoredList,
-      /^\/Volumes\/dmg\.[^/]+$/,
+      new RegExp(`^/Volumes/(?!${projectDir.replace(/^\/Volumes\//, '')})`),
+      '**/node_modules/**',
     ];
     return config;
   },

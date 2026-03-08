@@ -13,15 +13,19 @@
         "windows": [
             {
                 "title": "GGBond",
-                "width": 1200,
-                "height": 800,
+                "width": 1440,
+                "height": 900,
                 "resizable": true,
                 "fullscreen": false,
                 "decorations": true,
                 "transparent": false,
                 "titleBarStyle": "Overlay",
                 "hiddenTitle": true,
-                "acceptFirstMouse": true
+                "acceptFirstMouse": true,
+                "trafficLightPosition": {
+                    "x": 18,
+                    "y": 24
+                }
             }
         ],
         "security": {
