@@ -26,6 +26,17 @@ const nextConfig = {
     config.resolve = config.resolve || {};
     config.resolve.alias = config.resolve.alias || {};
     config.resolve.alias['@'] = path.resolve(__dirname);
+    config.watchOptions = config.watchOptions || {};
+    const ignored = config.watchOptions.ignored;
+    const ignoredList = Array.isArray(ignored)
+      ? ignored
+      : ignored
+        ? [ignored]
+        : [];
+    config.watchOptions.ignored = [
+      ...ignoredList,
+      /^\/Volumes\/dmg\.[^/]+$/,
+    ];
     return config;
   },
 };

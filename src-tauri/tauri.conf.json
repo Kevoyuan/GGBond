@@ -5,7 +5,7 @@
     "identifier": "com.ggbond.desktop",
     "build": {
         "frontendDist": "../out",
-        "devUrl": "http://localhost:3000",
+        "devUrl": "http://localhost:3000/tauri-loading.html",
         "beforeDevCommand": "npm run dev",
         "beforeBuildCommand": "npm run build:tauri-dist"
     },
@@ -17,8 +17,11 @@
                 "height": 800,
                 "resizable": true,
                 "fullscreen": false,
-                "decorations": false,
-                "transparent": true
+                "decorations": true,
+                "transparent": false,
+                "titleBarStyle": "Overlay",
+                "hiddenTitle": true,
+                "acceptFirstMouse": true
             }
         ],
         "security": {

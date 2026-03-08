@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 use tauri::{AppHandle, Emitter, Manager, State};
 use thiserror::Error;
 
