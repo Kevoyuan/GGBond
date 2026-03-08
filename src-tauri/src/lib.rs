@@ -191,6 +191,7 @@ pub fn run() {
     println!("Starting GGBond Tauri Engine...");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(NextServerState::default())
         .manage(pty::PtyState::default())
         .invoke_handler(tauri::generate_handler![

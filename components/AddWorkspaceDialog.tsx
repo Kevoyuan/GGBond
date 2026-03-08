@@ -24,16 +24,19 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
     const [isValidating, setIsValidating] = useState(false);
 
     const handleFileSelect = async () => {
-        // @ts-expect-error - electronAPI is only available in Electron environment
-        if (!window.electronAPI) {
-            setError('File picker is only available in the Desktop App mode (npm run desktop:dev)');
+        const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+        if (!isTauri) {
+            setError('File picker is only available in the Desktop App mode.');
             return;
         }
 
         try {
-            // @ts-expect-error - electronAPI is only available in Electron environment
-            const selectedPath = await window.electronAPI.openDirectory();
-            if (selectedPath) {
+            const { invoke } = await import('@tauri-apps/api/core');
+            const selectedPath = await invoke('plugin:dialog|open', {
+                directory: true,
+                multiple: false
+            });
+            if (selectedPath && typeof selectedPath === 'string') {
                 setPath(selectedPath);
                 setError(null);
                 setErrorCode(null);
@@ -64,31 +67,16 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
         setErrorHint(null);
 
         try {
-            // Prefer direct validation in Electron main process to avoid API readiness/routing issues.
-            // @ts-expect-error - electronAPI is only available in Electron environment
-            if (window.electronAPI?.validateDirectory) {
-                // @ts-expect-error - electronAPI is only available in Electron environment
-                const result = await window.electronAPI.validateDirectory(trimmed) as ValidateDirectoryResult;
-                if (!result.ok) {
-                    setError(result.error || 'Cannot access directory, please check if path is correct');
-                    setErrorCode(result.code || null);
-                    setErrorHint(result.hint || null);
-                    return;
-                }
-
-                onAdd(result.path || trimmed);
-            } else {
-                // Web fallback: validate via API
-                const res = await fetch(`/api/files?path=${encodeURIComponent(trimmed)}`);
-                if (!res.ok) {
-                    const payload = await res.json().catch(() => null) as { error?: string; code?: string; hint?: string } | null;
-                    setError(payload?.error || 'Cannot access directory, please check if path is correct');
-                    setErrorCode(payload?.code || null);
-                    setErrorHint(payload?.hint || null);
-                    return;
-                }
-                onAdd(trimmed);
+            // Validate via API (works in both Web and Tauri Desktop since Tauri runs a standalone Next server)
+            const res = await fetch(`/api/files?path=${encodeURIComponent(trimmed)}`);
+            if (!res.ok) {
+                const payload = await res.json().catch(() => null) as { error?: string; code?: string; hint?: string } | null;
+                setError(payload?.error || 'Cannot access directory, please check if path is correct');
+                setErrorCode(payload?.code || null);
+                setErrorHint(payload?.hint || null);
+                return;
             }
+            onAdd(trimmed);
             setPath('');
             setError(null);
             setErrorCode(null);
@@ -104,15 +92,8 @@ export function AddWorkspaceDialog({ open, onClose, onAdd }: AddWorkspaceDialogP
     };
 
     const handleOpenPrivacySettings = async () => {
-        try {
-            // @ts-expect-error - electronAPI is only available in Electron environment
-            if (window.electronAPI?.openPrivacySettings) {
-                // @ts-expect-error - electronAPI is only available in Electron environment
-                await window.electronAPI.openPrivacySettings();
-            }
-        } catch (err) {
-            console.error('Failed to open privacy settings:', err);
-        }
+        // Feature needs to be implemented for Tauri or just ignored if not supported
+        console.log('Open privacy settings requested');
     };
 
     return (
