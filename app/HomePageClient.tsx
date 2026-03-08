@@ -1382,7 +1382,7 @@ export default function Home() {
         '**Tools & Extensions:**',
         '- `/tools` - Manage tools',
         '- `/mcp` - Manage MCP servers',
-        '- `/skills` - Manage skills',
+        '- `/skills` - Manage skills (also available from / menu)',
         '- `/extensions` - Manage extensions',
         '',
         '**Context & Memory:**',
