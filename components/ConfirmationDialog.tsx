@@ -96,7 +96,7 @@ export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset 
             : type === 'edit'
                 ? 'Apply Changes'
                 : type === 'exit_plan_mode'
-                    ? 'Start Implementation'
+                    ? 'Reviewed, Start Implementation'
                     : 'Confirm';
     const showAllowSession = type !== 'ask_user' && type !== 'exit_plan_mode';
 
@@ -148,7 +148,10 @@ export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset 
                     {type === 'exit_plan_mode' && (
                         <div className="space-y-2">
                             <p className="text-sm text-muted-foreground">
-                                Review the plan, adjust it if needed, then start implementation.
+                                1. Optionally open the plan in an external editor and make changes.
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                2. Return here and continue once the plan looks ready for implementation.
                             </p>
                             {details.planPath && (
                                 <div className="rounded-md border border-border/70 bg-black/25 px-2.5 py-2 font-mono text-xs text-zinc-100 break-all">

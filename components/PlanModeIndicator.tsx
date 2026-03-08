@@ -7,8 +7,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface ModeIndicatorProps {
   mode: 'code' | 'plan' | 'ask';
-  onModeChange?: (mode: 'code' | 'plan' | 'ask') => void;
   compact?: boolean;
+  status?: 'idle' | 'awaiting_choices' | 'review_required';
 }
 
 interface ModeOption {
@@ -49,11 +49,16 @@ const MODE_CONFIG: Record<'code' | 'plan' | 'ask', ModeOption> = {
 
 export const PlanModeIndicator = React.memo(function PlanModeIndicator({
   mode,
-  onModeChange,
   compact = false,
+  status = 'idle',
 }: ModeIndicatorProps) {
   const config = MODE_CONFIG[mode];
   const Icon = config.icon;
+  const planStatusLabel = status === 'awaiting_choices'
+    ? 'Awaiting choices'
+    : status === 'review_required'
+      ? 'Review required'
+      : 'Drafting';
 
   if (compact) {
     return (
@@ -66,12 +71,17 @@ export const PlanModeIndicator = React.memo(function PlanModeIndicator({
           config.bgColor,
           config.color
         )}
-      >
-        <Icon className="w-3.5 h-3.5" />
-        <span>{config.label}</span>
-      </motion.div>
-    );
-  }
+        >
+          <Icon className="w-3.5 h-3.5" />
+          <span>{config.label}</span>
+          {mode === 'plan' && (
+            <span className="hidden sm:inline text-[10px] opacity-75">
+              {planStatusLabel}
+            </span>
+          )}
+        </motion.div>
+      );
+    }
 
   return (
     <AnimatePresence mode="wait">
@@ -102,7 +112,7 @@ export const PlanModeIndicator = React.memo(function PlanModeIndicator({
             transition={{ delay: 0.1 }}
             className="text-[10px] opacity-70 ml-1 hidden sm:inline"
           >
-            No execution
+            {planStatusLabel}
           </motion.span>
         )}
       </motion.div>

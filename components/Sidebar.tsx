@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare,
-  Plus,
   Settings,
   FolderOpen,
   Plug,
@@ -22,20 +22,22 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-import { FileTree } from './FileTree';
-import { HooksPanel, type HookEvent } from './HooksPanel';
-import { MCPPanel } from './MCPPanel';
-import { SkillsManager } from './modules/SkillsManager';
-import { MemoryPanel } from './MemoryPanel';
-import { AgentPanel } from './AgentPanel';
-import { QuotaPanel } from './QuotaPanel';
-import { ModulesDialog } from './ModulesDialog';
+import type { HookEvent } from './HooksPanel';
 import { AgentIcon } from './icons/AgentIcon';
 import { NavListItem } from './sidebar/NavListItem';
 import { ChatView } from './sidebar/ChatView';
 import { Tooltip } from './ui/Tooltip';
 import { ResizeHandle, useResize } from './ui/ResizeHandle';
 import packageJson from '../package.json';
+
+const FileTree = dynamic(() => import('./FileTree').then((mod) => mod.FileTree), { ssr: false });
+const HooksPanel = dynamic(() => import('./HooksPanel').then((mod) => mod.HooksPanel), { ssr: false });
+const MCPPanel = dynamic(() => import('./MCPPanel').then((mod) => mod.MCPPanel), { ssr: false });
+const SkillsManager = dynamic(() => import('./modules/SkillsManager').then((mod) => mod.SkillsManager), { ssr: false });
+const MemoryPanel = dynamic(() => import('./MemoryPanel').then((mod) => mod.MemoryPanel), { ssr: false });
+const AgentPanel = dynamic(() => import('./AgentPanel').then((mod) => mod.AgentPanel), { ssr: false });
+const QuotaPanel = dynamic(() => import('./QuotaPanel').then((mod) => mod.QuotaPanel), { ssr: false });
+const ModulesDialog = dynamic(() => import('./ModulesDialog').then((mod) => mod.ModulesDialog), { ssr: false });
 
 interface Session {
   id: string;
@@ -59,7 +61,6 @@ interface SidebarProps {
   onDeleteSession: (id: string) => void;
   onRestoreSession?: (id: string) => void;
   onArchiveWorkspace?: (workspace: string) => void;
-  onNewChat: () => void;
   onNewChatInWorkspace?: (workspace: string) => void;
   onOpenSettings: () => void;
   isDark: boolean;
@@ -222,6 +223,7 @@ export const Sidebar = React.memo(function Sidebar({
       )}
       style={{ width: isCollapsed ? undefined : sidePanelWidth }}
     >
+
       {/* Navigation Section - Vertical Resizable */}
       <div
         className={cn("flex flex-col shrink-0 overflow-y-auto min-h-[100px]", isCollapsed && "h-auto overflow-visible")}

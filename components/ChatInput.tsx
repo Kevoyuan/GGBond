@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User, Info, BookOpen, Layout, Laptop, Keyboard, Monitor, Key, Bug, Github, FileCode, Eye, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -8,6 +8,7 @@ import { getModelInfo } from '@/lib/pricing';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ModelSelector } from './ModelSelector';
 import { useChatContext } from '@/app/contexts/ChatContext';
+import { PlanModeIndicator } from './PlanModeIndicator';
 
 interface UploadedImage {
   id: string;
@@ -37,6 +38,10 @@ interface ChatInputProps {
   onHeightChange?: (height: number) => void;
   prefillRequest?: { id: number; text: string } | null;
   compressionThreshold?: number;
+  selectedAgentName?: string;
+  activeRoutedAgent?: string | null;
+  planStatus?: 'idle' | 'awaiting_choices' | 'review_required';
+  steeringSummary?: SteeringSummary | null;
 }
 
 interface CommandItem {
@@ -64,6 +69,20 @@ interface AgentItem {
   displayName?: string;
   description: string;
   kind: 'local' | 'remote';
+  modelConfig?: {
+    model?: string;
+  };
+}
+
+export interface SteeringSummary {
+  activeModel: string;
+  activeProfile: string;
+  workspaceOverrides: {
+    hasModelOverride: boolean;
+    hasProfileOverride: boolean;
+    model: string | null;
+    profile: string | null;
+  };
 }
 
 interface SkillSuggestionItem {
@@ -131,6 +150,46 @@ const MODE_OPTIONS: ModeOption[] = [
   { value: 'ask', label: 'Ask', icon: HelpCircle, description: 'Answer questions only', shortcut: 'Ctrl+3' },
 ];
 
+const GENERALIST_KEYWORD_PATTERN = /\b(plan|analyze|investigate|compare|refactor|architecture|workflow|multi-step|complex)\b/i;
+
+function normalizeSuggestionDraft(value: string) {
+  return value
+    .replace(/\u200B/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+function formatProfileLabel(profile: string) {
+  if (profile === 'autoEdit') return 'Auto Edit';
+  if (profile === 'yolo') return 'YOLO';
+  return profile.charAt(0).toUpperCase() + profile.slice(1);
+}
+
+function StatusPill({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string;
+  value: string;
+  tone?: 'default' | 'info' | 'success' | 'warning';
+}) {
+  return (
+    <div
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium',
+        tone === 'info' && 'border-blue-500/25 bg-blue-500/8 text-blue-600 dark:text-blue-400',
+        tone === 'success' && 'border-emerald-500/25 bg-emerald-500/8 text-emerald-600 dark:text-emerald-400',
+        tone === 'warning' && 'border-amber-500/25 bg-amber-500/8 text-amber-600 dark:text-amber-400',
+        tone === 'default' && 'border-border/70 bg-muted/25 text-muted-foreground'
+      )}
+    >
+      <span className="uppercase tracking-wider opacity-70">{label}</span>
+      <span className="text-foreground dark:text-foreground">{value}</span>
+    </div>
+  );
+}
+
 
 const INLINE_SKILL_TOKEN_MARKER = '\u200B';
 const INLINE_SKILL_TOKEN_SOURCE = `([A-Za-z0-9._/\\-\u2011]+)${INLINE_SKILL_TOKEN_MARKER}`;
@@ -146,9 +205,30 @@ const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
   'uninstall',
 ]);
 
-export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoading, currentModel, onModelChange, sessionStats, currentContextUsage, mode = 'code', onModeChange, approvalMode = 'safe', onApprovalModeChange, workspacePath, showTerminal, onToggleTerminal, onHeightChange, prefillRequest, compressionThreshold = 0.5 }: ChatInputProps) {
+export const ChatInput = React.memo(function ChatInput({
+  onSend,
+  onStop,
+  isLoading,
+  currentModel,
+  onModelChange,
+  currentContextUsage,
+  mode = 'code',
+  onModeChange,
+  approvalMode = 'safe',
+  onApprovalModeChange,
+  workspacePath,
+  showTerminal,
+  onToggleTerminal,
+  onHeightChange,
+  prefillRequest,
+  compressionThreshold = 0.5,
+  selectedAgentName,
+  activeRoutedAgent,
+  planStatus = 'idle',
+  steeringSummary,
+}: ChatInputProps) {
   const [input, setInput] = useState('');
-  const { activeContextFiles, removeContextFile } = useChatContext();
+  useChatContext();
   const [showCommands, setShowCommands] = useState(false);
   const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | '#' | 'skill' | null>(null);
   const [showModeMenu, setShowModeMenu] = useState(false);
@@ -170,6 +250,7 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
   const [cursorPosition, setCursorPosition] = useState(0);
   const [showContextTooltip, setShowContextTooltip] = useState(false);
   const [canvasEnabled, setCanvasEnabled] = useState(false);
+  const [dismissedGeneralistSuggestionForDraft, setDismissedGeneralistSuggestionForDraft] = useState<string | null>(null);
 
   // Use explicit escape sequences for markers to prevent matching issues across environments
   const anyTokenPattern = new RegExp("(#?[A-Za-z0-9._/\\\\-\\u2011]+)\\u200B", "g");
@@ -180,6 +261,55 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
 
   // Image state
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+
+  const selectedAgentRecord = useMemo(
+    () => agentRecords.find((agent) => agent.name === selectedAgentName),
+    [agentRecords, selectedAgentName]
+  );
+  const routedAgentRecord = useMemo(
+    () => agentRecords.find((agent) => agent.name === activeRoutedAgent),
+    [activeRoutedAgent, agentRecords]
+  );
+  const routedAgentName = activeRoutedAgent || selectedAgentName || null;
+  const routedAgentRecordResolved = routedAgentRecord || selectedAgentRecord || null;
+  const routedAgentDisplayName = routedAgentRecordResolved?.displayName || routedAgentName || 'Auto';
+  const isGeneralistRouted = routedAgentName === 'generalist-agent';
+  const hasWorkspaceOverride = Boolean(
+    steeringSummary?.workspaceOverrides.hasModelOverride || steeringSummary?.workspaceOverrides.hasProfileOverride
+  );
+  const hasAgentOverride = Boolean(routedAgentRecordResolved?.modelConfig?.model);
+  const effectiveModel = routedAgentRecordResolved?.modelConfig?.model
+    || (hasWorkspaceOverride ? steeringSummary?.activeModel : undefined)
+    || currentModel;
+  const effectiveProfile = steeringSummary?.activeProfile || 'default';
+
+  const normalizedDraft = useMemo(() => normalizeSuggestionDraft(input), [input]);
+  const hasInlineAgentMention = useMemo(() => {
+    const hashAgentPattern = /(^|\s)#([A-Za-z0-9_-]+)(?:\u200B)?(\s|$)/;
+    const atAgentPattern = /(^|\s)@([A-Za-z0-9_-]+)(\s|$)/;
+    if (hashAgentPattern.test(input)) return true;
+    const atMatch = input.match(atAgentPattern);
+    if (!atMatch) return false;
+    const candidateName = atMatch[2];
+    return agentRecords.some((agent) => agent.name.toLowerCase() === candidateName.toLowerCase());
+  }, [agentRecords, input]);
+  const generalistSuggestionSignature = useMemo(() => {
+    const sentenceSeparators = normalizedDraft.match(/[.!?;:\n]/g)?.length || 0;
+    const looksComplex =
+      normalizedDraft.includes('\n') ||
+      normalizedDraft.length >= 220 ||
+      sentenceSeparators >= 2 ||
+      GENERALIST_KEYWORD_PATTERN.test(normalizedDraft);
+    if (!looksComplex) return null;
+    return normalizedDraft.slice(0, 500);
+  }, [normalizedDraft]);
+  const showGeneralistSuggestion = Boolean(
+    generalistSuggestionSignature &&
+    !isLoading &&
+    !selectedAgentName &&
+    !hasInlineAgentMention &&
+    generalistSuggestionSignature !== dismissedGeneralistSuggestionForDraft
+  );
 
   // Process pasted image
   const processPastedImage = useCallback((file: File): Promise<UploadedImage> => {
@@ -269,6 +399,18 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
   }, []);
 
   const currentMode = MODE_OPTIONS.find(m => m.value === mode) || MODE_OPTIONS[0];
+  const routingLabel = isGeneralistRouted
+    ? 'Generalist'
+    : routedAgentName
+      ? `Selected Agent: ${routedAgentDisplayName}`
+      : 'Auto';
+  const routingTone = isGeneralistRouted ? 'success' : routedAgentName ? 'info' : 'default';
+  const profileSourceLabel = hasWorkspaceOverride ? 'Workspace Override' : 'Inherits Global';
+  const shouldShowRouting = Boolean(routedAgentName);
+  const shouldShowModel = effectiveModel !== currentModel;
+  const shouldShowProfile = effectiveProfile !== 'default';
+  const shouldShowSource = hasWorkspaceOverride;
+  const hasVisibleStatusPills = shouldShowRouting || shouldShowModel || shouldShowProfile || shouldShowSource || hasAgentOverride || mode === 'plan';
 
   // Calculate context usage - prefer real-time branch usage from currentContextUsage
   const { pricing } = getModelInfo(currentModel);
@@ -1006,7 +1148,13 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
   const handleAgentSelect = (agentName: string) => {
     const cursor = getCurrentCursor();
     const bounds = getAgentBounds(input, cursor);
-    if (!bounds) return;
+    if (!bounds) {
+      const event = new CustomEvent('insert-agent-token', {
+        detail: { agentName }
+      });
+      window.dispatchEvent(event);
+      return;
+    }
 
     const { start } = bounds;
     const textBefore = input.slice(0, start);
@@ -1032,6 +1180,19 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
         cursorRef.current = { start: newCursorPos, end: newCursorPos };
       }
     }, 0);
+  };
+
+  const handleUseGeneralistSuggestion = () => {
+    handleAgentSelect('generalist-agent');
+    if (generalistSuggestionSignature) {
+      setDismissedGeneralistSuggestionForDraft(generalistSuggestionSignature);
+    }
+  };
+
+  const handleDismissGeneralistSuggestion = () => {
+    if (generalistSuggestionSignature) {
+      setDismissedGeneralistSuggestionForDraft(generalistSuggestionSignature);
+    }
   };
 
   const handleSkillSelect = (skillId: string) => {
@@ -1152,12 +1313,6 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  };
-
-
-  const getSkillDisplayName = (skillId: string) => {
-    const found = skillRecords.find((s) => s.id === skillId);
-    return found?.name || skillId;
   };
 
   const renderInlineTokens = () => {
@@ -1608,6 +1763,31 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
           </div>
         </div>
 
+        <div className="mt-2 flex flex-col gap-2 px-1">
+          {showGeneralistSuggestion && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-3 py-2 text-xs">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>This looks multi-step. Route with Generalist Agent?</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleUseGeneralistSuggestion}
+                className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-1 font-medium text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-300"
+              >
+                Use Generalist
+              </button>
+              <button
+                type="button"
+                onClick={handleDismissGeneralistSuggestion}
+                className="rounded-full px-2.5 py-1 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+        </div>
+
         <div className="mt-2 flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <div
@@ -1770,6 +1950,37 @@ export const ChatInput = React.memo(function ChatInput({ onSend, onStop, isLoadi
                 </>
               )}
             </button>
+
+            {hasVisibleStatusPills && (
+              <div className="flex flex-wrap items-center gap-2">
+                {shouldShowRouting && (
+                  <StatusPill label="Routing" value={routingLabel} tone={routingTone} />
+                )}
+                {shouldShowModel && (
+                  <StatusPill label="Model" value={effectiveModel} tone="info" />
+                )}
+                {shouldShowProfile && (
+                  <StatusPill label="Profile" value={formatProfileLabel(effectiveProfile)} tone="default" />
+                )}
+                {shouldShowSource && (
+                  <StatusPill
+                    label="Source"
+                    value={profileSourceLabel}
+                    tone="success"
+                  />
+                )}
+                {hasAgentOverride && routedAgentRecordResolved?.modelConfig?.model && (
+                  <StatusPill
+                    label="Agent Override"
+                    value={routedAgentRecordResolved.modelConfig.model}
+                    tone="warning"
+                  />
+                )}
+                {mode === 'plan' && (
+                  <PlanModeIndicator mode={mode} compact status={planStatus} />
+                )}
+              </div>
+            )}
           </div>
 
           {onToggleTerminal && (

@@ -1,10 +1,10 @@
 
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { ArrowDown } from 'lucide-react';
 import { GeminiIcon } from './icons/GeminiIcon';
 import { MessageBubble, LoadingBubble, Message } from './MessageBubble';
-import { ChatInput } from './ChatInput';
+import { ChatInput, SteeringSummary } from './ChatInput';
 import { FileViewer } from './FileViewer';
 import { cn } from '@/lib/utils';
 import { ChatSettings } from './SettingsDialog';
@@ -40,6 +40,9 @@ interface ChatContainerProps {
     onOpenArtifact?: (filePath: string) => void;
     onInputHeightChange?: (height: number) => void;
     streamingStatus?: string;
+    selectedAgentName?: string;
+    activeRoutedAgent?: string | null;
+    planStatus?: 'idle' | 'awaiting_choices' | 'review_required';
     uncommitted?: {
         added: number;
         removed: number;
@@ -77,11 +80,15 @@ export const ChatContainer = React.memo(function ChatContainer({
     onOpenArtifact,
     onInputHeightChange,
     streamingStatus,
+    selectedAgentName,
+    activeRoutedAgent,
+    planStatus = 'idle',
     uncommitted
 }: ChatContainerProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [isAtBottom, setIsAtBottom] = React.useState(true);
+    const [steeringSummary, setSteeringSummary] = useState<SteeringSummary | null>(null);
 
     const lastModelIdx = useMemo(() => {
         return messages.findLastIndex(m => m.role === 'model');
@@ -177,6 +184,35 @@ export const ChatContainer = React.memo(function ChatContainer({
     };
 
     const latestTodos = parseLatestTodos();
+
+    useEffect(() => {
+        let cancelled = false;
+        const query = workspacePath?.trim()
+            ? `?workspacePath=${encodeURIComponent(workspacePath.trim())}`
+            : '';
+
+        const loadSteeringSummary = async () => {
+            try {
+                const response = await fetch(`/api/governance/steering${query}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch steering summary');
+                }
+                const payload = await response.json() as SteeringSummary;
+                if (!cancelled) {
+                    setSteeringSummary(payload);
+                }
+            } catch {
+                if (!cancelled) {
+                    setSteeringSummary(null);
+                }
+            }
+        };
+
+        void loadSteeringSummary();
+        return () => {
+            cancelled = true;
+        };
+    }, [workspacePath]);
 
     return (
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
@@ -313,6 +349,10 @@ export const ChatContainer = React.memo(function ChatContainer({
                         onHeightChange={onInputHeightChange}
                         prefillRequest={inputPrefillRequest}
                         compressionThreshold={settings.modelSettings?.compressionThreshold ?? 0.5}
+                        selectedAgentName={selectedAgentName}
+                        activeRoutedAgent={activeRoutedAgent}
+                        planStatus={planStatus}
+                        steeringSummary={steeringSummary}
                     />
                 </>
             )}

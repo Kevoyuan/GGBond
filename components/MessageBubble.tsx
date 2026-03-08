@@ -196,6 +196,13 @@ export const MessageBubble = React.memo(function MessageBubble({
           >
             {!isUser ? (
               <div className="flex flex-col gap-2">
+                {message.agentName && (
+                  <div>
+                    <span className="inline-flex items-center px-1.5 py-0 rounded-full text-[11px] font-medium tracking-tight bg-white text-slate-900 shadow-sm border border-slate-200/50">
+                      {message.agentName}
+                    </span>
+                  </div>
+                )}
                 {settings?.ui?.advancedMode && message.hooks && message.hooks.length > 0 && (
                   <ExecutionStatusBlock hooks={message.hooks} defaultExpanded={!message.content && !message.thought} />
                 )}

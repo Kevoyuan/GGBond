@@ -74,7 +74,15 @@ export function QuestionPanel({ questions, title, correlationId, onSubmit, onCan
                         <div key={i} className="space-y-3">
                             <div className="flex flex-col gap-1">
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">{q.header || `Question ${i + 1}`}</span>
+                                <span className="text-[10px] font-medium text-muted-foreground/70">
+                                    Question {i + 1} of {questions.length}
+                                </span>
                                 <p className="text-sm font-medium text-foreground">{q.question}</p>
+                                {q.multiSelect && (
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Select one or more
+                                    </p>
+                                )}
                             </div>
 
                             {/* Text Input */}
@@ -98,7 +106,7 @@ export function QuestionPanel({ questions, title, correlationId, onSubmit, onCan
                                             className={cn(
                                                 "flex items-center gap-3 px-3 py-2.5 rounded-lg border text-sm text-left transition-colors",
                                                 (q.multiSelect ? (answers[i] as string[]).includes(opt.label) : answers[i] === opt.label)
-                                                    ? "bg-primary/10 border-primary/50 text-primary"
+                                                    ? "bg-primary/12 border-primary/60 text-primary shadow-sm ring-1 ring-primary/20"
                                                     : "bg-muted/20 border-border/50 hover:bg-muted/40 text-muted-foreground"
                                             )}
                                         >
