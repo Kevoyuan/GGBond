@@ -213,7 +213,7 @@
 
   html,
   body {
-    background-color: transparent !important;
+    background-color: var(--bg-primary) !important;
     color: var(--color-foreground);
     height: 100vh;
     width: 100vw;
@@ -223,7 +223,7 @@
   }
 
   body {
-    background-color: transparent !important;
+    background-color: var(--bg-primary) !important;
     display: flex;
     flex-direction: column;
   }
