@@ -8,6 +8,11 @@ import fs from 'fs';
 // Fallback built-in agents when CoreService is not available
 const FALLBACK_BUILT_IN_AGENTS = ['codebase-investigator', 'cli-help-agent', 'generalist-agent'];
 
+// Cache + in-flight dedup for agents list
+const AGENTS_CACHE_TTL_MS = 10_000;
+let agentsCache: { data: unknown; expiresAt: number } | null = null;
+let agentsInFlight: Promise<NextResponse> | null = null;
+
 function getCoreAgentDefinitions(): AgentDefinitionLike[] {
     try {
         const core = CoreService.getInstance();
@@ -151,7 +156,7 @@ type AgentDefinitionLike = {
     content?: string;
 };
 
-export async function GET() {
+async function fetchAgentsUncached() {
     try {
         // 1. Get user agents from disk (always fresh)
         const userAgents = getUserAgents();
@@ -191,9 +196,7 @@ export async function GET() {
             }
         });
 
-        const allAgents = Array.from(agentsMap.values());
-
-        return NextResponse.json({ agents: allAgents });
+        return { agents: Array.from(agentsMap.values()) };
     } catch (error) {
         console.error('Error fetching agents:', error);
         // Fallback: read directly from disk and add built-ins
@@ -213,9 +216,30 @@ export async function GET() {
                 }
             });
 
-            return NextResponse.json({ agents: Array.from(agentsMap.values()) });
+            return { agents: Array.from(agentsMap.values()) };
         } catch (fallbackError) {
-            return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+            throw fallbackError;
         }
     }
+}
+
+export async function GET() {
+    const now = Date.now();
+    if (agentsCache && agentsCache.expiresAt > now) {
+        return NextResponse.json(agentsCache.data);
+    }
+    if (agentsInFlight) return agentsInFlight;
+
+    agentsInFlight = (async () => {
+        try {
+            const data = await fetchAgentsUncached();
+            agentsCache = { data, expiresAt: Date.now() + AGENTS_CACHE_TTL_MS };
+            return NextResponse.json(data);
+        } catch {
+            return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        } finally {
+            agentsInFlight = null;
+        }
+    })();
+    return agentsInFlight;
 }

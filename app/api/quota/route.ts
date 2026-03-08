@@ -5,13 +5,11 @@ export async function GET() {
   try {
     const core = CoreService.getInstance();
 
+    // Do NOT trigger CoreService.initialize() on cold start.
+    // If core is not yet initialized (no active chat session), return null quota
+    // to avoid blocking the startup path with heavy initialization.
     if (!core.config) {
-      await core.initialize({
-        sessionId: 'quota-check-' + crypto.randomUUID(),
-        model: 'gemini-2.5-pro',
-        cwd: process.cwd(),
-        approvalMode: 'safe',
-      });
+      return NextResponse.json({ quota: null });
     }
 
     // Keep server responsive even if upstream quota retrieval stalls.

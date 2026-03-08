@@ -14,6 +14,11 @@ type SteeringPayload = {
   reset?: boolean;
 };
 
+// Per-workspace cache + in-flight dedup
+const STEERING_CACHE_TTL_MS = 10_000;
+const steeringCache = new Map<string, { data: unknown; expiresAt: number }>();
+const steeringInFlight = new Map<string, Promise<NextResponse>>();
+
 function normalizeWorkspacePath(input?: string) {
   const trimmed = (input || '').trim();
   if (!trimmed || trimmed === 'Default') return process.cwd();
@@ -39,37 +44,57 @@ function getProfileName(value: unknown): string | null {
 }
 
 export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const workspacePath = normalizeWorkspacePath(searchParams.get('workspacePath') || undefined);
-    const [globalSettings, workspaceSettings, knownModels] = await Promise.all([
-      readSettings(),
-      readProjectSettings(workspacePath),
-      getKnownModels(),
-    ]);
+  const { searchParams } = new URL(req.url);
+  const workspacePath = normalizeWorkspacePath(searchParams.get('workspacePath') || undefined);
+  const cacheKey = workspacePath;
+  const now = Date.now();
 
-    const globalModel = getModelName(globalSettings.model);
-    const workspaceModel = getModelName(workspaceSettings.model);
-    const globalProfile = getProfileName(globalSettings.profile);
-    const workspaceProfile = getProfileName(workspaceSettings.profile);
-
-    return NextResponse.json({
-      workspacePath,
-      activeModel: workspaceModel || globalModel || 'gemini-2.5-flash',
-      activeProfile: workspaceProfile || globalProfile || 'default',
-      workspaceOverrides: {
-        hasModelOverride: Boolean(workspaceModel),
-        hasProfileOverride: Boolean(workspaceProfile),
-        model: workspaceModel,
-        profile: workspaceProfile,
-      },
-      knownModels,
-      availableProfiles: ['default', 'autoEdit', 'plan', 'yolo'],
-    });
-  } catch (error) {
-    console.error('Failed to load model steering config:', error);
-    return NextResponse.json({ error: 'Failed to load model steering config' }, { status: 500 });
+  const cached = steeringCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return NextResponse.json(cached.data);
   }
+  const inFlight = steeringInFlight.get(cacheKey);
+  if (inFlight) return inFlight;
+
+  const promise = (async () => {
+    try {
+      const [globalSettings, workspaceSettings, knownModels] = await Promise.all([
+        readSettings(),
+        readProjectSettings(workspacePath),
+        getKnownModels(),
+      ]);
+
+      const globalModel = getModelName(globalSettings.model);
+      const workspaceModel = getModelName(workspaceSettings.model);
+      const globalProfile = getProfileName(globalSettings.profile);
+      const workspaceProfile = getProfileName(workspaceSettings.profile);
+
+      const data = {
+        workspacePath,
+        activeModel: workspaceModel || globalModel || 'gemini-2.5-flash',
+        activeProfile: workspaceProfile || globalProfile || 'default',
+        workspaceOverrides: {
+          hasModelOverride: Boolean(workspaceModel),
+          hasProfileOverride: Boolean(workspaceProfile),
+          model: workspaceModel,
+          profile: workspaceProfile,
+        },
+        knownModels,
+        availableProfiles: ['default', 'autoEdit', 'plan', 'yolo'],
+      };
+
+      steeringCache.set(cacheKey, { data, expiresAt: Date.now() + STEERING_CACHE_TTL_MS });
+      return NextResponse.json(data);
+    } catch (error) {
+      console.error('Failed to load model steering config:', error);
+      return NextResponse.json({ error: 'Failed to load model steering config' }, { status: 500 });
+    } finally {
+      steeringInFlight.delete(cacheKey);
+    }
+  })();
+
+  steeringInFlight.set(cacheKey, promise);
+  return promise;
 }
 
 export async function PUT(req: Request) {
