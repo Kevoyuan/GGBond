@@ -1,3 +1,18 @@
+## GGBond Unreleased
+
+## Highlights
+
+- Upgraded `@google/gemini-cli-core` from `0.32.0` to `0.32.1`.
+- Kept the stable alignment intentionally narrow because upstream `v0.32.1` is a small stable patch release.
+- Deferred `0.33.0-preview.x` changes to a watchlist until they land in a stable release.
+
+## Gemini CLI Core v0.32.1 Alignment
+
+- Updated the core dependency to the latest stable npm release, published on 2026-03-04.
+- Reviewed the post-`0.32.0` upstream release/changelog/docs delta before upgrading.
+- Found no new stable `Config`, `MessageBus`, approval, or stream-contract changes that require adapter edits in `lib/core-service.ts` or `app/api/chat/route.ts`.
+- Preserved current `0.32.0` integration behavior and avoided mixing preview-only upstream features into the stable sync.
+
 ## GGBond v0.3.2
 
 ## Highlights
