@@ -183,7 +183,7 @@ pub async fn run_terminal_stream(
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_millis() as u64
+                .as_millis() as u64,
         ),
     });
 
@@ -240,7 +240,10 @@ pub async fn run_terminal_stream(
         let heartbeat_event = reader_event.clone();
         let heartbeat_handle = tokio::spawn(async move {
             loop {
-                tokio::time::sleep(tokio::time::Duration::from_millis(HEARTBEAT_CHECK_INTERVAL_MS)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(
+                    HEARTBEAT_CHECK_INTERVAL_MS,
+                ))
+                .await;
 
                 let current_time = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -254,7 +257,9 @@ pub async fn run_terminal_stream(
                         TerminalStreamEvent {
                             event_type: "error".to_string(),
                             chunk: None,
-                            message: Some("Output timeout: no data received for 30 seconds".to_string()),
+                            message: Some(
+                                "Output timeout: no data received for 30 seconds".to_string(),
+                            ),
                             run_id: None,
                             cwd: None,
                             exit_code: None,
@@ -276,7 +281,9 @@ pub async fn run_terminal_stream(
                 .as_millis() as u64;
 
             // Also update the shared control for external access
-            control_for_output.last_output_time.store(last_output, Ordering::Relaxed);
+            control_for_output
+                .last_output_time
+                .store(last_output, Ordering::Relaxed);
 
             let _ = app_for_reader.emit(
                 &reader_event,
@@ -346,17 +353,12 @@ pub fn write_terminal_input(
     state: State<'_, PtyState>,
 ) -> Result<(), String> {
     let control = get_control(&state, &entry_id)?;
-    let mut writer = control
-        .writer
-        .lock()
-        .map_err(|_| AppError::StatePoisoned)?;
+    let mut writer = control.writer.lock().map_err(|_| AppError::StatePoisoned)?;
 
     writer
         .write_all(data.as_bytes())
         .map_err(|e| AppError::Input(e.to_string()))?;
-    writer
-        .flush()
-        .map_err(|e| AppError::Input(e.to_string()))?;
+    writer.flush().map_err(|e| AppError::Input(e.to_string()))?;
 
     Ok(())
 }
@@ -366,14 +368,9 @@ pub fn stop_terminal_stream(entry_id: String, state: State<'_, PtyState>) -> Res
     let control = get_control(&state, &entry_id)?;
     control.stop_requested.store(true, Ordering::Relaxed);
 
-    let mut killer = control
-        .killer
-        .lock()
-        .map_err(|_| AppError::StatePoisoned)?;
+    let mut killer = control.killer.lock().map_err(|_| AppError::StatePoisoned)?;
 
-    killer
-        .kill()
-        .map_err(|e| AppError::Signal(e.to_string()))?;
+    killer.kill().map_err(|e| AppError::Signal(e.to_string()))?;
 
     Ok(())
 }
