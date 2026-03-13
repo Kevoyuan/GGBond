@@ -48,6 +48,15 @@ async function executeWithRetry<T>(operation: () => T, operationName: string): P
   return null;
 }
 
+/**
+ * Yield once before running synchronous SQLite work so streaming code can
+ * flush pending UI/network tasks first.
+ */
+async function runNonBlockingAsync<T>(operation: () => T): Promise<T> {
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  return operation();
+}
+
 const LEGACY_HOME = path.join(process.cwd(), 'gemini-home');
 const LEGACY_DB_PATH = path.join(LEGACY_HOME, 'ggbond.db');
 const LEGACY_IMPORT_MARKER = '.legacy-db-import-v1.done';
@@ -1043,5 +1052,5 @@ export const chatSnapshots = {
   }
 };
 
-// Re-export the retry helper for use in other modules
-export { executeWithRetry };
+// Re-export helpers for use in other modules
+export { executeWithRetry, runNonBlockingAsync };

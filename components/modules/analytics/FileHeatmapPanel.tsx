@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { ModuleCard } from '../ModuleCard';
 import { FileCode2, FileText, FileJson, Loader2, FolderOpen, AlertTriangle, Eye, Edit3, Pencil } from 'lucide-react';
+import { fetchJsonWithRetry } from '@/lib/client-fetch';
 
 interface FileOpsData {
   filePath: string;
@@ -29,17 +30,29 @@ export function FileHeatmapPanel() {
   const [view, setView] = useState<'files' | 'heatmap'>('files');
 
   useEffect(() => {
-    fetch('/api/analytics/file-ops')
-      .then(res => res.json())
-      .then(data => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const { response, data } = await fetchJsonWithRetry<{ files?: FileOpsData[]; directories?: DirectoryHeatmap[]; _fallback?: boolean }>('/api/analytics/file-ops');
+        if (!response.ok) {
+          setError('Failed to load data');
+          return;
+        }
         setFiles(data.files || []);
         setDirectories(data.directories || []);
-      })
-      .catch(err => {
+        setError(null);
+      } catch (err) {
         console.error('Failed to load file ops:', err);
         setError('Failed to load data');
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void fetchData();
+    const onFocus = () => { void fetchData(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   const getFileIcon = (fileName: string) => {

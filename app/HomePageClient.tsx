@@ -198,6 +198,7 @@ export default function Home() {
   const activeChatAbortRef = useRef<AbortController | null>(null);
   const aiProcessingRef = useRef(false); // Track if AI is currently processing
   const loadSessionTreeRef = useRef<typeof loadSessionTree | null>(null);
+  const pendingSessionRefreshRef = useRef<{ sessionId: string; promise: Promise<void> } | null>(null);
 
   // Queue message states - in-memory queue for pending messages
   const [pendingMessages, setPendingMessages] = useState<{ content: string; images?: UploadedImage[]; tempId?: string }[]>([]);
@@ -597,7 +598,7 @@ export default function Home() {
   }, []);
 
   // Fetch Sessions on Mount
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     try {
       const dbRes = await fetch('/api/sessions');
       let allSessions: Session[] = [];
@@ -618,11 +619,11 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to fetch sessions', error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchSessions();
-  }, []);
+  }, [fetchSessions]);
 
   const loadSessionTree = useCallback(async (sessionId: string) => {
     const res = await fetch(`/api/sessions/${sessionId}`);
@@ -652,6 +653,30 @@ export default function Home() {
 
     return { ...data, nextMap, nextHeadId };
   }, []);
+
+  const scheduleSessionRefresh = useCallback((sessionId: string, notifyOnError = true) => {
+    const refreshPromise = (async () => {
+      try {
+        await fetchSessions();
+        if (currentSessionIdRef.current === sessionId) {
+          await loadSessionTree(sessionId);
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error('Failed to refresh session after turn', error);
+        if (notifyOnError) {
+          showWarningToast(`Session updated but failed to refresh: ${errorMsg}`);
+        }
+      } finally {
+        if (pendingSessionRefreshRef.current?.promise === refreshPromise) {
+          pendingSessionRefreshRef.current = null;
+        }
+      }
+    })();
+
+    pendingSessionRefreshRef.current = { sessionId, promise: refreshPromise };
+    return refreshPromise;
+  }, [fetchSessions, loadSessionTree, showWarningToast]);
 
   // Keep ref updated with latest loadSessionTree function
   loadSessionTreeRef.current = loadSessionTree;
@@ -938,6 +963,16 @@ export default function Home() {
     // Allow sending if there's text OR images
     if (!text.trim() && (!options?.images || options.images.length === 0)) return;
     if (isSessionLoading) return;
+
+    const pendingSessionRefresh = pendingSessionRefreshRef.current;
+    const targetSessionId = options?.sessionId || currentSessionIdRef.current || currentSessionId;
+    if (pendingSessionRefresh && targetSessionId && pendingSessionRefresh.sessionId === targetSessionId) {
+      try {
+        await pendingSessionRefresh.promise;
+      } catch {
+        // Refresh errors are surfaced where they occur; don't block the next turn.
+      }
+    }
 
     // If AI is currently processing, auto-queue the message
     // BUT if we are reusing a message ID, it means we are processing the queue, so don't re-queue it!
@@ -2004,16 +2039,46 @@ export default function Home() {
     // Variables for tracking assistant message - declared here so they're accessible in catch
     let assistantMsgId: string | undefined;
     let assistantContent = '';
+    let assistantThought = '';
     const assistantHooks: HookEvent[] = [];
     const assistantCitations: string[] = [];
+    let images: { dataUrl: string; type: string; name: string }[] = [];
+    const streamFlushDelayMs = (settings.ui?.lowLatencyMode ?? true) ? 48 : 16;
+    let pendingAssistantUpdates: Partial<Message> | null = null;
+    let assistantFlushTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushAssistantUpdates = () => {
+      if (assistantFlushTimer) {
+        clearTimeout(assistantFlushTimer);
+        assistantFlushTimer = null;
+      }
+      if (!assistantMsgId || !pendingAssistantUpdates) {
+        pendingAssistantUpdates = null;
+        return;
+      }
+      const updates = pendingAssistantUpdates;
+      pendingAssistantUpdates = null;
+      updateMessageInTree(assistantMsgId, updates);
+    };
+    const scheduleAssistantUpdate = (updates: Partial<Message>, immediate = false) => {
+      pendingAssistantUpdates = { ...(pendingAssistantUpdates ?? {}), ...updates };
+      if (immediate) {
+        flushAssistantUpdates();
+        return;
+      }
+      if (assistantFlushTimer) return;
+      assistantFlushTimer = setTimeout(() => {
+        assistantFlushTimer = null;
+        flushAssistantUpdates();
+      }, streamFlushDelayMs);
+    };
 
     try {
       // Prepare images for API
-      const images = options?.images?.map(img => ({
+      images = options?.images?.map(img => ({
         dataUrl: img.dataUrl,
         type: img.file.type,
         name: img.file.name,
-      }));
+      })) || [];
 
       // 2. Initialize Assistant Message (Optimistic)
       // The assistant message's parent is the user message we just created
@@ -2060,7 +2125,6 @@ export default function Home() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let assistantThought = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -2091,7 +2155,6 @@ export default function Home() {
               if (!initialSessionIdAtSend && currentSessionIdRef.current === selectedSessionIdAtSend) {
                 setCurrentSessionId(nextSessionId);
               }
-              fetchSessions();
             }
 
             if (data.type === 'thought' && data.content) {
@@ -2100,7 +2163,7 @@ export default function Home() {
               assistantThought += escapedThought;
               const updates: Partial<Message> = { thought: assistantThought };
               if (streamSessionId) updates.sessionId = streamSessionId;
-              updateMessageInTree(assistantMsgId, updates);
+              scheduleAssistantUpdate(updates);
             }
 
             if (
@@ -2141,7 +2204,7 @@ export default function Home() {
 
             if (data.type === 'citation') {
               assistantCitations.push(data.content);
-              updateMessageInTree(assistantMsgId, { citations: [...assistantCitations] });
+              scheduleAssistantUpdate({ citations: [...assistantCitations] });
             }
 
             if (data.type === 'hook' || data.type === 'hook_event') {
@@ -2151,7 +2214,7 @@ export default function Home() {
               if (rawHookType === 'BeforeAgent' && requestedAgentName) {
                 setActiveRoutedAgent(requestedAgentName);
                 if (requestedAgentName === 'generalist-agent') {
-                  updateMessageInTree(assistantMsgId, { agentName: requestedAgentName });
+                  scheduleAssistantUpdate({ agentName: requestedAgentName }, true);
                 }
               }
               if (rawHookType === 'AfterAgent') {
@@ -2211,7 +2274,7 @@ export default function Home() {
                 : '';
               const toolCallTag = `\n\n<tool-call id="${encodeURIComponent(data.tool_id || '')}" name="${encodeURIComponent(toolName)}" args="${encodeURIComponent(JSON.stringify(data.parameters || data.args || {}))}"${checkpointAttr} status="running" />\n\n`;
               assistantContent += toolCallTag;
-              updateMessageInTree(assistantMsgId, { content: assistantContent });
+              scheduleAssistantUpdate({ content: assistantContent }, true);
             }
 
             if (data.type === 'tool_result') {
@@ -2241,7 +2304,7 @@ export default function Home() {
                       resultData: resolvedResultData,
                     })
                   );
-                  updateMessageInTree(assistantMsgId, { content: assistantContent });
+                  scheduleAssistantUpdate({ content: assistantContent }, true);
                   continue;
                 }
               }
@@ -2269,7 +2332,7 @@ export default function Home() {
                   assistantContent.slice(0, lastMatch.index) +
                   updatedTag +
                   assistantContent.slice(lastMatch.index + fullMatch.length);
-                updateMessageInTree(assistantMsgId, { content: assistantContent });
+                scheduleAssistantUpdate({ content: assistantContent }, true);
               }
 
               // Auto-open HTML artifacts
@@ -2299,7 +2362,7 @@ export default function Home() {
               assistantContent += escapedContent;
               const updates: Partial<Message> = { content: assistantContent };
               if (streamSessionId) updates.sessionId = streamSessionId;
-              updateMessageInTree(assistantMsgId, updates);
+              scheduleAssistantUpdate(updates);
             }
 
             if (data.type === 'error') {
@@ -2313,7 +2376,7 @@ export default function Home() {
 
               const escapedErrorMsg = String(errorMsg).replace(/</g, '&lt;');
               assistantContent += `\n\n> ⚠️ **Error**: ${escapedErrorMsg}`;
-              updateMessageInTree(assistantMsgId, { content: assistantContent, error: true });
+              scheduleAssistantUpdate({ content: assistantContent, error: true }, true);
             }
 
             if (data.type === 'hook_event') {
@@ -2353,7 +2416,7 @@ export default function Home() {
               };
 
               assistantHooks.push(hookEvent);
-              updateMessageInTree(assistantMsgId, { hooks: [...assistantHooks] });
+              scheduleAssistantUpdate({ hooks: [...assistantHooks] });
             }
 
             if (data.type === 'context_compressed') {
@@ -2370,10 +2433,10 @@ export default function Home() {
               if (data.status === 'error' && data.error) {
                 const errorMsg = data.error.message || data.error.type || 'Unknown API error';
                 assistantContent += `\n\n> ⚠️ **Error**: ${errorMsg}`;
-                updateMessageInTree(assistantMsgId, { content: assistantContent, error: true, hooks: [...assistantHooks] });
+                scheduleAssistantUpdate({ content: assistantContent, error: true, hooks: [...assistantHooks] }, true);
               }
               if (data.stats) {
-                updateMessageInTree(assistantMsgId, { stats: data.stats, hooks: [...assistantHooks] });
+                scheduleAssistantUpdate({ stats: data.stats, hooks: [...assistantHooks] }, true);
               }
             }
           } catch (e) {
@@ -2398,6 +2461,7 @@ export default function Home() {
         // Try to add error message to conversation if we have access to assistantMsgId
         // This will be undefined if error occurred before assistant message was created
         try {
+          flushAssistantUpdates();
           if (typeof assistantMsgId !== 'undefined') {
             const errorContent = `\n\n> **Error**: ${errorMessage}\n\nThe conversation was interrupted.`;
             updateMessageInTree(assistantMsgId, { content: errorContent, error: true });
@@ -2414,29 +2478,16 @@ export default function Home() {
         }
       }
     } finally {
+      flushAssistantUpdates();
       if (activeChatAbortRef.current === requestAbortController) {
         activeChatAbortRef.current = null;
       }
       setActiveRoutedAgent(null);
       setStreamingStatus(undefined);
 
-      try {
-        await fetchSessions();
-        if (streamSessionId && currentSessionIdRef.current === streamSessionId) {
-          await loadSessionTree(streamSessionId);
-        }
-      } catch (reloadError) {
-        const errorMsg = reloadError instanceof Error ? reloadError.message : String(reloadError);
-        console.error(
-          abortedByUser
-            ? 'Failed to reload session tree after abort'
-            : 'Failed to reload session tree after turn',
-          reloadError
-        );
-        if (!abortedByUser) {
-          showWarningToast(`Session updated but failed to refresh: ${errorMsg}`);
-        }
-      }
+      const refreshPromise = streamSessionId
+        ? scheduleSessionRefresh(streamSessionId, !abortedByUser)
+        : null;
 
       if (trackedRunningSessionId) {
         updateRunningSessionCount(trackedRunningSessionId, -1);
@@ -2444,9 +2495,18 @@ export default function Home() {
 
         // Auto-process queue after AI finishes
         setTimeout(() => {
-          if (pendingMessagesRef.current.length > 0) {
-            handleProcessNextQueueItem();
-          }
+          void (async () => {
+            if (refreshPromise && pendingMessagesRef.current.length > 0) {
+              try {
+                await refreshPromise;
+              } catch {
+                // Refresh errors are already handled in scheduleSessionRefresh.
+              }
+            }
+            if (pendingMessagesRef.current.length > 0) {
+              await handleProcessNextQueueItem();
+            }
+          })();
         }, 100);
       }
 
@@ -2830,188 +2890,188 @@ export default function Home() {
       <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] font-sans antialiased text-[var(--text-primary)]">
         <ToastContainer toasts={toasts} onDismiss={dismissToast} position="top-right" />
 
-      <Titlebar
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={handleToggleSidebar}
-        onNewChat={handleNewChat}
-        nativeWindowControls={isNativeDesktopWindow}
-        stats={sessionStats && {
-          inputTokens: sessionStats.inputTokens || 0,
-          outputTokens: sessionStats.outputTokens || 0,
-          totalTokens: sessionStats.totalTokens || 0,
-          totalCost: sessionStats.totalCost || 0
-        }}
-        currentBranch={currentBranch}
-        branches={workspaceBranches}
-        uncommitted={workspaceUncommitted}
-        branchLoading={workspaceBranchLoading}
-        branchSwitchingTo={workspaceBranchSwitchingTo}
-        onSelectBranch={handleSelectWorkspaceBranch}
-        onRefreshBranches={refreshWorkspaceBranches}
-        currentModel={settings.model}
-      />
-
-      {/* Main Content Area: Sidebar + Chat */}
-      <div className="flex-1 flex min-h-0 overflow-hidden relative">
-        <Sidebar
-          sessions={sessions}
-          currentSessionId={currentSessionId}
-          runningSessionIds={runningSessionIds}
-          terminalRunningSessionIds={terminalRunningSessionIds}
-          unreadSessionIds={Array.from(unreadSessionIds)}
-          onSelectSession={handleSelectSession}
-          onDeleteSession={handleDeleteSession}
-          onRestoreSession={handleRestoreSession}
-          onArchiveWorkspace={handleArchiveWorkspace}
-          onNewChatInWorkspace={handleNewChatInWorkspace}
-          currentWorkspace={currentWorkspace === null ? undefined : currentWorkspace}
-          onAddWorkspace={() => setShowAddWorkspace(true)}
-          onOpenSettings={() => setSettingsOpen(true)}
-          isDark={isDark}
-          toggleTheme={toggleTheme}
-          onShowStats={() => setShowUsageStats(true)}
-          onFileSelect={(file) => {
-            if (file.path.endsWith('.html')) {
-              openArtifact(file.path);
-            } else {
-              setPreviewFile(file);
-            }
-          }}
-          hookEvents={hookEvents}
-          onClearHooks={() => setHookEvents([])}
-          onSelectAgent={(agent) => setSelectedAgent(agent)}
-          selectedAgentName={selectedAgent?.name}
-          sidePanelType={sidePanelType}
-          onToggleSidePanel={(type) => setSidePanelType(current => current === type ? null : type)}
+        <Titlebar
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={handleToggleSidebar}
-          sidebarView={sidebarView}
-          onSetSidebarView={(view) => {
-            setSidebarView(view);
-            // If switching to a non-chat view, ensure sidebar is expanded
-            if (view && view !== 'chat' && isSidebarCollapsed) {
-              setIsSidebarCollapsed(false);
-            }
+          onNewChat={handleNewChat}
+          nativeWindowControls={isNativeDesktopWindow}
+          stats={sessionStats && {
+            inputTokens: sessionStats.inputTokens || 0,
+            outputTokens: sessionStats.outputTokens || 0,
+            totalTokens: sessionStats.totalTokens || 0,
+            totalCost: sessionStats.totalCost || 0
           }}
-          onOpenExtensions={() => setShowExtensionsDialog(true)}
+          currentBranch={currentBranch}
+          branches={workspaceBranches}
+          uncommitted={workspaceUncommitted}
+          branchLoading={workspaceBranchLoading}
+          branchSwitchingTo={workspaceBranchSwitchingTo}
+          onSelectBranch={handleSelectWorkspaceBranch}
+          onRefreshBranches={refreshWorkspaceBranches}
+          currentModel={settings.model}
         />
 
-        {/* Chat Content */}
-        <main className="flex-1 flex min-w-0 bg-[var(--bg-primary)] relative">
-          {/* Chat Area + Terminal (vertical stack) */}
-          <div className="flex-1 flex flex-col min-w-0">
-            <ChatProvider key={currentSessionId || 'none'}>
-              <ToolExecutionOutputProvider initialSessionId={currentSessionId}>
-                <ChatContainer
-                  messages={messages}
-                  isLoading={isLoading}
-                  hasActiveSession={Boolean(currentSessionId)}
-                  streamingStatus={streamingStatus}
-                  previewFile={previewFile}
-                  onClosePreview={() => setPreviewFile(null)}
-                  settings={settings}
-                  onSendMessage={handleSendMessage}
-                  onStopMessage={handleStopMessage}
-                  onUndoTool={handleUndoTool}
-                  onUndoMessage={handleUndoMessage}
-                  inputPrefillRequest={inputPrefillRequest}
-                  onRetry={handleRetry}
-                  onCancel={handleCancel}
-                  onModelChange={handleModelChange}
-                  currentModel={settings.model}
-                  sessionStats={sessionStats}
-                  currentContextUsage={currentContextUsage}
-                  mode={mode}
-                  onModeChange={handleModeChange}
-                  approvalMode={approvalMode}
-                  onApprovalModeChange={handleApprovalModeChange}
-                  workspacePath={currentWorkspace || undefined}
-                  selectedAgentName={selectedAgent?.name}
-                  activeRoutedAgent={activeRoutedAgent}
-                  planStatus={planStatus}
-                  showTerminal={showTerminal}
-                  onToggleTerminal={() => setShowTerminal(!showTerminal)}
-                  onOpenArtifact={openArtifact}
-                />
-              </ToolExecutionOutputProvider>
-            </ChatProvider>
-
-            {/* Terminal Panel */}
-            {showTerminal && (
-              <TerminalPanel
-                workspacePath={currentWorkspace || undefined}
-                sessionId={currentSessionId}
-                onClose={() => setShowTerminal(false)}
-                onHeightChange={(height) => {
-                  setTerminalPanelHeight(height);
-                }}
-              />
-            )}
-          </div>
-
-          {/* Side Panel (Graph or Timeline) - to the right of chat */}
-          <SidePanel
-            sidePanelType={sidePanelType}
-            sidePanelWidth={sidePanelWidth}
-            setSidePanelWidth={setSidePanelWidth}
-            messages={messages}
-            messagesMap={messagesMap}
-            headId={headId}
-            setHeadId={(id) => {
-              setHeadId(id);
-              headIdRef.current = id;
+        {/* Main Content Area: Sidebar + Chat */}
+        <div className="flex-1 flex min-h-0 overflow-hidden relative">
+          <Sidebar
+            sessions={sessions}
+            currentSessionId={currentSessionId}
+            runningSessionIds={runningSessionIds}
+            terminalRunningSessionIds={terminalRunningSessionIds}
+            unreadSessionIds={Array.from(unreadSessionIds)}
+            onSelectSession={handleSelectSession}
+            onDeleteSession={handleDeleteSession}
+            onRestoreSession={handleRestoreSession}
+            onArchiveWorkspace={handleArchiveWorkspace}
+            onNewChatInWorkspace={handleNewChatInWorkspace}
+            currentWorkspace={currentWorkspace === null ? undefined : currentWorkspace}
+            onAddWorkspace={() => setShowAddWorkspace(true)}
+            onOpenSettings={() => setSettingsOpen(true)}
+            isDark={isDark}
+            toggleTheme={toggleTheme}
+            onShowStats={() => setShowUsageStats(true)}
+            onFileSelect={(file) => {
+              if (file.path.endsWith('.html')) {
+                openArtifact(file.path);
+              } else {
+                setPreviewFile(file);
+              }
             }}
-            showInfoToast={showInfoToast}
-            artifactPath={artifactPath}
-            onCloseArtifact={() => setSidePanelType(null)}
+            hookEvents={hookEvents}
+            onClearHooks={() => setHookEvents([])}
+            onSelectAgent={(agent) => setSelectedAgent(agent)}
+            selectedAgentName={selectedAgent?.name}
+            sidePanelType={sidePanelType}
+            onToggleSidePanel={(type) => setSidePanelType(current => current === type ? null : type)}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={handleToggleSidebar}
+            sidebarView={sidebarView}
+            onSetSidebarView={(view) => {
+              setSidebarView(view);
+              // If switching to a non-chat view, ensure sidebar is expanded
+              if (view && view !== 'chat' && isSidebarCollapsed) {
+                setIsSidebarCollapsed(false);
+              }
+            }}
+            onOpenExtensions={() => setShowExtensionsDialog(true)}
           />
-        </main>
-      </div>
 
-      <SettingsDialog
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        settings={settings}
-        onSave={handleSaveSettings}
-      />
+          {/* Chat Content */}
+          <main className="flex-1 flex min-w-0 bg-[var(--bg-primary)] relative">
+            {/* Chat Area + Terminal (vertical stack) */}
+            <div className="flex-1 flex flex-col min-w-0">
+              <ChatProvider key={currentSessionId || 'none'}>
+                <ToolExecutionOutputProvider initialSessionId={currentSessionId}>
+                  <ChatContainer
+                    messages={messages}
+                    isLoading={isLoading}
+                    hasActiveSession={Boolean(currentSessionId)}
+                    streamingStatus={streamingStatus}
+                    previewFile={previewFile}
+                    onClosePreview={() => setPreviewFile(null)}
+                    settings={settings}
+                    onSendMessage={handleSendMessage}
+                    onStopMessage={handleStopMessage}
+                    onUndoTool={handleUndoTool}
+                    onUndoMessage={handleUndoMessage}
+                    inputPrefillRequest={inputPrefillRequest}
+                    onRetry={handleRetry}
+                    onCancel={handleCancel}
+                    onModelChange={handleModelChange}
+                    currentModel={settings.model}
+                    sessionStats={sessionStats}
+                    currentContextUsage={currentContextUsage}
+                    mode={mode}
+                    onModeChange={handleModeChange}
+                    approvalMode={approvalMode}
+                    onApprovalModeChange={handleApprovalModeChange}
+                    workspacePath={currentWorkspace || undefined}
+                    selectedAgentName={selectedAgent?.name}
+                    activeRoutedAgent={activeRoutedAgent}
+                    planStatus={planStatus}
+                    showTerminal={showTerminal}
+                    onToggleTerminal={() => setShowTerminal(!showTerminal)}
+                    onOpenArtifact={openArtifact}
+                  />
+                </ToolExecutionOutputProvider>
+              </ChatProvider>
 
-      <UsageStatsDialog
-        open={showUsageStats}
-        onClose={() => setShowUsageStats(false)}
-      />
+              {/* Terminal Panel */}
+              {showTerminal && (
+                <TerminalPanel
+                  workspacePath={currentWorkspace || undefined}
+                  sessionId={currentSessionId}
+                  onClose={() => setShowTerminal(false)}
+                  onHeightChange={(height) => {
+                    setTerminalPanelHeight(height);
+                  }}
+                />
+              )}
+            </div>
 
-      <ExtensionsGalleryDialog
-        open={showExtensionsDialog}
-        onClose={() => setShowExtensionsDialog(false)}
-      />
+            {/* Side Panel (Graph or Timeline) - to the right of chat */}
+            <SidePanel
+              sidePanelType={sidePanelType}
+              sidePanelWidth={sidePanelWidth}
+              setSidePanelWidth={setSidePanelWidth}
+              messages={messages}
+              messagesMap={messagesMap}
+              headId={headId}
+              setHeadId={(id) => {
+                setHeadId(id);
+                headIdRef.current = id;
+              }}
+              showInfoToast={showInfoToast}
+              artifactPath={artifactPath}
+              onCloseArtifact={() => setSidePanelType(null)}
+            />
+          </main>
+        </div>
 
-      <AddWorkspaceDialog
-        open={showAddWorkspace}
-        onClose={() => setShowAddWorkspace(false)}
-        onAdd={handleAddWorkspace}
-      />
-
-      {activeQuestion && (
-        <QuestionPanel
-          questions={activeQuestion.questions}
-          title={activeQuestion.title}
-          correlationId={activeQuestion.correlationId}
-          onSubmit={handleQuestionSubmit}
-          onCancel={handleQuestionCancel}
+        <SettingsDialog
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          settings={settings}
+          onSave={handleSaveSettings}
         />
-      )}
 
-      {confirmation && (
-        <ConfirmationDialog
-          details={confirmation.details}
-          onConfirm={(mode) => void handleConfirm(true, mode)}
-          onCancel={() => void handleConfirm(false)}
-          bottomOffset={
-            (showTerminal ? terminalPanelHeight : 0)
-            + Math.max(80, inputAreaHeight)
-          }
+        <UsageStatsDialog
+          open={showUsageStats}
+          onClose={() => setShowUsageStats(false)}
         />
-      )}
+
+        <ExtensionsGalleryDialog
+          open={showExtensionsDialog}
+          onClose={() => setShowExtensionsDialog(false)}
+        />
+
+        <AddWorkspaceDialog
+          open={showAddWorkspace}
+          onClose={() => setShowAddWorkspace(false)}
+          onAdd={handleAddWorkspace}
+        />
+
+        {activeQuestion && (
+          <QuestionPanel
+            questions={activeQuestion.questions}
+            title={activeQuestion.title}
+            correlationId={activeQuestion.correlationId}
+            onSubmit={handleQuestionSubmit}
+            onCancel={handleQuestionCancel}
+          />
+        )}
+
+        {confirmation && (
+          <ConfirmationDialog
+            details={confirmation.details}
+            onConfirm={(mode) => void handleConfirm(true, mode)}
+            onCancel={() => void handleConfirm(false)}
+            bottomOffset={
+              (showTerminal ? terminalPanelHeight : 0)
+              + Math.max(80, inputAreaHeight)
+            }
+          />
+        )}
 
         <CommandPalette
           isOpen={commandPaletteOpen}

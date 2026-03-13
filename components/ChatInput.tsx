@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User, Info, BookOpen, Layout, Laptop, Keyboard, Monitor, Key, Bug, Github, FileCode, Eye, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
+import { fetchJsonWithRetry } from '@/lib/client-fetch';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ModelSelector } from './ModelSelector';
 import { useChatContext } from '@/app/contexts/ChatContext';
@@ -601,42 +602,45 @@ export const ChatInput = React.memo(function ChatInput({
   }, [selectedIndex, showCommands]);
 
   useEffect(() => {
-    // Fetch installed skills
     const fetchSkills = async () => {
       try {
-        const res = await fetch('/api/skills');
-        if (res.ok) {
-          const skills: SkillRecord[] = await res.json();
-          setSkillRecords(skills);
-          const skillCommands = skills
-            .filter((skill) => skill.status === 'Enabled')
-            .map((skill) => ({
-              command: `${SKILL_COMMAND_PREFIX}${skill.id}`,
-              description: skill.description || `Use ${skill.name} skill`,
-              icon: Sparkles,
-              group: 'Skills'
-            }));
-          setInstalledSkills(skillCommands);
-        }
+        const { response, data } = await fetchJsonWithRetry<SkillRecord[]>('/api/skills');
+        if (!response.ok) return;
+
+        const skills: SkillRecord[] = data;
+        setSkillRecords(skills);
+        const skillCommands = skills
+          .filter((skill) => skill.status === 'Enabled')
+          .map((skill) => ({
+            command: `${SKILL_COMMAND_PREFIX}${skill.id}`,
+            description: skill.description || `Use ${skill.name} skill`,
+            icon: Sparkles,
+            group: 'Skills'
+          }));
+        setInstalledSkills(skillCommands);
       } catch (error) {
         console.error('Failed to fetch skills for autocomplete', error);
       }
     };
-    fetchSkills();
 
-    // Fetch agents
     const fetchAgents = async () => {
       try {
-        const res = await fetch('/api/agents');
-        if (res.ok) {
-          const data = await res.json();
-          setAgentRecords(data.agents || []);
-        }
+        const { response, data } = await fetchJsonWithRetry<{ agents?: AgentDefinition[] }>('/api/agents');
+        if (!response.ok) return;
+        setAgentRecords(data.agents || []);
       } catch (error) {
         console.error('Failed to fetch agents for autocomplete', error);
       }
     };
-    fetchAgents();
+
+    const refreshRegistry = () => {
+      void fetchSkills();
+      void fetchAgents();
+    };
+
+    refreshRegistry();
+    window.addEventListener('focus', refreshRegistry);
+    return () => window.removeEventListener('focus', refreshRegistry);
   }, []);
 
   useEffect(() => {

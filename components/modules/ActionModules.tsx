@@ -313,14 +313,21 @@ export const AuthManager = memo(function AuthManager() {
 });
 
 // ─── Module 15: File Manager ─────────────────────────────
-export const FileManager = memo(function FileManager() {
+interface FileManagerProps {
+  workspacePath?: string | null;
+}
+
+export const FileManager = memo(function FileManager({ workspacePath }: FileManagerProps) {
   const [files, setFiles] = useState<any[]>([]);
   const [currentPath, setCurrentPath] = useState('');
   const [loading, setLoading] = useState(true);
 
   const fetchFiles = (p?: string) => {
     setLoading(true);
-    const url = p ? `/api/files?path=${encodeURIComponent(p)}&ignore=0` : '/api/files?ignore=0';
+    const targetPath = p || workspacePath || undefined;
+    const url = targetPath
+      ? `/api/files?path=${encodeURIComponent(targetPath)}&ignore=0`
+      : '/api/files?ignore=0';
     fetch(url)
       .then(r => r.json())
       .then(data => {
@@ -331,7 +338,7 @@ export const FileManager = memo(function FileManager() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchFiles(); }, []);
+  useEffect(() => { fetchFiles(); }, [workspacePath]);
 
   const getIcon = (type: string, ext: string | null) => {
     if (type === 'directory') return <Folder size={14} className="text-blue-500 fill-blue-500/20" />;

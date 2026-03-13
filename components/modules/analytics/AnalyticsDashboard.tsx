@@ -6,6 +6,7 @@ import { BarChart, DollarSign, Zap, Loader2, Gauge, Database, ChevronLeft, Chevr
 import { getModelInfo } from '@/lib/pricing';
 import { format, subMonths } from 'date-fns';
 import { motion } from 'framer-motion';
+import { fetchJsonWithRetry } from '@/lib/client-fetch';
 
 interface StatEntry {
   inputTokens: number;
@@ -297,8 +298,8 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
   const fetchData = useCallback(() => {
     setLoading(true);
     Promise.all([
-      fetch(`/api/stats?offset=${monthOffset}`).then(r => r.json()),
-      fetch('/api/telemetry').then(r => r.json()),
+      fetchJsonWithRetry<UsageStats>(`/api/stats?offset=${monthOffset}`).then(({ data }) => data),
+      fetchJsonWithRetry<TelemetryResponse>('/api/telemetry').then(({ data }) => data),
     ])
       .then(([statsRes, telemetryRes]) => {
         setStats(statsRes);
@@ -310,6 +311,9 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard() {
 
   useEffect(() => {
     fetchData();
+    const onFocus = () => { void fetchData(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, [fetchData]);
 
   // Memoized expensive computations (must be called unconditionally)

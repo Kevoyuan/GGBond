@@ -4,6 +4,7 @@ import React, { useEffect, useState, memo } from 'react';
 import { Shield, Info, RefreshCw, AlertCircle, Clock, Zap, Activity, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from './sidebar/PanelHeader';
+import { fetchJsonWithRetry } from '@/lib/client-fetch';
 
 interface BucketInfo {
     remainingAmount?: string;
@@ -34,13 +35,13 @@ export const QuotaPanel = memo(function QuotaPanel({ className }: QuotaPanelProp
     const fetchQuota = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/quota');
-            if (res.ok) {
-                const data = await res.json();
+            const { response, data } = await fetchJsonWithRetry<QuotaResponse>('/api/quota');
+            if (response.ok && !data?.error) {
                 setQuota(data);
                 setLastUpdated(new Date());
                 setError(null);
             } else {
+                setQuota(data);
                 setError('Failed to fetch quota information');
             }
         } catch (err) {
@@ -52,9 +53,13 @@ export const QuotaPanel = memo(function QuotaPanel({ className }: QuotaPanelProp
 
     useEffect(() => {
         fetchQuota();
-        // Refresh every 5 minutes
+        const onFocus = () => { void fetchQuota(); };
+        window.addEventListener('focus', onFocus);
         const interval = setInterval(fetchQuota, 5 * 60 * 1000);
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('focus', onFocus);
+        };
     }, []);
 
     return (

@@ -141,8 +141,7 @@ const toNumberOr = (value: unknown, fallback: number) => {
   return fallback;
 };
 
-const isTauriRuntime = () =>
-  typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
 
 const toStatus = (exitCode: number, timedOut: boolean, stopped: boolean): TerminalEntryStatus => {
   if (timedOut) return 'timed_out';
@@ -525,6 +524,11 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   // Ref to hold refs for entries/sessions for async operations
   const activeEntryIdRef = useRef<Record<string, string | null>>({});
   const activeRunSessionIdRef = useRef<Record<string, string | null>>({});
+
+  // Buffering state for optimized terminal writes
+  const writeBufferRef = useRef<Record<string, string>>({});
+  const rafIdRef = useRef<Record<string, number | null>>({});
+
   const sessionsRef = useRef<TerminalSession[]>(sessions);
 
   const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId) || sessions[0], [sessions, activeSessionId]);
@@ -634,19 +638,9 @@ export const TerminalPanel = React.memo(function TerminalPanel({
     term.onData((data: string) => {
       const latest = sessionsRef.current.find((item) => item.id === sessionId);
       if (!latest?.currentRunId) return;
-      if (isTauriRuntime()) {
-        void import('@tauri-apps/api/core')
-          .then(({ invoke }) => invoke('write_terminal_input', { entryId: latest.currentRunId, data }))
-          .catch(() => {
-            // Ignore transient input failures; process exit/finalization path will surface fatal errors.
-          });
-        return;
-      }
-      void fetch('/api/terminal/input', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runId: latest.currentRunId, data }),
-      });
+      void import('@tauri-apps/api/core')
+        .then(({ invoke }) => invoke('write_terminal_input', { entryId: latest.currentRunId, data }))
+        .catch(() => { });
     });
 
     updateSession(sessionId, { term, fitAddon });
@@ -656,7 +650,23 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   const writeToTerminal = useCallback((sessionId: string, chunk: string) => {
     if (!chunk) return;
     const term = ensureSessionTerminal(sessionId);
-    if (term) term.write(chunk);
+    if (!term) return;
+
+    if (!writeBufferRef.current[sessionId]) {
+      writeBufferRef.current[sessionId] = '';
+    }
+    writeBufferRef.current[sessionId] += chunk;
+
+    if (rafIdRef.current[sessionId]) return;
+
+    rafIdRef.current[sessionId] = requestAnimationFrame(() => {
+      const pendingChunk = writeBufferRef.current[sessionId];
+      if (pendingChunk) {
+        term.write(pendingChunk);
+        writeBufferRef.current[sessionId] = '';
+      }
+      rafIdRef.current[sessionId] = null;
+    });
   }, [ensureSessionTerminal]);
 
   useEffect(() => {
@@ -744,6 +754,15 @@ export const TerminalPanel = React.memo(function TerminalPanel({
       const term = ensureSessionTerminal(session.id);
       if (!term || term.element) return;
       term.open(host);
+
+      try {
+        const { WebglAddon } = require('@xterm/addon-webgl');
+        const webglAddon = new WebglAddon();
+        term.loadAddon(webglAddon);
+      } catch (err) {
+        console.warn('Failed to load WebGL Addon for xterm', err);
+      }
+
       session.fitAddon?.fit();
     });
   }, [sessions, activeSessionId, panelHeight, sidebarWidth, ensureSessionTerminal]);
@@ -943,234 +962,99 @@ export const TerminalPanel = React.memo(function TerminalPanel({
 
       let cleanup: (() => void) | null = null;
       try {
-        if (isTauriRuntime()) {
-          const { invoke } = await import('@tauri-apps/api/core');
-          const { listen } = await import('@tauri-apps/api/event');
+        // Tauri IPC Only
+        const { invoke } = await import('@tauri-apps/api/core');
+        const { listen } = await import('@tauri-apps/api/event');
 
-          let unlisten: (() => void) | null = null;
-          cleanup = () => {
-            if (unlisten) {
-              unlisten();
-              unlisten = null;
-            }
-          };
-
-          abortController.signal.addEventListener('abort', () => cleanup?.());
-
-          unlisten = await listen<TerminalStreamEvent>(
-            `pty-stream-${entryId}`,
-            (event) => {
-              const payload = event.payload;
-              const eventType = toStringOrEmpty(payload.type);
-              if (!eventType) return;
-
-              if (eventType === 'init') {
-                const runId = toStringOrEmpty(payload.runId) || entryId;
-                const streamCwd = toStringOrEmpty(payload.cwd);
-                updateSession(sessionId, { currentRunId: runId });
-                updateEntry(sessionId, entryId, (entry) => ({ ...entry, runId }));
-                if (streamCwd) {
-                  updateEntry(sessionId, entryId, (entry) => ({ ...entry, cwd: streamCwd }));
-                }
-                return;
-              }
-
-              if (eventType === 'stdout') {
-                const stdoutChunk = toStringOrEmpty(payload.chunk);
-                if (isSimpleCd) {
-                  cdProbeStdout += stdoutChunk;
-                } else {
-                  appendEntryText(sessionId, entryId, 'stdout', stdoutChunk);
-                  writeToTerminal(sessionId, stdoutChunk);
-                }
-                return;
-              }
-
-              if (eventType === 'stderr') {
-                const stderrChunk = toStringOrEmpty(payload.chunk);
-                appendEntryText(sessionId, entryId, 'stderr', stderrChunk);
-                writeToTerminal(sessionId, stderrChunk);
-                return;
-              }
-
-              if (eventType === 'error') {
-                const message = toStringOrEmpty(payload.message) || 'Unknown terminal error';
-                appendEntryText(sessionId, entryId, 'stderr', `\n${message}`);
-                return;
-              }
-
-              if (eventType === 'exit') {
-                receivedExitEvent = true;
-                const exitCode = toNumberOr(payload.exitCode, 1);
-                const timedOut = Boolean(payload.timedOut);
-                const stopped = Boolean(payload.stopped);
-                const durationMs = toNumberOr(payload.durationMs, Date.now() - startedAt);
-
-                if (isSimpleCd && exitCode === 0) {
-                  const resolvedCwd = parseResolvedCwdFromStdout(cdProbeStdout);
-                  if (resolvedCwd) {
-                    updateSession(sessionId, { sessionCwd: resolvedCwd });
-                    updateEntry(sessionId, entryId, (entry) => ({ ...entry, cwd: resolvedCwd }));
-                  }
-                }
-
-                finalizeActiveRun(sessionId, entryId, {
-                  exitCode,
-                  durationMs,
-                  status: toStatus(exitCode, timedOut, stopped),
-                });
-                cleanup?.();
-              }
-            }
-          );
-
-          updateSession(sessionId, { currentRunId: entryId });
-          updateEntry(sessionId, entryId, (entry) => ({ ...entry, runId: entryId }));
-
-          await invoke('run_terminal_stream', {
-            sessionId,
-            entryId,
-            command: executedCommand,
-            cwd: getCurrentWorkingDirectory(session) || null,
-            shell: shellOverride || null,
-            interactiveAutocomplete: environment.interactiveAutocomplete,
-            env: Object.keys(envVariables).length > 0 ? envVariables : null,
-          });
-        } else {
-          const response = await fetch('/api/terminal/stream', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              command: executedCommand,
-              cwd: getCurrentWorkingDirectory(session) || undefined,
-              shell: shellOverride || undefined,
-              interactiveAutocomplete: environment.interactiveAutocomplete,
-              env: Object.keys(envVariables).length > 0 ? envVariables : undefined,
-            }),
-            signal: abortController.signal,
-          });
-
-          if (!response.ok) {
-            const data = (await response.json().catch(() => ({}))) as TerminalStreamErrorResponse;
-            const responseError = toStringOrEmpty(data.error) || 'Command request failed';
-            finalizeActiveRun(sessionId, entryId, {
-              stderr: responseError,
-              exitCode: 1,
-              durationMs: Date.now() - startedAt,
-              status: 'failed',
-            });
-            return;
+        let unlisten: (() => void) | null = null;
+        cleanup = () => {
+          if (unlisten) {
+            unlisten();
+            unlisten = null;
           }
+        };
 
-          if (!response.body) {
-            finalizeActiveRun(sessionId, entryId, {
-              stderr: 'No stream body returned from server',
-              exitCode: 1,
-              durationMs: Date.now() - startedAt,
-              status: 'failed',
-            });
-            return;
-          }
+        abortController.signal.addEventListener('abort', () => cleanup?.());
 
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = '';
+        unlisten = await listen<TerminalStreamEvent>(
+          `pty-stream-${entryId}`,
+          (event) => {
+            const payload = event.payload;
+            const eventType = toStringOrEmpty(payload.type);
+            if (!eventType) return;
 
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              if (!line.trim()) continue;
-
-              let event: TerminalStreamEvent;
-              try {
-                event = JSON.parse(line) as TerminalStreamEvent;
-              } catch {
-                appendEntryText(sessionId, entryId, 'stderr', `\n[stream parse error] ${line}`);
-                continue;
+            if (eventType === 'init') {
+              const runId = toStringOrEmpty(payload.runId) || entryId;
+              const streamCwd = toStringOrEmpty(payload.cwd);
+              updateSession(sessionId, { currentRunId: runId });
+              updateEntry(sessionId, entryId, (entry) => ({ ...entry, runId }));
+              if (streamCwd) {
+                updateEntry(sessionId, entryId, (entry) => ({ ...entry, cwd: streamCwd }));
               }
+              return;
+            }
 
-              const eventType = toStringOrEmpty(event.type);
-              if (!eventType) continue;
+            if (eventType === 'stdout') {
+              const stdoutChunk = toStringOrEmpty(payload.chunk);
+              if (isSimpleCd) {
+                cdProbeStdout += stdoutChunk;
+              } else {
+                appendEntryText(sessionId, entryId, 'stdout', stdoutChunk);
+                writeToTerminal(sessionId, stdoutChunk);
+              }
+              return;
+            }
 
-              if (eventType === 'init') {
-                const runId = toStringOrEmpty(event.runId);
-                const streamCwd = toStringOrEmpty(event.cwd);
-                if (runId) {
-                  updateSession(sessionId, { currentRunId: runId });
-                  updateEntry(sessionId, entryId, (entry) => ({ ...entry, runId }));
+            if (eventType === 'stderr') {
+              const stderrChunk = toStringOrEmpty(payload.chunk);
+              appendEntryText(sessionId, entryId, 'stderr', stderrChunk);
+              writeToTerminal(sessionId, stderrChunk);
+              return;
+            }
+
+            if (eventType === 'error') {
+              const message = toStringOrEmpty(payload.message) || 'Unknown terminal error';
+              appendEntryText(sessionId, entryId, 'stderr', `\n${message}`);
+              return;
+            }
+
+            if (eventType === 'exit') {
+              receivedExitEvent = true;
+              const exitCode = toNumberOr(payload.exitCode, 1);
+              const timedOut = Boolean(payload.timedOut);
+              const stopped = Boolean(payload.stopped);
+              const durationMs = toNumberOr(payload.durationMs, Date.now() - startedAt);
+
+              if (isSimpleCd && exitCode === 0) {
+                const resolvedCwd = parseResolvedCwdFromStdout(cdProbeStdout);
+                if (resolvedCwd) {
+                  updateSession(sessionId, { sessionCwd: resolvedCwd });
+                  updateEntry(sessionId, entryId, (entry) => ({ ...entry, cwd: resolvedCwd }));
                 }
-                if (streamCwd) {
-                  updateEntry(sessionId, entryId, (entry) => ({ ...entry, cwd: streamCwd }));
-                }
-                continue;
               }
 
-              if (eventType === 'stdout') {
-                const stdoutChunk = toStringOrEmpty(event.chunk);
-                if (isSimpleCd) {
-                  cdProbeStdout += stdoutChunk;
-                } else {
-                  appendEntryText(sessionId, entryId, 'stdout', stdoutChunk);
-                  writeToTerminal(sessionId, stdoutChunk);
-                }
-                continue;
-              }
-
-              if (eventType === 'stderr') {
-                const stderrChunk = toStringOrEmpty(event.chunk);
-                appendEntryText(sessionId, entryId, 'stderr', stderrChunk);
-                writeToTerminal(sessionId, stderrChunk);
-                continue;
-              }
-
-              if (eventType === 'error') {
-                const message = toStringOrEmpty(event.message) || 'Unknown terminal error';
-                appendEntryText(sessionId, entryId, 'stderr', `\n${message}`);
-                continue;
-              }
-
-              if (eventType === 'exit') {
-                receivedExitEvent = true;
-                const exitCode = toNumberOr(event.exitCode, 1);
-                const timedOut = Boolean(event.timedOut);
-                const stopped = Boolean(event.stopped);
-                const durationMs = toNumberOr(event.durationMs, Date.now() - startedAt);
-
-                if (isSimpleCd && exitCode === 0) {
-                  const resolvedCwd = parseResolvedCwdFromStdout(cdProbeStdout);
-                  if (resolvedCwd) {
-                    updateSession(sessionId, { sessionCwd: resolvedCwd });
-                    updateEntry(sessionId, entryId, (entry) => ({ ...entry, cwd: resolvedCwd }));
-                  }
-                }
-
-                finalizeActiveRun(sessionId, entryId, {
-                  exitCode,
-                  durationMs,
-                  status: toStatus(exitCode, timedOut, stopped),
-                });
-              }
+              finalizeActiveRun(sessionId, entryId, {
+                exitCode,
+                durationMs,
+                status: toStatus(exitCode, timedOut, stopped),
+              });
+              cleanup?.();
             }
           }
+        );
 
-          if (!receivedExitEvent) {
-            const wasStopped = abortController.signal.aborted || session.isStopping;
-            if (!wasStopped) {
-              appendEntryText(sessionId, entryId, 'stderr', '\n[stream closed unexpectedly]');
-            }
-            finalizeActiveRun(sessionId, entryId, {
-              exitCode: wasStopped ? 130 : 1,
-              durationMs: Date.now() - startedAt,
-              status: wasStopped ? 'stopped' : 'failed',
-            });
-          }
-        }
+        updateSession(sessionId, { currentRunId: entryId });
+        updateEntry(sessionId, entryId, (entry) => ({ ...entry, runId: entryId }));
+
+        await invoke('run_terminal_stream', {
+          sessionId,
+          entryId,
+          command: executedCommand,
+          cwd: getCurrentWorkingDirectory(session) || null,
+          shell: shellOverride || null,
+          interactiveAutocomplete: environment.interactiveAutocomplete,
+          env: Object.keys(envVariables).length > 0 ? envVariables : null,
+        });
       } catch (error) {
         cleanup?.();
         const isAbort = error instanceof DOMException && error.name === 'AbortError';
@@ -1291,16 +1175,8 @@ export const TerminalPanel = React.memo(function TerminalPanel({
 
     if (session.currentRunId) {
       try {
-        if (isTauriRuntime()) {
-          const { invoke } = await import('@tauri-apps/api/core');
-          await invoke('stop_terminal_stream', { entryId: session.currentRunId });
-        } else {
-          await fetch('/api/terminal/stop', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ runId: session.currentRunId, signal }),
-          });
-        }
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('stop_terminal_stream', { entryId: session.currentRunId });
       } catch (error) {
         const activeEntryId = activeEntryIdRef.current[activeSessionId];
         if (activeEntryId) {

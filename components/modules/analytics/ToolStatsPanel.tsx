@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { ModuleCard } from '../ModuleCard';
 import { CheckCircle2, XCircle, Clock, TrendingUp, Loader2, AlertTriangle } from 'lucide-react';
 import { motion, Variants } from 'framer-motion';
+import { fetchJsonWithRetry } from '@/lib/client-fetch';
 
 interface ToolStatsData {
   toolName: string;
@@ -38,16 +39,28 @@ export function ToolStatsPanel() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/analytics/tool-stats')
-      .then(res => res.json())
-      .then(data => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const { response, data } = await fetchJsonWithRetry<{ tools?: ToolStatsData[]; _fallback?: boolean }>('/api/analytics/tool-stats');
+        if (!response.ok) {
+          setError('Failed to load data');
+          return;
+        }
         setStats(data.tools || []);
-      })
-      .catch(err => {
+        setError(null);
+      } catch (err) {
         console.error('Failed to load tool stats:', err);
         setError('Failed to load data');
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void fetchData();
+    const onFocus = () => { void fetchData(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   if (loading) {

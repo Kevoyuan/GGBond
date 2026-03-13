@@ -131,6 +131,14 @@ export interface RuntimeModelSettings {
     maxRetries?: number;
 }
 
+type FallbackIntent =
+    | 'retry_always'
+    | 'retry_once'
+    | 'retry_with_credits'
+    | 'stop'
+    | 'retry_later'
+    | 'upgrade';
+
 type PendingConfirmationRequest = {
     correlationId: string;
     details: SerializableConfirmationDetails;
@@ -212,6 +220,7 @@ export class CoreService {
     private toolExecutionOutputSubscribers = new Set<(payload: ToolExecutionOutputPayload) => void>();
     private lastToolsRefreshAt = 0;
     private lastToolsRefreshSignature: string | null = null;
+    private lastInitSignature: string | null = null;
     private static readonly TOOLS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
     private constructor() { }
@@ -256,6 +265,79 @@ When you are in planning phase:
 4. Once the plan is complete and presented via 'write_todos', call 'exit_plan_mode' (with an empty planPath) to wait for user approval.
 `;
 
+    private buildFullSystemInstruction(
+        systemInstruction: string | undefined,
+        approvalMode: ApprovalMode
+    ) {
+        if (approvalMode !== ApprovalMode.PLAN) {
+            return systemInstruction || '';
+        }
+
+        return (systemInstruction || '') + CoreService.NATIVE_PLAN_MODE_INSTRUCTION;
+    }
+
+    private isPreviewModel(model?: string) {
+        return Boolean(model && model.toLowerCase().includes('preview'));
+    }
+
+    private resolveConfiguredMaxAttempts(
+        settings?: RuntimeModelSettings,
+        model?: string
+    ) {
+        const configuredRetries =
+            typeof settings?.maxRetries === 'number' && Number.isFinite(settings.maxRetries)
+                ? Math.max(0, Math.floor(settings.maxRetries))
+                : 3;
+        const configuredAttempts = Math.max(1, configuredRetries + 1);
+
+        // Preview models are more likely to hit transient capacity limits. Keep GUI retries
+        // tight so we can surface a fallback or failure quickly instead of stalling the app.
+        if (this.isPreviewModel(model)) {
+            return Math.min(configuredAttempts, 2);
+        }
+
+        return configuredAttempts;
+    }
+
+    private buildInitSignature(
+        params: InitParams,
+        approvalMode: ApprovalMode,
+        modelSettings?: RuntimeModelSettings
+    ) {
+        return JSON.stringify({
+            sessionId: params.sessionId,
+            model: params.model,
+            cwd: path.resolve(params.cwd || process.cwd()),
+            approvalMode,
+            systemInstruction: params.systemInstruction || '',
+            modelSettings: modelSettings || null,
+        });
+    }
+
+    private syncRuntimeIntegrations() {
+        if (!this.config) {
+            return;
+        }
+
+        this.messageBus = this.config.getMessageBus();
+        if (this.messageBus && this.policyUpdaterMessageBus !== this.messageBus) {
+            createPolicyUpdater(this.config.getPolicyEngine(), this.messageBus, this.config.storage);
+            this.policyUpdaterMessageBus = this.messageBus;
+        }
+        if (this.messageBus && this.systemListenerMessageBus !== this.messageBus) {
+            this.registerSystemEvents();
+        }
+    }
+
+    private applyApprovalMode(approvalMode: ApprovalMode, context: 'existing session' | 'post-init') {
+        if (!this.config || this.config.getApprovalMode() === approvalMode) {
+            return;
+        }
+
+        this.config.setApprovalMode(approvalMode);
+        console.log(`[CoreService] Approval mode (${context}):`, this.config.getApprovalMode());
+    }
+
     public async initialize(params: InitParams) {
         // Check for headless mode - force YOLO mode
         const isHeadless = process.env.GEMINI_HEADLESS === '1' ||
@@ -276,46 +358,58 @@ When you are in planning phase:
             return (params.approvalMode as ApprovalMode) ?? ApprovalMode.DEFAULT;
         })();
         const normalizedModelSettings = this.normalizeRuntimeModelSettings(params.modelSettings);
+        const fullSystemInstruction = this.buildFullSystemInstruction(
+            params.systemInstruction,
+            normalizedApprovalMode
+        );
+        const nextInitSignature = this.buildInitSignature(
+            params,
+            normalizedApprovalMode,
+            normalizedModelSettings
+        );
 
         if (this.initialized && this.config?.getSessionId() === params.sessionId) {
             console.log('[CoreService] Already initialized for session:', params.sessionId);
+            if (this.lastInitSignature === nextInitSignature) {
+                this.syncRuntimeIntegrations();
+                return;
+            }
+
             // Update model if changed
             if (params.model && this.config.getModel() !== params.model) {
                 console.log(`[CoreService] Switching model from ${this.config.getModel()} to ${params.model}`);
                 this.config.setModel(params.model);
             }
-            if (this.config.getApprovalMode() !== normalizedApprovalMode) {
-                try {
-                    this.config.setApprovalMode(normalizedApprovalMode);
-                } catch (error) {
-                    console.warn('[CoreService] setApprovalMode failed, forcing PolicyEngine mode:', error);
-                    this.config.getPolicyEngine().setApprovalMode(normalizedApprovalMode);
-                }
-            }
-            // Ensure mode is applied even when Config guards reject privileged modes.
-            this.config.getPolicyEngine().setApprovalMode(normalizedApprovalMode);
+            this.applyApprovalMode(normalizedApprovalMode, 'existing session');
             this.applyRuntimeModelSettings(normalizedModelSettings);
-            console.log('[CoreService] Approval mode (existing session):', this.config.getApprovalMode());
-            if (this.messageBus && this.policyUpdaterMessageBus !== this.messageBus) {
-                createPolicyUpdater(this.config.getPolicyEngine(), this.messageBus, this.config.storage);
-                this.policyUpdaterMessageBus = this.messageBus;
-            }
-            if (this.messageBus && this.systemListenerMessageBus !== this.messageBus) {
-                this.registerSystemEvents();
-            }
-            const fullSystemInstruction = (params.systemInstruction || '') + CoreService.NATIVE_PLAN_MODE_INSTRUCTION;
             try {
                 await this.refreshToolsIfNeeded();
                 const geminiClient = this.config.getGeminiClient();
                 geminiClient.getChat().setSystemInstruction(fullSystemInstruction);
                 this.chat = geminiClient.getChat();
+                this.lastInitSignature = nextInitSignature;
             } catch (error) {
                 console.warn('[CoreService] Failed to update existing session runtime state:', error);
             }
+            this.syncRuntimeIntegrations();
             return;
         }
 
         console.log('[CoreService] Initializing...', params);
+
+        if (this.config) {
+            try {
+                await this.config.dispose();
+            } catch (error) {
+                console.warn('[CoreService] Failed to dispose previous config cleanly:', error);
+            }
+            this.config = null;
+            this.chat = null;
+            this.messageBus = null;
+            this.policyUpdaterMessageBus = null;
+            this.systemListenerMessageBus = null;
+            this.initialized = false;
+        }
 
         const projectRoot = params.cwd || process.cwd();
         const checkpointingEnabled = isGitWorkspace(projectRoot);
@@ -394,6 +488,10 @@ When you are in planning phase:
             recordResponses: '',
             telemetry: telemetrySettings,
             enableConseca,
+            maxAttempts: this.resolveConfiguredMaxAttempts(
+                normalizedModelSettings,
+                params.model
+            ),
             // auth info is auto-detected from env/files by Config internal logic or we can pass explicit
             // For now let Config handle standard auth
         };
@@ -422,70 +520,30 @@ When you are in planning phase:
                 3
             );
         }
-        try {
-            if (this.config.getApprovalMode() !== normalizedApprovalMode) {
-                this.config.setApprovalMode(normalizedApprovalMode);
-            }
-        } catch (error) {
-            console.warn('[CoreService] setApprovalMode failed after initialize, forcing PolicyEngine mode:', error);
-        }
-        this.config.getPolicyEngine().setApprovalMode(normalizedApprovalMode);
+        this.applyApprovalMode(normalizedApprovalMode, 'post-init');
         this.applyRuntimeModelSettings(normalizedModelSettings);
-        console.log('[CoreService] Approval mode (post-init):', this.config.getApprovalMode());
 
         // Initialize Authentication (Required to create ContentGenerator)
         // Explicitly load settings to determine auth type because Config doesn't auto-detect it well
-        try {
-            if (authType) {
-                console.log(`[CoreService] Refreshing auth with ${authType}...`);
-                await executeWithRetry(
-                    () => this.config!.refreshAuth(authType),
-                    `Config.refreshAuth(${authType})`,
-                    2
-                );
-            } else {
-                console.log('[CoreService] No auth type in settings, trying USE_GEMINI default...');
-                await executeWithRetry(
-                    () => this.config!.refreshAuth(AuthType.USE_GEMINI),
-                    'Config.refreshAuth(USE_GEMINI)',
-                    2
-                );
-            }
-        } catch (error) {
-            console.warn(`[CoreService] Failed to refresh auth with ${authType || 'USE_GEMINI'}, trying fallback:`, error);
-            try {
-                // Fallback: if we tried LOGIN_WITH_GOOGLE and failed, try USE_GEMINI
-                if (authType === AuthType.LOGIN_WITH_GOOGLE) {
-                    await executeWithRetry(
-                        () => this.config!.refreshAuth(AuthType.USE_GEMINI),
-                        'Config.refreshAuth(USE_GEMINI fallback)',
-                        2
-                    );
-                } else {
-                    // If we tried USE_GEMINI (or something else) and failed, try LOGIN_WITH_GOOGLE?
-                    await executeWithRetry(
-                        () => this.config!.refreshAuth(AuthType.LOGIN_WITH_GOOGLE),
-                        'Config.refreshAuth(LOGIN_WITH_GOOGLE fallback)',
-                        2
-                    );
-                }
-            } catch (e) {
-                console.error('[CoreService] Failed to refresh auth (fallback):', e);
-            }
+        if (authType) {
+            console.log(`[CoreService] Refreshing auth with ${authType}...`);
+            await executeWithRetry(
+                () => this.config!.refreshAuth(authType),
+                `Config.refreshAuth(${authType})`,
+                2
+            );
+        } else {
+            console.log('[CoreService] No explicit auth type in settings; relying on Config defaults.');
         }
 
-        // 2. Setup / refresh tools on the core GeminiClient (CLI-aligned path)
-        const fullSystemInstruction = (params.systemInstruction || '') + CoreService.NATIVE_PLAN_MODE_INSTRUCTION;
+        this.registerNativeFallbackHandlers();
 
+        // 2. Setup / refresh tools on the core GeminiClient (CLI-aligned path)
         await this.refreshToolsIfNeeded(true);
         const geminiClient = this.config.getGeminiClient();
         geminiClient.getChat().setSystemInstruction(fullSystemInstruction);
 
-        this.messageBus = this.config.getMessageBus();
-        if (this.messageBus && this.policyUpdaterMessageBus !== this.messageBus) {
-            createPolicyUpdater(this.config.getPolicyEngine(), this.messageBus, this.config.storage);
-            this.policyUpdaterMessageBus = this.messageBus;
-        }
+        this.syncRuntimeIntegrations();
 
         // 3. Use chat managed by GeminiClient (matches CLI architecture)
         this.chat = geminiClient.getChat();
@@ -501,6 +559,7 @@ When you are in planning phase:
         });
 
         this.initialized = true;
+        this.lastInitSignature = nextInitSignature;
         console.log('[CoreService] Initialization complete.');
     }
 
@@ -542,6 +601,7 @@ When you are in planning phase:
             compressionThreshold?: number;
             summarizeToolOutput?: Record<string, { tokenBudget?: number }>;
             maxRetries?: number;
+            maxAttempts?: number;
         };
 
         if (settings.maxSessionTurns !== undefined) {
@@ -569,24 +629,67 @@ When you are in planning phase:
 
         if (settings.maxRetries !== undefined) {
             runtimeConfig.maxRetries = settings.maxRetries;
+            runtimeConfig.maxAttempts = this.resolveConfiguredMaxAttempts(
+                settings,
+                this.config.getModel()
+            );
         }
     }
 
-    private ensureWriteTodosToolEnabled() {
+    private registerNativeFallbackHandlers() {
+        if (!this.config) {
+            return;
+        }
+
+        this.config.setFallbackModelHandler(
+            async (failedModel: string, fallbackModel: string, error?: unknown): Promise<FallbackIntent> => {
+                if (!fallbackModel || fallbackModel === failedModel) {
+                    return 'stop';
+                }
+
+                const reason = error instanceof Error ? error.message : String(error ?? 'unknown error');
+                console.warn(
+                    `[CoreService] OAuth fallback: ${failedModel} -> ${fallbackModel} (${reason})`
+                );
+
+                return 'retry_always';
+            }
+        );
+    }
+
+    private syncWriteTodosTool(planModeEnabled: boolean) {
         if (!this.config) return;
 
         const configWithWriteTodos = this.config as unknown as {
             useWriteTodos?: boolean;
         };
-        configWithWriteTodos.useWriteTodos = true;
+        configWithWriteTodos.useWriteTodos = planModeEnabled;
 
         const registry = this.config.getToolRegistry() as unknown as {
             getTool?: (name: string) => unknown;
             registerTool?: (tool: unknown) => void;
             sortTools?: () => void;
+            unregisterTool?: (name: string) => void;
         };
 
-        if (registry.getTool?.('write_todos')) {
+        const hasWriteTodos = Boolean(registry.getTool?.('write_todos'));
+
+        if (!planModeEnabled) {
+            if (!hasWriteTodos) {
+                return;
+            }
+
+            try {
+                registry.unregisterTool?.('write_todos');
+                registry.sortTools?.();
+                console.log(`[CoreService] Disabled write_todos for model ${this.config.getModel()}`);
+            } catch (error) {
+                console.warn('[CoreService] Failed to disable write_todos tool:', error);
+            }
+            return;
+        }
+
+        if (hasWriteTodos) {
             return;
         }
 
@@ -621,9 +724,12 @@ When you are in planning phase:
             console.warn('[CoreService] Failed to read custom tools for refresh signature:', error);
         }
 
+        const approvalMode = this.config.getApprovalMode();
+        const planModeEnabled = approvalMode === ApprovalMode.PLAN;
         const signature = JSON.stringify({
             sessionId: this.config.getSessionId(),
             model: this.config.getModel(),
+            approvalMode,
             tools: enabledCustomTools.map((tool) => ({
                 name: tool.name,
                 description: tool.description,
@@ -640,7 +746,7 @@ When you are in planning phase:
             return;
         }
 
-        this.ensureWriteTodosToolEnabled();
+        this.syncWriteTodosTool(planModeEnabled);
         await this.registerCustomTools(enabledCustomTools);
 
         const registry = this.config.getToolRegistry();
@@ -993,7 +1099,7 @@ When you are in planning phase:
         if (!this.config) throw new Error('Config not initialized');
         this.pendingConfirmations.clear();
         this.pendingConfirmationByCallId.clear();
-        let geminiClient = this.config.getGeminiClient();
+        const geminiClient = this.config.getGeminiClient();
         const promptId = crypto.randomUUID();
         const displayContent = message;
         const abortSignal = signal || new AbortController().signal;
@@ -1030,50 +1136,6 @@ When you are in planning phase:
 
         let currentRequest: unknown = content;
         let turnCount = 0;
-        const isCapacityExhaustedError = (error: unknown) => {
-            const err = error as {
-                status?: number;
-                message?: string;
-                response?: { error?: { message?: string; status?: string; details?: Array<{ reason?: string }> } };
-            };
-            const message = `${err?.message || ''} ${err?.response?.error?.message || ''}`.toLowerCase();
-            const reason = err?.response?.error?.details?.[0]?.reason || '';
-            const hasCapacitySignal =
-                message.includes('no capacity available') ||
-                message.includes('model_capacity_exhausted') ||
-                message.includes('resource_exhausted') ||
-                reason === 'MODEL_CAPACITY_EXHAUSTED' ||
-                err?.response?.error?.status === 'RESOURCE_EXHAUSTED';
-
-            // Some SDK retries wrap the final error and lose numeric status.
-            return (err?.status === 429) || hasCapacitySignal;
-        };
-        const isModelNotFoundError = (error: unknown) => {
-            const err = error as {
-                code?: number | string;
-                status?: number;
-                message?: string;
-                response?: { error?: { message?: string } };
-            };
-            const message = `${err?.message || ''} ${err?.response?.error?.message || ''}`.toLowerCase();
-            return (
-                err?.code === 404 ||
-                err?.status === 404 ||
-                message.includes('modelnotfounderror') ||
-                message.includes('requested entity was not found')
-            );
-        };
-        const fallbackModelForCapacity = () => {
-            const currentModel = this.config?.getModel() || '';
-            if (currentModel === 'gemini-3-pro' || currentModel === 'gemini-3-pro-preview') {
-                return 'gemini-3-flash-preview';
-            }
-            if (currentModel === 'gemini-3-flash' || currentModel === 'gemini-3-flash-preview') {
-                return 'gemini-2.5-pro';
-            }
-            return null;
-        };
-
         console.log(`[CoreService] Running turn with model: ${this.config.getModel()}`);
 
         try {
@@ -1113,37 +1175,6 @@ When you are in planning phase:
                         yield event;
                     }
                 } catch (error) {
-                    const fallbackModel = fallbackModelForCapacity();
-                    if (fallbackModel && isCapacityExhaustedError(error)) {
-                        console.warn(
-                            `[CoreService] Model capacity exhausted for ${this.config.getModel()}. Falling back to ${fallbackModel}.`
-                        );
-                        this.config.setModel(fallbackModel);
-                        geminiClient = this.config.getGeminiClient();
-                        // Retry the same turn with fallback model.
-                        turnCount -= 1;
-                        continue;
-                    }
-                    if (isModelNotFoundError(error)) {
-                        const currentModel = this.config.getModel();
-                        let fallbackModel: string | null = null;
-                        if (currentModel === 'gemini-3.1-pro-preview') {
-                            fallbackModel = 'gemini-3-pro-preview';
-                        } else if (currentModel === 'gemini-3-pro-preview') {
-                            fallbackModel = 'gemini-3-flash-preview';
-                        } else if (currentModel === 'gemini-3-flash-preview') {
-                            fallbackModel = 'gemini-2.5-pro';
-                        }
-                        if (fallbackModel) {
-                            console.warn(
-                                `[CoreService] Model not found for ${currentModel}. Falling back to ${fallbackModel}.`
-                            );
-                            this.config.setModel(fallbackModel);
-                            geminiClient = this.config.getGeminiClient();
-                            turnCount -= 1;
-                            continue;
-                        }
-                    }
                     throw error;
                 }
 

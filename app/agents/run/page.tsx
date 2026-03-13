@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, Loader2, Play, Sparkles, Settings, Search, Check, Folder, Cpu, AlertCircle, Activity, Code2, Zap } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { useAppStore } from '../../../stores/useAppStore';
+import { fetchJsonWithRetry } from '../../../lib/client-fetch';
 
 interface AgentDefinition {
   name: string;
@@ -46,29 +47,42 @@ function RunAgentContent() {
   useEffect(() => {
     // Try to get cached agents first
     const cachedAgents = getAgents();
-    if (cachedAgents) {
+    if (cachedAgents && cachedAgents.length > 0) {
       setAgents(cachedAgents);
       if (preselectedAgent) {
         const agent = cachedAgents.find((a: AgentDefinition) => a.name === preselectedAgent);
         if (agent) setSelectedAgent(agent);
       }
       setLoading(false);
-      return;
     }
 
-    // Fetch fresh data if no valid cache
-    fetch('/api/agents')
-      .then(res => res.json())
-      .then(data => {
-        const agentsData = data.agents || [];
-        setAgents(agentsData);
-        saveAgents(agentsData);
-        if (preselectedAgent) {
-          const agent = agentsData.find((a: AgentDefinition) => a.name === preselectedAgent);
-          if (agent) setSelectedAgent(agent);
-        }
-      })
-      .finally(() => setLoading(false));
+    const fetchAgents = () => {
+      fetchJsonWithRetry<{ agents?: AgentDefinition[] }>('/api/agents')
+        .then(({ response, data }) => {
+          if (!response.ok) {
+            setError('Failed to load agents');
+            return;
+          }
+
+          const agentsData = data.agents || [];
+          setAgents(agentsData);
+          saveAgents(agentsData);
+          setError(null);
+          if (preselectedAgent) {
+            const agent = agentsData.find((a: AgentDefinition) => a.name === preselectedAgent);
+            if (agent) setSelectedAgent(agent);
+          }
+        })
+        .catch(() => {
+          setError('Failed to load agents');
+        })
+        .finally(() => setLoading(false));
+    };
+
+    fetchAgents();
+    const onFocus = () => { fetchAgents(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, [preselectedAgent, getAgents, saveAgents]);
 
   // Fetch models from API

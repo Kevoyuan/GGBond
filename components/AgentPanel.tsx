@@ -14,6 +14,7 @@ import { PanelHeader } from './sidebar/PanelHeader';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 import { ResizeHandle, useResize } from './ui/ResizeHandle';
+import { fetchJsonWithRetry } from '@/lib/client-fetch';
 
 interface AgentDefinition {
     name: string;
@@ -82,18 +83,16 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
         // Try cache first unless forced
         if (!force) {
             const cachedAgents = getAgents();
-            if (cachedAgents) {
+            if (cachedAgents && cachedAgents.length > 0) {
                 setAgents(cachedAgents);
                 setLoading(false);
-                return;
             }
         }
 
         setLoading(true);
         try {
-            const res = await fetch('/api/agents');
-            if (res.ok) {
-                const data = await res.json();
+            const { response, data } = await fetchJsonWithRetry<{ agents?: AgentDefinition[]; _fallback?: boolean }>('/api/agents');
+            if (response.ok) {
                 const agentsData = data.agents || [];
                 setAgents(agentsData);
                 saveAgents(agentsData);
@@ -109,7 +108,10 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
     };
 
     useEffect(() => {
-        fetchAgents();
+        void fetchAgents();
+        const onFocus = () => { void fetchAgents(true); };
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
     }, []);
 
     const handleAction = async (action: string, name?: string) => {

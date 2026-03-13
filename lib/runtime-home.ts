@@ -68,6 +68,15 @@ export const resolveRuntimeHome = () => {
   return home;
 };
 
+export const resolveDefaultWorkspaceRoot = () => {
+  const explicit = normalizeHome(process.env.GGBOND_DEFAULT_CWD || '');
+  if (explicit) {
+    return explicit;
+  }
+
+  return process.cwd();
+};
+
 export const resolveGeminiConfigDir = (homeOverride?: string) => {
   const baseHome = homeOverride || resolveRuntimeHome();
   return path.basename(baseHome) === '.gemini'

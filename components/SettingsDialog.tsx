@@ -447,6 +447,9 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
                 }))}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
+              <p className="text-xs text-muted-foreground">
+                Applies to normal models. Preview models retry less aggressively to keep the app responsive.
+              </p>
             </div>
           </div>
 

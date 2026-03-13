@@ -364,7 +364,7 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange, w
                       <Suspense fallback={<ModuleLoader />}><ThemeSelector /></Suspense>
                       <Suspense fallback={<ModuleLoader />}><ShortcutsPanel /></Suspense>
                       <Suspense fallback={<ModuleLoader />}><SystemInfo /></Suspense>
-                      <Suspense fallback={<ModuleLoader />}><FileManager /></Suspense>
+                      <Suspense fallback={<ModuleLoader />}><FileManager workspacePath={workspacePath} /></Suspense>
                     </div>
                   </section>
                 )}

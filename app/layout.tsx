@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ChatProvider } from "./contexts/ChatContext";
+import { ApiInterceptorInit } from "@/components/ApiInterceptorInit";
 
 export const metadata: Metadata = {
   title: "GGBond",
@@ -25,6 +26,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <ApiInterceptorInit />
           {children}
         </ThemeProvider>
       </body>

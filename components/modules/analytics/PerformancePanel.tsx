@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useState, memo, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, memo, useCallback, useMemo, useRef } from 'react';
 import { ModuleCard } from '../ModuleCard';
 import { Activity, Loader2, RefreshCw, TrendingUp, AlertTriangle, Wrench } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { fetchJsonWithRetry } from '@/lib/client-fetch';
 
 interface TelemetrySummary {
     totalApiRequests: number;
@@ -43,17 +44,41 @@ const itemVariants = {
 export const PerformancePanel = memo(function PerformancePanel() {
     const [data, setData] = useState<TelemetryData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const latestDataRef = useRef<TelemetryData | null>(null);
+
+    const isTelemetryData = (value: unknown): value is TelemetryData => {
+        if (!value || typeof value !== 'object') return false;
+        const candidate = value as Partial<TelemetryData>;
+        return Boolean(candidate.summary && candidate.tokensByModel && candidate.toolsByName);
+    };
 
     const fetchTelemetry = useCallback(() => {
         setLoading(true);
-        fetch('/api/telemetry')
-            .then(r => r.json())
-            .then(setData)
-            .catch(console.error)
+        fetchJsonWithRetry<TelemetryData>('/api/telemetry')
+            .then(({ response, data }) => {
+                if (isTelemetryData(data)) {
+                    latestDataRef.current = data;
+                    setData(data);
+                    setError(response.ok ? null : 'Telemetry temporarily unavailable. Showing the latest synced snapshot.');
+                    return;
+                }
+
+                setError(response.ok ? 'Telemetry response was invalid.' : 'Failed to load telemetry');
+            })
+            .catch((fetchError) => {
+                console.warn('[PerformancePanel] Failed to load telemetry:', fetchError);
+                setError(latestDataRef.current ? 'Telemetry temporarily unavailable. Showing the latest synced snapshot.' : 'Failed to load telemetry');
+            })
             .finally(() => setLoading(false));
     }, []);
 
-    useEffect(() => { fetchTelemetry(); }, [fetchTelemetry]);
+    useEffect(() => {
+        fetchTelemetry();
+        const onFocus = () => { void fetchTelemetry(); };
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
+    }, [fetchTelemetry]);
 
     // calculate maximum tokens across all models to establish 100% width baseline
     const maxTokensPerModel = useMemo(() => {
@@ -67,7 +92,7 @@ export const PerformancePanel = memo(function PerformancePanel() {
         return max;
     }, [data?.tokensByModel]);
 
-    if (loading) {
+    if (loading && !data) {
         return (
             <ModuleCard title="Performance" description="System Telemetry" icon={Activity}>
                 <div className="flex h-full items-center justify-center py-12">
@@ -92,9 +117,11 @@ export const PerformancePanel = memo(function PerformancePanel() {
                     className="flex h-full flex-col items-center justify-center text-center py-12"
                 >
                     <Activity size={24} className="mb-3 text-zinc-300 dark:text-zinc-700" strokeWidth={1.5} />
-                    <div className="text-sm font-medium text-zinc-500">Awaiting Telemetry Data</div>
+                    <div className="text-sm font-medium text-zinc-500">
+                        {error ? 'Telemetry Unavailable' : 'Awaiting Telemetry Data'}
+                    </div>
                     <div className="mt-1.5 max-w-[280px] text-xs leading-relaxed text-zinc-400">
-                        Initiate a request to monitor agent performance. Data syncs via local DB if direct telemetry is disabled.
+                        {error || 'Initiate a request to monitor agent performance. Data syncs via local DB if direct telemetry is disabled.'}
                     </div>
                 </motion.div>
             </ModuleCard>
@@ -114,6 +141,11 @@ export const PerformancePanel = memo(function PerformancePanel() {
             className="h-[30rem]"
             actions={
                 <div className="flex items-center gap-3">
+                    {error && (
+                        <div className="rounded border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium tracking-wide text-amber-600 dark:bg-amber-500/5 dark:text-amber-400">
+                            SYNC DEGRADED
+                        </div>
+                    )}
                     <motion.div
                         animate={{ opacity: [1, 0.5, 1] }}
                         transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
@@ -140,6 +172,14 @@ export const PerformancePanel = memo(function PerformancePanel() {
                 animate="visible"
                 className="flex h-full flex-col gap-5 pt-1 overflow-y-auto pr-2"
             >
+                {error && (
+                    <motion.div
+                        variants={itemVariants}
+                        className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/5 dark:text-amber-300"
+                    >
+                        {error}
+                    </motion.div>
+                )}
                 {/* Latency Matrix */}
                 <div className="grid grid-cols-3 gap-2 shrink-0">
                     {[

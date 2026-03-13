@@ -775,9 +775,7 @@ export function runGeminiCommand(args: string[]): Promise<string> {
         child.on('error', reject);
     });
     cliCommandInFlight.set(key, commandPromise);
-    return commandPromise.finally(() => {
-        cliCommandInFlight.delete(key);
-    });
+    return commandPromise;
 }
 
 // ─── Helpers ─────────────────────────────────────────────
