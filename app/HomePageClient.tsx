@@ -195,6 +195,7 @@ export default function Home() {
 
 
   const currentSessionIdRef = useRef<string | null>(currentSessionId);
+  const currentWorkspaceRef = useRef<string | null>(currentWorkspace);
   const activeChatAbortRef = useRef<AbortController | null>(null);
   const aiProcessingRef = useRef(false); // Track if AI is currently processing
   const loadSessionTreeRef = useRef<typeof loadSessionTree | null>(null);
@@ -248,6 +249,10 @@ export default function Home() {
   useEffect(() => {
     currentSessionIdRef.current = currentSessionId;
   }, [currentSessionId]);
+
+  useEffect(() => {
+    currentWorkspaceRef.current = currentWorkspace;
+  }, [currentWorkspace]);
 
   // Handle page visibility changes for background continuity
   useEffect(() => {
@@ -719,29 +724,34 @@ export default function Home() {
   };
 
   const handleNewChat = () => {
-    // Note: We intentionally do NOT stop running sessions here
-    // Multiple sessions can run concurrently
-    // But we clear the abort ref so new messages can be sent in new session
-    activeChatAbortRef.current = null;
-    setCurrentSessionId(null);
-    setCurrentWorkspace(null);
-    setMessagesMap(new Map());
-    setHeadId(null);
-    headIdRef.current = null;
-    if (window.innerWidth < 768) {
-      setSidebarOpen(false);
+    const workspace = currentWorkspaceRef.current?.trim();
+    if (!workspace) {
+      setShowAddWorkspace(true);
+      showInfoToast('Select a workspace before starting a new chat.');
+      return;
     }
+
+    handleNewChatInWorkspace(workspace);
   };
 
   const handleNewChatInWorkspace = (workspace: string) => {
+    const trimmedWorkspace = workspace.trim();
+    if (!trimmedWorkspace || trimmedWorkspace === 'Default' || trimmedWorkspace === '__NO_WORKSPACE__') {
+      setShowAddWorkspace(true);
+      showInfoToast('Select a workspace before starting a new chat.');
+      return;
+    }
+
     // Note: We intentionally do NOT stop running sessions here
     // Multiple sessions can run concurrently
     // But we clear the abort ref so new messages can be sent in new session
     activeChatAbortRef.current = null;
     setCurrentSessionId(null);
-    setCurrentWorkspace(workspace);
+    setCurrentWorkspace(trimmedWorkspace);
+    currentWorkspaceRef.current = trimmedWorkspace;
     setMessagesMap(new Map());
     setHeadId(null);
+    headIdRef.current = null;
     if (window.innerWidth < 768) {
       setSidebarOpen(false);
     }
@@ -775,6 +785,7 @@ export default function Home() {
     }
 
     setCurrentWorkspace(workspacePath);
+    currentWorkspaceRef.current = workspacePath;
     setMessagesMap(new Map());
     setHeadId(null);
   };
@@ -1176,7 +1187,7 @@ export default function Home() {
         body: JSON.stringify({
           action: 'rewind',
           sessionId: currentSessionId,
-          workspace: currentWorkspace,
+          workspace: currentWorkspaceRef.current,
           model: settings.model
         })
       });
@@ -1217,7 +1228,7 @@ export default function Home() {
           sessionId: currentSessionId,
           checkpointId: restoreId,
           toolId: restoreId,
-          workspace: currentWorkspace,
+          workspace: currentWorkspaceRef.current,
           model: settings.model
         })
       });
@@ -2096,7 +2107,7 @@ export default function Home() {
           model: settings.model,
           systemInstruction: settings.systemInstruction,
           sessionId: generatedSessionId,
-          workspace: currentWorkspace,
+          workspace: currentWorkspaceRef.current,
           mode,
           lowLatencyMode: settings.ui?.lowLatencyMode ?? true,
           approvalMode: options?.approvalMode ?? approvalMode,
@@ -2724,7 +2735,7 @@ export default function Home() {
         checkpointId: restoreId,
         toolId: restoreId,
         messageId: sourceMessageId,
-        workspace: currentWorkspace,
+        workspace: currentWorkspaceRef.current,
         model: settings.model
       })
     });
@@ -2788,7 +2799,7 @@ export default function Home() {
         action: 'undo_message_preview',
         sessionId: currentSessionId,
         messageId,
-        workspace: currentWorkspace,
+        workspace: currentWorkspaceRef.current,
         model: settings.model
       })
     });
@@ -2830,7 +2841,7 @@ export default function Home() {
       sessionId: currentSessionId,
       messageId,
       messageContent,
-      workspace: currentWorkspace,
+      workspace: currentWorkspaceRef.current,
       model: settings.model,
       hasCheckpoint: Boolean((previewData as { hasCheckpoint?: unknown }).hasCheckpoint),
       fileChanges,

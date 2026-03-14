@@ -67,6 +67,7 @@ export const ChatView = React.memo(function ChatView({
     formatSessionAge,
     searchTerm = ''
 }: ChatViewProps & { searchTerm?: string }) {
+    const UNASSIGNED_WORKSPACE_KEY = '__NO_WORKSPACE__';
     // Internal state for workspace collapse
     const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set());
     const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(new Set());
@@ -132,7 +133,7 @@ export const ChatView = React.memo(function ChatView({
     const groupedSessions = useMemo(() => {
         const groups: Record<string, Session[]> = {};
         activeSessions.forEach(session => {
-            const workspace = session.workspace || 'Default';
+            const workspace = session.workspace || UNASSIGNED_WORKSPACE_KEY;
             if (!groups[workspace]) groups[workspace] = [];
             groups[workspace].push(session);
         });
@@ -221,7 +222,7 @@ export const ChatView = React.memo(function ChatView({
                         currentWorkspace === workspace ? "text-[var(--accent)]" : "text-[var(--text-tertiary)]"
                     )} />
                     <span className="text-[12px] font-medium truncate flex-1">
-                        {workspace === 'Default' ? 'Default' : workspace.split('/').pop()}
+                        {workspace === UNASSIGNED_WORKSPACE_KEY ? 'Unassigned' : workspace.split('/').pop()}
                     </span>
 
                     {workspaceBranchSummary[workspace] && (
@@ -234,17 +235,19 @@ export const ChatView = React.memo(function ChatView({
                         </span>
                     )}
 
-                    <button
-                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)] transition-colors shrink-0"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleNewChatInWorkspace(workspace);
-                        }}
-                        title="New Chat in Workspace"
-                    >
-                        <Plus className="w-3.5 h-3.5" />
-                    </button>
-                    {workspace !== 'Default' && onArchiveWorkspace && (
+                    {workspace !== UNASSIGNED_WORKSPACE_KEY && (
+                        <button
+                            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)] transition-colors shrink-0"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleNewChatInWorkspace(workspace);
+                            }}
+                            title="New Chat in Workspace"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                    {workspace !== UNASSIGNED_WORKSPACE_KEY && onArchiveWorkspace && (
                         <button
                             className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-[var(--bg-tertiary)] hover:text-[var(--red)] rounded text-[var(--text-secondary)] transition-colors shrink-0"
                             onClick={(e) => {

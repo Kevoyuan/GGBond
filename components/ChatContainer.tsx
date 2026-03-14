@@ -89,6 +89,7 @@ export const ChatContainer = React.memo(function ChatContainer({
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [isAtBottom, setIsAtBottom] = React.useState(true);
     const [steeringSummary, setSteeringSummary] = useState<SteeringSummary | null>(null);
+    const isTemporarySession = !workspacePath?.trim();
 
     const lastModelIdx = useMemo(() => {
         return messages.findLastIndex(m => m.role === 'model');
@@ -332,6 +333,12 @@ export const ChatContainer = React.memo(function ChatContainer({
 
 
                     {latestTodos && latestTodos.length > 0 && <TaskProgressDock todos={latestTodos} />}
+
+                    {isTemporarySession && (
+                        <div className="mx-4 mb-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3 text-[12px] text-amber-700 dark:text-amber-300">
+                            Temporary session active. Files generated in this chat are saved to a per-chat temp folder until you open a workspace.
+                        </div>
+                    )}
 
                     <UncommittedFilesList uncommitted={uncommitted ?? null} />
 
