@@ -225,6 +225,93 @@ export class CoreService {
 
     private constructor() { }
 
+    private logInitStage(enabled: boolean, startedAt: number, stage: string) {
+        if (!enabled) {
+            return;
+        }
+        const elapsedMs = Math.round((performance.now() - startedAt) * 100) / 100;
+        console.log(`[CoreService][init] ${stage}: ${elapsedMs}ms`);
+    }
+
+    private retargetMutableSessionState(sessionId: string) {
+        if (!this.config) {
+            return;
+        }
+
+        this.config.setSessionId(sessionId);
+
+        const storageWithSession = this.config.storage as unknown as { sessionId?: string };
+        if (storageWithSession) {
+            storageWithSession.sessionId = sessionId;
+        }
+
+        const contentGenerator = this.config.getContentGenerator() as unknown as {
+            sessionId?: string;
+            getWrapped?: () => unknown;
+        } | null;
+        const wrappedGenerator = contentGenerator?.getWrapped?.() as { sessionId?: string } | undefined;
+        if (wrappedGenerator && typeof wrappedGenerator === 'object') {
+            wrappedGenerator.sessionId = sessionId;
+        } else if (contentGenerator && typeof contentGenerator === 'object') {
+            contentGenerator.sessionId = sessionId;
+        }
+    }
+
+    private async tryReuseInitializedConfigForNewSession(
+        params: InitParams,
+        approvalMode: ApprovalMode,
+        systemInstruction: string,
+        modelSettings: RuntimeModelSettings | undefined,
+        initStartedAt: number,
+        profileInit: boolean
+    ) {
+        if (!this.initialized || !this.config) {
+            return false;
+        }
+
+        if (path.resolve(this.config.getTargetDir()) !== path.resolve(params.cwd || process.cwd())) {
+            return false;
+        }
+
+        try {
+            console.log('[CoreService] Reusing initialized config for new session:', {
+                from: this.config.getSessionId(),
+                to: params.sessionId,
+            });
+
+            this.pendingConfirmations.clear();
+            this.pendingConfirmationByCallId.clear();
+            this.retargetMutableSessionState(params.sessionId);
+
+            if (params.model && this.config.getModel() !== params.model) {
+                this.config.setModel(params.model);
+            }
+
+            this.applyApprovalMode(approvalMode, 'existing session');
+            this.applyRuntimeModelSettings(modelSettings);
+
+            const geminiClient = this.config.getGeminiClient();
+            geminiClient.setHistory([]);
+            this.chat = geminiClient.getChat();
+            this.chat.setHistory([]);
+            this.chat.setSystemInstruction(systemInstruction);
+
+            await this.refreshToolsIfNeeded();
+            this.syncRuntimeIntegrations();
+
+            this.emitHookEvent('SessionStart', {
+                sessionId: params.sessionId,
+                model: params.model,
+                cwd: params.cwd,
+            });
+            this.logInitStage(profileInit, initStartedAt, 'reuse-config:new-session');
+            return true;
+        } catch (error) {
+            console.warn('[CoreService] Failed to reuse initialized config for new session, falling back to full init:', error);
+            return false;
+        }
+    }
+
     public static getInstance(): CoreService {
         if (process.env.NODE_ENV === 'development') {
             const isStaleInstance =
@@ -339,6 +426,8 @@ When you are in planning phase:
     }
 
     public async initialize(params: InitParams) {
+        const profileInit = process.env.GGBOND_PROFILE_INIT === '1';
+        const initStartedAt = performance.now();
         // Check for headless mode - force YOLO mode
         const isHeadless = process.env.GEMINI_HEADLESS === '1' ||
             process.env.GEMINI_HEADLESS === 'true';
@@ -372,6 +461,7 @@ When you are in planning phase:
             console.log('[CoreService] Already initialized for session:', params.sessionId);
             if (this.lastInitSignature === nextInitSignature) {
                 this.syncRuntimeIntegrations();
+                this.logInitStage(profileInit, initStartedAt, 'reuse-session:cache-hit');
                 return;
             }
 
@@ -392,27 +482,13 @@ When you are in planning phase:
                 console.warn('[CoreService] Failed to update existing session runtime state:', error);
             }
             this.syncRuntimeIntegrations();
+            this.logInitStage(profileInit, initStartedAt, 'reuse-session:done');
             return;
         }
 
-        console.log('[CoreService] Initializing...', params);
-
-        if (this.config) {
-            try {
-                await this.config.dispose();
-            } catch (error) {
-                console.warn('[CoreService] Failed to dispose previous config cleanly:', error);
-            }
-            this.config = null;
-            this.chat = null;
-            this.messageBus = null;
-            this.policyUpdaterMessageBus = null;
-            this.systemListenerMessageBus = null;
-            this.initialized = false;
-        }
-
         const projectRoot = params.cwd || process.cwd();
-        const checkpointingEnabled = isGitWorkspace(projectRoot);
+        const gitWorkspaceDetected = isGitWorkspace(projectRoot);
+        const checkpointingEnabled = gitWorkspaceDetected;
         const runtimeHome = resolveRuntimeHome();
         const geminiCliHome = resolveGeminiCliHome(runtimeHome);
         if (process.env.GEMINI_CLI_HOME !== geminiCliHome) {
@@ -453,6 +529,7 @@ When you are in planning phase:
                 console.warn('[CoreService] Failed to load settings.json:', error);
             }
         }
+        this.logInitStage(profileInit, initStartedAt, 'settings-loaded');
 
         const policySettings: PolicySettings = {
             mcp: (settings?.mcp as PolicySettings['mcp']) ?? undefined,
@@ -472,6 +549,35 @@ When you are in planning phase:
         });
         const enableConseca =
             (settings?.security as { enableConseca?: unknown } | undefined)?.enableConseca === true;
+        this.logInitStage(profileInit, initStartedAt, 'policy-and-telemetry-ready');
+
+        if (await this.tryReuseInitializedConfigForNewSession(
+            params,
+            normalizedApprovalMode,
+            fullSystemInstruction,
+            normalizedModelSettings,
+            initStartedAt,
+            profileInit
+        )) {
+            this.lastInitSignature = nextInitSignature;
+            return;
+        }
+
+        console.log('[CoreService] Initializing...', params);
+
+        if (this.config) {
+            try {
+                await this.config.dispose();
+            } catch (error) {
+                console.warn('[CoreService] Failed to dispose previous config cleanly:', error);
+            }
+            this.config = null;
+            this.chat = null;
+            this.messageBus = null;
+            this.policyUpdaterMessageBus = null;
+            this.systemListenerMessageBus = null;
+            this.initialized = false;
+        }
 
         // 1. Initialize Config
         // Cast approvalMode to any to avoid Enum type issues if not exported correctly
@@ -495,7 +601,9 @@ When you are in planning phase:
             // auth info is auto-detected from env/files by Config internal logic or we can pass explicit
             // For now let Config handle standard auth
         };
-        console.log(`[CoreService] Checkpointing: ${checkpointingEnabled ? 'enabled' : 'disabled'} (git workspace: ${checkpointingEnabled})`);
+        console.log(
+            `[CoreService] Checkpointing: ${checkpointingEnabled ? 'enabled' : 'disabled'} (git workspace: ${gitWorkspaceDetected})`
+        );
         console.log(`[CoreService] Conseca: ${enableConseca ? 'enabled' : 'disabled'}`);
 
         this.config = new Config(baseConfigOptions);
@@ -520,6 +628,7 @@ When you are in planning phase:
                 3
             );
         }
+        this.logInitStage(profileInit, initStartedAt, 'config-initialized');
         this.applyApprovalMode(normalizedApprovalMode, 'post-init');
         this.applyRuntimeModelSettings(normalizedModelSettings);
 
@@ -535,6 +644,7 @@ When you are in planning phase:
         } else {
             console.log('[CoreService] No explicit auth type in settings; relying on Config defaults.');
         }
+        this.logInitStage(profileInit, initStartedAt, 'auth-ready');
 
         this.registerNativeFallbackHandlers();
 
@@ -542,6 +652,7 @@ When you are in planning phase:
         await this.refreshToolsIfNeeded(true);
         const geminiClient = this.config.getGeminiClient();
         geminiClient.getChat().setSystemInstruction(fullSystemInstruction);
+        this.logInitStage(profileInit, initStartedAt, 'tools-ready');
 
         this.syncRuntimeIntegrations();
 
@@ -561,6 +672,7 @@ When you are in planning phase:
         this.initialized = true;
         this.lastInitSignature = nextInitSignature;
         console.log('[CoreService] Initialization complete.');
+        this.logInitStage(profileInit, initStartedAt, 'done');
     }
 
     private normalizeRuntimeModelSettings(settings?: RuntimeModelSettings): RuntimeModelSettings | undefined {
@@ -727,7 +839,6 @@ When you are in planning phase:
         const approvalMode = this.config.getApprovalMode();
         const planModeEnabled = approvalMode === ApprovalMode.PLAN;
         const signature = JSON.stringify({
-            sessionId: this.config.getSessionId(),
             model: this.config.getModel(),
             approvalMode,
             tools: enabledCustomTools.map((tool) => ({

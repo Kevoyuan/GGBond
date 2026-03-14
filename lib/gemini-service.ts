@@ -9,16 +9,23 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
 import { execSync, spawn } from 'child_process';
-import { resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
+import { Config, AuthType } from '@google/gemini-cli-core';
+import { resolveDefaultWorkspaceRoot, resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 const SETTINGS_CACHE_TTL_MS = 2000;
 const CLI_READ_CACHE_TTL_MS = 5000;
+const AUTH_INFO_CACHE_TTL_MS = 30000;
 
 let settingsCache: {
     value: Record<string, any>;
     expiresAt: number;
 } | null = null;
 let settingsInFlight: Promise<Record<string, any>> | null = null;
+let authInfoCache: {
+    value: AuthInfo;
+    expiresAt: number;
+} | null = null;
+let authInfoInFlight: Promise<AuthInfo> | null = null;
 
 const cliCommandInFlight = new Map<string, Promise<string>>();
 const cliCommandCache = new Map<string, { value: string; expiresAt: number }>();
@@ -133,58 +140,183 @@ export interface AuthInfo {
     userId?: string;
     hasOAuthCreds: boolean;
     hasApiKey: boolean;
+    tier?: string;
+    tierId?: string;
+    paidTier?: {
+        id?: string;
+        name?: string;
+        description?: string;
+    };
+}
+
+function normalizeAuthType(authType?: string): AuthType | null {
+    switch (authType) {
+        case AuthType.LOGIN_WITH_GOOGLE:
+            return AuthType.LOGIN_WITH_GOOGLE;
+        case AuthType.COMPUTE_ADC:
+            return AuthType.COMPUTE_ADC;
+        case AuthType.USE_GEMINI:
+            return AuthType.USE_GEMINI;
+        case AuthType.USE_VERTEX_AI:
+            return AuthType.USE_VERTEX_AI;
+        default:
+            return null;
+    }
+}
+
+async function readLiveTierInfo(authType: string): Promise<Pick<AuthInfo, 'tier' | 'tierId' | 'paidTier'> | null> {
+    const normalizedAuthType = normalizeAuthType(authType);
+    if (!normalizedAuthType) {
+        return null;
+    }
+
+    try {
+        const { CoreService } = await import('@/lib/core-service');
+        const liveConfig = CoreService.getInstance().config;
+        if (liveConfig?.getContentGeneratorConfig?.()?.authType === normalizedAuthType) {
+            const paidTier = liveConfig.getUserPaidTier?.();
+            const tierName = liveConfig.getUserTierName?.() || paidTier?.name;
+            const tierId = paidTier?.id || liveConfig.getUserTier?.();
+            if (tierName || tierId || paidTier) {
+                return {
+                    tier: tierName,
+                    tierId,
+                    paidTier: paidTier
+                        ? {
+                            id: paidTier.id,
+                            name: paidTier.name,
+                            description: paidTier.description,
+                        }
+                        : undefined,
+                };
+            }
+        }
+    } catch {
+        // Ignore and fall back to a lightweight temporary Config below.
+    }
+
+    try {
+        const workspaceRoot = resolveDefaultWorkspaceRoot();
+        const tempConfig = new Config({
+            sessionId: 'auth-info',
+            model: 'gemini-3-pro',
+            cwd: workspaceRoot,
+            targetDir: workspaceRoot,
+            interactive: false,
+            checkpointing: false,
+            debugMode: false,
+        });
+
+        await tempConfig.initialize();
+        await tempConfig.refreshAuth(normalizedAuthType);
+
+        const paidTier = tempConfig.getUserPaidTier?.();
+        const tierName = tempConfig.getUserTierName?.() || paidTier?.name;
+        const tierId = paidTier?.id || tempConfig.getUserTier?.();
+
+        if (!tierName && !tierId && !paidTier) {
+            return null;
+        }
+
+        return {
+            tier: tierName,
+            tierId,
+            paidTier: paidTier
+                ? {
+                    id: paidTier.id,
+                    name: paidTier.name,
+                    description: paidTier.description,
+                }
+                : undefined,
+        };
+    } catch {
+        return null;
+    }
 }
 
 export async function getAuthInfo(): Promise<AuthInfo> {
-    const geminiHome = getGeminiHome();
-    const settings = await readSettings();
+    const now = Date.now();
+    if (authInfoCache && authInfoCache.expiresAt > now) {
+        return authInfoCache.value;
+    }
+    if (authInfoInFlight) {
+        return authInfoInFlight;
+    }
 
-    const authType = settings?.security?.auth?.selectedType
-        || settings?.selectedAuthType
-        || 'unknown';
+    authInfoInFlight = (async () => {
+        const geminiHome = getGeminiHome();
+        const settings = await readSettings();
 
-    let accountId: string | undefined;
-    let accounts: Array<{ email: string; displayName?: string }> = [];
-    let userId: string | undefined;
+        const authType = settings?.security?.auth?.selectedType
+            || settings?.selectedAuthType
+            || 'unknown';
 
-    try {
-        const idPath = path.join(geminiHome, 'google_account_id');
-        if (fs.existsSync(idPath)) {
-            accountId = (await fsp.readFile(idPath, 'utf-8')).trim();
-        }
-    } catch { /* ignore */ }
+        let accountId: string | undefined;
+        let accounts: Array<{ email: string; displayName?: string }> = [];
+        let userId: string | undefined;
 
-    try {
-        const accountsPath = path.join(geminiHome, 'google_accounts.json');
-        if (fs.existsSync(accountsPath)) {
-            const accountsJson = await fsp.readFile(accountsPath, 'utf-8');
-            const parsed = JSON.parse(accountsJson);
-            if (Array.isArray(parsed)) {
-                accounts = parsed.map(a => typeof a === 'string' ? { email: a } : a);
-            } else if (parsed && typeof parsed === 'object') {
-                if (parsed.active) {
-                    accounts = [{ email: parsed.active }];
-                    if (Array.isArray(parsed.old)) {
-                        accounts.push(...parsed.old.map((e: string) => ({ email: e })));
+        try {
+            const idPath = path.join(geminiHome, 'google_account_id');
+            if (fs.existsSync(idPath)) {
+                accountId = (await fsp.readFile(idPath, 'utf-8')).trim();
+            }
+        } catch { /* ignore */ }
+
+        try {
+            const accountsPath = path.join(geminiHome, 'google_accounts.json');
+            if (fs.existsSync(accountsPath)) {
+                const accountsJson = await fsp.readFile(accountsPath, 'utf-8');
+                const parsed = JSON.parse(accountsJson);
+                if (Array.isArray(parsed)) {
+                    accounts = parsed.map(a => typeof a === 'string' ? { email: a } : a);
+                } else if (parsed && typeof parsed === 'object') {
+                    if (parsed.active) {
+                        accounts = [{ email: parsed.active }];
+                        if (Array.isArray(parsed.old)) {
+                            accounts.push(...parsed.old.map((e: string) => ({ email: e })));
+                        }
+                    } else if (parsed.email) {
+                        accounts = [parsed];
                     }
-                } else if (parsed.email) {
-                    accounts = [parsed];
                 }
             }
-        }
-    } catch { /* ignore */ }
+        } catch { /* ignore */ }
+
+        try {
+            const userIdPath = path.join(geminiHome, 'user_id');
+            if (fs.existsSync(userIdPath)) {
+                userId = (await fsp.readFile(userIdPath, 'utf-8')).trim();
+            }
+        } catch { /* ignore */ }
+
+        const hasOAuthCreds = fs.existsSync(path.join(geminiHome, 'oauth_creds.json'));
+        const hasApiKey = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+        const tierInfo = await readLiveTierInfo(authType);
+
+        const authInfo: AuthInfo = {
+            type: authType,
+            accountId,
+            accounts,
+            userId,
+            hasOAuthCreds,
+            hasApiKey,
+            tier: tierInfo?.tier,
+            tierId: tierInfo?.tierId,
+            paidTier: tierInfo?.paidTier,
+        };
+
+        authInfoCache = {
+            value: authInfo,
+            expiresAt: Date.now() + AUTH_INFO_CACHE_TTL_MS,
+        };
+        return authInfo;
+    })();
 
     try {
-        const userIdPath = path.join(geminiHome, 'user_id');
-        if (fs.existsSync(userIdPath)) {
-            userId = (await fsp.readFile(userIdPath, 'utf-8')).trim();
-        }
-    } catch { /* ignore */ }
-
-    const hasOAuthCreds = fs.existsSync(path.join(geminiHome, 'oauth_creds.json'));
-    const hasApiKey = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
-
-    return { type: authType, accountId, accounts, userId, hasOAuthCreds, hasApiKey };
+        return await authInfoInFlight;
+    } finally {
+        authInfoInFlight = null;
+    }
 }
 
 // ─── MCP Servers ─────────────────────────────────────────
