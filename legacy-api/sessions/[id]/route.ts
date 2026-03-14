@@ -7,7 +7,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id);
+    const session = db
+      .prepare("SELECT * FROM sessions WHERE id = ? AND workspace IS NOT NULL AND trim(workspace) <> ''")
+      .get(id);
 
     if (!session) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });

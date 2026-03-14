@@ -1,8 +1,7 @@
 import { NextResponse } from '@/src-sidecar/mock-next-server';
 import db from '@/lib/db';
 import { CoreService } from '@/lib/core-service';
-import { resolveDefaultWorkspaceRoot } from '@/lib/runtime-home';
-import path from 'path';
+import { resolveWorkspaceExecutionRoot } from '@/lib/runtime-home';
 import { isActiveModel } from '@google/gemini-cli-core';
 import {
   applyFallbackUndoFiles,
@@ -16,10 +15,6 @@ type UndoSnapshotRow = {
   restore_id?: string | null;
   fallback_files?: string | null;
 };
-
-function resolveWorkspaceRoot(workspace: unknown) {
-  return path.resolve((typeof workspace === 'string' && workspace !== 'Default') ? workspace : resolveDefaultWorkspaceRoot());
-}
 
 function getUndoSnapshotForUserMessage(sessionId: string, messageId: number) {
   const targetMessage = db.prepare(
@@ -57,7 +52,7 @@ export async function POST(req: Request) {
     const resolvedModel = requestedModel && isActiveModel(requestedModel)
       ? requestedModel
       : 'gemini-2.5-pro';
-    const resolvedCwd = resolveWorkspaceRoot(workspace);
+    const resolvedCwd = resolveWorkspaceExecutionRoot(workspace, sessionId);
     let core: CoreService | null = null;
     const ensureCoreInitialized = async () => {
       if (core) return core;

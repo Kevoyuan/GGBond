@@ -9,6 +9,7 @@ export async function GET() {
         COUNT(m.id) AS message_count
       FROM sessions s
       LEFT JOIN messages m ON m.session_id = s.id
+      WHERE s.workspace IS NOT NULL AND trim(s.workspace) <> ''
       GROUP BY s.id
       ORDER BY s.updated_at DESC
     `).all();
@@ -23,6 +24,11 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { workspace, title } = body;
+    const trimmedWorkspace = typeof workspace === 'string' ? workspace.trim() : '';
+
+    if (!trimmedWorkspace) {
+      return NextResponse.json({ error: 'workspace is required' }, { status: 400 });
+    }
 
     const id = crypto.randomUUID();
     const now = Date.now();
@@ -31,14 +37,14 @@ export async function POST(req: Request) {
     db.prepare(`
       INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
       VALUES (?, ?, ?, ?, ?, NULL)
-    `).run(id, sessionTitle, now, now, workspace || null);
+    `).run(id, sessionTitle, now, now, trimmedWorkspace);
 
     return NextResponse.json({
       id,
       title: sessionTitle,
       created_at: now,
       updated_at: now,
-      workspace: workspace || null,
+      workspace: trimmedWorkspace,
       branch: null
     });
   } catch (error) {

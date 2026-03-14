@@ -117,90 +117,16 @@ export function initApiInterceptor() {
             }
 
             // ============================================
-            // 2. SESSIONS (Tauri SQLite)
+            // 2. SESSIONS (Sidecar - single source of truth)
             // ============================================
-            if (path === '/api/sessions') {
-                if (method === 'GET') {
-                    const archived = parsedUrl.searchParams.get('archived');
-                    const sessions = await dbClient.sessions.getAll();
-                    if (archived === 'true') {
-                        return jsonResponse(sessions.filter((s: any) => s.archived === 1));
-                    }
-                    return jsonResponse(sessions);
-                }
-            }
-            if (path === '/api/sessions/core') {
-                // CoreService sessions - only available via sidecar
-                return jsonResponse([]);
-            }
-            if (path === '/api/sessions/latest-stats') {
-                return jsonResponse({
-                    totalCost: 0,
-                    inputTokenCount: 0,
-                    outputTokenCount: 0,
-                    totalTokenCount: 0
-                });
-            }
-
-            const sessionsMatch = path.match(/\/api\/sessions\/([^/]+)$/);
-            if (sessionsMatch) {
-                const id = sessionsMatch[1];
-                if (method === 'GET') {
-                    const session = await dbClient.sessions.get(id);
-                    if (!session) return jsonResponse({ error: 'not found' }, 404);
-                    const rawMessages = await dbClient.messages.getBySession(id);
-                    // Parse JSON fields exactly like the original API route did
-                    const parsedMessages = rawMessages.map((msg: any) => ({
-                        ...msg,
-                        stats: msg.stats ? (typeof msg.stats === 'string' ? (() => { try { return JSON.parse(msg.stats); } catch { return undefined; } })() : msg.stats) : undefined,
-                        thought: typeof msg.thought === 'string' ? msg.thought : undefined,
-                        citations: (() => {
-                            if (!msg.citations) return undefined;
-                            if (Array.isArray(msg.citations)) return msg.citations;
-                            if (typeof msg.citations === 'string') {
-                                try { const parsed = JSON.parse(msg.citations); return Array.isArray(parsed) ? parsed : undefined; } catch { return undefined; }
-                            }
-                            return undefined;
-                        })(),
-                        images: (() => {
-                            if (!msg.images) return undefined;
-                            if (Array.isArray(msg.images)) return msg.images;
-                            if (typeof msg.images === 'string') {
-                                try { const parsed = JSON.parse(msg.images); return Array.isArray(parsed) ? parsed : undefined; } catch { return undefined; }
-                            }
-                            return undefined;
-                        })(),
-                        parent_id: msg.parent_id,
-                        parentId: msg.parent_id === null || msg.parent_id === undefined ? null : String(msg.parent_id),
-                        id: msg.id === null || msg.id === undefined ? undefined : String(msg.id),
-                    }));
-                    return jsonResponse({ session, messages: parsedMessages });
-                }
-                if (method === 'DELETE') {
-                    await dbClient.sessions.delete(id);
-                    return jsonResponse({ success: true });
-                }
-                if (method === 'PATCH') {
-                    const body = await readBody(init);
-                    await dbClient.sessions.update(id, body);
-                    return jsonResponse({ success: true });
-                }
-            }
-
-            const archiveMatch = path.match(/\/api\/sessions\/([^/]+)\/archive$/);
-            if (archiveMatch && method === 'PATCH') {
-                const id = archiveMatch[1];
-                const { archived } = await readBody(init);
-                await dbClient.sessions.update(id, { archived: archived ? 1 : 0 });
-                return jsonResponse({ success: true });
-            }
-
-            const branchMatch = path.match(/\/api\/sessions\/([^/]+)\/branch$/);
-            if (branchMatch && method === 'PATCH') {
-                const id = branchMatch[1];
-                const { branch } = await readBody(init);
-                await dbClient.sessions.update(id, { branch });
-                return jsonResponse({ success: true });
+            if (path === '/api/sessions'
+                || path === '/api/sessions/core'
+                || path === '/api/sessions/latest-stats'
+                || /\/api\/sessions\/[^/]+$/.test(path)
+                || /\/api\/sessions\/[^/]+\/archive$/.test(path)
+                || /\/api\/sessions\/[^/]+\/branch$/.test(path)) {
+                const sidecarPort = await resolveSidecarPort(originalFetch);
+                return originalFetch(`http://127.0.0.1:${sidecarPort}${path}${parsedUrl.search}`, init);
             }
 
             // ============================================

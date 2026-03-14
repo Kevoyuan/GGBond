@@ -3,7 +3,7 @@ import { NextResponse } from '@/src-sidecar/mock-next-server';
 import { CoreService } from '@/lib/core-service';
 import db, { executeWithRetry, runNonBlockingAsync } from '@/lib/db';
 import { calculateCost } from '@/lib/pricing';
-import { resolveDefaultWorkspaceRoot } from '@/lib/runtime-home';
+import { resolveWorkspaceExecutionRoot } from '@/lib/runtime-home';
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';
@@ -61,11 +61,6 @@ function isSameOrChildPath(candidatePath: string, parentPath: string) {
 
 const GIT_BRANCH_CACHE_TTL_MS = 30_000;
 const gitBranchCache = new Map<string, { value: string | null; expiresAt: number }>();
-
-function resolveWorkspaceRoot(workspace: unknown) {
-  const fallbackRoot = resolveDefaultWorkspaceRoot();
-  return path.resolve((typeof workspace === 'string' && workspace !== 'Default') ? workspace : fallbackRoot);
-}
 
 function resolveRequestedModel(requestedModel: string | undefined): string {
   const requested = (requestedModel || '').trim();
@@ -157,6 +152,7 @@ export async function POST(req: Request) {
 
     // Use provided sessionId or generate new one
     const finalSessionId = sessionId || crypto.randomUUID();
+    const executionRoot = resolveWorkspaceExecutionRoot(workspace, finalSessionId);
 
     const coreApprovalMode = (() => {
       if (mode === 'plan') return ApprovalMode.PLAN;
@@ -174,7 +170,7 @@ export async function POST(req: Request) {
     await core.initialize({
       sessionId: finalSessionId,
       model: targetModel,
-      cwd: resolveWorkspaceRoot(workspace),
+      cwd: executionRoot,
       // Safe mode asks for confirmation; Auto mode fully allows tool execution.
       approvalMode: coreApprovalMode,
       systemInstruction,
@@ -219,7 +215,7 @@ export async function POST(req: Request) {
 
     // DB Logging Setup
     const now = Date.now();
-    const sessionWorkspace = resolveWorkspaceRoot(workspace);
+    const sessionWorkspace = executionRoot;
     const existingSessionRow = db
       .prepare('SELECT id, branch FROM sessions WHERE id = ?')
       .get(finalSessionId) as { id: string; branch: string | null } | undefined;
@@ -635,6 +631,20 @@ export async function POST(req: Request) {
         let hookCounter = 0;
         let isPollingConfirmationQueue = false;
         let confirmationQueuePollTimer: ReturnType<typeof setInterval> | null = null;
+        const normalizeResultDataPath = (rawValue: unknown) => {
+          if (typeof rawValue !== 'string') {
+            return rawValue;
+          }
+
+          const trimmed = rawValue.trim();
+          if (!trimmed || /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)) {
+            return rawValue;
+          }
+
+          return path.isAbsolute(trimmed)
+            ? path.resolve(trimmed)
+            : path.resolve(sessionWorkspace, trimmed);
+        };
         const toSerializableResultData = (value: unknown): unknown => {
           if (value === undefined) {
             return undefined;
@@ -643,7 +653,18 @@ export async function POST(req: Request) {
             return value;
           }
           try {
-            return JSON.parse(JSON.stringify(value));
+            const serialized = JSON.parse(JSON.stringify(value));
+            if (!serialized || typeof serialized !== 'object' || Array.isArray(serialized)) {
+              return serialized;
+            }
+
+            const payload = serialized as Record<string, unknown>;
+            for (const key of ['path', 'file_path', 'filePath']) {
+              if (key in payload) {
+                payload[key] = normalizeResultDataPath(payload[key]);
+              }
+            }
+            return payload;
           } catch {
             return undefined;
           }
