@@ -43,7 +43,7 @@ export async function GET() {
         existing.failed = stat.count;
       }
       existing.total += stat.count;
-      if (stat.avg_duration_ms) {
+      if (typeof stat.avg_duration_ms === 'number' && stat.avg_duration_ms > 0) {
         existing.avgDuration = stat.avg_duration_ms;
       }
 

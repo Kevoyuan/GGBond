@@ -108,6 +108,18 @@ function getCachedGitBranch(cwd: string): string | null {
 
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
+  const profileInit = process.env.GGBOND_PROFILE_INIT === '1';
+  const requestStartedAt = performance.now();
+  const initStages: Array<{ stage: string; ms: number }> = [];
+  const markInitStage = (stage: string) => {
+    if (!profileInit) {
+      return;
+    }
+    initStages.push({
+      stage,
+      ms: Math.round((performance.now() - requestStartedAt) * 100) / 100,
+    });
+  };
 
   try {
     const {
@@ -124,6 +136,7 @@ export async function POST(req: Request) {
       selectedAgent,
       images
     } = await req.json();
+    markInitStage('request-json');
 
     const isLowLatencyMode = lowLatencyMode !== false;
     if (!isLowLatencyMode) {
@@ -167,6 +180,7 @@ export async function POST(req: Request) {
       systemInstruction,
       modelSettings
     });
+    markInitStage('core-initialize');
 
     let selectedAgentName: string | undefined;
     if (typeof selectedAgent === 'string' && selectedAgent.trim()) {
@@ -210,6 +224,7 @@ export async function POST(req: Request) {
       .prepare('SELECT id, branch FROM sessions WHERE id = ?')
       .get(finalSessionId) as { id: string; branch: string | null } | undefined;
     const sessionBranch = existingSessionRow?.branch ?? getCachedGitBranch(sessionWorkspace);
+    let sessionRowExists = Boolean(existingSessionRow);
 
     let userMessageId: number | bigint | null = null;
     const parseParentId = (rawParentId: unknown): number | null => {
@@ -222,11 +237,12 @@ export async function POST(req: Request) {
     const requestedParentId = parseParentId(parentId);
     const sessionTitle = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
     const ensureSessionRow = (timestamp: number) => {
-      if (!existingSessionRow) {
+      if (!sessionRowExists) {
         db.prepare(`
           INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
           VALUES (?, ?, ?, ?, ?, ?)
         `).run(finalSessionId, sessionTitle, timestamp, timestamp, workspace || null, sessionBranch);
+        sessionRowExists = true;
       } else {
         db.prepare('UPDATE sessions SET updated_at = ?, branch = COALESCE(branch, ?) WHERE id = ?')
           .run(timestamp, sessionBranch, finalSessionId);
@@ -257,6 +273,7 @@ export async function POST(req: Request) {
       console.error('[DB] Failed to log user/session', e);
       // Don't block chat on DB error
     }
+    markInitStage('db-user-message');
 
     // Create background job entry for incremental persistence
     const backgroundJobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -280,6 +297,7 @@ export async function POST(req: Request) {
     } catch (e) {
       console.error('[DB] Failed to create background job', e);
     }
+    markInitStage('db-background-job');
 
     // Helper function to persist assistant message incrementally
     const persistAssistantMessageIncremental = async (
@@ -358,16 +376,26 @@ export async function POST(req: Request) {
 
     const workspaceRoot = resolveWorkspaceRoot(workspace);
     let undoRestoreId: string | undefined;
+    let undoCheckpointAttempted = false;
     const fallbackFileUndoMap = new Map<string, FileUndoFallbackEntry>();
 
-    if (userMessageDbId && Number.isFinite(userMessageDbId) && userMessageDbId > 0) {
+    const ensureUndoCheckpoint = async () => {
+      if (undoCheckpointAttempted) {
+        return;
+      }
+      undoCheckpointAttempted = true;
+
+      if (!userMessageDbId || !Number.isFinite(userMessageDbId) || userMessageDbId <= 0) {
+        return;
+      }
+
       const checkpointResult = await core.createUndoCheckpoint(`Undo snapshot before message #${userMessageDbId}`);
       if (checkpointResult.success) {
         undoRestoreId = checkpointResult.restoreId;
       } else {
         console.info('[chat] undo checkpoint unavailable, using file-level fallback only:', checkpointResult.error);
       }
-    }
+    };
 
     let fullResponse = '';
     let persistedAssistantContent = '';
@@ -809,7 +837,13 @@ export async function POST(req: Request) {
             type: 'init',
             session_id: finalSessionId,
             model: targetModel,
-            selected_agent: selectedAgentName || null
+            selected_agent: selectedAgentName || null,
+            benchmark_meta: profileInit
+              ? {
+                initStages,
+                totalMs: Math.round((performance.now() - requestStartedAt) * 100) / 100,
+              }
+              : undefined
           };
           safeEnqueue(initEvent);
 
@@ -840,6 +874,7 @@ export async function POST(req: Request) {
 
             else if (event.type === GeminiEventType.ToolCallRequest) {
               const info = event.value as ToolCallRequestInfo;
+              await ensureUndoCheckpoint();
               toolNameByCallId.set(info.callId, info.name);
               toolStartTimeByCallId.set(info.callId, Date.now());
               if (typeof info.checkpoint === 'string' && info.checkpoint) {
@@ -869,6 +904,7 @@ export async function POST(req: Request) {
               const output = toResultOutput(resultDisplay);
               const toolName = toolNameByCallId.get(info.callId);
               const checkpoint = checkpointByCallId.get(info.callId);
+              const startTime = toolStartTimeByCallId.get(info.callId) || Date.now();
               toolNameByCallId.delete(info.callId);
               checkpointByCallId.delete(info.callId);
               toolStartTimeByCallId.delete(info.callId);
@@ -900,8 +936,7 @@ export async function POST(req: Request) {
               });
 
               // Collect tool stats for batch insert
-              const startTime = toolStartTimeByCallId.get(info.callId) || Date.now();
-              const durationMs = Date.now() - startTime;
+              const durationMs = Math.max(Date.now() - startTime, 0);
               pendingToolStats.push({
                 tool_name: toolName || 'unknown',
                 session_id: sessionId || null,
