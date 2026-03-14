@@ -149,7 +149,7 @@ export async function POST(req: Request) {
         restoredByCheckpoint = true;
       }
 
-      const workspaceRoot = resolveWorkspaceRoot(workspace);
+      const workspaceRoot = resolveWorkspaceExecutionRoot(workspace, sessionId);
       const fallbackRestoredCount = await applyFallbackUndoFiles(fallbackFiles, workspaceRoot);
 
       const prunedResult = pruneMessageSubtree(sessionId, targetMessageId);
@@ -177,7 +177,7 @@ export async function POST(req: Request) {
       }
 
       const fallbackFiles = parseFallbackFiles(snapshot.fallback_files);
-      const workspaceRoot = resolveWorkspaceRoot(workspace);
+      const workspaceRoot = resolveWorkspaceExecutionRoot(workspace, sessionId);
       const fileChanges = await buildUndoPreview(fallbackFiles, workspaceRoot);
 
       return NextResponse.json({

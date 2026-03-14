@@ -7,9 +7,9 @@ function createGitRepo(path: string): SimpleGit {
     return simpleGit(path);
 }
 
-function runGit(path: string, args: string[]) {
+async function runGit(path: string, args: string[]) {
     const repo = createGitRepo(path);
-    return repo.raw(args).trim();
+    return (await repo.raw(args)).trim();
 }
 
 type FileDiffStat = {
@@ -43,23 +43,23 @@ function parseNumstat(raw: string): FileDiffStat[] {
         .filter((item): item is FileDiffStat => item !== null);
 }
 
-function getUncommittedStats(path: string): UncommittedStats {
+async function getUncommittedStats(path: string): Promise<UncommittedStats> {
     let unstagedRaw = '';
     let stagedRaw = '';
     let untrackedRaw = '';
 
     try {
-        unstagedRaw = runGit(path, ['diff', '--numstat']);
+        unstagedRaw = await runGit(path, ['diff', '--numstat']);
     } catch {
         unstagedRaw = '';
     }
     try {
-        stagedRaw = runGit(path, ['diff', '--cached', '--numstat']);
+        stagedRaw = await runGit(path, ['diff', '--cached', '--numstat']);
     } catch {
         stagedRaw = '';
     }
     try {
-        untrackedRaw = runGit(path, ['ls-files', '--others', '--exclude-standard']);
+        untrackedRaw = await runGit(path, ['ls-files', '--others', '--exclude-standard']);
     } catch {
         untrackedRaw = '';
     }
@@ -119,14 +119,14 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const branch = runGit(path, ['rev-parse', '--abbrev-ref', 'HEAD']);
-        const uncommitted = getUncommittedStats(path);
+        const branch = await runGit(path, ['rev-parse', '--abbrev-ref', 'HEAD']);
+        const uncommitted = await getUncommittedStats(path);
 
         if (!includeList) {
             return NextResponse.json({ branch, uncommitted });
         }
 
-        const listRaw = runGit(path, ['for-each-ref', '--sort=-committerdate', '--format=%(refname:short)', 'refs/heads']);
+        const listRaw = await runGit(path, ['for-each-ref', '--sort=-committerdate', '--format=%(refname:short)', 'refs/heads']);
         const branches = listRaw
             .split('\n')
             .map((item) => item.trim())
@@ -156,15 +156,15 @@ export async function POST(req: NextRequest) {
         }
 
         try {
-            runGit(path, ['rev-parse', '--verify', `refs/heads/${branch}`]);
+            await runGit(path, ['rev-parse', '--verify', `refs/heads/${branch}`]);
         } catch {
             return NextResponse.json({ error: `Branch "${branch}" does not exist locally` }, { status: 400 });
         }
 
-        runGit(path, ['checkout', branch]);
-        const currentBranch = runGit(path, ['rev-parse', '--abbrev-ref', 'HEAD']);
-        const uncommitted = getUncommittedStats(path);
-        const listRaw = runGit(path, ['for-each-ref', '--sort=-committerdate', '--format=%(refname:short)', 'refs/heads']);
+        await runGit(path, ['checkout', branch]);
+        const currentBranch = await runGit(path, ['rev-parse', '--abbrev-ref', 'HEAD']);
+        const uncommitted = await getUncommittedStats(path);
+        const listRaw = await runGit(path, ['for-each-ref', '--sort=-committerdate', '--format=%(refname:short)', 'refs/heads']);
         const branches = listRaw
             .split('\n')
             .map((item) => item.trim())

@@ -370,7 +370,7 @@ export async function POST(req: Request) {
       }
     };
 
-    const workspaceRoot = resolveWorkspaceRoot(workspace);
+    const workspaceRoot = resolveWorkspaceExecutionRoot(workspace, sessionId);
     let undoRestoreId: string | undefined;
     let undoCheckpointAttempted = false;
     const fallbackFileUndoMap = new Map<string, FileUndoFallbackEntry>();

@@ -660,8 +660,8 @@ export default function Home() {
   }, []);
 
   const scheduleSessionRefresh = useCallback((sessionId: string, notifyOnError = true) => {
-    let refreshPromise!: Promise<void>;
-    refreshPromise = (async () => {
+    const refreshState: { promise: Promise<void> | null } = { promise: null };
+    const refreshPromise = (async () => {
       try {
         await fetchSessions();
         if (currentSessionIdRef.current === sessionId) {
@@ -674,12 +674,13 @@ export default function Home() {
           showWarningToast(`Session updated but failed to refresh: ${errorMsg}`);
         }
       } finally {
-        if (pendingSessionRefreshRef.current?.promise === refreshPromise) {
+        if (pendingSessionRefreshRef.current?.promise === refreshState.promise) {
           pendingSessionRefreshRef.current = null;
         }
       }
     })();
 
+    refreshState.promise = refreshPromise;
     pendingSessionRefreshRef.current = { sessionId, promise: refreshPromise };
     return refreshPromise;
   }, [fetchSessions, loadSessionTree, showWarningToast]);

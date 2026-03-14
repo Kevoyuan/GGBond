@@ -627,7 +627,7 @@ export const ChatInput = React.memo(function ChatInput({
 
     const fetchAgents = async () => {
       try {
-        const { response, data } = await fetchJsonWithRetry<{ agents?: AgentDefinition[] }>('/api/agents');
+        const { response, data } = await fetchJsonWithRetry<{ agents?: AgentItem[] }>('/api/agents');
         if (!response.ok) return;
         setAgentRecords(data.agents || []);
       } catch (error) {
