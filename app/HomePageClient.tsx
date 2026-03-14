@@ -660,7 +660,8 @@ export default function Home() {
   }, []);
 
   const scheduleSessionRefresh = useCallback((sessionId: string, notifyOnError = true) => {
-    const refreshPromise = (async () => {
+    let refreshPromise!: Promise<void>;
+    refreshPromise = (async () => {
       try {
         await fetchSessions();
         if (currentSessionIdRef.current === sessionId) {
