@@ -73,3 +73,5 @@ gemini-home/
 *.html
 next-env.d.ts
 tsconfig.tsbuildinfo
+script.js
+style.css
