@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Lazy load all heavy components - only load when tab is active
 const AnalyticsDashboard = lazy(() => import('./modules/analytics/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
+const NerdStatsPanel = lazy(() => import('./modules/analytics/NerdStatsPanel').then(m => ({ default: m.NerdStatsPanel })));
 const PerformancePanel = lazy(() => import('./modules/analytics/PerformancePanel').then(m => ({ default: m.PerformancePanel })));
 const ToolStatsPanel = lazy(() => import('./modules/analytics/ToolStatsPanel').then(m => ({ default: m.ToolStatsPanel })));
 const FileHeatmapPanel = lazy(() => import('./modules/analytics/FileHeatmapPanel').then(m => ({ default: m.FileHeatmapPanel })));
@@ -69,6 +70,7 @@ interface ModulesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspacePath?: string | null;
+  currentSessionId?: string | null;
 }
 
 const SectionTitle = memo(function SectionTitle({ title, description, icon }: { title: string; description: string; icon: React.ReactNode }) {
@@ -121,7 +123,7 @@ const TabButton = React.memo(function TabButton({
   );
 });
 
-export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange, workspacePath }: ModulesDialogProps) {
+export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange, workspacePath, currentSessionId }: ModulesDialogProps) {
   const [activeTab, setActiveTab] = useState<TabId>('analytics');
   const [isLoaded, setIsLoaded] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
@@ -274,6 +276,9 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange, w
                       icon={<TrendingUp size={20} />}
                     />
                     <div className="grid lg:grid-cols-2 gap-6">
+                      <div className="lg:col-span-2">
+                        <Suspense fallback={<ModuleLoader />}><NerdStatsPanel currentSessionId={currentSessionId} /></Suspense>
+                      </div>
                       <div className="lg:col-span-2">
                         <Suspense fallback={<ModuleLoader />}><AnalyticsDashboard /></Suspense>
                       </div>

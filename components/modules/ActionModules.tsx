@@ -192,6 +192,8 @@ interface AuthInfo {
   userId?: string;
   hasOAuthCreds: boolean;
   hasApiKey: boolean;
+  tier?: string;
+  tierId?: string;
 }
 
 export const AuthManager = memo(function AuthManager() {
@@ -221,6 +223,7 @@ export const AuthManager = memo(function AuthManager() {
     'gemini-api-key': 'API Key',
     'vertex-ai': 'Vertex AI',
     'adc': 'Application Default Credentials',
+    'compute-default-credentials': 'Application Default Credentials',
   };
 
   return (
@@ -240,6 +243,11 @@ export const AuthManager = memo(function AuthManager() {
             <div>
               <div className="font-bold text-sm text-emerald-900 dark:text-emerald-100">Authenticated</div>
               <div className="text-xs font-mono text-emerald-700/80 dark:text-emerald-400/80">{authTypeLabels[auth.type] || auth.type}</div>
+              {auth.tier && (
+                <div className="mt-1 text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
+                  {auth.tier}
+                </div>
+              )}
             </div>
           </div>
         </div>

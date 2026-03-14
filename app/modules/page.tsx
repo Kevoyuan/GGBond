@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, BarChart3, MessageSquare, Settings, Brain, Palette } from 'lucide-react';
 import { AnalyticsDashboard } from '../../components/modules/analytics/AnalyticsDashboard';
+import { NerdStatsPanel } from '../../components/modules/analytics/NerdStatsPanel';
 import { PerformancePanel } from '../../components/modules/analytics/PerformancePanel';
 import { ToolStatsPanel } from '../../components/modules/analytics/ToolStatsPanel';
 import { FileHeatmapPanel } from '../../components/modules/analytics/FileHeatmapPanel';
@@ -117,6 +118,9 @@ export default function ModulesPage() {
             <section>
               <SectionTitle title="📊 Monitoring & Analytics" description="Token usage, cost tracking, and performance telemetry" />
               <div className="grid md:grid-cols-3 gap-4">
+                <div className="md:col-span-3">
+                  <NerdStatsPanel />
+                </div>
                 <div className="md:col-span-3">
                   <AnalyticsDashboard />
                 </div>
