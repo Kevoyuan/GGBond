@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User, Info, BookOpen, Layout, Laptop, Keyboard, Monitor, Key, Bug, Github, FileCode, Eye, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
+import { fetchJsonWithRetry } from '@/lib/client-fetch';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ModelSelector } from './ModelSelector';
 import { useChatContext } from '@/app/contexts/ChatContext';
@@ -407,11 +408,13 @@ export const ChatInput = React.memo(function ChatInput({
       : 'Auto';
   const routingTone = isGeneralistRouted ? 'success' : routedAgentName ? 'info' : 'default';
   const profileSourceLabel = hasWorkspaceOverride ? 'Workspace Override' : 'Inherits Global';
+  const isTemporarySession = !workspacePath?.trim();
   const shouldShowRouting = Boolean(routedAgentName);
   const shouldShowModel = effectiveModel !== currentModel;
   const shouldShowProfile = effectiveProfile !== 'default';
   const shouldShowSource = hasWorkspaceOverride;
-  const hasVisibleStatusPills = shouldShowRouting || shouldShowModel || shouldShowProfile || shouldShowSource || hasAgentOverride || mode === 'plan';
+  const hasVisibleStatusPills =
+    shouldShowRouting || shouldShowModel || shouldShowProfile || shouldShowSource || hasAgentOverride || mode === 'plan' || isTemporarySession;
 
   // Calculate context usage - prefer real-time branch usage from currentContextUsage
   const { pricing } = getModelInfo(currentModel);
@@ -601,42 +604,45 @@ export const ChatInput = React.memo(function ChatInput({
   }, [selectedIndex, showCommands]);
 
   useEffect(() => {
-    // Fetch installed skills
     const fetchSkills = async () => {
       try {
-        const res = await fetch('/api/skills');
-        if (res.ok) {
-          const skills: SkillRecord[] = await res.json();
-          setSkillRecords(skills);
-          const skillCommands = skills
-            .filter((skill) => skill.status === 'Enabled')
-            .map((skill) => ({
-              command: `${SKILL_COMMAND_PREFIX}${skill.id}`,
-              description: skill.description || `Use ${skill.name} skill`,
-              icon: Sparkles,
-              group: 'Skills'
-            }));
-          setInstalledSkills(skillCommands);
-        }
+        const { response, data } = await fetchJsonWithRetry<SkillRecord[]>('/api/skills');
+        if (!response.ok) return;
+
+        const skills: SkillRecord[] = data;
+        setSkillRecords(skills);
+        const skillCommands = skills
+          .filter((skill) => skill.status === 'Enabled')
+          .map((skill) => ({
+            command: `${SKILL_COMMAND_PREFIX}${skill.id}`,
+            description: skill.description || `Use ${skill.name} skill`,
+            icon: Sparkles,
+            group: 'Skills'
+          }));
+        setInstalledSkills(skillCommands);
       } catch (error) {
         console.error('Failed to fetch skills for autocomplete', error);
       }
     };
-    fetchSkills();
 
-    // Fetch agents
     const fetchAgents = async () => {
       try {
-        const res = await fetch('/api/agents');
-        if (res.ok) {
-          const data = await res.json();
-          setAgentRecords(data.agents || []);
-        }
+        const { response, data } = await fetchJsonWithRetry<{ agents?: AgentDefinition[] }>('/api/agents');
+        if (!response.ok) return;
+        setAgentRecords(data.agents || []);
       } catch (error) {
         console.error('Failed to fetch agents for autocomplete', error);
       }
     };
-    fetchAgents();
+
+    const refreshRegistry = () => {
+      void fetchSkills();
+      void fetchAgents();
+    };
+
+    refreshRegistry();
+    window.addEventListener('focus', refreshRegistry);
+    return () => window.removeEventListener('focus', refreshRegistry);
   }, []);
 
   useEffect(() => {
@@ -1983,32 +1989,46 @@ export const ChatInput = React.memo(function ChatInput({
             </button>
 
             {hasVisibleStatusPills && (
-              <div className="flex flex-wrap items-center gap-2">
-                {shouldShowRouting && (
-                  <StatusPill label="Routing" value={routingLabel} tone={routingTone} />
-                )}
-                {shouldShowModel && (
-                  <StatusPill label="Model" value={effectiveModel} tone="info" />
-                )}
-                {shouldShowProfile && (
-                  <StatusPill label="Profile" value={formatProfileLabel(effectiveProfile)} tone="default" />
-                )}
-                {shouldShowSource && (
-                  <StatusPill
-                    label="Source"
-                    value={profileSourceLabel}
-                    tone="success"
-                  />
-                )}
-                {hasAgentOverride && routedAgentRecordResolved?.modelConfig?.model && (
-                  <StatusPill
-                    label="Agent Override"
-                    value={routedAgentRecordResolved.modelConfig.model}
-                    tone="warning"
-                  />
-                )}
-                {mode === 'plan' && (
-                  <PlanModeIndicator mode={mode} compact status={planStatus} />
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {shouldShowRouting && (
+                    <StatusPill label="Routing" value={routingLabel} tone={routingTone} />
+                  )}
+                  {shouldShowModel && (
+                    <StatusPill label="Model" value={effectiveModel} tone="info" />
+                  )}
+                  {shouldShowProfile && (
+                    <StatusPill label="Profile" value={formatProfileLabel(effectiveProfile)} tone="default" />
+                  )}
+                  {shouldShowSource && (
+                    <StatusPill
+                      label="Source"
+                      value={profileSourceLabel}
+                      tone="success"
+                    />
+                  )}
+                  {hasAgentOverride && routedAgentRecordResolved?.modelConfig?.model && (
+                    <StatusPill
+                      label="Agent Override"
+                      value={routedAgentRecordResolved.modelConfig.model}
+                      tone="warning"
+                    />
+                  )}
+                  {isTemporarySession && (
+                    <StatusPill
+                      label="Session"
+                      value="Temp Output"
+                      tone="warning"
+                    />
+                  )}
+                  {mode === 'plan' && (
+                    <PlanModeIndicator mode={mode} compact status={planStatus} />
+                  )}
+                </div>
+                {isTemporarySession && (
+                  <p className="text-[11px] text-muted-foreground">
+                    No workspace selected. Generated files stay in a per-chat temporary folder until you open a project.
+                  </p>
                 )}
               </div>
             )}

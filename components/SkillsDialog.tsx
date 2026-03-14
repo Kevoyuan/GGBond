@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { X, Plug, AlertCircle, Loader2, Play, Trash, Plus, Download, Search, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Skill } from '@/app/api/skills/route';
+import { Skill } from '@/legacy-api/skills/route';
+import { fetchJsonWithRetry } from '@/lib/client-fetch';
 
 interface SkillsDialogProps {
   open: boolean;
@@ -34,9 +35,8 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/skills');
-      if (!res.ok) throw new Error('Failed to fetch skills');
-      const data = await res.json();
+      const { response, data } = await fetchJsonWithRetry<Skill[]>('/api/skills');
+      if (!response.ok) throw new Error('Failed to fetch skills');
       setSkills(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

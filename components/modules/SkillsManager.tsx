@@ -9,6 +9,7 @@ import { PanelHeader } from '../sidebar/PanelHeader';
 import { SkillPreviewDialog } from '../SkillPreviewDialog';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useConfirmDelete } from '@/hooks/useConfirmDelete';
+import { fetchJsonWithRetry } from '@/lib/client-fetch';
 
 interface Skill {
     id: string;
@@ -154,6 +155,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
     const [skills, setSkills] = useState<Skill[]>([]);
     const [sources, setSources] = useState<SkillSource[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [scopeFilter, setScopeFilter] = useState<'all' | 'global' | 'project'>('all');
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [internalSearch, setInternalSearch] = useState('');
@@ -171,9 +173,14 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
 
     const fetchSkills = () => {
         setLoading(true);
-        fetch('/api/skills?meta=1')
-            .then(r => r.json())
-            .then(data => {
+        setLoadError(null);
+        fetchJsonWithRetry<{ skills?: Skill[]; sources?: SkillSource[] } | Skill[]>('/api/skills?meta=1')
+            .then(({ response, data }) => {
+                if (!response.ok) {
+                    setLoadError('Skill registry is temporarily unavailable.');
+                    return null;
+                }
+
                 const normalizeSkills = (items: unknown[]): Skill[] => {
                     return items
                         .filter((item): item is Partial<Skill> & { id: string; name: string } => {
@@ -195,16 +202,24 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                 if (Array.isArray(data)) {
                     setSkills(normalizeSkills(data));
                     setSources([]);
-                    return;
+                    return null;
                 }
                 setSkills(normalizeSkills(Array.isArray(data?.skills) ? data.skills : []));
                 setSources(Array.isArray(data?.sources) ? data.sources : []);
             })
-            .catch(console.error)
+            .catch((error) => {
+                console.error('Failed to load skills:', error);
+                setLoadError('Skill registry is temporarily unavailable.');
+            })
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { fetchSkills(); }, []);
+    useEffect(() => {
+        fetchSkills();
+        const onFocus = () => { fetchSkills(); };
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
+    }, []);
 
     const handleAction = useCallback(async (action: string, name?: string) => {
         if ((action === 'enable' || action === 'disable' || action === 'uninstall') && !name) return;
@@ -289,6 +304,11 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
     const body = (
         <div className={cn("space-y-4 flex flex-col min-h-0 overflow-hidden", compact ? "flex-1" : "h-full")}>
             <div className="space-y-3 pb-1">
+                {loadError && (
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-500/5 dark:text-amber-300">
+                        {loadError}
+                    </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                     <button
                         onClick={() => setStatusFilter(prev => prev === 'enabled' ? 'all' : 'enabled')}
@@ -452,7 +472,9 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
                                     <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-full mb-3">
                                         <Puzzle size={24} className="text-zinc-500" />
                                     </div>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">No matching skills</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                                        {loadError ? 'Skills unavailable' : 'No matching skills'}
+                                    </p>
                                 </motion.div>
                             ) : (
                                 filteredSkills.slice(0, displayLimit).map((skill) => (

@@ -17,7 +17,7 @@ function hasReactCompilerPlugin() {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
+  output: 'export',
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion', '@xyflow/react', 'react-markdown'],
   },

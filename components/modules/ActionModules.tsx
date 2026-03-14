@@ -192,6 +192,8 @@ interface AuthInfo {
   userId?: string;
   hasOAuthCreds: boolean;
   hasApiKey: boolean;
+  tier?: string;
+  tierId?: string;
 }
 
 export const AuthManager = memo(function AuthManager() {
@@ -221,6 +223,7 @@ export const AuthManager = memo(function AuthManager() {
     'gemini-api-key': 'API Key',
     'vertex-ai': 'Vertex AI',
     'adc': 'Application Default Credentials',
+    'compute-default-credentials': 'Application Default Credentials',
   };
 
   return (
@@ -240,6 +243,11 @@ export const AuthManager = memo(function AuthManager() {
             <div>
               <div className="font-bold text-sm text-emerald-900 dark:text-emerald-100">Authenticated</div>
               <div className="text-xs font-mono text-emerald-700/80 dark:text-emerald-400/80">{authTypeLabels[auth.type] || auth.type}</div>
+              {auth.tier && (
+                <div className="mt-1 text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
+                  {auth.tier}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -313,14 +321,21 @@ export const AuthManager = memo(function AuthManager() {
 });
 
 // ─── Module 15: File Manager ─────────────────────────────
-export const FileManager = memo(function FileManager() {
+interface FileManagerProps {
+  workspacePath?: string | null;
+}
+
+export const FileManager = memo(function FileManager({ workspacePath }: FileManagerProps) {
   const [files, setFiles] = useState<any[]>([]);
   const [currentPath, setCurrentPath] = useState('');
   const [loading, setLoading] = useState(true);
 
   const fetchFiles = (p?: string) => {
     setLoading(true);
-    const url = p ? `/api/files?path=${encodeURIComponent(p)}&ignore=0` : '/api/files?ignore=0';
+    const targetPath = p || workspacePath || undefined;
+    const url = targetPath
+      ? `/api/files?path=${encodeURIComponent(targetPath)}&ignore=0`
+      : '/api/files?ignore=0';
     fetch(url)
       .then(r => r.json())
       .then(data => {
@@ -331,7 +346,7 @@ export const FileManager = memo(function FileManager() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchFiles(); }, []);
+  useEffect(() => { fetchFiles(); }, [workspacePath]);
 
   const getIcon = (type: string, ext: string | null) => {
     if (type === 'directory') return <Folder size={14} className="text-blue-500 fill-blue-500/20" />;

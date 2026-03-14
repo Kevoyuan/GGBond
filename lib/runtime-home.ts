@@ -68,6 +68,46 @@ export const resolveRuntimeHome = () => {
   return home;
 };
 
+export const resolveDefaultWorkspaceRoot = () => {
+  const explicit = normalizeHome(process.env.GGBOND_DEFAULT_CWD || '');
+  if (explicit) {
+    return explicit;
+  }
+
+  return process.cwd();
+};
+
+export const resolveSystemTempRoot = () => {
+  const explicit = normalizeHome(process.env.GGBOND_TEMP_DIR || '');
+  if (explicit) {
+    fs.mkdirSync(explicit, { recursive: true });
+    return explicit;
+  }
+
+  const tempRoot = path.join(os.tmpdir(), 'ggbond');
+  fs.mkdirSync(tempRoot, { recursive: true });
+  return tempRoot;
+};
+
+export const resolveDefaultSessionWorkspaceRoot = (sessionId?: string | null) => {
+  const safeSessionId = String(sessionId || 'default')
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'default';
+  const sessionRoot = path.join(resolveSystemTempRoot(), 'sessions', safeSessionId);
+  fs.mkdirSync(sessionRoot, { recursive: true });
+  return sessionRoot;
+};
+
+export const resolveWorkspaceExecutionRoot = (workspace: unknown, sessionId?: string | null) => {
+  const trimmedWorkspace = typeof workspace === 'string' ? workspace.trim() : '';
+  if (trimmedWorkspace && trimmedWorkspace !== 'Default') {
+    return path.resolve(trimmedWorkspace);
+  }
+
+  return resolveDefaultSessionWorkspaceRoot(sessionId);
+};
+
 export const resolveGeminiConfigDir = (homeOverride?: string) => {
   const baseHome = homeOverride || resolveRuntimeHome();
   return path.basename(baseHome) === '.gemini'
