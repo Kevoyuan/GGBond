@@ -7,6 +7,13 @@ interface Agent {
   description: string;
   kind: 'local' | 'remote';
   experimental?: boolean;
+  agentCardUrl?: string;
+  authSummary?: {
+    configured: boolean;
+    type: string;
+    scheme?: string;
+    requiresAgentCardAuth?: boolean;
+  };
 }
 
 interface AppState {

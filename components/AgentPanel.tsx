@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { User, Sparkles, Shield, Cpu, ExternalLink, Play, RefreshCw, Layers, Plus, Trash, Link2, Search, SlidersHorizontal, Loader2, Ban, CheckCircle2, BookOpen, AlertCircle, FolderSearch, PlusCircle } from 'lucide-react';
+import { User, Sparkles, Shield, Cpu, ExternalLink, Play, RefreshCw, Layers, Plus, Trash, Link2, Search, SlidersHorizontal, Loader2, Ban, CheckCircle2, BookOpen, AlertCircle, FolderSearch, PlusCircle, KeyRound, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CreateAgentDialog } from './CreateAgentDialog';
 import { AgentPreviewDialog } from './AgentPreviewDialog';
@@ -23,6 +23,13 @@ interface AgentDefinition {
     kind: 'local' | 'remote';
     experimental?: boolean;
     content?: string;
+    agentCardUrl?: string;
+    authSummary?: {
+        configured: boolean;
+        type: string;
+        scheme?: string;
+        requiresAgentCardAuth?: boolean;
+    };
 }
 
 interface AgentPanelProps {
@@ -234,6 +241,14 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
 
     const builtInCount = agents.filter(a => !isUserAgent(a.name)).length;
     const userCount = agents.filter(a => isUserAgent(a.name)).length;
+    const formatAuthLabel = (agent: AgentDefinition) => {
+        if (!agent.authSummary?.configured) return null;
+        if (agent.authSummary.type === 'http') {
+            return agent.authSummary.scheme ? `HTTP ${agent.authSummary.scheme}` : 'HTTP auth';
+        }
+        if (agent.authSummary.type === 'apiKey') return 'API key';
+        return agent.authSummary.type;
+    };
 
     return (
         <div
@@ -488,6 +503,26 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium line-clamp-2 leading-tight h-[28px]">
                                                         {agent.description}
                                                     </p>
+                                                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                                        {agent.kind === 'remote' && (
+                                                            <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/20 bg-purple-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-purple-500">
+                                                                <ExternalLink size={10} />
+                                                                Remote
+                                                            </span>
+                                                        )}
+                                                        {agent.authSummary?.requiresAgentCardAuth && (
+                                                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-500">
+                                                                <Lock size={10} />
+                                                                Auth required
+                                                            </span>
+                                                        )}
+                                                        {formatAuthLabel(agent) && (
+                                                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-500">
+                                                                <KeyRound size={10} />
+                                                                {formatAuthLabel(agent)}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <button
                                                     onClick={(e) => handleUseAgent(e, agent.name)}

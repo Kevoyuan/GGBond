@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Check, FileText, Server, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DiffBlock } from './DiffBlock';
@@ -37,11 +37,12 @@ export interface ConfirmationDetails {
 interface ConfirmationDialogProps {
     details: ConfirmationDetails;
     onConfirm: (mode?: 'once' | 'session') => void;
-    onCancel: () => void;
+    onCancel: (feedback?: string) => void;
     bottomOffset?: number;
 }
 
 export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset = 120 }: ConfirmationDialogProps) {
+    const [planFeedback, setPlanFeedback] = useState('');
     const {
         type,
         title,
@@ -53,6 +54,10 @@ export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset 
         toolDisplayName,
         prompt,
     } = details;
+
+    useEffect(() => {
+        setPlanFeedback('');
+    }, [details]);
 
     const handleOpenPlan = async () => {
         const planPath = typeof details.planPath === 'string' ? details.planPath.trim() : '';
@@ -151,13 +156,22 @@ export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset 
                                 1. Optionally open the plan in an external editor and make changes.
                             </p>
                             <p className="text-sm text-muted-foreground">
-                                2. Return here and continue once the plan looks ready for implementation.
+                                2. Approve it to start implementation, or send feedback to request another revision.
                             </p>
                             {details.planPath && (
                                 <div className="rounded-md border border-border/70 bg-black/25 px-2.5 py-2 font-mono text-xs text-zinc-100 break-all">
                                     {details.planPath}
                                 </div>
                             )}
+                            <label className="block space-y-1">
+                                <span className="text-xs font-medium text-muted-foreground">Feedback for another revision</span>
+                                <textarea
+                                    value={planFeedback}
+                                    onChange={(event) => setPlanFeedback(event.target.value)}
+                                    placeholder="Optional: ask Gemini to revise the plan before implementation."
+                                    className="min-h-20 w-full rounded-md border border-border/70 bg-background px-2.5 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                />
+                            </label>
                         </div>
                     )}
                 </div>
@@ -172,10 +186,10 @@ export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset 
                         </button>
                     )}
                     <button
-                        onClick={onCancel}
+                        onClick={() => onCancel(type === 'exit_plan_mode' ? planFeedback : undefined)}
                         className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                     >
-                        Cancel
+                        {type === 'exit_plan_mode' ? 'Request Changes' : 'Cancel'}
                     </button>
                     {showAllowSession && (
                         <button

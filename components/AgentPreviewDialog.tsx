@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader2, Play, Check, Folder, Cpu, AlertCircle, Activity, ExternalLink, Shield } from 'lucide-react';
+import { X, Loader2, Play, Check, Folder, Cpu, AlertCircle, Activity, ExternalLink, Shield, KeyRound, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ModelSelector } from './ModelSelector';
 import ReactMarkdown from 'react-markdown';
@@ -14,6 +14,13 @@ interface AgentDefinition {
     kind: 'local' | 'remote';
     experimental?: boolean;
     content?: string;
+    agentCardUrl?: string;
+    authSummary?: {
+        configured: boolean;
+        type: string;
+        scheme?: string;
+        requiresAgentCardAuth?: boolean;
+    };
 }
 
 interface AgentPreviewDialogProps {
@@ -50,6 +57,12 @@ export function AgentPreviewDialog({ open, onOpenChange, agent, onSuccess }: Age
     const handleClose = () => {
         onOpenChange(false);
     };
+
+    const authLabel = agent?.authSummary?.type === 'http'
+        ? (agent.authSummary.scheme ? `HTTP ${agent.authSummary.scheme}` : 'HTTP auth')
+        : agent?.authSummary?.type === 'apiKey'
+            ? 'API key'
+            : agent?.authSummary?.type;
 
     const handleRun = async () => {
         if (!agent || !task.trim()) return;
@@ -176,7 +189,49 @@ export function AgentPreviewDialog({ open, onOpenChange, agent, onSuccess }: Age
                                 <p className="text-sm text-foreground/80 leading-relaxed font-medium">
                                     {agent.description}
                                 </p>
+                                {agent.kind === 'remote' && (
+                                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                                        {agent.authSummary?.requiresAgentCardAuth && (
+                                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-500">
+                                                <Lock className="w-3 h-3" />
+                                                Agent card requires auth
+                                            </span>
+                                        )}
+                                        {authLabel && (
+                                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-500">
+                                                <KeyRound className="w-3 h-3" />
+                                                Configured: {authLabel}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
+
+                            {agent.kind === 'remote' && (
+                                <div className="rounded-xl border border-border/50 bg-background/70 p-4">
+                                    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Remote Agent Wiring</h3>
+                                    <div className="mt-3 space-y-2 text-sm text-foreground/75">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <span className="text-muted-foreground">Agent card</span>
+                                            <code className="text-right text-xs break-all rounded bg-muted px-2 py-1">{agent.agentCardUrl || 'Unknown'}</code>
+                                        </div>
+                                        <div className="flex items-start justify-between gap-3">
+                                            <span className="text-muted-foreground">Auth status</span>
+                                            <span className={cn(
+                                                "rounded px-2 py-1 text-xs font-semibold",
+                                                agent.authSummary?.configured
+                                                    ? "bg-emerald-500/10 text-emerald-500"
+                                                    : "bg-zinc-500/10 text-zinc-500"
+                                            )}>
+                                                {agent.authSummary?.configured ? 'Configured' : 'Not configured'}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs leading-relaxed text-muted-foreground">
+                                            Gemini CLI v0.33.0 supports authenticated A2A discovery and HTTP auth. If this agent needs credentials, configure them in the agent frontmatter before running it.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                             {agent.content && (
                                 <div className="space-y-3 pt-6 border-t border-border/50">

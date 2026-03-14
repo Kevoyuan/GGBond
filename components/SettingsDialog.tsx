@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Settings, Save, RotateCcw, Shield, Zap, Code2, Plus, Trash2, Wrench, Folder, FolderOpen, Terminal, Eye, EyeOff } from 'lucide-react';
+import { X, Settings, Save, RotateCcw, Shield, Zap, Code2, Plus, Trash2, Wrench, Folder, FolderOpen, Terminal, Eye, EyeOff, Clock3, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Select } from '@/components/ui/Select';
 
@@ -89,6 +89,20 @@ interface SettingsDialogProps {
   onSave: (settings: ChatSettings) => void;
 }
 
+interface CoreSettings {
+  general: {
+    sessionRetention: {
+      enabled: boolean;
+      maxAge: string;
+      maxCount?: number;
+      minRetention: string;
+    };
+  };
+  experimental: {
+    enableAgents: boolean;
+  };
+}
+
 const FALLBACK_MODELS = [
   { id: 'gemini-3.1-pro-preview', name: 'gemini-3.1-pro-preview', icon: Code2 },
   { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', icon: Code2 },
@@ -122,6 +136,19 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
     blockedCommandRegex: [],
     allowedRepoPatterns: [],
   });
+  const [coreSettings, setCoreSettings] = useState<CoreSettings>({
+    general: {
+      sessionRetention: {
+        enabled: true,
+        maxAge: '30d',
+        maxCount: 50,
+        minRetention: '1d',
+      },
+    },
+    experimental: {
+      enableAgents: true,
+    },
+  });
 
   // Fetch models, presets, custom tools, and config from API
   useEffect(() => {
@@ -131,7 +158,8 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
       fetch('/api/presets').then(r => r.json()).catch(() => ({ presets: [] })),
       fetch('/api/custom-tools').then(r => r.json()).catch(() => ({ tools: [] })),
       fetch('/api/config').then(r => r.json()).catch(() => ({})),
-    ]).then(([modelsData, presetsData, toolsData, configData]) => {
+      fetch('/api/settings').then(r => r.json()).catch(() => ({})),
+    ]).then(([modelsData, presetsData, toolsData, configData, geminiSettings]) => {
       // Set models
       const modelList: typeof FALLBACK_MODELS = (modelsData.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
         id: m.id,
@@ -166,6 +194,19 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
       if (configData.mcpSecurity) {
         setMcpSecurity(configData.mcpSecurity);
       }
+      setCoreSettings({
+        general: {
+          sessionRetention: {
+            enabled: geminiSettings?.general?.sessionRetention?.enabled ?? true,
+            maxAge: geminiSettings?.general?.sessionRetention?.maxAge ?? '30d',
+            maxCount: geminiSettings?.general?.sessionRetention?.maxCount ?? 50,
+            minRetention: geminiSettings?.general?.sessionRetention?.minRetention ?? '1d',
+          },
+        },
+        experimental: {
+          enableAgents: geminiSettings?.experimental?.enableAgents ?? true,
+        },
+      });
     }).catch(() => { });
   }, [open]);
 
@@ -208,6 +249,11 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
           mcpSecurity,
         }),
       });
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(coreSettings),
+      });
     } catch (error) {
       console.error('Failed to save config:', error);
     }
@@ -235,6 +281,19 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
         tokenBudget: 2000,
         maxRetries: 3,
       }
+    });
+    setCoreSettings({
+      general: {
+        sessionRetention: {
+          enabled: true,
+          maxAge: '30d',
+          maxCount: 50,
+          minRetention: '1d',
+        },
+      },
+      experimental: {
+        enableAgents: true,
+      },
     });
   };
 
@@ -450,6 +509,118 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
               <p className="text-xs text-muted-foreground">
                 Applies to normal models. Preview models retry less aggressively to keep the app responsive.
               </p>
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-4 border-t">
+            <h3 className="text-sm font-semibold">Gemini CLI v0.33.0</h3>
+
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Clock3 className="w-4 h-4 text-primary" />
+                    Session Retention
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Stable Gemini CLI now defaults to retaining chat history for 30 days. Control cleanup here instead of relying on implicit defaults.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={coreSettings.general.sessionRetention.enabled}
+                  onChange={(e) => setCoreSettings((prev) => ({
+                    ...prev,
+                    general: {
+                      sessionRetention: {
+                        ...prev.general.sessionRetention,
+                        enabled: e.target.checked,
+                      },
+                    },
+                  }))}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <label className="space-y-1">
+                  <span className="text-xs font-medium">Max Age</span>
+                  <input
+                    type="text"
+                    value={coreSettings.general.sessionRetention.maxAge}
+                    onChange={(e) => setCoreSettings((prev) => ({
+                      ...prev,
+                      general: {
+                        sessionRetention: {
+                          ...prev.general.sessionRetention,
+                          maxAge: e.target.value,
+                        },
+                      },
+                    }))}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-medium">Max Count</span>
+                  <input
+                    type="number"
+                    value={coreSettings.general.sessionRetention.maxCount ?? 50}
+                    onChange={(e) => setCoreSettings((prev) => ({
+                      ...prev,
+                      general: {
+                        sessionRetention: {
+                          ...prev.general.sessionRetention,
+                          maxCount: Number.isFinite(parseInt(e.target.value, 10)) ? parseInt(e.target.value, 10) : undefined,
+                        },
+                      },
+                    }))}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-medium">Min Retention</span>
+                  <input
+                    type="text"
+                    value={coreSettings.general.sessionRetention.minRetention}
+                    onChange={(e) => setCoreSettings((prev) => ({
+                      ...prev,
+                      general: {
+                        sessionRetention: {
+                          ...prev.general.sessionRetention,
+                          minRetention: e.target.value,
+                        },
+                      },
+                    }))}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Bot className="w-4 h-4 text-primary" />
+                    Experimental Agents
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Required for remote A2A agents and the new authenticated agent-card discovery flow introduced in Gemini CLI v0.33.0.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={coreSettings.experimental.enableAgents}
+                  onChange={(e) => setCoreSettings((prev) => ({
+                    ...prev,
+                    experimental: {
+                      ...prev.experimental,
+                      enableAgents: e.target.checked,
+                    },
+                  }))}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+              </div>
             </div>
           </div>
 

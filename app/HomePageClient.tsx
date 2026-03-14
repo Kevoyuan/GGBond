@@ -2562,7 +2562,7 @@ export default function Home() {
     });
   };
 
-  const handleConfirm = async (approved: boolean, mode: 'once' | 'session' = 'once') => {
+  const handleConfirm = async (approved: boolean, mode: 'once' | 'session' = 'once', feedback?: string) => {
     if (!confirmation) return;
     if (!confirmation.correlationId) {
       console.error('Missing confirmation correlationId');
@@ -2581,7 +2581,8 @@ export default function Home() {
         body: JSON.stringify({
           correlationId: pendingCorrelationId,
           confirmed: approved,
-          outcome
+          outcome,
+          payload: !approved && feedback?.trim() ? { feedback: feedback.trim() } : undefined
         })
       });
       setConfirmation((prev) => (
@@ -3076,7 +3077,7 @@ export default function Home() {
           <ConfirmationDialog
             details={confirmation.details}
             onConfirm={(mode) => void handleConfirm(true, mode)}
-            onCancel={() => void handleConfirm(false)}
+            onCancel={(feedback) => void handleConfirm(false, 'once', feedback)}
             bottomOffset={
               (showTerminal ? terminalPanelHeight : 0)
               + Math.max(80, inputAreaHeight)

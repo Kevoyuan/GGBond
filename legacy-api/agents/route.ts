@@ -4,6 +4,7 @@ import { CoreService } from '@/lib/core-service';
 import { Storage } from '@google/gemini-cli-core';
 import path from 'path';
 import fs from 'fs';
+import { load } from 'js-yaml';
 
 // Fallback built-in agents when CoreService is not available
 const FALLBACK_BUILT_IN_AGENTS = ['codebase-investigator', 'cli-help-agent', 'generalist-agent'];
@@ -27,6 +28,59 @@ function getCoreAgentDefinitions(): AgentDefinitionLike[] {
     }
 }
 
+type AgentAuthConfig =
+    | {
+        type: 'apiKey';
+        key?: string;
+        name?: string;
+        agent_card_requires_auth?: boolean;
+    }
+    | {
+        type: 'http';
+        scheme?: string;
+        token?: string;
+        username?: string;
+        password?: string;
+        value?: string;
+        agent_card_requires_auth?: boolean;
+    };
+
+type AgentAuthSummary = {
+    configured: boolean;
+    type: string;
+    scheme?: string;
+    requiresAgentCardAuth?: boolean;
+};
+
+type AgentDefinitionLike = {
+    name: string;
+    displayName?: string;
+    description?: string;
+    kind?: 'local' | 'remote' | string;
+    experimental?: boolean;
+    promptConfig?: {
+        systemPrompt?: string;
+    };
+    modelConfig?: {
+        model?: string;
+    };
+    content?: string;
+    agentCardUrl?: string;
+    auth?: AgentAuthConfig;
+    authSummary?: AgentAuthSummary;
+};
+
+const summarizeAuth = (auth?: AgentAuthConfig): AgentAuthSummary | undefined => {
+    if (!auth) return undefined;
+
+    return {
+        configured: true,
+        type: auth.type,
+        scheme: auth.type === 'http' ? auth.scheme : undefined,
+        requiresAgentCardAuth: Boolean(auth.agent_card_requires_auth),
+    };
+};
+
 // Dynamically get built-in agents from CoreService or fallback
 async function getBuiltInAgents(): Promise<string[]> {
     try {
@@ -45,55 +99,38 @@ async function getBuiltInAgents(): Promise<string[]> {
 }
 
 // Read agent definition from a markdown file
-function readAgentFromFile(filePath: string): { name: string; displayName?: string; description: string; kind: 'local' | 'remote'; experimental?: boolean; content?: string } | null {
+function readAgentFromFile(filePath: string): AgentDefinitionLike | null {
     try {
         const fullContent = fs.readFileSync(filePath, 'utf-8');
-        const lines = fullContent.split('\n');
+        const frontmatterMatch = fullContent.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+        if (!frontmatterMatch) return null;
 
-        let inFrontmatter = false;
-        const frontmatter: Record<string, string> = {};
+        const parsed = load(frontmatterMatch[1]);
+        const frontmatter = Array.isArray(parsed) ? parsed[0] : parsed;
+        if (!frontmatter || typeof frontmatter !== 'object') return null;
 
-        for (const line of lines) {
-            if (line.trim() === '---') {
-                if (!inFrontmatter) {
-                    inFrontmatter = true;
-                    continue;
-                } else {
-                    break;
-                }
-            }
-            if (inFrontmatter && line.includes(':')) {
-                const colonIndex = line.indexOf(':');
-                const key = line.substring(0, colonIndex).trim();
-                const value = line.substring(colonIndex + 1).trim();
-                frontmatter[key] = value;
-            }
-        }
+        const data = frontmatter as Record<string, unknown>;
+        const name = typeof data.name === 'string' ? data.name : '';
+        if (!name) return null;
 
-        if (!frontmatter.name) return null;
-
-        // Extract content after frontmatter
-        let content = '';
-        let dashCount = 0;
-        const contentLines = [];
-        for (const line of lines) {
-            if (line.trim() === '---') {
-                dashCount++;
-                continue;
-            }
-            if (dashCount >= 2) {
-                contentLines.push(line);
-            }
-        }
-        content = contentLines.join('\n').trim();
+        const kind = data.kind === 'remote' ? 'remote' : 'local';
+        const auth = (kind === 'remote' && data.auth && typeof data.auth === 'object')
+            ? data.auth as AgentAuthConfig
+            : undefined;
+        const content = frontmatterMatch[2]?.trim() || undefined;
 
         return {
-            name: frontmatter.name,
-            displayName: frontmatter.displayName || undefined,
-            description: frontmatter.description || '',
-            kind: (frontmatter.kind as 'local' | 'remote') || 'local',
-            experimental: frontmatter.experimental === 'true',
-            content: content || undefined,
+            name,
+            displayName: typeof data.display_name === 'string'
+                ? data.display_name
+                : (typeof data.displayName === 'string' ? data.displayName : undefined),
+            description: typeof data.description === 'string' ? data.description : '',
+            kind,
+            experimental: data.experimental === true || data.experimental === 'true',
+            content,
+            agentCardUrl: typeof data.agent_card_url === 'string' ? data.agent_card_url : undefined,
+            auth,
+            authSummary: summarizeAuth(auth),
         };
     } catch {
         return null;
@@ -101,7 +138,7 @@ function readAgentFromFile(filePath: string): { name: string; displayName?: stri
 }
 
 // Read all agents from user agents directory
-function getUserAgents(): { name: string; displayName?: string; description: string; kind: 'local' | 'remote'; experimental?: boolean; content?: string }[] {
+function getUserAgents(): AgentDefinitionLike[] {
     try {
         const userAgentsDir = Storage.getUserAgentsDir();
         if (!fs.existsSync(userAgentsDir)) {
@@ -109,7 +146,7 @@ function getUserAgents(): { name: string; displayName?: string; description: str
         }
 
         const files = fs.readdirSync(userAgentsDir);
-        const agents: { name: string; displayName?: string; description: string; kind: 'local' | 'remote'; experimental?: boolean }[] = [];
+        const agents: AgentDefinitionLike[] = [];
 
         for (const file of files) {
             if (!file.endsWith('.md')) continue;
@@ -142,20 +179,6 @@ function getUserAgents(): { name: string; displayName?: string; description: str
     }
 }
 
-type AgentDefinitionLike = {
-    name: string;
-    displayName?: string;
-    description?: string;
-    kind?: 'local' | 'remote' | string;
-    promptConfig?: {
-        systemPrompt?: string;
-    };
-    modelConfig?: {
-        model?: string;
-    };
-    content?: string;
-};
-
 async function fetchAgentsUncached() {
     try {
         // 1. Get user agents from disk (always fresh)
@@ -176,6 +199,9 @@ async function fetchAgentsUncached() {
                 description: agent.description,
                 kind: agent.kind,
                 content: agent.content,
+                agentCardUrl: agent.agentCardUrl,
+                auth: agent.auth,
+                authSummary: agent.authSummary ?? summarizeAuth(agent.auth),
                 promptConfig: agent.promptConfig ? { systemPrompt: agent.promptConfig.systemPrompt } : undefined,
                 modelConfig: agent.modelConfig ? { model: agent.modelConfig.model } : undefined,
             }));

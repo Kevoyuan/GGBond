@@ -329,7 +329,7 @@ export const ModulesDialog = memo(function ModulesDialog({ open, onOpenChange, w
                   <section>
                     <SectionTitle
                       title="Governance"
-                      description="Policy health, model steering, and execution guardrails — aligned with gemini-cli-core v0.32"
+                      description="Policy health, model steering, retention, and execution guardrails — aligned with gemini-cli-core v0.33"
                       icon={<Shield size={20} />}
                     />
                     <div className="grid lg:grid-cols-3 gap-6">
