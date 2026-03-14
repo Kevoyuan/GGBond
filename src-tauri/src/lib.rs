@@ -1,10 +1,10 @@
 mod pty;
 
-use std::process::Child;
-use std::sync::Mutex;
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
+use std::process::Child;
 use std::process::{Command, Stdio};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_sql::{Migration, MigrationKind};
@@ -51,7 +51,10 @@ fn resolve_sidecar_entry(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .ok()
         .map(|cwd| {
             vec![
-                cwd.join("src-tauri").join("resources").join("sidecar").join("server.js"),
+                cwd.join("src-tauri")
+                    .join("resources")
+                    .join("sidecar")
+                    .join("server.js"),
                 cwd.join("resources").join("sidecar").join("server.js"),
             ]
         })
@@ -268,6 +271,15 @@ fn resolve_db_path() -> String {
     // Candidate directories, ordered by priority (matching lib/db.ts resolveDbPath)
     let mut candidates: Vec<std::path::PathBuf> = Vec::new();
 
+    for env_key in &["GGBOND_DATA_HOME", "GGBOND_HOME", "GEMINI_CLI_HOME"] {
+        if let Ok(value) = std::env::var(env_key) {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                candidates.push(std::path::PathBuf::from(trimmed));
+            }
+        }
+    }
+
     // 1. macOS app data locations
     #[cfg(target_os = "macos")]
     {
@@ -289,9 +301,16 @@ fn resolve_db_path() -> String {
     }
 
     // 3. Legacy CWD-based location
-    candidates.push(std::env::current_dir().unwrap_or_default().join("gemini-home"));
+    candidates.push(
+        std::env::current_dir()
+            .unwrap_or_default()
+            .join("gemini-home"),
+    );
 
-    // 4. Fallback
+    // 4. Shared Gemini locations
+    candidates.push(home.join(".gemini"));
+
+    // 5. Fallback
     candidates.push(home.join(".ggbond"));
 
     // Check each candidate for an existing DB file first
@@ -310,7 +329,10 @@ fn resolve_db_path() -> String {
     }
 
     // Ultimate fallback
-    home.join(".ggbond").join("ggbond.db").to_string_lossy().to_string()
+    home.join(".ggbond")
+        .join("ggbond.db")
+        .to_string_lossy()
+        .to_string()
 }
 
 #[tauri::command]

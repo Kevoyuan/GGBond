@@ -51,17 +51,26 @@ export interface DbMessage {
 export const sessions = {
     async getAll(): Promise<Session[]> {
         const db = await getDb();
-        return db.select<Session[]>('SELECT * FROM sessions ORDER BY updated_at DESC');
+        return db.select<Session[]>(
+            "SELECT * FROM sessions WHERE workspace IS NOT NULL AND trim(workspace) <> '' ORDER BY updated_at DESC"
+        );
     },
 
     async get(id: string): Promise<Session | null> {
         const db = await getDb();
-        const rows = await db.select<Session[]>('SELECT * FROM sessions WHERE id = ?', [id]);
+        const rows = await db.select<Session[]>(
+            "SELECT * FROM sessions WHERE id = ? AND workspace IS NOT NULL AND trim(workspace) <> ''",
+            [id]
+        );
         return rows[0] || null;
     },
 
     async create(session: Partial<Session>): Promise<void> {
         const db = await getDb();
+        const workspace = typeof session.workspace === 'string' ? session.workspace.trim() : '';
+        if (!workspace) {
+            throw new Error('workspace is required');
+        }
         await db.execute(
             'INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch, archived) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [
@@ -69,7 +78,7 @@ export const sessions = {
                 session.title || 'New Chat',
                 session.created_at || Date.now(),
                 session.updated_at || Date.now(),
-                session.workspace || null,
+                workspace,
                 session.branch || null,
                 session.archived || 0
             ]
