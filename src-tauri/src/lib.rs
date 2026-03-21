@@ -263,76 +263,13 @@ fn get_sidecar_port(state: tauri::State<SidecarState>) -> u16 {
     }
 }
 
-/// Resolve the path to ggbond.db, checking known locations in order of priority.
-/// This mirrors the logic from the original lib/db.ts so we read the same database.
+/// Resolve the path to the single canonical desktop DB.
+/// Legacy locations are import-only sources handled by the Node layer.
 fn resolve_db_path() -> String {
     let home = dirs::home_dir().unwrap_or_default();
-
-    // Candidate directories, ordered by priority (matching lib/db.ts resolveDbPath)
-    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
-
-    for env_key in &["GGBOND_DATA_HOME", "GGBOND_HOME", "GEMINI_CLI_HOME"] {
-        if let Ok(value) = std::env::var(env_key) {
-            let trimmed = value.trim();
-            if !trimmed.is_empty() {
-                candidates.push(std::path::PathBuf::from(trimmed));
-            }
-        }
-    }
-
-    // 1. macOS app data locations
-    #[cfg(target_os = "macos")]
-    {
-        let app_support = home.join("Library").join("Application Support");
-        for name in &["ggbond", "GGBond", "gg-bond"] {
-            candidates.push(app_support.join(name).join("gemini-home"));
-            candidates.push(app_support.join(name));
-        }
-    }
-
-    // 2. Linux XDG locations
-    #[cfg(target_os = "linux")]
-    {
-        let data_dir = home.join(".local").join("share");
-        for name in &["ggbond", "GGBond", "gg-bond"] {
-            candidates.push(data_dir.join(name).join("gemini-home"));
-            candidates.push(data_dir.join(name));
-        }
-    }
-
-    // 3. Legacy CWD-based location
-    candidates.push(
-        std::env::current_dir()
-            .unwrap_or_default()
-            .join("gemini-home"),
-    );
-
-    // 4. Shared Gemini locations
-    candidates.push(home.join(".gemini"));
-
-    // 5. Fallback
-    candidates.push(home.join(".ggbond"));
-
-    // Check each candidate for an existing DB file first
-    for candidate in &candidates {
-        let db_file = candidate.join("ggbond.db");
-        if db_file.exists() {
-            return db_file.to_string_lossy().to_string();
-        }
-    }
-
-    // If no existing DB found, create in the first writable candidate
-    for candidate in &candidates {
-        if std::fs::create_dir_all(candidate).is_ok() {
-            return candidate.join("ggbond.db").to_string_lossy().to_string();
-        }
-    }
-
-    // Ultimate fallback
-    home.join(".ggbond")
-        .join("ggbond.db")
-        .to_string_lossy()
-        .to_string()
+    let gemini_dir = home.join(".gemini");
+    let _ = std::fs::create_dir_all(&gemini_dir);
+    gemini_dir.join("ggbond.db").to_string_lossy().to_string()
 }
 
 #[tauri::command]

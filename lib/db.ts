@@ -102,24 +102,12 @@ function ensureWritableDirectory(dirPath: string): boolean {
 }
 
 function resolveDbPath(): string {
-  const runtimeHome = resolveRuntimeHome();
-  const envHome = process.env.GGBOND_DATA_HOME?.trim() || process.env.GGBOND_HOME?.trim();
-  const candidates = [
-    runtimeHome,
-    envHome,
-    ...getDefaultDataHomes(),
-    LEGACY_HOME,
-    path.join(os.tmpdir(), 'ggbond'),
-  ].filter((candidate): candidate is string => Boolean(candidate && candidate.trim()));
-
-  const uniqueCandidates = [...new Set(candidates.map((candidate) => path.resolve(candidate)))];
-  for (const candidate of uniqueCandidates) {
-    if (ensureWritableDirectory(candidate)) {
-      return path.join(candidate, 'ggbond.db');
-    }
+  const canonicalGeminiDir = path.join(os.homedir(), '.gemini');
+  if (ensureWritableDirectory(canonicalGeminiDir)) {
+    return path.join(canonicalGeminiDir, 'ggbond.db');
   }
 
-  throw new Error('No writable directory available for SQLite database');
+  throw new Error(`Canonical Gemini DB directory is not writable: ${canonicalGeminiDir}`);
 }
 
 function migrateLegacyDbIfNeeded(targetDbPath: string) {

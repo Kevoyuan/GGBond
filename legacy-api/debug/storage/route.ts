@@ -23,6 +23,7 @@ export async function GET() {
       db: dbInfo,
       expectedPaths: {
         geminiDb: path.join(geminiConfigDir, 'ggbond.db'),
+        canonicalDb: path.join(os.homedir(), '.gemini', 'ggbond.db'),
         legacyAppSupportDb: path.join(os.homedir(), 'Library', 'Application Support', 'ggbond', 'gemini-home', 'ggbond.db'),
       },
       now: Date.now(),
