@@ -1,6 +1,7 @@
 import { NextResponse } from '@/src-sidecar/mock-next-server';
 import db from '@/lib/db';
 import { calculateCost } from '@/lib/pricing';
+import { normalizeTokenStats } from '@/lib/token-stats';
 import { addDays, endOfMonth, format, startOfDay, startOfMonth, startOfWeek, subMonths } from 'date-fns';
 
 interface StatEntry {
@@ -107,19 +108,35 @@ export async function GET(request: Request) {
 
     for (const msg of messages) {
       try {
-        const data = JSON.parse(msg.stats);
+        const data = normalizeTokenStats(JSON.parse(msg.stats));
+        if (!data) {
+          continue;
+        }
         const createdAtMs = toMillis(msg.created_at);
         const createdAt = new Date(createdAtMs);
 
-        // Normalize field names (CLI uses snake_case, UI might use camelCase)
-        const input = data.input_tokens || data.inputTokenCount || 0;
-        const output = data.output_tokens || data.outputTokenCount || 0;
-        const cached = data.cached_content_token_count || data.cached || data.cachedContentTokenCount || 0;
-        const total = data.total_tokens || data.totalTokenCount || (input + output);
-        const modelName = data.model || 'gemini-3-pro-preview';
-
-        // Use provided cost or calculate it
-        const cost = data.totalCost || calculateCost(input, output, cached, modelName);
+        const input = data.inputTokens;
+        const output = data.outputTokens;
+        const cached = data.cachedTokens;
+        const total = data.totalTokens || (input + output);
+        const modelBreakdown = data.perModelUsage.length > 0
+          ? data.perModelUsage
+          : [{
+            model: data.model || 'gemini-3-pro-preview',
+            inputTokens: input,
+            outputTokens: output,
+            cachedTokens: cached,
+            thoughtsTokens: data.thoughtsTokens,
+            totalTokens: total,
+          }];
+        const cost = data.totalCost || modelBreakdown.reduce((sum, entry) => (
+          sum + calculateCost(
+            entry.inputTokens,
+            entry.outputTokens,
+            entry.cachedTokens,
+            entry.model
+          )
+        ), 0);
 
         // Helper to accumulate
         const accumulate = (entry: StatEntry) => {
@@ -149,15 +166,20 @@ export async function GET(request: Request) {
           accumulate(stats.monthly);
         }
 
-        const modelTotal = Math.max(total, 0);
+        const perModelTotals = modelBreakdown.map((entry) => ({
+          model: entry.model || 'unknown',
+          totalTokens: Math.max(entry.totalTokens || (entry.inputTokens + entry.outputTokens), 0),
+        }));
 
         // Today hourly buckets
         if (createdAt >= dayStart) {
           const hourIndex = Math.floor((createdAtMs - dayStart.getTime()) / (60 * 60 * 1000));
           if (hourIndex >= 0 && hourIndex < 24) {
             const bucket = stats.breakdowns.todayHourly[hourIndex];
-            bucket.totalTokens += modelTotal;
-            bucket.models[modelName] = (bucket.models[modelName] || 0) + modelTotal;
+            bucket.totalTokens += total;
+            for (const perModel of perModelTotals) {
+              bucket.models[perModel.model] = (bucket.models[perModel.model] || 0) + perModel.totalTokens;
+            }
           }
         }
 
@@ -166,8 +188,10 @@ export async function GET(request: Request) {
           const dayIndex = Math.floor((createdAtMs - weekStart.getTime()) / (24 * 60 * 60 * 1000));
           if (dayIndex >= 0 && dayIndex < 7) {
             const bucket = stats.breakdowns.weekDaily[dayIndex];
-            bucket.totalTokens += modelTotal;
-            bucket.models[modelName] = (bucket.models[modelName] || 0) + modelTotal;
+            bucket.totalTokens += total;
+            for (const perModel of perModelTotals) {
+              bucket.models[perModel.model] = (bucket.models[perModel.model] || 0) + perModel.totalTokens;
+            }
           }
         }
 
@@ -176,8 +200,10 @@ export async function GET(request: Request) {
           const dayIndex = Math.floor((createdAtMs - monthStart.getTime()) / (24 * 60 * 60 * 1000));
           if (dayIndex >= 0 && dayIndex < monthDays) {
             const bucket = stats.breakdowns.monthDaily[dayIndex];
-            bucket.totalTokens += modelTotal;
-            bucket.models[modelName] = (bucket.models[modelName] || 0) + modelTotal;
+            bucket.totalTokens += total;
+            for (const perModel of perModelTotals) {
+              bucket.models[perModel.model] = (bucket.models[perModel.model] || 0) + perModel.totalTokens;
+            }
           }
         }
       } catch (e) {

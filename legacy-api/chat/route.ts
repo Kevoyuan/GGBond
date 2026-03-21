@@ -4,6 +4,7 @@ import { CoreService } from '@/lib/core-service';
 import db, { executeWithRetry, runNonBlockingAsync } from '@/lib/db';
 import { calculateCost } from '@/lib/pricing';
 import { resolveWorkspaceExecutionRoot } from '@/lib/runtime-home';
+import { normalizeTokenStats, type PerModelTokenUsage } from '@/lib/token-stats';
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';
@@ -413,6 +414,14 @@ export async function POST(req: Request) {
       cachedContentTokenCount: number;
       totalTokenCount: number;
       durationMs: number;
+      perModelUsage?: Array<{
+        model: string;
+        inputTokens: number;
+        outputTokens: number;
+        cachedTokens: number;
+        thoughtsTokens: number;
+        totalTokens: number;
+      }>;
     } | null = null;
 
     const flushIncrementalPersistence = async () => {
@@ -1017,18 +1026,40 @@ export async function POST(req: Request) {
               // model usage metadata
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const val = event.value as any;
-              const usage = val.usageMetadata;
-              const inputTokenCount = usage?.promptTokenCount || 0;
-              const outputTokenCount = usage?.candidatesTokenCount || 0;
-              const cachedContentTokenCount = usage?.cachedContentTokenCount || 0;
-              const totalTokenCount = usage?.totalTokenCount || (inputTokenCount + outputTokenCount);
+              const normalizedStats = normalizeTokenStats({
+                ...val,
+                ...(val?.usageMetadata && typeof val.usageMetadata === 'object'
+                  ? (val.usageMetadata as Record<string, unknown>)
+                  : {}),
+              });
+              const inputTokenCount = normalizedStats?.inputTokens || 0;
+              const outputTokenCount = normalizedStats?.outputTokens || 0;
+              const cachedContentTokenCount = normalizedStats?.cachedTokens || 0;
+              const totalTokenCount =
+                normalizedStats?.totalTokens || (inputTokenCount + outputTokenCount);
               const durationMs = Math.max(Date.now() - turnStartedAt, 0);
-              const totalCost = calculateCost(
-                inputTokenCount,
-                outputTokenCount,
-                cachedContentTokenCount,
-                targetModel
-              );
+              const perModelUsage = (normalizedStats?.perModelUsage || []).map((entry) => ({
+                ...entry,
+                totalTokens:
+                  entry.totalTokens ||
+                  (entry.inputTokens + entry.outputTokens + entry.cachedTokens + entry.thoughtsTokens),
+              }));
+              const totalCost =
+                perModelUsage.length > 0
+                  ? perModelUsage.reduce((sum: number, entry: PerModelTokenUsage) => (
+                    sum + calculateCost(
+                      entry.inputTokens,
+                      entry.outputTokens,
+                      entry.cachedTokens,
+                      entry.model
+                    )
+                  ), 0)
+                  : calculateCost(
+                    inputTokenCount,
+                    outputTokenCount,
+                    cachedContentTokenCount,
+                    normalizedStats?.model || targetModel
+                  );
 
               finalStats = {
                 input_tokens: inputTokenCount,
@@ -1036,13 +1067,14 @@ export async function POST(req: Request) {
                 cached_content_token_count: cachedContentTokenCount,
                 total_tokens: totalTokenCount,
                 duration_ms: durationMs,
-                model: targetModel,
+                model: normalizedStats?.model || targetModel,
                 totalCost,
                 inputTokenCount,
                 outputTokenCount,
                 cachedContentTokenCount,
                 totalTokenCount,
-                durationMs
+                durationMs,
+                perModelUsage,
               };
             }
 

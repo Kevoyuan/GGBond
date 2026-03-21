@@ -1,6 +1,7 @@
 import { NextResponse } from '@/src-sidecar/mock-next-server';
 import db from '@/lib/db';
 import { calculateCost } from '@/lib/pricing';
+import { normalizeTokenStats } from '@/lib/token-stats';
 
 export async function GET() {
   try {
@@ -28,17 +29,18 @@ export async function GET() {
 
     for (const msg of messages) {
       if (msg.stats) {
-        const stats = JSON.parse(msg.stats);
-        const input = stats.inputTokenCount || stats.input_tokens || 0;
-        const output = stats.outputTokenCount || stats.output_tokens || 0;
-        const cached = stats.cachedContentTokenCount || stats.cached_content_token_count || stats.cached || 0;
-        const model = stats.model;
+        const parsed = normalizeTokenStats(JSON.parse(msg.stats));
+        if (!parsed) continue;
+        const input = parsed.inputTokens;
+        const output = parsed.outputTokens;
+        const cached = parsed.cachedTokens;
+        const model = parsed.model;
 
         inputTokens += input;
         outputTokens += output;
         cachedTokens += cached;
-        totalTokens += (input + output);
-        cost += calculateCost(input, output, cached, model);
+        totalTokens += parsed.totalTokens || (input + output);
+        cost += parsed.totalCost || calculateCost(input, output, cached, model);
       }
     }
 

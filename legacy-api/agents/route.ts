@@ -33,7 +33,6 @@ type AgentAuthConfig =
         type: 'apiKey';
         key?: string;
         name?: string;
-        agent_card_requires_auth?: boolean;
     }
     | {
         type: 'http';
@@ -42,14 +41,12 @@ type AgentAuthConfig =
         username?: string;
         password?: string;
         value?: string;
-        agent_card_requires_auth?: boolean;
     };
 
 type AgentAuthSummary = {
     configured: boolean;
     type: string;
     scheme?: string;
-    requiresAgentCardAuth?: boolean;
 };
 
 type AgentDefinitionLike = {
@@ -77,7 +74,6 @@ const summarizeAuth = (auth?: AgentAuthConfig): AgentAuthSummary | undefined => 
         configured: true,
         type: auth.type,
         scheme: auth.type === 'http' ? auth.scheme : undefined,
-        requiresAgentCardAuth: Boolean(auth.agent_card_requires_auth),
     };
 };
 

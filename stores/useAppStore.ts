@@ -12,7 +12,6 @@ interface Agent {
     configured: boolean;
     type: string;
     scheme?: string;
-    requiresAgentCardAuth?: boolean;
   };
 }
 

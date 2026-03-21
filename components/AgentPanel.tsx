@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { User, Sparkles, Shield, Cpu, ExternalLink, Play, RefreshCw, Layers, Plus, Trash, Link2, Search, SlidersHorizontal, Loader2, Ban, CheckCircle2, BookOpen, AlertCircle, FolderSearch, PlusCircle, KeyRound, Lock } from 'lucide-react';
+import { User, Sparkles, Shield, Cpu, ExternalLink, Play, RefreshCw, Layers, Plus, Trash, Link2, Search, SlidersHorizontal, Loader2, Ban, CheckCircle2, BookOpen, AlertCircle, FolderSearch, PlusCircle, KeyRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CreateAgentDialog } from './CreateAgentDialog';
 import { AgentPreviewDialog } from './AgentPreviewDialog';
@@ -28,7 +28,6 @@ interface AgentDefinition {
         configured: boolean;
         type: string;
         scheme?: string;
-        requiresAgentCardAuth?: boolean;
     };
 }
 
@@ -508,12 +507,6 @@ export const AgentPanel = memo(function AgentPanel({ onSelectAgent, selectedAgen
                                                             <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/20 bg-purple-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-purple-500">
                                                                 <ExternalLink size={10} />
                                                                 Remote
-                                                            </span>
-                                                        )}
-                                                        {agent.authSummary?.requiresAgentCardAuth && (
-                                                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-500">
-                                                                <Lock size={10} />
-                                                                Auth required
                                                             </span>
                                                         )}
                                                         {formatAuthLabel(agent) && (

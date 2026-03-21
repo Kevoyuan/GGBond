@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Settings, Save, RotateCcw, Shield, Zap, Code2, Plus, Trash2, Wrench, Folder, FolderOpen, Terminal, Eye, EyeOff, Clock3, Bot } from 'lucide-react';
+import { X, Settings, Save, RotateCcw, Shield, Zap, Code2, Plus, Trash2, Wrench, Folder, FolderOpen, Terminal, Eye, EyeOff, Clock3, Bot, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Select } from '@/components/ui/Select';
 
@@ -103,6 +103,15 @@ interface CoreSettings {
   };
 }
 
+interface CoreUpgradeStatus {
+  localCoreVersion: string | null;
+  globalCliVersion: string | null;
+  globalCliPath: string | null;
+  installMethod: 'homebrew' | 'npm-global' | 'unknown' | 'missing';
+  canUpgrade: boolean;
+  upgradeCommand: string | null;
+}
+
 const FALLBACK_MODELS = [
   { id: 'gemini-3.1-pro-preview', name: 'gemini-3.1-pro-preview', icon: Code2 },
   { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', icon: Code2 },
@@ -149,17 +158,24 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
       enableAgents: true,
     },
   });
+  const [coreUpgradeStatus, setCoreUpgradeStatus] = useState<CoreUpgradeStatus | null>(null);
+  const [coreUpgradeLoading, setCoreUpgradeLoading] = useState(false);
+  const [coreUpgradeRunning, setCoreUpgradeRunning] = useState(false);
+  const [coreUpgradeMessage, setCoreUpgradeMessage] = useState<string | null>(null);
 
   // Fetch models, presets, custom tools, and config from API
   useEffect(() => {
     if (!open) return;
+    setCoreUpgradeLoading(true);
+    setCoreUpgradeMessage(null);
     Promise.all([
       fetch('/api/models').then(r => r.json()).catch(() => ({ known: [], current: 'gemini-3-pro-preview' })),
       fetch('/api/presets').then(r => r.json()).catch(() => ({ presets: [] })),
       fetch('/api/custom-tools').then(r => r.json()).catch(() => ({ tools: [] })),
       fetch('/api/config').then(r => r.json()).catch(() => ({})),
       fetch('/api/settings').then(r => r.json()).catch(() => ({})),
-    ]).then(([modelsData, presetsData, toolsData, configData, geminiSettings]) => {
+      fetch('/api/core/upgrade').then(r => r.json()).catch(() => null),
+    ]).then(([modelsData, presetsData, toolsData, configData, geminiSettings, upgradeData]) => {
       // Set models
       const modelList: typeof FALLBACK_MODELS = (modelsData.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
         id: m.id,
@@ -207,7 +223,10 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
           enableAgents: geminiSettings?.experimental?.enableAgents ?? true,
         },
       });
-    }).catch(() => { });
+      if (upgradeData) {
+        setCoreUpgradeStatus(upgradeData);
+      }
+    }).catch(() => { }).finally(() => setCoreUpgradeLoading(false));
   }, [open]);
 
   useEffect(() => {
@@ -295,6 +314,31 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
         enableAgents: true,
       },
     });
+  };
+
+  const handleCoreUpgrade = async () => {
+    setCoreUpgradeRunning(true);
+    setCoreUpgradeMessage(null);
+    try {
+      const response = await fetch('/api/core/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setCoreUpgradeMessage(payload.error || 'Failed to run Gemini CLI upgrade.');
+        return;
+      }
+
+      const beforeVersion = payload.beforeVersion || 'unknown';
+      const afterVersion = payload.afterVersion || 'unknown';
+      setCoreUpgradeStatus(payload.status || null);
+      setCoreUpgradeMessage(`Gemini CLI upgrade finished: ${beforeVersion} -> ${afterVersion}`);
+    } catch (error) {
+      setCoreUpgradeMessage(error instanceof Error ? error.message : 'Failed to run Gemini CLI upgrade.');
+    } finally {
+      setCoreUpgradeRunning(false);
+    }
   };
 
   if (!open) return null;
@@ -513,7 +557,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
           </div>
 
           <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-semibold">Gemini CLI v0.33.0</h3>
+            <h3 className="text-sm font-semibold">Gemini CLI v0.34.0</h3>
 
             <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-4">
               <div className="flex items-start justify-between gap-4">
@@ -605,7 +649,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
                     Experimental Agents
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Required for remote A2A agents and the new authenticated agent-card discovery flow introduced in Gemini CLI v0.33.0.
+                    Required for remote A2A agents. Gemini CLI v0.34.0 also removed the legacy `agent_card_requires_auth` flag, so GGBond now relies on the remaining auth metadata only.
                   </p>
                 </div>
                 <input
@@ -620,6 +664,78 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
                   }))}
                   className="h-4 w-4 rounded border-gray-300"
                 />
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Code2 className="w-4 h-4 text-primary" />
+                  Local v0.34.0 alignment
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  GGBond follows Gemini CLI Core `v0.34.0`, but intentionally keeps `code` as the default mode instead of switching the whole product to upstream&apos;s default Plan Mode.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Per-model token usage is now stored and surfaced when a turn spans multiple models; other upstream behaviors continue to flow through the core runtime unless GGBond adds explicit UI for them.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Download className="w-4 h-4 text-primary" />
+                    Core Upgrade
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    GGBond ships with Gemini CLI Core <code>v{coreUpgradeStatus?.localCoreVersion || 'unknown'}</code> and keeps Code mode as the product default. Use this to inspect or upgrade the external Gemini CLI install on this machine.
+                  </p>
+                </div>
+                <button
+                  onClick={handleCoreUpgrade}
+                  disabled={coreUpgradeRunning || coreUpgradeLoading || !coreUpgradeStatus?.canUpgrade}
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors',
+                    coreUpgradeRunning || coreUpgradeLoading || !coreUpgradeStatus?.canUpgrade
+                      ? 'cursor-not-allowed border border-border bg-muted text-muted-foreground'
+                      : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  )}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {coreUpgradeRunning ? 'Upgrading...' : 'Upgrade CLI'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="rounded-md border border-border/60 bg-background/60 p-3 space-y-1">
+                  <div className="text-muted-foreground">Bundled core</div>
+                  <div className="font-mono">{coreUpgradeStatus?.localCoreVersion || 'Unavailable'}</div>
+                </div>
+                <div className="rounded-md border border-border/60 bg-background/60 p-3 space-y-1">
+                  <div className="text-muted-foreground">External Gemini CLI</div>
+                  <div className="font-mono">{coreUpgradeStatus?.globalCliVersion || 'Not detected'}</div>
+                </div>
+              </div>
+
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <p>
+                  Install method: <span className="font-mono text-foreground">{coreUpgradeStatus?.installMethod || 'unknown'}</span>
+                </p>
+                {coreUpgradeStatus?.upgradeCommand && (
+                  <p>
+                    Upgrade command: <code>{coreUpgradeStatus.upgradeCommand}</code>
+                  </p>
+                )}
+                {coreUpgradeStatus?.globalCliPath && (
+                  <p className="break-all">
+                    CLI path: <code>{coreUpgradeStatus.globalCliPath}</code>
+                  </p>
+                )}
+                {coreUpgradeMessage && (
+                  <p className="text-foreground">{coreUpgradeMessage}</p>
+                )}
               </div>
             </div>
           </div>

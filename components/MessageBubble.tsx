@@ -30,6 +30,15 @@ export interface Message {
     totalTokenCount?: number;
     total_tokens?: number;
     totalCost?: number;
+    model?: string;
+    perModelUsage?: Array<{
+      model: string;
+      inputTokens?: number;
+      outputTokens?: number;
+      cachedTokens?: number;
+      thoughtsTokens?: number;
+      totalTokens?: number;
+    }>;
   };
   sessionId?: string;
   parentId?: string | null;

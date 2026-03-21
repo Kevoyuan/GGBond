@@ -42,6 +42,17 @@ import { resolveGeminiCliHome, resolveGeminiConfigDir, resolveRuntimeHome } from
 
 const MAX_TURNS = 100;
 
+function isAbortError(error: unknown): boolean {
+    if (error instanceof Error) {
+        return error.name === 'AbortError' || error.message.toLowerCase().includes('abort');
+    }
+    if (typeof error === 'object' && error !== null) {
+        const name = (error as { name?: string }).name;
+        if (name === 'AbortError') return true;
+    }
+    return false;
+}
+
 // Retry configuration for CoreService initialization
 const INIT_RETRY_MAX_ATTEMPTS = 3;
 const INIT_RETRY_BASE_DELAY_MS = 1000;
@@ -1286,6 +1297,10 @@ When you are in planning phase:
                         yield event;
                     }
                 } catch (error) {
+                    if (isAbortError(error)) {
+                        console.log('[CoreService] Stream cancelled by user');
+                        return;
+                    }
                     throw error;
                 }
 
@@ -1339,6 +1354,10 @@ When you are in planning phase:
                 currentRequest = responseParts;
             }
         } catch (error) {
+            if (isAbortError(error)) {
+                console.log('[CoreService] Turn cancelled by user (AbortError)');
+                return;
+            }
             const message = error instanceof Error ? error.message : String(error);
             console.error('[CoreService] Turn error:', message);
             yield { type: 'error', value: { error: { message } } };
@@ -1451,6 +1470,12 @@ When you are in planning phase:
         let completedCalls: CompletedToolCall[] = [];
         try {
             completedCalls = await scheduler.schedule(requests, signal);
+        } catch (error) {
+            if (isAbortError(error)) {
+                console.log('[CoreService] Tool execution cancelled by user');
+                return [];
+            }
+            throw error;
         } finally {
             this.messageBus.unsubscribe(
                 MessageBusType.TOOL_CALLS_UPDATE,

@@ -3100,6 +3100,7 @@ export default function Home() {
             onSetMode: (m) => setMode(m),
             onToggleApproval: () => setApprovalMode(prev => prev === 'safe' ? 'auto' : 'safe'),
             onShowStats: () => setShowUsageStats(true),
+            onOpenCoreUpgrade: () => setSettingsOpen(true),
           }}
         />
       </div>

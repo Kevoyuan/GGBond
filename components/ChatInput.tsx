@@ -146,8 +146,8 @@ interface ModeOption {
 }
 
 const MODE_OPTIONS: ModeOption[] = [
-  { value: 'code', label: 'Code', icon: Code2, description: 'Read/Write files & Execute commands', shortcut: 'Ctrl+1' },
-  { value: 'plan', label: 'Plan', icon: ClipboardList, description: 'Analyze & Plan, no execution', shortcut: 'Ctrl+2' },
+  { value: 'code', label: 'Code', icon: Code2, description: 'GGBond default: read, write, and execute', shortcut: 'Ctrl+1' },
+  { value: 'plan', label: 'Plan', icon: ClipboardList, description: 'Review-first planning, no execution', shortcut: 'Ctrl+2' },
   { value: 'ask', label: 'Ask', icon: HelpCircle, description: 'Answer questions only', shortcut: 'Ctrl+3' },
 ];
 
@@ -409,12 +409,13 @@ export const ChatInput = React.memo(function ChatInput({
   const routingTone = isGeneralistRouted ? 'success' : routedAgentName ? 'info' : 'default';
   const profileSourceLabel = hasWorkspaceOverride ? 'Workspace Override' : 'Inherits Global';
   const isTemporarySession = !workspacePath?.trim();
+  const shouldShowCodeFirst = mode === 'code';
   const shouldShowRouting = Boolean(routedAgentName);
   const shouldShowModel = effectiveModel !== currentModel;
   const shouldShowProfile = effectiveProfile !== 'default';
   const shouldShowSource = hasWorkspaceOverride;
   const hasVisibleStatusPills =
-    shouldShowRouting || shouldShowModel || shouldShowProfile || shouldShowSource || hasAgentOverride || mode === 'plan' || isTemporarySession;
+    shouldShowRouting || shouldShowModel || shouldShowProfile || shouldShowSource || hasAgentOverride || shouldShowCodeFirst || mode === 'plan' || isTemporarySession;
 
   // Calculate context usage - prefer real-time branch usage from currentContextUsage
   const { pricing } = getModelInfo(currentModel);
@@ -2012,6 +2013,13 @@ export const ChatInput = React.memo(function ChatInput({
                       label="Agent Override"
                       value={routedAgentRecordResolved.modelConfig.model}
                       tone="warning"
+                    />
+                  )}
+                  {shouldShowCodeFirst && (
+                    <StatusPill
+                      label="Default"
+                      value="Code-first"
+                      tone="success"
                     />
                   )}
                   {isTemporarySession && (

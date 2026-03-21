@@ -17,6 +17,7 @@ import {
   Shield,
   Cpu,
   Eraser,
+  Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -42,6 +43,7 @@ interface CommandPaletteProps {
     onSetMode: (mode: 'code' | 'plan' | 'ask') => void;
     onToggleApproval: () => void;
     onShowStats: () => void;
+    onOpenCoreUpgrade: () => void;
   };
   currentMode: 'code' | 'plan' | 'ask';
   currentApproval: 'safe' | 'auto';
@@ -80,7 +82,7 @@ export function CommandPalette({
     {
       id: 'mode-code',
       name: 'Code Mode',
-      description: 'Full capabilities (Read/Write/Execute)',
+      description: 'GGBond default: read, write, and execute',
       icon: Code2,
       action: () => actions.onSetMode('code'),
       shortcut: 'Ctrl+1',
@@ -89,7 +91,7 @@ export function CommandPalette({
     {
       id: 'mode-plan',
       name: 'Plan Mode',
-      description: 'Analyze and plan only',
+      description: 'Review-first planning without execution',
       icon: ClipboardList,
       action: () => actions.onSetMode('plan'),
       shortcut: 'Ctrl+2',
@@ -127,6 +129,14 @@ export function CommandPalette({
       description: 'View token usage and cost analysis',
       icon: Cpu,
       action: actions.onShowStats,
+      group: 'System',
+    },
+    {
+      id: 'core-upgrade',
+      name: 'Core Upgrade',
+      description: 'Open Gemini CLI and core upgrade controls',
+      icon: Download,
+      action: actions.onOpenCoreUpgrade,
       group: 'System',
     },
     {

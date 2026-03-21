@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader2, Play, Check, Folder, Cpu, AlertCircle, Activity, ExternalLink, Shield, KeyRound, Lock } from 'lucide-react';
+import { X, Loader2, Play, Check, Folder, Cpu, AlertCircle, Activity, ExternalLink, Shield, KeyRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ModelSelector } from './ModelSelector';
 import ReactMarkdown from 'react-markdown';
@@ -19,7 +19,6 @@ interface AgentDefinition {
         configured: boolean;
         type: string;
         scheme?: string;
-        requiresAgentCardAuth?: boolean;
     };
 }
 
@@ -191,12 +190,6 @@ export function AgentPreviewDialog({ open, onOpenChange, agent, onSuccess }: Age
                                 </p>
                                 {agent.kind === 'remote' && (
                                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                                        {agent.authSummary?.requiresAgentCardAuth && (
-                                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-500">
-                                                <Lock className="w-3 h-3" />
-                                                Agent card requires auth
-                                            </span>
-                                        )}
                                         {authLabel && (
                                             <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-500">
                                                 <KeyRound className="w-3 h-3" />

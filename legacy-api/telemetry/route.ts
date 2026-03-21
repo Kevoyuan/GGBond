@@ -1,6 +1,7 @@
 import { NextResponse } from '@/src-sidecar/mock-next-server';
 import { parseTelemetryLog } from '@/lib/gemini-service';
 import db from '@/lib/db';
+import { normalizeTokenStats } from '@/lib/token-stats';
 
 type StatsRow = { stats: string | null };
 
@@ -24,19 +25,29 @@ function buildFallbackFromDb() {
     for (const row of rows) {
         if (!row.stats) continue;
         try {
-            const stats = JSON.parse(row.stats) as Record<string, unknown>;
-            const model = (stats.model as string) || 'unknown';
-            const input = readNumeric(stats.input_tokens) || readNumeric(stats.inputTokenCount);
-            const output = readNumeric(stats.output_tokens) || readNumeric(stats.outputTokenCount);
-            const cached = readNumeric(stats.cached_content_token_count) || readNumeric(stats.cachedContentTokenCount);
-            const duration = readNumeric(stats.duration_ms) || readNumeric(stats.durationMs);
+            const stats = normalizeTokenStats(JSON.parse(row.stats));
+            if (!stats) continue;
+            const duration = stats.durationMs;
+            const entries = stats.perModelUsage.length > 0
+                ? stats.perModelUsage
+                : [{
+                    model: stats.model || 'unknown',
+                    inputTokens: stats.inputTokens,
+                    outputTokens: stats.outputTokens,
+                    cachedTokens: stats.cachedTokens,
+                    thoughtsTokens: stats.thoughtsTokens,
+                    totalTokens: stats.totalTokens,
+                }];
 
-            if (!tokensByModel[model]) {
-                tokensByModel[model] = { input: 0, output: 0, cached: 0, thoughts: 0 };
+            for (const entry of entries) {
+                if (!tokensByModel[entry.model]) {
+                    tokensByModel[entry.model] = { input: 0, output: 0, cached: 0, thoughts: 0 };
+                }
+                tokensByModel[entry.model].input += entry.inputTokens;
+                tokensByModel[entry.model].output += entry.outputTokens;
+                tokensByModel[entry.model].cached += entry.cachedTokens;
+                tokensByModel[entry.model].thoughts += entry.thoughtsTokens;
             }
-            tokensByModel[model].input += input;
-            tokensByModel[model].output += output;
-            tokensByModel[model].cached += cached;
             requestCount += 1;
 
             if (duration > 0) apiLatencies.push(duration);

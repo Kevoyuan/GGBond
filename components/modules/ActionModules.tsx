@@ -85,7 +85,9 @@ export const ShellManager = memo(function ShellManager() {
             onChange={setSandboxMode}
             options={[
               { id: 'none', name: 'none', description: 'Execute tools directly on host', icon: Monitor },
-              { id: 'docker', name: 'docker', description: 'Run tools in isolated containers', icon: ShieldCheck }
+              { id: 'docker', name: 'docker', description: 'Run tools in isolated containers', icon: ShieldCheck },
+              { id: 'runsc', name: 'runsc', description: 'Use gVisor-style syscall sandboxing', icon: ShieldCheck },
+              { id: 'lxc', name: 'lxc', description: 'Use experimental Linux container isolation', icon: HardDrive }
             ]}
           />
         </div>

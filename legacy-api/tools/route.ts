@@ -58,7 +58,7 @@ export async function POST(req: Request) {
 
         // Handle sandbox mode
         if (sanitizedUpdates.sandbox) {
-            if (!['none', 'docker'].includes(sanitizedUpdates.sandbox as string)) {
+            if (!['none', 'docker', 'runsc', 'lxc'].includes(sanitizedUpdates.sandbox as string)) {
                 return NextResponse.json({ error: 'Invalid sandbox mode' }, { status: 400 });
             }
         }

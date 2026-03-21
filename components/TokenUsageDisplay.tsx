@@ -11,6 +11,14 @@ interface TokenStats {
   totalCost?: number;
   duration?: number;
   model?: string;
+  perModelUsage?: Array<{
+    model: string;
+    inputTokens?: number;
+    outputTokens?: number;
+    cachedTokens?: number;
+    thoughtsTokens?: number;
+    totalTokens?: number;
+  }>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
@@ -49,9 +57,29 @@ export function TokenUsageDisplay({ stats, compact = true, className, label, hid
   const durationMs = stats.duration || stats.duration_ms;
   const duration = durationMs ? `${(durationMs / 1000).toFixed(2)}s` : null;
   const cachedTokens = stats.cachedContentTokenCount || stats.cached || 0;
+  const perModelUsage = Array.isArray(stats.perModelUsage) ? stats.perModelUsage : [];
+  const normalizedPerModelUsage = perModelUsage
+    .map((entry) => {
+      const input = entry.inputTokens || 0;
+      const output = entry.outputTokens || 0;
+      const cached = entry.cachedTokens || 0;
+      const thoughts = entry.thoughtsTokens || 0;
+      const total = entry.totalTokens || (input + output + cached + thoughts);
+      return {
+        model: entry.model || 'unknown',
+        inputTokens: input,
+        outputTokens: output,
+        cachedTokens: cached,
+        totalTokens: total,
+      };
+    })
+    .sort((a, b) => b.totalTokens - a.totalTokens);
 
   // Model info for context window
-  const modelName = stats.model || 'gemini-3-pro-preview';
+  const primaryModelName = normalizedPerModelUsage[0]?.model || stats.model || 'gemini-3-pro-preview';
+  const modelName = stats.model === 'mixed' && normalizedPerModelUsage.length > 0
+    ? primaryModelName
+    : (stats.model || primaryModelName);
   const { pricing, name: resolvedModelName } = getModelInfo(modelName);
   const contextLimit = pricing.contextWindow;
   const contextPercent = Math.min((totalTokens / contextLimit) * 100, 100);
@@ -235,6 +263,34 @@ export function TokenUsageDisplay({ stats, compact = true, className, label, hid
                   </div>
                 )}
               </div>
+
+              {normalizedPerModelUsage.length > 1 && (
+                <div className="space-y-2 pt-3 border-t border-border/20">
+                  <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground/80">
+                    Per-Model Usage
+                  </div>
+                  <div className="space-y-2">
+                    {normalizedPerModelUsage.map((entry) => (
+                      <div
+                        key={`${entry.model}-${entry.totalTokens}`}
+                        className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 border border-border/10 px-2.5 py-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-xs font-semibold text-foreground">
+                            {entry.model}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {formatTokensK(entry.inputTokens)} in / {formatTokensK(entry.outputTokens)} out
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-xs font-bold text-foreground">
+                          {formatTokensK(entry.totalTokens)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         )}

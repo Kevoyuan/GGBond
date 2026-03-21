@@ -1,6 +1,7 @@
 import { NextResponse } from '@/src-sidecar/mock-next-server';
 import db from '@/lib/db';
 import { getAuthInfo, parseTelemetryLog, type TelemetryEvent } from '@/lib/gemini-service';
+import { normalizeTokenStats, type PerModelTokenUsage } from '@/lib/token-stats';
 
 type SessionRow = {
   id: string;
@@ -115,32 +116,34 @@ function emptyTokens(): TokenTotals {
   };
 }
 
-function parseMessageStats(raw: string | null): (TokenTotals & { model: string; durationMs: number }) | null {
-  if (!raw) return null;
+function parseMessageStatsByModel(raw: string | null): Array<TokenTotals & { model: string; durationMs: number }> {
+  if (!raw) return [];
   try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const input = readNumber(parsed.input_tokens) || readNumber(parsed.inputTokenCount);
-    const output = readNumber(parsed.output_tokens) || readNumber(parsed.outputTokenCount);
-    const cached = readNumber(parsed.cached_content_token_count) || readNumber(parsed.cachedContentTokenCount);
-    const thoughts = readNumber(parsed.thoughts_token_count) || readNumber(parsed.thoughtsTokenCount);
-    const total =
-      readNumber(parsed.total_tokens) ||
-      readNumber(parsed.totalTokenCount) ||
-      input + output + cached + thoughts;
-    const durationMs = readNumber(parsed.duration_ms) || readNumber(parsed.durationMs);
-    const model = typeof parsed.model === 'string' && parsed.model.trim() ? parsed.model : 'unknown';
+    const parsed = normalizeTokenStats(JSON.parse(raw));
+    if (!parsed) return [];
 
-    return {
-      model,
-      input,
-      output,
-      cached,
-      thoughts,
-      total,
-      durationMs,
-    };
+    const modelEntries = parsed.perModelUsage.length > 0
+      ? parsed.perModelUsage
+      : [{
+        model: parsed.model,
+        inputTokens: parsed.inputTokens,
+        outputTokens: parsed.outputTokens,
+        cachedTokens: parsed.cachedTokens,
+        thoughtsTokens: parsed.thoughtsTokens,
+        totalTokens: parsed.totalTokens,
+      }];
+
+    return modelEntries.map((entry: PerModelTokenUsage) => ({
+      model: entry.model,
+      input: entry.inputTokens,
+      output: entry.outputTokens,
+      cached: entry.cachedTokens,
+      thoughts: entry.thoughtsTokens,
+      total: entry.totalTokens,
+      durationMs: parsed.durationMs,
+    }));
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -328,32 +331,34 @@ function buildModelStatsFromDb(rows: MessageStatsRow[]): ModelStat[] {
   const modelMap = new Map<string, ModelStat & { latencySum: number; latencyCount: number }>();
 
   for (const row of rows) {
-    const parsed = parseMessageStats(row.stats);
-    if (!parsed) continue;
+    const parsedEntries = parseMessageStatsByModel(row.stats);
+    if (parsedEntries.length === 0) continue;
 
-    const existing = modelMap.get(parsed.model) || {
-      model: parsed.model,
-      requests: 0,
-      errors: 0,
-      avgLatencyMs: 0,
-      ...emptyTokens(),
-      roles: [],
-      latencySum: 0,
-      latencyCount: 0,
-    };
+    for (const parsed of parsedEntries) {
+      const existing = modelMap.get(parsed.model) || {
+        model: parsed.model,
+        requests: 0,
+        errors: 0,
+        avgLatencyMs: 0,
+        ...emptyTokens(),
+        roles: [],
+        latencySum: 0,
+        latencyCount: 0,
+      };
 
-    existing.requests += 1;
-    existing.input += parsed.input;
-    existing.output += parsed.output;
-    existing.cached += parsed.cached;
-    existing.thoughts += parsed.thoughts;
-    existing.total += parsed.total;
-    if (parsed.durationMs > 0) {
-      existing.latencySum += parsed.durationMs;
-      existing.latencyCount += 1;
+      existing.requests += 1;
+      existing.input += parsed.input;
+      existing.output += parsed.output;
+      existing.cached += parsed.cached;
+      existing.thoughts += parsed.thoughts;
+      existing.total += parsed.total;
+      if (parsed.durationMs > 0) {
+        existing.latencySum += parsed.durationMs;
+        existing.latencyCount += 1;
+      }
+
+      modelMap.set(parsed.model, existing);
     }
-
-    modelMap.set(parsed.model, existing);
   }
 
   return Array.from(modelMap.values())
@@ -416,19 +421,21 @@ function buildSessionStats(
       continue;
     }
 
-    const parsed = parseMessageStats(row.stats);
-    if (!parsed) continue;
+    const parsedEntries = parseMessageStatsByModel(row.stats);
+    if (parsedEntries.length === 0) continue;
 
-    apiTimeMs += parsed.durationMs;
+    apiTimeMs += parsedEntries[0]?.durationMs || 0;
 
-    const existing = sessionModelMap.get(parsed.model) || {
-      model: parsed.model,
-      requests: 0,
-      totalTokens: 0,
-    };
-    existing.requests += 1;
-    existing.totalTokens += parsed.total;
-    sessionModelMap.set(parsed.model, existing);
+    for (const parsed of parsedEntries) {
+      const existing = sessionModelMap.get(parsed.model) || {
+        model: parsed.model,
+        requests: 0,
+        totalTokens: 0,
+      };
+      existing.requests += 1;
+      existing.totalTokens += parsed.total;
+      sessionModelMap.set(parsed.model, existing);
+    }
   }
 
   let toolTimeMs = 0;
