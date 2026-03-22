@@ -329,6 +329,7 @@ export const Sidebar = React.memo(function Sidebar({
             <Tooltip content="Usage" side={isCollapsed ? "right" : "top"}>
               <button
                 onClick={onShowStats}
+                aria-label="Usage statistics"
                 className={cn(
                   "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
                   isCollapsed && "w-9 h-9 flex items-center justify-center"
@@ -341,6 +342,7 @@ export const Sidebar = React.memo(function Sidebar({
             <Tooltip content="Modules" side={isCollapsed ? "right" : "top"}>
               <button
                 onClick={() => setShowModulesDialog(true)}
+                aria-label="Open modules"
                 className={cn(
                   "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
                   isCollapsed && "w-9 h-9 flex items-center justify-center"
@@ -353,6 +355,7 @@ export const Sidebar = React.memo(function Sidebar({
             <Tooltip content="Extensions" side={isCollapsed ? "right" : "top"}>
               <button
                 onClick={onOpenExtensions}
+                aria-label="Open extensions"
                 className={cn(
                   "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
                   isCollapsed && "w-9 h-9 flex items-center justify-center"
@@ -370,6 +373,7 @@ export const Sidebar = React.memo(function Sidebar({
             <Tooltip content="Graph" side={isCollapsed ? "right" : "top"}>
               <button
                 onClick={() => onToggleSidePanel?.('graph')}
+                aria-label="Toggle graph panel"
                 className={cn(
                   "p-2 rounded-md transition-colors duration-200",
                   sidePanelType === 'graph'
@@ -385,6 +389,7 @@ export const Sidebar = React.memo(function Sidebar({
             <Tooltip content="Timeline" side={isCollapsed ? "right" : "top"}>
               <button
                 onClick={() => onToggleSidePanel?.('timeline')}
+                aria-label="Toggle timeline panel"
                 className={cn(
                   "p-2 rounded-md transition-colors duration-200",
                   sidePanelType === 'timeline'
@@ -405,6 +410,7 @@ export const Sidebar = React.memo(function Sidebar({
             <Tooltip content={isDark ? "Light Mode" : "Dark Mode"} side={isCollapsed ? "right" : "top"}>
               <button
                 onClick={toggleTheme}
+                aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
                 className={cn(
                   "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
                   isCollapsed && "w-9 h-9 flex items-center justify-center"
@@ -417,6 +423,7 @@ export const Sidebar = React.memo(function Sidebar({
             <Tooltip content="Settings" side={isCollapsed ? "right" : "top"}>
               <button
                 onClick={onOpenSettings}
+                aria-label="Open settings"
                 className={cn(
                   "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
                   isCollapsed && "w-9 h-9 flex items-center justify-center"
