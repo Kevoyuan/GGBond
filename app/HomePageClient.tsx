@@ -150,9 +150,6 @@ export default function Home() {
   const isNativeDesktopWindow =
     mounted && typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-  // Legacy sidebar state (unused — kept for compat)
-  const [sidebarOpen] = useState(true);
-
   const toAbsoluteArtifactPath = (rawPath: string) => {
     const candidate = String(rawPath || '').trim();
     if (!candidate) return '';
