@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ChatProvider } from "./contexts/ChatContext";
-import { ApiInterceptorInit } from "@/components/ApiInterceptorInit";
+import { ApiInterceptorInit } from "@/components/providers/ApiInterceptorInit";
 
 export const metadata: Metadata = {
   title: "GGBond",
