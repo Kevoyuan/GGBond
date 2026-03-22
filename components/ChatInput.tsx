@@ -9,7 +9,6 @@ import { fetchJsonWithRetry } from '@/lib/client-fetch';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ModelSelector } from './ModelSelector';
 import { useChatContext } from '@/app/contexts/ChatContext';
-import { PlanModeIndicator } from './PlanModeIndicator';
 
 interface UploadedImage {
   id: string;
@@ -166,32 +165,6 @@ function formatProfileLabel(profile: string) {
   return profile.charAt(0).toUpperCase() + profile.slice(1);
 }
 
-function StatusPill({
-  label,
-  value,
-  tone = 'default',
-}: {
-  label: string;
-  value: string;
-  tone?: 'default' | 'info' | 'success' | 'warning';
-}) {
-  return (
-    <div
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium',
-        tone === 'info' && 'border-blue-500/25 bg-blue-500/8 text-blue-600 dark:text-blue-400',
-        tone === 'success' && 'border-emerald-500/25 bg-emerald-500/8 text-emerald-600 dark:text-emerald-400',
-        tone === 'warning' && 'border-amber-500/25 bg-amber-500/8 text-amber-600 dark:text-amber-400',
-        tone === 'default' && 'border-border/70 bg-muted/25 text-muted-foreground'
-      )}
-    >
-      <span className="uppercase tracking-wider opacity-70">{label}</span>
-      <span className="text-foreground dark:text-foreground">{value}</span>
-    </div>
-  );
-}
-
-
 const INLINE_SKILL_TOKEN_MARKER = '\u200B';
 const INLINE_SKILL_TOKEN_SOURCE = `([A-Za-z0-9._/\\\\-\u2011]+)${INLINE_SKILL_TOKEN_MARKER}`;
 const INLINE_SKILL_COMMAND = '/skills';
@@ -275,7 +248,6 @@ export const ChatInput = React.memo(function ChatInput({
   const routedAgentName = activeRoutedAgent || selectedAgentName || null;
   const routedAgentRecordResolved = routedAgentRecord || selectedAgentRecord || null;
   const routedAgentDisplayName = routedAgentRecordResolved?.displayName || routedAgentName || 'Auto';
-  const isGeneralistRouted = routedAgentName === 'generalist-agent';
   const hasWorkspaceOverride = Boolean(
     steeringSummary?.workspaceOverrides.hasModelOverride || steeringSummary?.workspaceOverrides.hasProfileOverride
   );
@@ -401,21 +373,52 @@ export const ChatInput = React.memo(function ChatInput({
   }, []);
 
   const currentMode = MODE_OPTIONS.find(m => m.value === mode) || MODE_OPTIONS[0];
-  const routingLabel = isGeneralistRouted
-    ? 'Generalist'
-    : routedAgentName
-      ? `Selected Agent: ${routedAgentDisplayName}`
-      : 'Auto';
-  const routingTone = isGeneralistRouted ? 'success' : routedAgentName ? 'info' : 'default';
-  const profileSourceLabel = hasWorkspaceOverride ? 'Workspace Override' : 'Inherits Global';
   const isTemporarySession = !workspacePath?.trim();
-  const shouldShowCodeFirst = mode === 'code';
   const shouldShowRouting = Boolean(routedAgentName);
-  const shouldShowModel = effectiveModel !== currentModel;
-  const shouldShowProfile = effectiveProfile !== 'default';
-  const shouldShowSource = hasWorkspaceOverride;
-  const hasVisibleStatusPills =
-    shouldShowRouting || shouldShowModel || shouldShowProfile || shouldShowSource || hasAgentOverride || shouldShowCodeFirst || mode === 'plan' || isTemporarySession;
+  const statusSummaryParts = useMemo(() => {
+    const parts: string[] = [];
+
+    if (effectiveModel !== currentModel) {
+      parts.push('Model override active');
+    }
+
+    if (effectiveProfile !== 'default') {
+      parts.push(`Profile ${formatProfileLabel(effectiveProfile)}`);
+    }
+
+    if (hasWorkspaceOverride) {
+      parts.push('Workspace override');
+    }
+
+    if (hasAgentOverride) {
+      parts.push('Agent override');
+    }
+
+    if (shouldShowRouting && routedAgentDisplayName) {
+      parts.push(`Agent ${routedAgentDisplayName}`);
+    }
+
+    if (mode === 'plan') {
+      parts.push('Plan review');
+    }
+
+    if (isTemporarySession) {
+      parts.push('Temporary workspace');
+    }
+
+    return parts;
+  }, [
+    currentModel,
+    effectiveModel,
+    effectiveProfile,
+    hasAgentOverride,
+    hasWorkspaceOverride,
+    isTemporarySession,
+    mode,
+    routedAgentDisplayName,
+    shouldShowRouting,
+  ]);
+  const statusSummaryText = statusSummaryParts.join(' · ');
 
   // Calculate context usage - prefer real-time branch usage from currentContextUsage
   const { pricing } = getModelInfo(currentModel);
@@ -1989,52 +1992,13 @@ export const ChatInput = React.memo(function ChatInput({
               )}
             </button>
 
-            {hasVisibleStatusPills && (
-              <div className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  {shouldShowRouting && (
-                    <StatusPill label="Routing" value={routingLabel} tone={routingTone} />
-                  )}
-                  {shouldShowModel && (
-                    <StatusPill label="Model" value={effectiveModel} tone="info" />
-                  )}
-                  {shouldShowProfile && (
-                    <StatusPill label="Profile" value={formatProfileLabel(effectiveProfile)} tone="default" />
-                  )}
-                  {shouldShowSource && (
-                    <StatusPill
-                      label="Source"
-                      value={profileSourceLabel}
-                      tone="success"
-                    />
-                  )}
-                  {hasAgentOverride && routedAgentRecordResolved?.modelConfig?.model && (
-                    <StatusPill
-                      label="Agent Override"
-                      value={routedAgentRecordResolved.modelConfig.model}
-                      tone="warning"
-                    />
-                  )}
-                  {shouldShowCodeFirst && (
-                    <StatusPill
-                      label="Default"
-                      value="Code-first"
-                      tone="success"
-                    />
-                  )}
-                  {isTemporarySession && (
-                    <StatusPill
-                      label="Session"
-                      value="Temp Output"
-                      tone="warning"
-                    />
-                  )}
-                  {mode === 'plan' && (
-                    <PlanModeIndicator mode={mode} compact status={planStatus} />
-                  )}
-                </div>
+            {statusSummaryText && (
+              <div className="px-1">
+                <p className="text-[11px] leading-4 text-muted-foreground/75">
+                  {statusSummaryText}
+                </p>
                 {isTemporarySession && (
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground/60">
                     No workspace selected. Generated files stay in a per-chat temporary folder until you open a project.
                   </p>
                 )}
