@@ -22,7 +22,6 @@ import { useWorkspaceBranch } from '@/hooks/useWorkspaceBranch';
 import type { Session, UploadedImage, ApiMessageRecord, UndoConfirmState, ChatSnapshot } from '@/app/page/types';
 import {
   DEFAULT_CHAT_SETTINGS,
-  DEFAULT_TERMINAL_PANEL_HEIGHT,
   normalizeChatSettings,
   buildTreeFromApiMessages,
 } from '@/app/page/types';
@@ -31,6 +30,7 @@ import {
 import { useChatCommands } from '@/app/page/hooks/useChatCommands';
 
 import { ChatProvider } from './contexts/ChatContext';
+import { useUIStore } from '@/lib/stores/ui-store';
 
 const SettingsDialog = dynamic(
   () => import('../components/settings/SettingsDialog').then((mod) => mod.SettingsDialog),
@@ -101,37 +101,57 @@ export default function Home() {
   // Track sessions with unread completed messages (not the current viewed session)
   const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(new Set());
 
-  // Settings state
+  // Settings state (local — tied to SettingsDialog lifecycle)
   const [settings, setSettings] = useState<ChatSettings>(DEFAULT_CHAT_SETTINGS);
 
-  // UI state
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [showUsageStats, setShowUsageStats] = useState(false);
-  const [showExtensionsDialog, setShowExtensionsDialog] = useState(false);
-  const [showAddWorkspace, setShowAddWorkspace] = useState(false);
-  const [mode, setMode] = useState<'code' | 'plan' | 'ask'>('code');
+  // UI state — from Zustand store
+  const settingsOpen = useUIStore((s) => s.settingsOpen);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
+  const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen);
+  const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
+  const showUsageStats = useUIStore((s) => s.showUsageStats);
+  const setShowUsageStats = useUIStore((s) => s.setShowUsageStats);
+  const showExtensionsDialog = useUIStore((s) => s.showExtensionsDialog);
+  const setShowExtensionsDialog = useUIStore((s) => s.setShowExtensionsDialog);
+  const showAddWorkspace = useUIStore((s) => s.showAddWorkspace);
+  const setShowAddWorkspace = useUIStore((s) => s.setShowAddWorkspace);
+  const mode = useUIStore((s) => s.mode);
+  const setMode = useUIStore((s) => s.setMode);
+  const previewFile = useUIStore((s) => s.previewFile);
+  const setPreviewFile = useUIStore((s) => s.setPreviewFile);
+  const approvalMode = useUIStore((s) => s.approvalMode);
+  const setApprovalMode = useUIStore((s) => s.setApprovalMode);
+  const sidePanelType = useUIStore((s) => s.sidePanelType);
+  const setSidePanelType = useUIStore((s) => s.setSidePanelType);
+  const sidePanelWidth = useUIStore((s) => s.sidePanelWidth);
+  const setSidePanelWidth = useUIStore((s) => s.setSidePanelWidth);
+  const showTerminal = useUIStore((s) => s.showTerminal);
+  const setShowTerminal = useUIStore((s) => s.setShowTerminal);
+  const artifactPath = useUIStore((s) => s.artifactPath);
+  const setArtifactPath = useUIStore((s) => s.setArtifactPath);
+  const inputAreaHeight = useUIStore((s) => s.inputAreaHeight);
+  const setInputAreaHeight = useUIStore((s) => s.setInputAreaHeight);
+  const terminalPanelHeight = useUIStore((s) => s.terminalPanelHeight);
+  const setTerminalPanelHeight = useUIStore((s) => s.setTerminalPanelHeight);
+  const streamingStatus = useUIStore((s) => s.streamingStatus);
+  const setStreamingStatus = useUIStore((s) => s.setStreamingStatus);
+  const isSidebarCollapsed = useUIStore((s) => s.isSidebarCollapsed);
+  const setIsSidebarCollapsed = useUIStore((s) => s.setIsSidebarCollapsed);
+  const showSidebarToggle = useUIStore((s) => s.showSidebarToggle);
+  const setShowSidebarToggle = useUIStore((s) => s.setShowSidebarToggle);
+  const sidebarView = useUIStore((s) => s.sidebarView);
+  const setSidebarView = useUIStore((s) => s.setSidebarView);
+
+  // Theme state (local — browser-specific)
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const isDark = mounted ? resolvedTheme === 'dark' : false;
   const isNativeDesktopWindow =
     mounted && typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-  const [previewFile, setPreviewFile] = useState<{ name: string; path: string } | null>(null);
-  const [approvalMode, setApprovalMode] = useState<'safe' | 'auto'>(DEFAULT_CHAT_SETTINGS.toolPermissionStrategy);
-  const [sidePanelType, setSidePanelType] = useState<'graph' | 'timeline' | 'artifact' | null>(null);
-  const [sidePanelWidth, setSidePanelWidth] = useState(400);
-  const [showTerminal, setShowTerminal] = useState(false);
-  const [artifactPath, setArtifactPath] = useState<string | null>(null);
-  const [inputAreaHeight, setInputAreaHeight] = useState(120);
-  const [terminalPanelHeight, setTerminalPanelHeight] = useState(DEFAULT_TERMINAL_PANEL_HEIGHT);
-  const [streamingStatus, setStreamingStatus] = useState<string | undefined>(undefined);
-  // Sidebar state
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [showSidebarToggle, setShowSidebarToggle] = useState(true);
-  // Sidebar active view: 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory'
-  const [sidebarView, setSidebarView] = useState<string | null>(null);
+
+  // Legacy sidebar state (unused — kept for compat)
+  const [sidebarOpen] = useState(true);
 
   const toAbsoluteArtifactPath = (rawPath: string) => {
     const candidate = String(rawPath || '').trim();
@@ -170,12 +190,12 @@ export default function Home() {
       // Cmd+K or Ctrl+K for Command Palette
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setCommandPaletteOpen(prev => !prev);
+        setCommandPaletteOpen(!commandPaletteOpen);
       }
       // Cmd+J or Ctrl+J for Terminal
       if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
         e.preventDefault();
-        setShowTerminal(prev => !prev);
+        setShowTerminal(!showTerminal);
       }
       // Cmd+N or Ctrl+N for New Chat
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
@@ -561,11 +581,12 @@ export default function Home() {
     }
   }, [switchBranch, showErrorToast, showInfoToast, currentSessionId]);
 
-  // Load sidebar state
+  // Load sidebar state from localStorage (store is source of truth at runtime,
+  // but we restore persisted value on mount)
   useEffect(() => {
     const savedCollapsed = localStorage.getItem('sidebar-collapsed');
     if (savedCollapsed) setIsSidebarCollapsed(savedCollapsed === 'true');
-  }, []);
+  }, [setIsSidebarCollapsed]);
 
   // Handle sidebar view transitions: auto-expand only when switching into a non-chat view.
   // Do not force-expand on manual collapse while staying on the same view.
@@ -581,7 +602,7 @@ export default function Home() {
       setIsSidebarCollapsed(false);
       localStorage.setItem('sidebar-collapsed', 'false');
     }
-  }, [sidebarView, isSidebarCollapsed]);
+  }, [sidebarView, isSidebarCollapsed, setIsSidebarCollapsed]);
 
   const toggleTheme = useCallback(() => {
     setTheme(theme === 'light' ? 'dark' : 'light');
@@ -592,7 +613,7 @@ export default function Home() {
     setIsSidebarCollapsed(newState);
     localStorage.setItem('sidebar-collapsed', String(newState));
     if (newState) setSidePanelType(null);
-  }, [isSidebarCollapsed]);
+  }, [isSidebarCollapsed, setIsSidebarCollapsed, setSidePanelType]);
 
   const handleModelChange = useCallback((model: string) => {
     setSettings(s => ({ ...s, model }));
@@ -718,10 +739,6 @@ export default function Home() {
       console.error('Failed to load session', error);
     } finally {
       setIsSessionLoading(false);
-      // Close sidebar on mobile
-      if (window.innerWidth < 768) {
-        setSidebarOpen(false);
-      }
     }
   };
 
@@ -754,9 +771,6 @@ export default function Home() {
     setMessagesMap(new Map());
     setHeadId(null);
     headIdRef.current = null;
-    if (window.innerWidth < 768) {
-      setSidebarOpen(false);
-    }
   };
 
   const handleAddWorkspace = async (workspacePath: string) => {
@@ -2956,12 +2970,12 @@ export default function Home() {
             onSelectAgent={(agent) => setSelectedAgent(agent)}
             selectedAgentName={selectedAgent?.name}
             sidePanelType={sidePanelType}
-            onToggleSidePanel={(type) => setSidePanelType(current => current === type ? null : type)}
+            onToggleSidePanel={(type) => setSidePanelType(sidePanelType === type ? null : type)}
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={handleToggleSidebar}
             sidebarView={sidebarView}
             onSetSidebarView={(view) => {
-              setSidebarView(view);
+              setSidebarView(view as 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory' | null);
               // If switching to a non-chat view, ensure sidebar is expanded
               if (view && view !== 'chat' && isSidebarCollapsed) {
                 setIsSidebarCollapsed(false);
@@ -3098,7 +3112,7 @@ export default function Home() {
             onOpenSettings: () => setSettingsOpen(true),
             onToggleTerminal: () => setShowTerminal(!showTerminal),
             onSetMode: (m) => setMode(m),
-            onToggleApproval: () => setApprovalMode(prev => prev === 'safe' ? 'auto' : 'safe'),
+            onToggleApproval: () => setApprovalMode(approvalMode === 'safe' ? 'auto' : 'safe'),
             onShowStats: () => setShowUsageStats(true),
             onOpenCoreUpgrade: () => setSettingsOpen(true),
           }}

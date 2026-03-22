@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Message } from '@/components/MessageBubble';
+import { Message } from '@/components/chat/MessageBubble';
 
 interface ApiMessageRecord {
   id?: string | number | null;
