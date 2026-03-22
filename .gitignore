@@ -55,7 +55,10 @@ out/
 .codex/
 src-tauri/resources/next-standalone/
 src-tauri/resources/node-runtime/
+src-tauri/resources/sidecar/tree-sitter-*.wasm
 # Tooling
+.sidecar-runtime/
+.codepilot-uploads/
 gemini-home/
 .gemini/
 .npm-cache/
