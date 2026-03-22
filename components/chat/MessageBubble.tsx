@@ -45,7 +45,7 @@ export interface Message {
   thought?: string;
   citations?: string[];
   images?: Array<{ dataUrl: string; type: string; name: string }>;
-  hooks?: import('./HooksPanel').HookEvent[];
+  hooks?: import('@/components/panels/HooksPanel').HookEvent[];
   queued?: boolean;
   tempId?: string;
   agentName?: string;

@@ -28,16 +28,16 @@ import { NavListItem } from '@/components/sidebar/NavListItem';
 import { ChatView } from '@/components/sidebar/ChatView';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ResizeHandle, useResize } from '@/components/ui/ResizeHandle';
-import packageJson from '../package.json';
+import packageJson from '../../package.json';
 
-const FileTree = dynamic(() => import('./FileTree').then((mod) => mod.FileTree), { ssr: false });
-const HooksPanel = dynamic(() => import('./HooksPanel').then((mod) => mod.HooksPanel), { ssr: false });
-const MCPPanel = dynamic(() => import('./MCPPanel').then((mod) => mod.MCPPanel), { ssr: false });
-const SkillsManager = dynamic(() => import('./modules/SkillsManager').then((mod) => mod.SkillsManager), { ssr: false });
-const MemoryPanel = dynamic(() => import('./MemoryPanel').then((mod) => mod.MemoryPanel), { ssr: false });
-const AgentPanel = dynamic(() => import('./AgentPanel').then((mod) => mod.AgentPanel), { ssr: false });
-const QuotaPanel = dynamic(() => import('./QuotaPanel').then((mod) => mod.QuotaPanel), { ssr: false });
-const ModulesDialog = dynamic(() => import('./ModulesDialog').then((mod) => mod.ModulesDialog), { ssr: false });
+const FileTree = dynamic(() => import('@/components/panels/FileTree').then((mod) => mod.FileTree), { ssr: false });
+const HooksPanel = dynamic(() => import('@/components/panels/HooksPanel').then((mod) => mod.HooksPanel), { ssr: false });
+const MCPPanel = dynamic(() => import('@/components/panels/MCPPanel').then((mod) => mod.MCPPanel), { ssr: false });
+const SkillsManager = dynamic(() => import('@/components/modules/SkillsManager').then((mod) => mod.SkillsManager), { ssr: false });
+const MemoryPanel = dynamic(() => import('@/components/panels/MemoryPanel').then((mod) => mod.MemoryPanel), { ssr: false });
+const AgentPanel = dynamic(() => import('@/components/agent/AgentPanel').then((mod) => mod.AgentPanel), { ssr: false });
+const QuotaPanel = dynamic(() => import('@/components/panels/QuotaPanel').then((mod) => mod.QuotaPanel), { ssr: false });
+const ModulesDialog = dynamic(() => import('@/components/dialogs/ModulesDialog').then((mod) => mod.ModulesDialog), { ssr: false });
 
 interface Session {
   id: string;
