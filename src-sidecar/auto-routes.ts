@@ -21,39 +21,40 @@ import * as route_19 from '../legacy-api/config/geminiignore/route';
 import * as route_20 from '../legacy-api/config/route';
 import * as route_21 from '../legacy-api/config/trusted-folders/route';
 import * as route_22 from '../legacy-api/confirm/route';
-import * as route_23 from '../legacy-api/custom-tools/route';
-import * as route_24 from '../legacy-api/debug/storage/route';
-import * as route_25 from '../legacy-api/directories/route';
-import * as route_26 from '../legacy-api/extensions/route';
-import * as route_27 from '../legacy-api/files/content/route';
-import * as route_28 from '../legacy-api/files/route';
-import * as route_29 from '../legacy-api/git/branch/route';
-import * as route_30 from '../legacy-api/governance/steering/route';
-import * as route_31 from '../legacy-api/governance/summary/route';
-import * as route_32 from '../legacy-api/hooks/route';
-import * as route_33 from '../legacy-api/mcp/gallery/route';
-import * as route_34 from '../legacy-api/mcp/route';
-import * as route_35 from '../legacy-api/memory/route';
-import * as route_36 from '../legacy-api/models/route';
-import * as route_37 from '../legacy-api/open/route';
-import * as route_38 from '../legacy-api/presets/route';
-import * as route_39 from '../legacy-api/queue/process/route';
-import * as route_40 from '../legacy-api/queue/route';
-import * as route_41 from '../legacy-api/queue/status/route';
-import * as route_42 from '../legacy-api/quota/route';
-import * as route_43 from '../legacy-api/resolve-model/route';
-import * as route_44 from '../legacy-api/sessions/[id]/archive/route';
-import * as route_45 from '../legacy-api/sessions/[id]/branch/route';
-import * as route_46 from '../legacy-api/sessions/[id]/route';
-import * as route_47 from '../legacy-api/sessions/core/route';
-import * as route_48 from '../legacy-api/sessions/latest-stats/route';
-import * as route_49 from '../legacy-api/sessions/route';
-import * as route_50 from '../legacy-api/settings/route';
-import * as route_51 from '../legacy-api/skills/route';
-import * as route_52 from '../legacy-api/stats/route';
-import * as route_53 from '../legacy-api/telemetry/route';
-import * as route_54 from '../legacy-api/tool-output/stream/route';
-import * as route_55 from '../legacy-api/tools/route';
+import * as route_23 from '../legacy-api/core/upgrade/route';
+import * as route_24 from '../legacy-api/custom-tools/route';
+import * as route_25 from '../legacy-api/debug/storage/route';
+import * as route_26 from '../legacy-api/directories/route';
+import * as route_27 from '../legacy-api/extensions/route';
+import * as route_28 from '../legacy-api/files/content/route';
+import * as route_29 from '../legacy-api/files/route';
+import * as route_30 from '../legacy-api/git/branch/route';
+import * as route_31 from '../legacy-api/governance/steering/route';
+import * as route_32 from '../legacy-api/governance/summary/route';
+import * as route_33 from '../legacy-api/hooks/route';
+import * as route_34 from '../legacy-api/mcp/gallery/route';
+import * as route_35 from '../legacy-api/mcp/route';
+import * as route_36 from '../legacy-api/memory/route';
+import * as route_37 from '../legacy-api/models/route';
+import * as route_38 from '../legacy-api/open/route';
+import * as route_39 from '../legacy-api/presets/route';
+import * as route_40 from '../legacy-api/queue/process/route';
+import * as route_41 from '../legacy-api/queue/route';
+import * as route_42 from '../legacy-api/queue/status/route';
+import * as route_43 from '../legacy-api/quota/route';
+import * as route_44 from '../legacy-api/resolve-model/route';
+import * as route_45 from '../legacy-api/sessions/[id]/archive/route';
+import * as route_46 from '../legacy-api/sessions/[id]/branch/route';
+import * as route_47 from '../legacy-api/sessions/[id]/route';
+import * as route_48 from '../legacy-api/sessions/core/route';
+import * as route_49 from '../legacy-api/sessions/latest-stats/route';
+import * as route_50 from '../legacy-api/sessions/route';
+import * as route_51 from '../legacy-api/settings/route';
+import * as route_52 from '../legacy-api/skills/route';
+import * as route_53 from '../legacy-api/stats/route';
+import * as route_54 from '../legacy-api/telemetry/route';
+import * as route_55 from '../legacy-api/tool-output/stream/route';
+import * as route_56 from '../legacy-api/tools/route';
 
 import type { Express, Request as ExRequest, Response as ExResponse } from 'express';
 import { NextRequest } from './mock-next-server';
@@ -1032,7 +1033,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/custom-tools', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/core/upgrade', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_23 as any)[method];
@@ -1073,7 +1074,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/debug/storage', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/custom-tools', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_24 as any)[method];
@@ -1114,7 +1115,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/directories', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/debug/storage', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_25 as any)[method];
@@ -1155,7 +1156,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/extensions', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/directories', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_26 as any)[method];
@@ -1196,7 +1197,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/files/content', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/extensions', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_27 as any)[method];
@@ -1237,7 +1238,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/files', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/files/content', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_28 as any)[method];
@@ -1278,7 +1279,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/git/branch', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/files', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_29 as any)[method];
@@ -1319,7 +1320,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/governance/steering', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/git/branch', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_30 as any)[method];
@@ -1360,7 +1361,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/governance/summary', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/governance/steering', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_31 as any)[method];
@@ -1401,7 +1402,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/hooks', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/governance/summary', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_32 as any)[method];
@@ -1442,7 +1443,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/mcp/gallery', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/hooks', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_33 as any)[method];
@@ -1483,7 +1484,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/mcp', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/mcp/gallery', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_34 as any)[method];
@@ -1524,7 +1525,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/memory', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/mcp', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_35 as any)[method];
@@ -1565,7 +1566,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/models', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/memory', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_36 as any)[method];
@@ -1606,7 +1607,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/open', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/models', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_37 as any)[method];
@@ -1647,7 +1648,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/presets', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/open', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_38 as any)[method];
@@ -1688,7 +1689,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/queue/process', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/presets', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_39 as any)[method];
@@ -1729,7 +1730,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/queue', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/queue/process', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_40 as any)[method];
@@ -1770,7 +1771,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/queue/status', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/queue', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_41 as any)[method];
@@ -1811,7 +1812,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/quota', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/queue/status', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_42 as any)[method];
@@ -1852,7 +1853,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/resolve-model', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/quota', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_43 as any)[method];
@@ -1893,7 +1894,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/sessions/:id/archive', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/resolve-model', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_44 as any)[method];
@@ -1934,7 +1935,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/sessions/:id/branch', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/sessions/:id/archive', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_45 as any)[method];
@@ -1975,7 +1976,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/sessions/:id', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/sessions/:id/branch', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_46 as any)[method];
@@ -2016,7 +2017,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/sessions/core', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/sessions/:id', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_47 as any)[method];
@@ -2057,7 +2058,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/sessions/latest-stats', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/sessions/core', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_48 as any)[method];
@@ -2098,7 +2099,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/sessions', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/sessions/latest-stats', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_49 as any)[method];
@@ -2139,7 +2140,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/settings', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/sessions', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_50 as any)[method];
@@ -2180,7 +2181,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/skills', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/settings', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_51 as any)[method];
@@ -2221,7 +2222,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/stats', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/skills', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_52 as any)[method];
@@ -2262,7 +2263,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/telemetry', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/stats', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_53 as any)[method];
@@ -2303,7 +2304,7 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/tool-output/stream', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/telemetry', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_54 as any)[method];
@@ -2344,10 +2345,51 @@ export function registerAutoRoutes(app: Express) {
         }
     });
 
-    app.all('/api/tools', async (req: ExRequest, res: ExResponse) => {
+    app.all('/api/tool-output/stream', async (req: ExRequest, res: ExResponse) => {
         try {
             const method = req.method;
             const handler = (route_55 as any)[method];
+            
+            if (!handler) {
+                res.status(405).json({ error: 'Method Not Allowed' });
+                return;
+            }
+
+            const url = `http://localhost:${req.socket.localPort}${req.originalUrl}`;
+            const init: RequestInit = {
+                method,
+                headers: req.headers as HeadersInit,
+            };
+            
+            if (shouldIncludeBody(method) && req.body) {
+                init.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+            }
+            
+            const webReq = new NextRequest(url, init);
+            // Some legacy handlers read req.nextUrl directly; define it as an own
+            // property so we do not rely on Request subclass getter semantics.
+            Object.defineProperty(webReq, 'nextUrl', {
+                value: new URL(url),
+                configurable: true,
+                enumerable: false,
+            });
+            const webRes = await handler(webReq, { params: req.params });
+            
+            if (webRes) {
+                await forwardWebResponse(res, webRes);
+            } else {
+                res.end();
+            }
+        } catch (error: any) {
+            console.error('[Sidecar AutoRoute Error]', error);
+            res.status(500).json({ error: error.message || 'Internal Error' });
+        }
+    });
+
+    app.all('/api/tools', async (req: ExRequest, res: ExResponse) => {
+        try {
+            const method = req.method;
+            const handler = (route_56 as any)[method];
             
             if (!handler) {
                 res.status(405).json({ error: 'Method Not Allowed' });
