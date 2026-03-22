@@ -7,34 +7,34 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Lazy load all heavy components - only load when tab is active
-const AnalyticsDashboard = lazy(() => import('./modules/analytics/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
-const NerdStatsPanel = lazy(() => import('./modules/analytics/NerdStatsPanel').then(m => ({ default: m.NerdStatsPanel })));
-const PerformancePanel = lazy(() => import('./modules/analytics/PerformancePanel').then(m => ({ default: m.PerformancePanel })));
-const ToolStatsPanel = lazy(() => import('./modules/analytics/ToolStatsPanel').then(m => ({ default: m.ToolStatsPanel })));
-const FileHeatmapPanel = lazy(() => import('./modules/analytics/FileHeatmapPanel').then(m => ({ default: m.FileHeatmapPanel })));
-const SessionTimeline = lazy(() => import('./modules/timeline/SessionTimeline').then(m => ({ default: m.SessionTimeline })));
-const ChatManager = lazy(() => import('./modules/ChatModules').then(m => ({ default: m.ChatManager })));
-const CheckpointManager = lazy(() => import('./modules/SessionModules').then(m => ({ default: m.CheckpointManager })));
-const ToolManager = lazy(() => import('./modules/SystemModules').then(m => ({ default: m.ToolManager })));
-const DirectoryManager = lazy(() => import('./modules/ContextModules').then(m => ({ default: m.DirectoryManager })));
-const SettingsManager = lazy(() => import('./modules/ConfigModules').then(m => ({ default: m.SettingsManager })));
-const ThemeSelector = lazy(() => import('./modules/ConfigModules').then(m => ({ default: m.ThemeSelector })));
-const ShortcutsPanel = lazy(() => import('./modules/ConfigModules').then(m => ({ default: m.ShortcutsPanel })));
-const SystemInfo = lazy(() => import('./modules/ConfigModules').then(m => ({ default: m.SystemInfo })));
-const ShellManager = lazy(() => import('./modules/ActionModules').then(m => ({ default: m.ShellManager })));
-const AuthManager = lazy(() => import('./modules/ActionModules').then(m => ({ default: m.AuthManager })));
-const FileManager = lazy(() => import('./modules/ActionModules').then(m => ({ default: m.FileManager })));
-const CustomCommandManager = lazy(() => import('./modules/CommandModules').then(m => ({ default: m.CustomCommandManager })));
+const AnalyticsDashboard = lazy(() => import('@/components/modules/analytics/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
+const NerdStatsPanel = lazy(() => import('@/components/modules/analytics/NerdStatsPanel').then(m => ({ default: m.NerdStatsPanel })));
+const PerformancePanel = lazy(() => import('@/components/modules/analytics/PerformancePanel').then(m => ({ default: m.PerformancePanel })));
+const ToolStatsPanel = lazy(() => import('@/components/modules/analytics/ToolStatsPanel').then(m => ({ default: m.ToolStatsPanel })));
+const FileHeatmapPanel = lazy(() => import('@/components/modules/analytics/FileHeatmapPanel').then(m => ({ default: m.FileHeatmapPanel })));
+const SessionTimeline = lazy(() => import('@/components/modules/timeline/SessionTimeline').then(m => ({ default: m.SessionTimeline })));
+const ChatManager = lazy(() => import('@/components/modules/ChatModules').then(m => ({ default: m.ChatManager })));
+const CheckpointManager = lazy(() => import('@/components/modules/SessionModules').then(m => ({ default: m.CheckpointManager })));
+const ToolManager = lazy(() => import('@/components/modules/SystemModules').then(m => ({ default: m.ToolManager })));
+const DirectoryManager = lazy(() => import('@/components/modules/ContextModules').then(m => ({ default: m.DirectoryManager })));
+const SettingsManager = lazy(() => import('@/components/modules/ConfigModules').then(m => ({ default: m.SettingsManager })));
+const ThemeSelector = lazy(() => import('@/components/modules/ConfigModules').then(m => ({ default: m.ThemeSelector })));
+const ShortcutsPanel = lazy(() => import('@/components/modules/ConfigModules').then(m => ({ default: m.ShortcutsPanel })));
+const SystemInfo = lazy(() => import('@/components/modules/ConfigModules').then(m => ({ default: m.SystemInfo })));
+const ShellManager = lazy(() => import('@/components/modules/ActionModules').then(m => ({ default: m.ShellManager })));
+const AuthManager = lazy(() => import('@/components/modules/ActionModules').then(m => ({ default: m.AuthManager })));
+const FileManager = lazy(() => import('@/components/modules/ActionModules').then(m => ({ default: m.FileManager })));
+const CustomCommandManager = lazy(() => import('@/components/modules/CommandModules').then(m => ({ default: m.CustomCommandManager })));
 
 // Governance Tab
-const PolicyHealthPanel = lazy(() => import('./modules/governance/PolicyHealthPanel').then(m => ({ default: m.PolicyHealthPanel })));
-const ModelSteeringPanel = lazy(() => import('./modules/governance/ModelSteeringPanel').then(m => ({ default: m.ModelSteeringPanel })));
-const ExecutionGuardrailsPanel = lazy(() => import('./modules/governance/ExecutionGuardrailsPanel').then(m => ({ default: m.ExecutionGuardrailsPanel })));
+const PolicyHealthPanel = lazy(() => import('@/components/modules/governance/PolicyHealthPanel').then(m => ({ default: m.PolicyHealthPanel })));
+const ModelSteeringPanel = lazy(() => import('@/components/modules/governance/ModelSteeringPanel').then(m => ({ default: m.ModelSteeringPanel })));
+const ExecutionGuardrailsPanel = lazy(() => import('@/components/modules/governance/ExecutionGuardrailsPanel').then(m => ({ default: m.ExecutionGuardrailsPanel })));
 
 // Browser Tab
-const BrowserRuntimePanel = lazy(() => import('./modules/browser/BrowserRuntimePanel').then(m => ({ default: m.BrowserRuntimePanel })));
-const BrowserSessionTrace = lazy(() => import('./modules/browser/BrowserSessionTrace').then(m => ({ default: m.BrowserSessionTrace })));
-const ContextPersistencePanel = lazy(() => import('./modules/browser/ContextPersistencePanel').then(m => ({ default: m.ContextPersistencePanel })));
+const BrowserRuntimePanel = lazy(() => import('@/components/modules/browser/BrowserRuntimePanel').then(m => ({ default: m.BrowserRuntimePanel })));
+const BrowserSessionTrace = lazy(() => import('@/components/modules/browser/BrowserSessionTrace').then(m => ({ default: m.BrowserSessionTrace })));
+const ContextPersistencePanel = lazy(() => import('@/components/modules/browser/ContextPersistencePanel').then(m => ({ default: m.ContextPersistencePanel })));
 
 // Loading fallback component
 const ModuleLoader = memo(function ModuleLoader() {
