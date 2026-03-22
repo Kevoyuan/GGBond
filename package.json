@@ -10,7 +10,7 @@
     "predev:sidecar": "npx ts-node --project tsconfig.sidecar.json -r tsconfig-paths/register scripts/generate-sidecar-routes.ts",
     "dev:sidecar": "ts-node --project tsconfig.sidecar.json -r tsconfig-paths/register src-sidecar/server.ts",
     "prebuild:sidecar": "npx ts-node --project tsconfig.sidecar.json -r tsconfig-paths/register scripts/generate-sidecar-routes.ts",
-    "build:sidecar": "esbuild src-sidecar/server.ts --bundle --platform=node --target=node18 --external:better-sqlite3 --external:@google/gemini-cli-core --outfile=src-tauri/resources/sidecar/server.js",
+    "build:sidecar": "esbuild src-sidecar/bootstrap.ts --bundle --platform=node --target=node18 --external:better-sqlite3 --external:@google/gemini-cli-core --outfile=src-tauri/resources/sidecar/server.js",
     "restart": "bash scripts/restart-tauri.sh",
     "doctor:node-native": "node scripts/ensure-node-native.cjs",
     "rebuild:node-native": "npm rebuild better-sqlite3",

@@ -36,6 +36,13 @@
     "bundle": {
         "active": true,
         "targets": "all",
+        "resources": {
+            "resources/sidecar": "resources/sidecar",
+            "resources/node-runtime": "resources/node-runtime",
+            "../node_modules/better-sqlite3": "resources/sidecar/node_modules/better-sqlite3",
+            "../node_modules/bindings": "resources/sidecar/node_modules/bindings",
+            "../node_modules/file-uri-to-path": "resources/sidecar/node_modules/file-uri-to-path"
+        },
         "icon": [
             "icons/32x32.png",
             "icons/128x128.png",
