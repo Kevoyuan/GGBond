@@ -6,7 +6,7 @@ import { ModuleCard } from './ModuleCard';
 import { Sparkles, Loader2, RefreshCw, Trash2, BookOpen, Search, CheckCircle2, Ban, Plus, SlidersHorizontal, Puzzle, ExternalLink, Edit, PlusCircle, Layers, Globe, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from '../sidebar/PanelHeader';
-import { SkillPreviewDialog } from '../SkillPreviewDialog';
+import { SkillPreviewDialog } from '@/components/chat/SkillPreviewDialog';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 import { fetchJsonWithRetry } from '@/lib/client-fetch';

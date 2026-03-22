@@ -1,4 +1,4 @@
-import { CodeBlock } from '../CodeBlock';
+import { CodeBlock } from '@/components/chat/CodeBlock';
 
 interface ReadToolViewProps {
     args: Record<string, unknown>;

@@ -1,5 +1,5 @@
-import { CodeBlock } from '../CodeBlock';
-import { DiffBlock } from '../DiffBlock';
+import { CodeBlock } from '@/components/chat/CodeBlock';
+import { DiffBlock } from '@/components/chat/DiffBlock';
 
 interface EditToolViewProps {
     args: Record<string, unknown>;

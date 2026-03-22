@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import { cn } from '@/lib/utils';
-import { ToolCallCard } from '../ToolCallCard';
-import { PlanBlock } from '../PlanBlock';
-import { DiffBlock } from '../DiffBlock';
-import { CodeBlock } from '../CodeBlock';
+import { ToolCallCard } from '@/components/chat/ToolCallCard';
+import { PlanBlock } from '@/components/cognitive/PlanBlock';
+import { DiffBlock } from '@/components/chat/DiffBlock';
+import { CodeBlock } from '@/components/chat/CodeBlock';
 import {
     SkillMetaMap,
     loadSkillMetaMap,
@@ -14,7 +14,7 @@ import {
     parseSkillFrontmatter
 } from './SkillBadge';
 import { CodeCopyButton } from './CopyButtons';
-import { useToolExecutionOutputContext } from '../ToolExecutionOutputProvider';
+import { useToolExecutionOutputContext } from '@/components/providers/ToolExecutionOutputProvider';
 
 interface ContentRendererProps {
     content: string;
