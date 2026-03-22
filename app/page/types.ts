@@ -1,6 +1,6 @@
-import type { Message } from '../../components/MessageBubble';
-import type { ChatSettings } from '../../components/SettingsDialog';
-import type { UndoPreviewFileChange } from '../../components/UndoMessageConfirmDialog';
+import type { Message } from '../../components/chat/MessageBubble';
+import type { ChatSettings } from '../../components/settings/SettingsDialog';
+import type { UndoPreviewFileChange } from '../../components/dialogs/UndoMessageConfirmDialog';
 
 // ============================================================================
 // Types

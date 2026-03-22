@@ -3,18 +3,18 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useTheme } from 'next-themes';
-import { Sidebar } from '../components/Sidebar';
-import { Titlebar } from '../components/Titlebar';
-import { Message } from '../components/MessageBubble';
-import type { ChatSettings } from '../components/SettingsDialog';
+import { Sidebar } from '../components/layout/Sidebar';
+import { Titlebar } from '../components/layout/Titlebar';
+import { Message } from '../components/chat/MessageBubble';
+import type { ChatSettings } from '../components/settings/SettingsDialog';
 
-import { ChatContainer } from '../components/ChatContainer';
-import { ToolExecutionOutputProvider } from '../components/ToolExecutionOutputProvider';
-import { ConfirmationDialog, ConfirmationDetails } from '../components/ConfirmationDialog';
-import { QuestionPanel, Question } from '../components/QuestionPanel';
-import { HookEvent } from '../components/HooksPanel';
-import { UndoPreviewFileChange } from '../components/UndoMessageConfirmDialog';
-import { ToastContainer } from '../components/Toast';
+import { ChatContainer } from '../components/chat/ChatContainer';
+import { ToolExecutionOutputProvider } from '../components/providers/ToolExecutionOutputProvider';
+import { ConfirmationDialog, ConfirmationDetails } from '../components/dialogs/ConfirmationDialog';
+import { QuestionPanel, Question } from '../components/dialogs/QuestionPanel';
+import { HookEvent } from '../components/panels/HooksPanel';
+import { UndoPreviewFileChange } from '../components/dialogs/UndoMessageConfirmDialog';
+import { ToastContainer } from '../components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
 import { useWorkspaceBranch } from '@/hooks/useWorkspaceBranch';
 
@@ -33,31 +33,31 @@ import { useChatCommands } from '@/app/page/hooks/useChatCommands';
 import { ChatProvider } from './contexts/ChatContext';
 
 const SettingsDialog = dynamic(
-  () => import('../components/SettingsDialog').then((mod) => mod.SettingsDialog),
+  () => import('../components/settings/SettingsDialog').then((mod) => mod.SettingsDialog),
   { ssr: false }
 );
 const SidePanel = dynamic(
-  () => import('../components/SidePanel').then((mod) => mod.SidePanel),
+  () => import('../components/session/SidePanel').then((mod) => mod.SidePanel),
   { ssr: false }
 );
 const UsageStatsDialog = dynamic(
-  () => import('../components/UsageStatsDialog').then((mod) => mod.UsageStatsDialog),
+  () => import('../components/dialogs/UsageStatsDialog').then((mod) => mod.UsageStatsDialog),
   { ssr: false }
 );
 const ExtensionsGalleryDialog = dynamic(
-  () => import('../components/ExtensionsGalleryDialog').then((mod) => mod.ExtensionsGalleryDialog),
+  () => import('../components/dialogs/ExtensionsGalleryDialog').then((mod) => mod.ExtensionsGalleryDialog),
   { ssr: false }
 );
 const AddWorkspaceDialog = dynamic(
-  () => import('../components/AddWorkspaceDialog').then((mod) => mod.AddWorkspaceDialog),
+  () => import('../components/dialogs/AddWorkspaceDialog').then((mod) => mod.AddWorkspaceDialog),
   { ssr: false }
 );
 const TerminalPanel = dynamic(
-  () => import('../components/TerminalPanel').then((mod) => mod.TerminalPanel),
+  () => import('../components/terminal/TerminalPanel').then((mod) => mod.TerminalPanel),
   { ssr: false }
 );
 const CommandPalette = dynamic(
-  () => import('../components/CommandPalette').then((mod) => mod.CommandPalette),
+  () => import('../components/ui/CommandPalette').then((mod) => mod.CommandPalette),
   { ssr: false }
 );
 
