@@ -21,7 +21,7 @@ import {
     FileCode,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ShellToolView, EditToolView, WriteToolView, ReadToolView, DefaultToolView } from './views';
+import { ShellToolView, EditToolView, WriteToolView, ReadToolView, DefaultToolView } from '@/components/tool-views';
 import { useChatContext } from '@/app/contexts/ChatContext';
 
 interface ToolCallCardProps {

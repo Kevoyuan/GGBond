@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { fetchJsonWithRetry } from '@/lib/client-fetch';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ModelSelector } from './ModelSelector';
+import { ModelSelector } from '@/components/layout/ModelSelector';
 import { useChatContext } from '@/app/contexts/ChatContext';
 
 interface UploadedImage {

@@ -2,18 +2,18 @@ import { Info, RefreshCw, Undo2, Loader2, FileCode2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TokenUsageDisplay } from './TokenUsageDisplay';
+import { TokenUsageDisplay } from '@/components/layout/TokenUsageDisplay';
 import { StreamingIndicator } from './StreamingIndicator';
-import { ThinkingBlock } from './ThinkingBlock';
-import { ExecutionStatusBlock } from './ExecutionStatusBlock';
-import { ChatSettings } from './SettingsDialog';
-import { StateSnapshotDisplay } from './StateSnapshotDisplay';
+import { ThinkingBlock } from '@/components/cognitive/ThinkingBlock';
+import { ExecutionStatusBlock } from '@/components/execution/ExecutionStatusBlock';
+import { ChatSettings } from '@/components/settings/SettingsDialog';
+import { StateSnapshotDisplay } from '@/components/execution/StateSnapshotDisplay';
 
 // New separated components
-import { ContentRenderer } from './message/ContentRenderer';
-import { CitationsDisplay } from './message/CitationsDisplay';
-import { CopyButton } from './message/CopyButtons';
-import { SkillMetaMap, loadSkillMetaMap, renderTextWithSkillRefs } from './message/SkillBadge';
+import { ContentRenderer } from '@/components/message/ContentRenderer';
+import { CitationsDisplay } from '@/components/message/CitationsDisplay';
+import { CopyButton } from '@/components/message/CopyButtons';
+import { SkillMetaMap, loadSkillMetaMap, renderTextWithSkillRefs } from '@/components/message/SkillBadge';
 
 export interface Message {
   id?: string;

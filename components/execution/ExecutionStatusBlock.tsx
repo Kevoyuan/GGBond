@@ -17,7 +17,7 @@ import {
     Cpu
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { HookEvent } from './HooksPanel';
+import type { HookEvent } from '@/components/panels/HooksPanel';
 
 interface ExecutionStatusBlockProps {
     hooks: HookEvent[];

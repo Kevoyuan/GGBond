@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Check, FileText, Server, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { DiffBlock } from './DiffBlock';
+import { DiffBlock } from '@/components/chat/DiffBlock';
 
 export type ConfirmationType = 'info' | 'edit' | 'exec' | 'mcp' | 'ask_user' | 'exit_plan_mode';
 

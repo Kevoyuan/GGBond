@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { GeminiIcon } from './icons/GeminiIcon';
+import { GeminiIcon } from '@/components/icons/GeminiIcon';
 import { cn } from '@/lib/utils';
 
 export function StreamingIndicator({ status, className }: { status?: string; className?: string }) {

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ListOrdered, Play, Pause, Trash2, RotateCcw, ChevronDown, ChevronRight, X, AlertCircle, CheckCircle, Clock, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PanelHeader } from './sidebar/PanelHeader';
+import { PanelHeader } from '@/components/sidebar/PanelHeader';
 
 interface QueueItem {
   id: number;

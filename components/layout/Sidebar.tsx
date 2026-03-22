@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-import type { HookEvent } from './HooksPanel';
+import type { HookEvent } from '@/components/panels/HooksPanel';
 import { AgentIcon } from './icons/AgentIcon';
 import { NavListItem } from './sidebar/NavListItem';
 import { ChatView } from './sidebar/ChatView';

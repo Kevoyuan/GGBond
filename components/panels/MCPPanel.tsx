@@ -16,7 +16,7 @@ import {
     Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PanelHeader } from './sidebar/PanelHeader';
+import { PanelHeader } from '@/components/sidebar/PanelHeader';
 
 type ServerStatus = 'connected' | 'connecting' | 'disconnected' | 'disconnecting' | 'error';
 

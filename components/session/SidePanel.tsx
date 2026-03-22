@@ -8,7 +8,7 @@ import { BranchInsights } from '@/components/insights/BranchInsights';
 import { MessageTimeline } from '@/components/chat/MessageTimeline';
 import { ArtifactPreview } from '@/components/file/ArtifactPreview';
 import { cn } from '@/lib/utils';
-import { ResizeHandle, useResize } from './ui/ResizeHandle';
+import { ResizeHandle, useResize } from '@/components/ui/ResizeHandle';
 import {
   transformToGraphMessage,
   computeBranchInsights,

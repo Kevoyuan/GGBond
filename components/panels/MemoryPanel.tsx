@@ -17,7 +17,7 @@ import {
     ArrowUpRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PanelHeader } from './sidebar/PanelHeader';
+import { PanelHeader } from '@/components/sidebar/PanelHeader';
 import { useConfirmDelete } from '@/hooks/useConfirmDelete';
 
 interface MemoryPanelProps {

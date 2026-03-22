@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, Sparkles, Settings, Wrench, Check, ChevronRight, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ModelSelector } from './ModelSelector';
+import { ModelSelector } from '@/components/layout/ModelSelector';
 
 interface CreateAgentDialogProps {
   open: boolean;

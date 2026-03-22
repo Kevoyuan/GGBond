@@ -33,7 +33,7 @@ import {
     ListFilter
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PanelHeader } from './sidebar/PanelHeader';
+import { PanelHeader } from '@/components/sidebar/PanelHeader';
 
 // Available hook events from gemini-cli-core
 export const HOOK_EVENT_TYPES = [

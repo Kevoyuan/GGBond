@@ -2,14 +2,14 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { ArrowDown } from 'lucide-react';
-import { GeminiIcon } from './icons/GeminiIcon';
-import { MessageBubble, LoadingBubble, Message } from './MessageBubble';
-import { ChatInput, SteeringSummary } from './ChatInput';
-import { FileViewer } from './FileViewer';
+import { GeminiIcon } from '@/components/icons/GeminiIcon';
+import { MessageBubble, LoadingBubble, Message } from '@/components/chat/MessageBubble';
+import { ChatInput, SteeringSummary } from '@/components/chat/ChatInput';
+import { FileViewer } from '@/components/file/FileViewer';
 import { cn } from '@/lib/utils';
-import { ChatSettings } from './SettingsDialog';
-import { TaskProgressDock, TodoItem } from './TaskProgressDock';
-import { UncommittedFilesList } from './UncommittedFilesList';
+import { ChatSettings } from '@/components/settings/SettingsDialog';
+import { TaskProgressDock, TodoItem } from '@/components/layout/TaskProgressDock';
+import { UncommittedFilesList } from '@/components/session/UncommittedFilesList';
 
 interface ChatContainerProps {
 

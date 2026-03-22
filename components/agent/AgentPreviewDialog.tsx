@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, Play, Check, Folder, Cpu, AlertCircle, Activity, ExternalLink, Shield, KeyRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ModelSelector } from './ModelSelector';
+import { ModelSelector } from '@/components/layout/ModelSelector';
 import ReactMarkdown from 'react-markdown';
 
 interface AgentDefinition {
