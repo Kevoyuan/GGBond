@@ -23,11 +23,11 @@ import {
 import { cn } from '@/lib/utils';
 
 import type { HookEvent } from '@/components/panels/HooksPanel';
-import { AgentIcon } from './icons/AgentIcon';
-import { NavListItem } from './sidebar/NavListItem';
-import { ChatView } from './sidebar/ChatView';
-import { Tooltip } from './ui/Tooltip';
-import { ResizeHandle, useResize } from './ui/ResizeHandle';
+import { AgentIcon } from '@/components/icons/AgentIcon';
+import { NavListItem } from '@/components/sidebar/NavListItem';
+import { ChatView } from '@/components/sidebar/ChatView';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { ResizeHandle, useResize } from '@/components/ui/ResizeHandle';
 import packageJson from '../package.json';
 
 const FileTree = dynamic(() => import('./FileTree').then((mod) => mod.FileTree), { ssr: false });

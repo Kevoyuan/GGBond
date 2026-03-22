@@ -21,7 +21,7 @@ import {
   Activity,
   Cpu
 } from 'lucide-react';
-import { RunIcon } from './icons/RunIcon';
+import { RunIcon } from '@/components/icons/RunIcon';
 import { cn } from '@/lib/utils';
 
 interface AgentRun {

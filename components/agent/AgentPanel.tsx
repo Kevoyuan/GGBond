@@ -9,11 +9,11 @@ import { CreateAgentDialog } from './CreateAgentDialog';
 import { AgentPreviewDialog } from './AgentPreviewDialog';
 import { AgentRunsList } from './AgentRunsList';
 import { useAppStore } from '@/stores/useAppStore';
-import { AgentIcon } from './icons/AgentIcon';
-import { PanelHeader } from './sidebar/PanelHeader';
+import { AgentIcon } from '@/components/icons/AgentIcon';
+import { PanelHeader } from '@/components/sidebar/PanelHeader';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useConfirmDelete } from '@/hooks/useConfirmDelete';
-import { ResizeHandle, useResize } from './ui/ResizeHandle';
+import { ResizeHandle, useResize } from '@/components/ui/ResizeHandle';
 import { fetchJsonWithRetry } from '@/lib/client-fetch';
 
 interface AgentDefinition {
