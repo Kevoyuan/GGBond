@@ -58,14 +58,26 @@ export const FileTree = React.memo(function FileTree({ initialPath, onFileSelect
             />
 
             <div className="flex-1 overflow-y-auto scrollbar-thin p-1">
-                <DirectoryNode
-                    key={`${rootPath || 'root'}:${refreshToken}`}
-                    path={rootPath}
-                    name={rootPath.split('/').pop() || 'root'}
-                    onFileSelect={onFileSelect}
-                    defaultExpanded={true}
-                    searchTerm={searchTerm || ''}
-                />
+                {!rootPath ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                        <FolderOpen className="w-12 h-12 text-[var(--text-tertiary)] mb-4" />
+                        <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">
+                            No workspace selected
+                        </h3>
+                        <p className="text-xs text-[var(--text-secondary)]">
+                            Select a workspace to browse files
+                        </p>
+                    </div>
+                ) : (
+                    <DirectoryNode
+                        key={`${rootPath}:${refreshToken}`}
+                        path={rootPath}
+                        name={rootPath.split('/').pop() || 'root'}
+                        onFileSelect={onFileSelect}
+                        defaultExpanded={true}
+                        searchTerm={searchTerm || ''}
+                    />
+                )}
             </div>
         </div>
     );

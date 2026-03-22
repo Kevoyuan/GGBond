@@ -433,9 +433,22 @@ export const ChatView = React.memo(function ChatView({
 
             <div className="flex-1 overflow-hidden px-1.5">
                 {!hasResults && (
-                    <div className="flex flex-col items-center justify-center p-8 text-center h-full">
-                        <MessageSquare className="w-8 h-8 text-[var(--text-tertiary)] mb-3 opacity-50" />
-                        <p className="text-xs text-[var(--text-tertiary)]">No chats found.</p>
+                    <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                        <MessageSquare className="w-12 h-12 text-[var(--text-tertiary)] mb-4" />
+                        <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">
+                            {searchTerm ? 'No matching chats' : 'No chats yet'}
+                        </h3>
+                        <p className="text-xs text-[var(--text-secondary)] mb-4">
+                            {searchTerm ? 'Try a different search term' : 'Start a new conversation to get started'}
+                        </p>
+                        {!searchTerm && onAddWorkspace && (
+                            <button
+                                onClick={onAddWorkspace}
+                                className="px-3 py-1.5 rounded-md bg-[var(--accent)] text-white text-xs font-medium hover:opacity-90 transition-opacity"
+                            >
+                                Start Chat
+                            </button>
+                        )}
                     </div>
                 )}
                 {hasResults && (
