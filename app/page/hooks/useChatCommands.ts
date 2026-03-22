@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { Message } from '@/components/MessageBubble';
+import type { Message } from '@/components/chat/MessageBubble';
 import type { Session, ChatSnapshot } from '../types';
 
 interface UseChatCommandsParams {

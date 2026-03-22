@@ -2,11 +2,11 @@
 
 import React, { useRef, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Message } from '@/components/MessageBubble';
-import { ConversationGraph, GraphMessage } from '@/components/ConversationGraph';
-import { BranchInsights } from '@/components/BranchInsights';
-import { MessageTimeline } from '@/components/MessageTimeline';
-import { ArtifactPreview } from '@/components/ArtifactPreview';
+import { Message } from '@/components/chat/MessageBubble';
+import { ConversationGraph, GraphMessage } from '@/components/insights/ConversationGraph';
+import { BranchInsights } from '@/components/insights/BranchInsights';
+import { MessageTimeline } from '@/components/chat/MessageTimeline';
+import { ArtifactPreview } from '@/components/file/ArtifactPreview';
 import { cn } from '@/lib/utils';
 import { ResizeHandle, useResize } from './ui/ResizeHandle';
 import {

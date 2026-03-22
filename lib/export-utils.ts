@@ -1,4 +1,4 @@
-import { GraphMessage } from '@/components/ConversationGraph';
+import { GraphMessage } from '@/components/insights/ConversationGraph';
 
 /**
  * Escapes characters that might break Mermaid syntax OR just cleans up the text for preview.

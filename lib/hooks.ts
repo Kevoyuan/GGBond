@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { HookEvent, HookEventType } from '@/components/HooksPanel';
+import type { HookEvent, HookEventType } from '@/components/panels/HooksPanel';
 
 type EventListener = (event: HookEvent) => void;
 

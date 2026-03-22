@@ -1,5 +1,5 @@
-import { Message } from '@/components/MessageBubble';
-import { GraphMessage } from '@/components/ConversationGraph';
+import { Message } from '@/components/chat/MessageBubble';
+import { GraphMessage } from '@/components/insights/ConversationGraph';
 
 export interface BranchInsightsData {
   nodeCount: number;
