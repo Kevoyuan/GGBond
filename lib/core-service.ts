@@ -1412,7 +1412,7 @@ When you are in planning phase:
         }
 
         const scheduler = new Scheduler({
-            config: this.config,
+            context: this.config,
             messageBus: this.messageBus,
             getPreferredEditor: () => undefined,
             schedulerId: ROOT_SCHEDULER_ID,

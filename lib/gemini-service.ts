@@ -9,12 +9,13 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
 import { execSync, spawn } from 'child_process';
-import { Config, AuthType } from '@google/gemini-cli-core';
+import { Config, AuthType, Storage } from '@google/gemini-cli-core';
 import { resolveDefaultWorkspaceRoot, resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 const SETTINGS_CACHE_TTL_MS = 2000;
 const CLI_READ_CACHE_TTL_MS = 5000;
 const AUTH_INFO_CACHE_TTL_MS = 30000;
+const KEYBINDINGS_CACHE_TTL_MS = 2000;
 
 let settingsCache: {
     value: Record<string, any>;
@@ -26,6 +27,11 @@ let authInfoCache: {
     expiresAt: number;
 } | null = null;
 let authInfoInFlight: Promise<AuthInfo> | null = null;
+let keybindingsCache: {
+    value: GeminiKeybinding[];
+    expiresAt: number;
+} | null = null;
+let keybindingsInFlight: Promise<GeminiKeybinding[]> | null = null;
 
 const cliCommandInFlight = new Map<string, Promise<string>>();
 const cliCommandCache = new Map<string, { value: string; expiresAt: number }>();
@@ -54,6 +60,10 @@ export function getGeminiHome(): string {
 
 export function getSettingsPath(): string {
     return path.join(getGeminiHome(), 'settings.json');
+}
+
+export function getKeybindingsPath(): string {
+    return Storage.getUserKeybindingsPath();
 }
 
 export function getProjectSettingsPath(cwd?: string): string {
@@ -130,6 +140,64 @@ export async function mergeSettings(partial: Record<string, any>): Promise<Recor
     const merged = deepMerge(current, partial);
     await writeSettings(merged);
     return merged;
+}
+
+export interface GeminiKeybinding {
+    command: string;
+    key: string;
+}
+
+export async function readKeybindings(): Promise<GeminiKeybinding[]> {
+    const now = Date.now();
+    if (keybindingsCache && keybindingsCache.expiresAt > now) {
+        return keybindingsCache.value;
+    }
+    if (keybindingsInFlight) {
+        return keybindingsInFlight;
+    }
+
+    const keybindingsPath = getKeybindingsPath();
+    keybindingsInFlight = (async () => {
+        try {
+            const content = await fsp.readFile(keybindingsPath, 'utf-8');
+            const parsed = JSON.parse(content);
+            const value = Array.isArray(parsed)
+                ? parsed.filter(
+                    (entry): entry is GeminiKeybinding =>
+                        !!entry &&
+                        typeof entry === 'object' &&
+                        typeof (entry as GeminiKeybinding).command === 'string' &&
+                        typeof (entry as GeminiKeybinding).key === 'string'
+                )
+                : [];
+            keybindingsCache = {
+                value,
+                expiresAt: Date.now() + KEYBINDINGS_CACHE_TTL_MS,
+            };
+            return value;
+        } catch {
+            keybindingsCache = {
+                value: [],
+                expiresAt: Date.now() + KEYBINDINGS_CACHE_TTL_MS,
+            };
+            return [];
+        } finally {
+            keybindingsInFlight = null;
+        }
+    })();
+
+    return keybindingsInFlight;
+}
+
+export async function writeKeybindings(keybindings: GeminiKeybinding[]): Promise<void> {
+    const keybindingsPath = getKeybindingsPath();
+    await fsp.mkdir(path.dirname(keybindingsPath), { recursive: true });
+    await fsp.writeFile(keybindingsPath, JSON.stringify(keybindings, null, 2), 'utf-8');
+    keybindingsCache = {
+        value: keybindings,
+        expiresAt: Date.now() + KEYBINDINGS_CACHE_TTL_MS,
+    };
+    keybindingsInFlight = null;
 }
 
 // ─── Auth Info ───────────────────────────────────────────

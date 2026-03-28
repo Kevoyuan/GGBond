@@ -25114,6 +25114,7 @@ __export(gemini_service_exports, {
   getHookEvents: () => getHookEvents,
   getHooksConfig: () => getHooksConfig,
   getIncludedDirectories: () => getIncludedDirectories,
+  getKeybindingsPath: () => getKeybindingsPath,
   getKnownModels: () => getKnownModels,
   getMCPServers: () => getMCPServers,
   getModelConfig: () => getModelConfig,
@@ -25126,6 +25127,7 @@ __export(gemini_service_exports, {
   mergeProjectSettings: () => mergeProjectSettings,
   mergeSettings: () => mergeSettings,
   parseTelemetryLog: () => parseTelemetryLog,
+  readKeybindings: () => readKeybindings,
   readProjectSettings: () => readProjectSettings,
   readSettings: () => readSettings,
   removeMCPServer: () => removeMCPServer,
@@ -25135,6 +25137,7 @@ __export(gemini_service_exports, {
   saveModelPreset: () => saveModelPreset,
   setIncludedDirectories: () => setIncludedDirectories,
   updateToolsConfig: () => updateToolsConfig,
+  writeKeybindings: () => writeKeybindings,
   writeProjectSettings: () => writeProjectSettings,
   writeSettings: () => writeSettings
 });
@@ -25157,6 +25160,9 @@ function getGeminiHome() {
 }
 function getSettingsPath() {
   return import_path5.default.join(getGeminiHome(), "settings.json");
+}
+function getKeybindingsPath() {
+  return import_gemini_cli_core.Storage.getUserKeybindingsPath();
 }
 function getProjectSettingsPath(cwd) {
   return import_path5.default.join(cwd || process.cwd(), ".gemini", "settings.json");
@@ -25225,6 +25231,49 @@ async function mergeSettings(partial) {
   const merged = deepMerge(current, partial);
   await writeSettings(merged);
   return merged;
+}
+async function readKeybindings() {
+  const now = Date.now();
+  if (keybindingsCache && keybindingsCache.expiresAt > now) {
+    return keybindingsCache.value;
+  }
+  if (keybindingsInFlight) {
+    return keybindingsInFlight;
+  }
+  const keybindingsPath = getKeybindingsPath();
+  keybindingsInFlight = (async () => {
+    try {
+      const content = await import_promises2.default.readFile(keybindingsPath, "utf-8");
+      const parsed = JSON.parse(content);
+      const value = Array.isArray(parsed) ? parsed.filter(
+        (entry) => !!entry && typeof entry === "object" && typeof entry.command === "string" && typeof entry.key === "string"
+      ) : [];
+      keybindingsCache = {
+        value,
+        expiresAt: Date.now() + KEYBINDINGS_CACHE_TTL_MS
+      };
+      return value;
+    } catch {
+      keybindingsCache = {
+        value: [],
+        expiresAt: Date.now() + KEYBINDINGS_CACHE_TTL_MS
+      };
+      return [];
+    } finally {
+      keybindingsInFlight = null;
+    }
+  })();
+  return keybindingsInFlight;
+}
+async function writeKeybindings(keybindings) {
+  const keybindingsPath = getKeybindingsPath();
+  await import_promises2.default.mkdir(import_path5.default.dirname(keybindingsPath), { recursive: true });
+  await import_promises2.default.writeFile(keybindingsPath, JSON.stringify(keybindings, null, 2), "utf-8");
+  keybindingsCache = {
+    value: keybindings,
+    expiresAt: Date.now() + KEYBINDINGS_CACHE_TTL_MS
+  };
+  keybindingsInFlight = null;
 }
 function normalizeAuthType(authType) {
   switch (authType) {
@@ -25691,7 +25740,7 @@ function deepMerge(target, source) {
   }
   return result;
 }
-var import_fs4, import_promises2, import_path5, import_child_process, import_gemini_cli_core, SETTINGS_CACHE_TTL_MS, CLI_READ_CACHE_TTL_MS, AUTH_INFO_CACHE_TTL_MS, settingsCache, settingsInFlight, authInfoCache, authInfoInFlight, cliCommandInFlight, cliCommandCache, FALLBACK_TOOLS, FALLBACK_HOOK_EVENTS, FALLBACK_MODELS, MODEL_METADATA, DEFAULT_PRESETS, DEFAULT_CUSTOM_TOOLS;
+var import_fs4, import_promises2, import_path5, import_child_process, import_gemini_cli_core, SETTINGS_CACHE_TTL_MS, CLI_READ_CACHE_TTL_MS, AUTH_INFO_CACHE_TTL_MS, KEYBINDINGS_CACHE_TTL_MS, settingsCache, settingsInFlight, authInfoCache, authInfoInFlight, keybindingsCache, keybindingsInFlight, cliCommandInFlight, cliCommandCache, FALLBACK_TOOLS, FALLBACK_HOOK_EVENTS, FALLBACK_MODELS, MODEL_METADATA, DEFAULT_PRESETS, DEFAULT_CUSTOM_TOOLS;
 var init_gemini_service = __esm({
   "lib/gemini-service.ts"() {
     "use strict";
@@ -25704,10 +25753,13 @@ var init_gemini_service = __esm({
     SETTINGS_CACHE_TTL_MS = 2e3;
     CLI_READ_CACHE_TTL_MS = 5e3;
     AUTH_INFO_CACHE_TTL_MS = 3e4;
+    KEYBINDINGS_CACHE_TTL_MS = 2e3;
     settingsCache = null;
     settingsInFlight = null;
     authInfoCache = null;
     authInfoInFlight = null;
+    keybindingsCache = null;
+    keybindingsInFlight = null;
     cliCommandInFlight = /* @__PURE__ */ new Map();
     cliCommandCache = /* @__PURE__ */ new Map();
     FALLBACK_TOOLS = [
@@ -26800,7 +26852,7 @@ When you are in planning phase:
           });
         }
         const scheduler = new import_gemini_cli_core2.Scheduler({
-          config: this.config,
+          context: this.config,
           messageBus: this.messageBus,
           getPreferredEditor: () => void 0,
           schedulerId: import_gemini_cli_core2.ROOT_SCHEDULER_ID
@@ -39537,12 +39589,63 @@ var init_route34 = __esm({
   }
 });
 
-// legacy-api/mcp/gallery/route.ts
+// legacy-api/keybindings/route.ts
 var route_exports35 = {};
 __export(route_exports35, {
-  GET: () => GET29
+  GET: () => GET29,
+  PUT: () => PUT9
 });
+function isValidKeybinding(entry) {
+  return !!entry && typeof entry === "object" && typeof entry.command === "string" && typeof entry.key === "string";
+}
 async function GET29() {
+  try {
+    const keybindings = await readKeybindings();
+    return NextResponse.json({
+      keybindings,
+      path: getKeybindingsPath(),
+      docsUrl: "https://geminicli.com/docs/reference/keyboard-shortcuts/"
+    });
+  } catch (error) {
+    console.error("Failed to read keybindings:", error);
+    return NextResponse.json({ error: "Failed to read keybindings" }, { status: 500 });
+  }
+}
+async function PUT9(req) {
+  try {
+    const body = await req.json();
+    const keybindings = body?.keybindings;
+    if (!Array.isArray(keybindings) || !keybindings.every(isValidKeybinding)) {
+      return NextResponse.json(
+        { error: 'Expected "keybindings" to be an array of { command, key } objects.' },
+        { status: 400 }
+      );
+    }
+    await writeKeybindings(keybindings);
+    return NextResponse.json({
+      keybindings,
+      path: getKeybindingsPath(),
+      docsUrl: "https://geminicli.com/docs/reference/keyboard-shortcuts/"
+    });
+  } catch (error) {
+    console.error("Failed to update keybindings:", error);
+    return NextResponse.json({ error: "Failed to update keybindings" }, { status: 500 });
+  }
+}
+var init_route35 = __esm({
+  "legacy-api/keybindings/route.ts"() {
+    "use strict";
+    init_mock_next_server();
+    init_gemini_service();
+  }
+});
+
+// legacy-api/mcp/gallery/route.ts
+var route_exports36 = {};
+__export(route_exports36, {
+  GET: () => GET30
+});
+async function GET30() {
   try {
     return NextResponse.json({
       extensions: extensionsData,
@@ -39558,7 +39661,7 @@ async function GET29() {
   }
 }
 var extensionsData, categories;
-var init_route35 = __esm({
+var init_route36 = __esm({
   "legacy-api/mcp/gallery/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -40372,12 +40475,12 @@ var init_route35 = __esm({
 });
 
 // legacy-api/mcp/route.ts
-var route_exports36 = {};
-__export(route_exports36, {
-  GET: () => GET30,
+var route_exports37 = {};
+__export(route_exports37, {
+  GET: () => GET31,
   POST: () => POST20
 });
-async function GET30() {
+async function GET31() {
   try {
     const core2 = CoreService.getInstance();
     const runtime2 = core2.getMcpServersWithStatus();
@@ -40562,7 +40665,7 @@ async function POST20(req) {
   }
 }
 var import_promises11, import_node_path3, MCP_SETTINGS_CACHE_TTL_MS, mcpSettingsCache, mcpSettingsInFlight, resolveSettingsPath, readSettings2, writeSettings2, normalizeServerConfig, compileRegexList, isMcpAddAllowed, isExtensionInstallAllowed, mapSettingsServers;
-var init_route36 = __esm({
+var init_route37 = __esm({
   "legacy-api/mcp/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -40699,12 +40802,12 @@ var init_route36 = __esm({
 });
 
 // legacy-api/memory/route.ts
-var route_exports37 = {};
-__export(route_exports37, {
-  GET: () => GET31,
+var route_exports38 = {};
+__export(route_exports38, {
+  GET: () => GET32,
   POST: () => POST21
 });
-async function GET31(req) {
+async function GET32(req) {
   try {
     const core2 = CoreService.getInstance();
     const { searchParams } = new URL(req.url);
@@ -40825,7 +40928,7 @@ async function POST21(req) {
   }
 }
 var import_promises12, import_node_path4, DEFAULT_MEMORY_TEMPLATE, isMemoryFilePath, resolveWorkspacePath, resolveMemoryPath, resolveCreateTargetPath;
-var init_route37 = __esm({
+var init_route38 = __esm({
   "legacy-api/memory/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -40866,11 +40969,11 @@ var init_route37 = __esm({
 });
 
 // legacy-api/models/route.ts
-var route_exports38 = {};
-__export(route_exports38, {
-  GET: () => GET32
+var route_exports39 = {};
+__export(route_exports39, {
+  GET: () => GET33
 });
-async function GET32() {
+async function GET33() {
   const now = Date.now();
   if (modelsCache && modelsCache.expiresAt > now) {
     return NextResponse.json(modelsCache.data);
@@ -40891,7 +40994,7 @@ async function GET32() {
   return modelsInFlight;
 }
 var MODELS_CACHE_TTL_MS, modelsCache, modelsInFlight;
-var init_route38 = __esm({
+var init_route39 = __esm({
   "legacy-api/models/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -40903,8 +41006,8 @@ var init_route38 = __esm({
 });
 
 // legacy-api/open/route.ts
-var route_exports39 = {};
-__export(route_exports39, {
+var route_exports40 = {};
+__export(route_exports40, {
   POST: () => POST22
 });
 async function POST22(req) {
@@ -40929,7 +41032,7 @@ async function POST22(req) {
   }
 }
 var import_child_process5, import_promises13;
-var init_route39 = __esm({
+var init_route40 = __esm({
   "legacy-api/open/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -40939,13 +41042,13 @@ var init_route39 = __esm({
 });
 
 // legacy-api/presets/route.ts
-var route_exports40 = {};
-__export(route_exports40, {
+var route_exports41 = {};
+__export(route_exports41, {
   DELETE: () => DELETE6,
-  GET: () => GET33,
+  GET: () => GET34,
   POST: () => POST23
 });
-async function GET33() {
+async function GET34() {
   try {
     const presets = await getModelPresets();
     return NextResponse.json({ presets });
@@ -40978,7 +41081,7 @@ async function DELETE6(request) {
     return NextResponse.json({ error: "Failed to delete model preset" }, { status: 500 });
   }
 }
-var init_route40 = __esm({
+var init_route41 = __esm({
   "legacy-api/presets/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -40987,10 +41090,10 @@ var init_route40 = __esm({
 });
 
 // legacy-api/queue/process/route.ts
-var route_exports41 = {};
-__export(route_exports41, {
+var route_exports42 = {};
+__export(route_exports42, {
   POST: () => POST24,
-  PUT: () => PUT9
+  PUT: () => PUT10
 });
 async function POST24(req) {
   try {
@@ -41016,7 +41119,7 @@ async function POST24(req) {
     return NextResponse.json({ error: "Failed to process queue" }, { status: 500 });
   }
 }
-async function PUT9(req) {
+async function PUT10(req) {
   try {
     const { queueItemId, resultMessageId, error, status } = await req.json();
     if (!queueItemId) {
@@ -41033,7 +41136,7 @@ async function PUT9(req) {
     return NextResponse.json({ error: "Failed to update status" }, { status: 500 });
   }
 }
-var init_route41 = __esm({
+var init_route42 = __esm({
   "legacy-api/queue/process/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -41042,13 +41145,13 @@ var init_route41 = __esm({
 });
 
 // legacy-api/queue/route.ts
-var route_exports42 = {};
-__export(route_exports42, {
-  GET: () => GET34,
+var route_exports43 = {};
+__export(route_exports43, {
+  GET: () => GET35,
   POST: () => POST25,
-  PUT: () => PUT10
+  PUT: () => PUT11
 });
-async function GET34(req) {
+async function GET35(req) {
   const searchParams = req.nextUrl.searchParams;
   const sessionId = searchParams.get("sessionId");
   const includeStats = searchParams.get("stats") === "true";
@@ -41084,7 +41187,7 @@ async function POST25(req) {
     return NextResponse.json({ error: "Failed to add message to queue" }, { status: 500 });
   }
 }
-async function PUT10(req) {
+async function PUT11(req) {
   const searchParams = req.nextUrl.searchParams;
   const action = searchParams.get("action");
   try {
@@ -41137,7 +41240,7 @@ async function PUT10(req) {
     return NextResponse.json({ error: "Failed to perform action" }, { status: 500 });
   }
 }
-var init_route42 = __esm({
+var init_route43 = __esm({
   "legacy-api/queue/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -41146,11 +41249,11 @@ var init_route42 = __esm({
 });
 
 // legacy-api/queue/status/route.ts
-var route_exports43 = {};
-__export(route_exports43, {
-  GET: () => GET35
+var route_exports44 = {};
+__export(route_exports44, {
+  GET: () => GET36
 });
-async function GET35(req) {
+async function GET36(req) {
   const searchParams = req.nextUrl.searchParams;
   const sessionId = searchParams.get("sessionId");
   if (!sessionId) {
@@ -41170,7 +41273,7 @@ async function GET35(req) {
     return NextResponse.json({ error: "Failed to get queue status" }, { status: 500 });
   }
 }
-var init_route43 = __esm({
+var init_route44 = __esm({
   "legacy-api/queue/status/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -41179,11 +41282,11 @@ var init_route43 = __esm({
 });
 
 // legacy-api/quota/route.ts
-var route_exports44 = {};
-__export(route_exports44, {
-  GET: () => GET36
+var route_exports45 = {};
+__export(route_exports45, {
+  GET: () => GET37
 });
-async function GET36() {
+async function GET37() {
   try {
     const core2 = CoreService.getInstance();
     let quotaPromise;
@@ -41239,7 +41342,7 @@ async function GET36() {
   }
 }
 var import_gemini_cli_core10, import_fs16, import_path23;
-var init_route44 = __esm({
+var init_route45 = __esm({
   "legacy-api/quota/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -41252,8 +41355,8 @@ var init_route44 = __esm({
 });
 
 // legacy-api/resolve-model/route.ts
-var route_exports45 = {};
-__export(route_exports45, {
+var route_exports46 = {};
+__export(route_exports46, {
   POST: () => POST26
 });
 async function POST26(request) {
@@ -41284,7 +41387,7 @@ async function POST26(request) {
     return NextResponse.json({ error: "Failed to resolve model" }, { status: 500 });
   }
 }
-var init_route45 = __esm({
+var init_route46 = __esm({
   "legacy-api/resolve-model/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -41293,8 +41396,8 @@ var init_route45 = __esm({
 });
 
 // legacy-api/sessions/[id]/archive/route.ts
-var route_exports46 = {};
-__export(route_exports46, {
+var route_exports47 = {};
+__export(route_exports47, {
   PATCH: () => PATCH2
 });
 async function PATCH2(req, { params }) {
@@ -41312,7 +41415,7 @@ async function PATCH2(req, { params }) {
     return NextResponse.json({ error: "Failed to archive session" }, { status: 500 });
   }
 }
-var init_route46 = __esm({
+var init_route47 = __esm({
   "legacy-api/sessions/[id]/archive/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -41321,8 +41424,8 @@ var init_route46 = __esm({
 });
 
 // legacy-api/sessions/[id]/branch/route.ts
-var route_exports47 = {};
-__export(route_exports47, {
+var route_exports48 = {};
+__export(route_exports48, {
   PATCH: () => PATCH3
 });
 async function PATCH3(req, { params }) {
@@ -41340,7 +41443,7 @@ async function PATCH3(req, { params }) {
     return NextResponse.json({ error: "Failed to update session branch" }, { status: 500 });
   }
 }
-var init_route47 = __esm({
+var init_route48 = __esm({
   "legacy-api/sessions/[id]/branch/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -41349,12 +41452,12 @@ var init_route47 = __esm({
 });
 
 // legacy-api/sessions/[id]/route.ts
-var route_exports48 = {};
-__export(route_exports48, {
+var route_exports49 = {};
+__export(route_exports49, {
   DELETE: () => DELETE7,
-  GET: () => GET37
+  GET: () => GET38
 });
-async function GET37(req, { params }) {
+async function GET38(req, { params }) {
   try {
     const { id } = await params;
     const session = db_default.prepare("SELECT * FROM sessions WHERE id = ? AND workspace IS NOT NULL AND trim(workspace) <> ''").get(id);
@@ -41413,7 +41516,7 @@ async function DELETE7(req, { params }) {
     return NextResponse.json({ error: "Failed to delete session" }, { status: 500 });
   }
 }
-var init_route48 = __esm({
+var init_route49 = __esm({
   "legacy-api/sessions/[id]/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -41422,11 +41525,11 @@ var init_route48 = __esm({
 });
 
 // legacy-api/sessions/core/route.ts
-var route_exports49 = {};
-__export(route_exports49, {
-  GET: () => GET38
+var route_exports50 = {};
+__export(route_exports50, {
+  GET: () => GET39
 });
-async function GET38() {
+async function GET39() {
   try {
     const core2 = CoreService.getInstance();
     const sessions = await core2.listSessions();
@@ -41436,7 +41539,7 @@ async function GET38() {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
-var init_route49 = __esm({
+var init_route50 = __esm({
   "legacy-api/sessions/core/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -41445,11 +41548,11 @@ var init_route49 = __esm({
 });
 
 // legacy-api/sessions/latest-stats/route.ts
-var route_exports50 = {};
-__export(route_exports50, {
-  GET: () => GET39
+var route_exports51 = {};
+__export(route_exports51, {
+  GET: () => GET40
 });
-async function GET39() {
+async function GET40() {
   try {
     const latestSession = db_default.prepare(
       "SELECT id FROM sessions ORDER BY updated_at DESC LIMIT 1"
@@ -41495,7 +41598,7 @@ async function GET39() {
     return NextResponse.json({ error: "Failed to fetch session stats" }, { status: 500 });
   }
 }
-var init_route50 = __esm({
+var init_route51 = __esm({
   "legacy-api/sessions/latest-stats/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -41506,12 +41609,12 @@ var init_route50 = __esm({
 });
 
 // legacy-api/sessions/route.ts
-var route_exports51 = {};
-__export(route_exports51, {
-  GET: () => GET40,
+var route_exports52 = {};
+__export(route_exports52, {
+  GET: () => GET41,
   POST: () => POST27
 });
-async function GET40() {
+async function GET41() {
   try {
     const sessions = db_default.prepare(`
       SELECT
@@ -41557,7 +41660,7 @@ async function POST27(req) {
     return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
   }
 }
-var init_route51 = __esm({
+var init_route52 = __esm({
   "legacy-api/sessions/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -41566,12 +41669,12 @@ var init_route51 = __esm({
 });
 
 // legacy-api/settings/route.ts
-var route_exports52 = {};
-__export(route_exports52, {
-  GET: () => GET41,
-  PUT: () => PUT11
+var route_exports53 = {};
+__export(route_exports53, {
+  GET: () => GET42,
+  PUT: () => PUT12
 });
-async function GET41() {
+async function GET42() {
   try {
     const settings = await readSettings();
     return NextResponse.json(settings);
@@ -41580,7 +41683,7 @@ async function GET41() {
     return NextResponse.json({ error: "Failed to read settings" }, { status: 500 });
   }
 }
-async function PUT11(req) {
+async function PUT12(req) {
   try {
     const partial = await req.json();
     const merged = await mergeSettings(partial);
@@ -41590,7 +41693,7 @@ async function PUT11(req) {
     return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
   }
 }
-var init_route52 = __esm({
+var init_route53 = __esm({
   "legacy-api/settings/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -41669,9 +41772,9 @@ var init_gemini_utils = __esm({
 });
 
 // legacy-api/skills/route.ts
-var route_exports53 = {};
-__export(route_exports53, {
-  GET: () => GET42,
+var route_exports54 = {};
+__export(route_exports54, {
+  GET: () => GET43,
   POST: () => POST28
 });
 function invalidateSkillsListCache() {
@@ -41885,7 +41988,7 @@ async function unlinkExternalSkillDirectory(geminiHome, source) {
   }
   return { source: resolvedSource, targetSkillsDir, removed, kept };
 }
-async function GET42(req) {
+async function GET43(req) {
   try {
     const env = getGeminiEnv();
     const geminiHome = env.GEMINI_CLI_HOME || resolveRuntimeHome();
@@ -42073,7 +42176,7 @@ async function POST28(req) {
   }
 }
 var import_child_process7, import_promises14, import_path25, import_os6, UserInputError, SKILLS_LIST_CACHE_TTL_MS, skillsListCache, skillsListInFlight, getProjectSkillRoots;
-var init_route53 = __esm({
+var init_route54 = __esm({
   "legacy-api/skills/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -45572,14 +45675,14 @@ var init_date_fns = __esm({
 });
 
 // legacy-api/stats/route.ts
-var route_exports54 = {};
-__export(route_exports54, {
-  GET: () => GET43
+var route_exports55 = {};
+__export(route_exports55, {
+  GET: () => GET44
 });
 function toMillis(value) {
   return value < 1e10 ? value * 1e3 : value;
 }
-async function GET43(request) {
+async function GET44(request) {
   try {
     const { searchParams } = new URL(request.url);
     const offsetStr = searchParams.get("offset");
@@ -45716,7 +45819,7 @@ async function GET43(request) {
   }
 }
 var initialStat;
-var init_route54 = __esm({
+var init_route55 = __esm({
   "legacy-api/stats/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -45736,9 +45839,9 @@ var init_route54 = __esm({
 });
 
 // legacy-api/telemetry/route.ts
-var route_exports55 = {};
-__export(route_exports55, {
-  GET: () => GET44
+var route_exports56 = {};
+__export(route_exports56, {
+  GET: () => GET45
 });
 function buildFallbackFromDb() {
   const rows = db_default.prepare(`
@@ -45796,7 +45899,7 @@ function buildFallbackFromDb() {
     dataSource: "db_fallback"
   };
 }
-async function GET44() {
+async function GET45() {
   try {
     const events = await parseTelemetryLog(1e3);
     const apiResponses = events.filter((e) => e.name === "gemini_cli.api_response");
@@ -45852,7 +45955,7 @@ async function GET44() {
     return NextResponse.json(buildFallbackFromDb());
   }
 }
-var init_route55 = __esm({
+var init_route56 = __esm({
   "legacy-api/telemetry/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -45863,13 +45966,13 @@ var init_route55 = __esm({
 });
 
 // legacy-api/tool-output/stream/route.ts
-var route_exports56 = {};
-__export(route_exports56, {
-  GET: () => GET45,
+var route_exports57 = {};
+__export(route_exports57, {
+  GET: () => GET46,
   HEAD: () => HEAD,
   runtime: () => runtime
 });
-async function GET45(req) {
+async function GET46(req) {
   const searchParams = req.nextUrl.searchParams;
   const sessionId = searchParams.get("sessionId");
   if (!sessionId) {
@@ -45946,7 +46049,7 @@ async function HEAD(req) {
   return new NextResponse(null, { status: 200 });
 }
 var runtime;
-var init_route56 = __esm({
+var init_route57 = __esm({
   "legacy-api/tool-output/stream/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -45956,12 +46059,12 @@ var init_route56 = __esm({
 });
 
 // legacy-api/tools/route.ts
-var route_exports57 = {};
-__export(route_exports57, {
-  GET: () => GET46,
+var route_exports58 = {};
+__export(route_exports58, {
+  GET: () => GET47,
   POST: () => POST29
 });
-async function GET46() {
+async function GET47() {
   try {
     const config = await getToolsConfig();
     const builtinTools = await getBuiltinTools();
@@ -46027,7 +46130,7 @@ async function POST29(req) {
     return NextResponse.json({ error: "Failed to update tools config" }, { status: 500 });
   }
 }
-var init_route57 = __esm({
+var init_route58 = __esm({
   "legacy-api/tools/route.ts"() {
     "use strict";
     init_mock_next_server();
@@ -47184,7 +47287,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/mcp/gallery", async (req, res) => {
+  app2.all("/api/keybindings", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports35[method];
@@ -47217,7 +47320,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/mcp", async (req, res) => {
+  app2.all("/api/mcp/gallery", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports36[method];
@@ -47250,7 +47353,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/memory", async (req, res) => {
+  app2.all("/api/mcp", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports37[method];
@@ -47283,7 +47386,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/models", async (req, res) => {
+  app2.all("/api/memory", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports38[method];
@@ -47316,7 +47419,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/open", async (req, res) => {
+  app2.all("/api/models", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports39[method];
@@ -47349,7 +47452,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/presets", async (req, res) => {
+  app2.all("/api/open", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports40[method];
@@ -47382,7 +47485,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/queue/process", async (req, res) => {
+  app2.all("/api/presets", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports41[method];
@@ -47415,7 +47518,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/queue", async (req, res) => {
+  app2.all("/api/queue/process", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports42[method];
@@ -47448,7 +47551,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/queue/status", async (req, res) => {
+  app2.all("/api/queue", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports43[method];
@@ -47481,7 +47584,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/quota", async (req, res) => {
+  app2.all("/api/queue/status", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports44[method];
@@ -47514,7 +47617,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/resolve-model", async (req, res) => {
+  app2.all("/api/quota", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports45[method];
@@ -47547,7 +47650,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/sessions/:id/archive", async (req, res) => {
+  app2.all("/api/resolve-model", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports46[method];
@@ -47580,7 +47683,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/sessions/:id/branch", async (req, res) => {
+  app2.all("/api/sessions/:id/archive", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports47[method];
@@ -47613,7 +47716,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/sessions/:id", async (req, res) => {
+  app2.all("/api/sessions/:id/branch", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports48[method];
@@ -47646,7 +47749,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/sessions/core", async (req, res) => {
+  app2.all("/api/sessions/:id", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports49[method];
@@ -47679,7 +47782,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/sessions/latest-stats", async (req, res) => {
+  app2.all("/api/sessions/core", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports50[method];
@@ -47712,7 +47815,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/sessions", async (req, res) => {
+  app2.all("/api/sessions/latest-stats", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports51[method];
@@ -47745,7 +47848,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/settings", async (req, res) => {
+  app2.all("/api/sessions", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports52[method];
@@ -47778,7 +47881,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/skills", async (req, res) => {
+  app2.all("/api/settings", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports53[method];
@@ -47811,7 +47914,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/stats", async (req, res) => {
+  app2.all("/api/skills", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports54[method];
@@ -47844,7 +47947,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/telemetry", async (req, res) => {
+  app2.all("/api/stats", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports55[method];
@@ -47877,7 +47980,7 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/tool-output/stream", async (req, res) => {
+  app2.all("/api/telemetry", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports56[method];
@@ -47910,10 +48013,43 @@ function registerAutoRoutes(app2) {
       res.status(500).json({ error: error.message || "Internal Error" });
     }
   });
-  app2.all("/api/tools", async (req, res) => {
+  app2.all("/api/tool-output/stream", async (req, res) => {
     try {
       const method = req.method;
       const handler = route_exports57[method];
+      if (!handler) {
+        res.status(405).json({ error: "Method Not Allowed" });
+        return;
+      }
+      const url = `http://localhost:${req.socket.localPort}${req.originalUrl}`;
+      const init = {
+        method,
+        headers: req.headers
+      };
+      if (shouldIncludeBody(method) && req.body) {
+        init.body = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+      }
+      const webReq = new NextRequest(url, init);
+      Object.defineProperty(webReq, "nextUrl", {
+        value: new URL(url),
+        configurable: true,
+        enumerable: false
+      });
+      const webRes = await handler(webReq, { params: req.params });
+      if (webRes) {
+        await forwardWebResponse(res, webRes);
+      } else {
+        res.end();
+      }
+    } catch (error) {
+      console.error("[Sidecar AutoRoute Error]", error);
+      res.status(500).json({ error: error.message || "Internal Error" });
+    }
+  });
+  app2.all("/api/tools", async (req, res) => {
+    try {
+      const method = req.method;
+      const handler = route_exports58[method];
       if (!handler) {
         res.status(405).json({ error: "Method Not Allowed" });
         return;
@@ -48004,6 +48140,7 @@ var init_auto_routes = __esm({
     init_route55();
     init_route56();
     init_route57();
+    init_route58();
     init_mock_next_server();
   }
 });

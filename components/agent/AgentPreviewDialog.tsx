@@ -220,7 +220,7 @@ export function AgentPreviewDialog({ open, onOpenChange, agent, onSuccess }: Age
                                             </span>
                                         </div>
                                         <p className="text-xs leading-relaxed text-muted-foreground">
-                                            Gemini CLI v0.33.0 supports authenticated A2A discovery and HTTP auth. If this agent needs credentials, configure them in the agent frontmatter before running it.
+                                            Gemini CLI v0.35.2 supports authenticated A2A discovery and HTTP auth. If this agent needs credentials, configure them in the agent frontmatter before running it.
                                         </p>
                                     </div>
                                 </div>

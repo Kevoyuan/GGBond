@@ -2,34 +2,31 @@
 
 ### Highlights
 
-- Upgraded `@google/gemini-cli-core` from `0.33.0` to `0.34.0`.
-- Added AbortError graceful handling for ESC cancellation during streaming and tool execution.
-- Removed deprecated `requiresAgentCardAuth` field — upstream v0.34.0 removed the `agent_card_requires_auth` config flag.
-- Added local persistence and display support for per-model token usage when Gemini CLI returns multi-model usage data.
-- GGBond intentionally keeps `'code'` as the default mode (upstream v0.34.0 defaults to `'plan'`; GGBond is a code-first assistant).
+- Upgraded `@google/gemini-cli-core` from `0.34.0` to `0.35.2`.
+- Updated GGBond's scheduler adapter to match the newer `AgentLoopContext`-based `SchedulerOptions` contract used by Gemini CLI Core `v0.35.2`.
+- Refreshed local alignment copy so Settings, Governance, and Agent auth surfaces now point at the `v0.35.2` baseline.
+- Added a dedicated keyboard shortcuts manager in Settings, including table editing, shortcut recording, starter bindings, advanced JSON editing, and duplicate shortcut conflict detection.
+- GGBond intentionally keeps `'code'` as the default mode even though upstream still defaults the product toward planning-oriented workflows.
 
 ### Alignment Notes
 
-- `package.json`, `package-lock.json`: Updated to `@google/gemini-cli-core@0.34.0` to align with the stable release published on March 17, 2026.
-- `lib/core-service.ts`: Added `isAbortError` utility. Added AbortError guards in stream processing (`sendMessageStream` catch), turn loop catch, and `executeToolCalls` scheduler catch. Prevents unhandled crashes when users press ESC to cancel streaming or tool execution.
-- `legacy-api/agents/route.ts`: Removed `agent_card_requires_auth` from `AgentAuthConfig` type and `AgentAuthSummary` type. Updated `summarizeAuth()` to no longer emit the field. Upstream removed the config flag in [#21914](https://github.com/google-gemini/gemini-cli/pull/21914).
-- `legacy-api/chat/route.ts`, `legacy-api/stats/route.ts`, `legacy-api/sessions/latest-stats/route.ts`, `legacy-api/telemetry/route.ts`, `legacy-api/analytics/nerd-stats/route.ts`: Normalized token stats parsing and preserved per-model token usage from stream-json finish events so storage and analytics stay compatible with both old and new core payloads.
-- `components/TokenUsageDisplay.tsx`: Added a per-model usage breakdown when a turn spans multiple models.
-- `components/AgentPanel.tsx`: Removed `requiresAgentCardAuth` from `AgentDefinition` type and the "Auth required" badge rendering. Removed unused `Lock` import.
-- `components/AgentPreviewDialog.tsx`: Removed `requiresAgentCardAuth` from type and the "Agent card requires auth" badge. Removed unused `Lock` import.
-- `stores/useAppStore.ts`: Removed `requiresAgentCardAuth` from the `Agent` interface.
-- `components/SettingsDialog.tsx`: Updated the Gemini CLI alignment section to reflect the current `v0.34.0` baseline instead of `v0.33.0`.
+- `package.json`, `package-lock.json`: Updated to `@google/gemini-cli-core@0.35.2`, aligning with the stable release published on March 26, 2026.
+- `lib/core-service.ts`: Switched `new Scheduler(...)` from the old `config` option to the new `context` option because `SchedulerOptions` now expects an `AgentLoopContext`. `Config` already implements that contract, so the adapter stays thin and native-compatible.
+- `components/settings/SettingsDialog.tsx`: Updated the visible Gemini CLI alignment section to `v0.35.2`, and added a keyboard shortcuts manager backed by Gemini CLI's `keybindings.json` with row editing, key recording, starter bindings, advanced JSON editing, and save-time conflict prevention.
+- `legacy-api/keybindings/route.ts`, `lib/gemini-service.ts`: Added read/write support for Gemini CLI user keybindings so the new Settings UI can manage shortcuts through a dedicated API.
+- `components/agent/AgentPreviewDialog.tsx`: Updated the agent-auth helper text to the new `v0.35.2` baseline.
+- `components/dialogs/ModulesDialog.tsx`: Updated the Governance module description to the current core version.
 
 ### Upstream Features Adopted
 
-- AbortError resilience for stream cancellation, tool interruption, and processTurn.
-- Per-model token usage in stream-json output.
-- OOM fixes for long-running sessions (ChatRecordingService in-memory cache).
+- Core API compatibility for the scheduler refactor that landed between `v0.34.0` and `v0.35.2`.
+- Dependency-level access to upstream `v0.35.x` improvements, including keyboard customization, Vim-mode polish, sandbox/tool-isolation work, and JIT context discovery where those behaviors are already mediated by core runtime internals.
+- A first-class GGBond UI for upstream keyboard customization, exposed through Settings instead of requiring users to hand-edit `~/.gemini/keybindings.json`.
 
 ### Upstream Features Deferred Or Intentionally Divergent
 
-- Plan Mode enabled by default in upstream `v0.34.0`, but GGBond intentionally keeps `'code'` as the default mode.
-- MCP `mcp_` FQN naming, policy auto-add persistence, plan-mode flash steering, and approved-plan compression behavior currently rely on upstream core behavior and are not yet exposed or validated as distinct GGBond UI features in this release.
+- GGBond now exposes keyboard customization, but still does not add dedicated UI for sandbox controls or JIT context discovery; those remain backend-only/core-mediated capabilities for now.
+- GGBond intentionally keeps `'code'` as the default mode instead of mirroring upstream planning-first defaults.
 
 ### Downloads
 

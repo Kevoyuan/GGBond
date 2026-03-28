@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Settings, Save, RotateCcw, Shield, Zap, Code2, Plus, Trash2, Wrench, Folder, FolderOpen, Terminal, Eye, EyeOff, Clock3, Bot, Download } from 'lucide-react';
+import { X, Settings, Save, RotateCcw, Shield, Zap, Code2, Plus, Trash2, Wrench, Folder, FolderOpen, Terminal, Eye, EyeOff, Clock3, Bot, Download, Keyboard, ChevronDown, Command } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Select } from '@/components/ui/Select';
 
@@ -112,6 +112,55 @@ interface CoreUpgradeStatus {
   upgradeCommand: string | null;
 }
 
+interface GeminiKeybinding {
+  command: string;
+  key: string;
+}
+
+const KEYBINDING_COMMAND_OPTIONS = [
+  { command: 'input.submit', label: 'Submit prompt', group: 'Input' },
+  { command: 'input.queueMessage', label: 'Queue prompt', group: 'Input' },
+  { command: 'input.newline', label: 'Insert newline', group: 'Input' },
+  { command: 'input.openExternalEditor', label: 'Open external editor', group: 'Input' },
+  { command: 'app.toggleYolo', label: 'Toggle YOLO mode', group: 'App' },
+  { command: 'app.cycleApprovalMode', label: 'Cycle approval mode', group: 'App' },
+  { command: 'app.toggleMarkdown', label: 'Toggle markdown rendering', group: 'App' },
+  { command: 'app.showFullTodos', label: 'Toggle full TODO list', group: 'App' },
+  { command: 'app.focusShellInput', label: 'Focus shell input', group: 'App' },
+  { command: 'app.clearScreen', label: 'Clear and redraw screen', group: 'App' },
+  { command: 'background.toggle', label: 'Toggle active background shell', group: 'Background' },
+  { command: 'background.kill', label: 'Kill active background shell', group: 'Background' },
+  { command: 'suggest.accept', label: 'Accept suggestion', group: 'Suggestions' },
+  { command: 'cursor.wordLeft', label: 'Move cursor one word left', group: 'Cursor' },
+  { command: 'cursor.wordRight', label: 'Move cursor one word right', group: 'Cursor' },
+];
+
+const KEYBINDING_SUGGESTIONS: GeminiKeybinding[] = [
+  { command: 'app.toggleYolo', key: 'ctrl+y' },
+  { command: 'app.cycleApprovalMode', key: 'shift+tab' },
+  { command: 'input.openExternalEditor', key: 'ctrl+x' },
+  { command: 'app.toggleMarkdown', key: 'alt+m' },
+  { command: 'app.showFullTodos', key: 'ctrl+t' },
+  { command: 'background.toggle', key: 'ctrl+b' },
+];
+
+const KEYBINDING_SPECIAL_KEYS: Record<string, string> = {
+  ' ': 'space',
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  Escape: 'escape',
+  Enter: 'enter',
+  Tab: 'tab',
+  Backspace: 'backspace',
+  Delete: 'delete',
+  Home: 'home',
+  End: 'end',
+  PageUp: 'pageup',
+  PageDown: 'pagedown',
+};
+
 const FALLBACK_MODELS = [
   { id: 'gemini-3.1-pro-preview', name: 'gemini-3.1-pro-preview', icon: Code2 },
   { id: 'gemini-3-pro-preview', name: 'gemini-3-pro-preview', icon: Code2 },
@@ -162,6 +211,73 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
   const [coreUpgradeLoading, setCoreUpgradeLoading] = useState(false);
   const [coreUpgradeRunning, setCoreUpgradeRunning] = useState(false);
   const [coreUpgradeMessage, setCoreUpgradeMessage] = useState<string | null>(null);
+  const [keybindings, setKeybindings] = useState<GeminiKeybinding[]>([]);
+  const [keybindingsDraft, setKeybindingsDraft] = useState('[]');
+  const [keybindingsPath, setKeybindingsPath] = useState('');
+  const [keybindingsError, setKeybindingsError] = useState<string | null>(null);
+  const [showAdvancedKeybindings, setShowAdvancedKeybindings] = useState(false);
+  const [recordingRowIndex, setRecordingRowIndex] = useState<number | null>(null);
+
+  const syncDraftFromKeybindings = (next: GeminiKeybinding[]) => {
+    setKeybindings(next);
+    setKeybindingsDraft(JSON.stringify(next, null, 2));
+    setKeybindingsError(null);
+  };
+
+  const parseKeybindingsDraft = (): GeminiKeybinding[] | null => {
+    try {
+      const parsed = JSON.parse(keybindingsDraft);
+      if (!Array.isArray(parsed) || parsed.some((entry) =>
+        !entry ||
+        typeof entry !== 'object' ||
+        typeof entry.command !== 'string' ||
+        typeof entry.key !== 'string'
+      )) {
+        setKeybindingsError('Keybindings must be a JSON array of { command, key } objects.');
+        return null;
+      }
+      setKeybindingsError(null);
+      return parsed;
+    } catch {
+      setKeybindingsError('Keybindings JSON is invalid. Fix the syntax before saving.');
+      return null;
+    }
+  };
+
+  const normalizedConflictMap = keybindings.reduce<Record<string, number[]>>((accumulator, binding, index) => {
+    const normalizedKey = binding.key.trim().toLowerCase();
+    if (!normalizedKey) {
+      return accumulator;
+    }
+    if (!accumulator[normalizedKey]) {
+      accumulator[normalizedKey] = [];
+    }
+    accumulator[normalizedKey].push(index);
+    return accumulator;
+  }, {});
+
+  const conflictingKeys = Object.entries(normalizedConflictMap).filter(([, indexes]) => indexes.length > 1);
+  const conflictingRowIndexes = new Set(conflictingKeys.flatMap(([, indexes]) => indexes));
+
+  const normalizeRecordedKey = (event: React.KeyboardEvent<HTMLInputElement>): string | null => {
+    const rawKey = event.key;
+    if (['Control', 'Meta', 'Alt', 'Shift'].includes(rawKey)) {
+      return null;
+    }
+
+    const normalizedKey = KEYBINDING_SPECIAL_KEYS[rawKey]
+      || (rawKey.length === 1 ? rawKey.toLowerCase() : rawKey.toLowerCase());
+
+    const parts = [
+      event.ctrlKey ? 'ctrl' : null,
+      event.metaKey ? 'cmd' : null,
+      event.altKey ? 'alt' : null,
+      event.shiftKey ? 'shift' : null,
+      normalizedKey,
+    ].filter(Boolean);
+
+    return parts.join('+');
+  };
 
   // Fetch models, presets, custom tools, and config from API
   useEffect(() => {
@@ -175,7 +291,8 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
       fetch('/api/config').then(r => r.json()).catch(() => ({})),
       fetch('/api/settings').then(r => r.json()).catch(() => ({})),
       fetch('/api/core/upgrade').then(r => r.json()).catch(() => null),
-    ]).then(([modelsData, presetsData, toolsData, configData, geminiSettings, upgradeData]) => {
+      fetch('/api/keybindings').then(r => r.json()).catch(() => null),
+    ]).then(([modelsData, presetsData, toolsData, configData, geminiSettings, upgradeData, keybindingsData]) => {
       // Set models
       const modelList: typeof FALLBACK_MODELS = (modelsData.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
         id: m.id,
@@ -226,6 +343,16 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
       if (upgradeData) {
         setCoreUpgradeStatus(upgradeData);
       }
+      if (keybindingsData?.keybindings) {
+        setKeybindings(keybindingsData.keybindings);
+        setKeybindingsDraft(JSON.stringify(keybindingsData.keybindings, null, 2));
+        setKeybindingsPath(keybindingsData.path || '');
+      } else {
+        setKeybindings([]);
+        setKeybindingsDraft('[]');
+        setKeybindingsPath('');
+      }
+      setKeybindingsError(null);
     }).catch(() => { }).finally(() => setCoreUpgradeLoading(false));
   }, [open]);
 
@@ -253,6 +380,15 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
   }, [settings, open]);
 
   const handleSave = async () => {
+    const parsedKeybindings = parseKeybindingsDraft();
+    if (!parsedKeybindings) {
+      return;
+    }
+    if (conflictingKeys.length > 0) {
+      setKeybindingsError(`Resolve ${conflictingKeys.length} shortcut conflict${conflictingKeys.length === 1 ? '' : 's'} before saving.`);
+      return;
+    }
+
     // Save chat settings
     onSave(localSettings);
 
@@ -273,6 +409,12 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(coreSettings),
       });
+      await fetch('/api/keybindings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keybindings: parsedKeybindings }),
+      });
+      syncDraftFromKeybindings(parsedKeybindings);
     } catch (error) {
       console.error('Failed to save config:', error);
     }
@@ -314,6 +456,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
         enableAgents: true,
       },
     });
+    syncDraftFromKeybindings([]);
   };
 
   const handleCoreUpgrade = async () => {
@@ -345,7 +488,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-background border rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh]">
+      <div className="bg-background border rounded-xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh]">
 
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b bg-muted/30">
@@ -493,6 +636,262 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
             </div>
           </div>
 
+          <div className="space-y-4 pt-4 border-t">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Keyboard className="w-4 h-4 text-primary" />
+                  Keyboard Shortcuts
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Manage Gemini CLI&apos;s global <code>keybindings.json</code> with a table-first editor. This maps directly to upstream keyboard customization in v0.35.x.
+                </p>
+                {keybindingsPath && (
+                  <p className="text-[11px] font-mono text-muted-foreground break-all">
+                    {keybindingsPath}
+                  </p>
+                )}
+                {conflictingKeys.length > 0 && (
+                  <p className="text-[11px] text-red-500">
+                    {conflictingKeys.length} conflict{conflictingKeys.length === 1 ? '' : 's'} detected. Conflicting rows are highlighted below.
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => syncDraftFromKeybindings([...keybindings, { command: '', key: '' }])}
+                  className="text-xs px-2.5 py-1.5 rounded-md border border-input hover:bg-muted transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Row
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const parsed = parseKeybindingsDraft();
+                    if (parsed) syncDraftFromKeybindings(parsed);
+                  }}
+                  className="text-xs px-2.5 py-1.5 rounded-md border border-input hover:bg-muted transition-colors"
+                >
+                  Revert
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/60 bg-muted/20 overflow-hidden">
+              <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_auto] gap-3 px-4 py-3 border-b border-border/60 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                <span>Command</span>
+                <span>Key</span>
+                <span className="text-right">Action</span>
+              </div>
+
+              <div className="divide-y divide-border/50">
+                {keybindings.length === 0 ? (
+                  <div className="px-4 py-8 text-center space-y-2">
+                    <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-border/60 bg-background/70">
+                      <Command className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm font-medium">No custom keybindings yet</p>
+                    <p className="text-xs text-muted-foreground max-w-[56ch] mx-auto">
+                      Add alternative bindings, or prefix a command with <code>-</code> to unbind an upstream default shortcut.
+                    </p>
+                  </div>
+                ) : (
+                  keybindings.map((binding, index) => (
+                    <div
+                      key={`${binding.command}:${binding.key}:${index}`}
+                      className={cn(
+                        "grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_auto] gap-3 px-4 py-3 items-start bg-background/50",
+                        conflictingRowIndexes.has(index) && "bg-red-500/5"
+                      )}
+                    >
+                      <div className="space-y-1.5 min-w-0">
+                        <input
+                          list="gemini-keybinding-commands"
+                          value={binding.command}
+                          onChange={(e) => {
+                            const next = [...keybindings];
+                            next[index] = { ...next[index], command: e.target.value };
+                            syncDraftFromKeybindings(next);
+                          }}
+                          placeholder="input.submit"
+                          className={cn(
+                            "flex h-10 w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            conflictingRowIndexes.has(index) && "border-red-500/50 focus-visible:ring-red-500/30"
+                          )}
+                        />
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {KEYBINDING_COMMAND_OPTIONS.find((option) => option.command === binding.command)?.label || 'Custom or unbind command'}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <input
+                          readOnly
+                          value={binding.key}
+                          onFocus={() => setRecordingRowIndex(index)}
+                          onBlur={() => {
+                            if (recordingRowIndex === index) {
+                              setRecordingRowIndex(null);
+                            }
+                          }}
+                          onKeyDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+
+                            if (!event.ctrlKey && !event.metaKey && !event.altKey && ['Backspace', 'Delete'].includes(event.key)) {
+                              const next = [...keybindings];
+                              next[index] = { ...next[index], key: '' };
+                              syncDraftFromKeybindings(next);
+                              return;
+                            }
+
+                            const recordedKey = normalizeRecordedKey(event);
+                            if (!recordedKey) {
+                              return;
+                            }
+
+                            const next = [...keybindings];
+                            next[index] = { ...next[index], key: recordedKey };
+                            syncDraftFromKeybindings(next);
+                            setRecordingRowIndex(null);
+                            event.currentTarget.blur();
+                          }}
+                          placeholder="Click and press keys"
+                          className={cn(
+                            "flex h-10 w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors",
+                            recordingRowIndex === index && "border-primary bg-primary/5 ring-2 ring-primary/20",
+                            conflictingRowIndexes.has(index) && "border-red-500/50 focus-visible:ring-red-500/30"
+                          )}
+                        />
+                        <p className={cn(
+                          "text-[11px]",
+                          conflictingRowIndexes.has(index) ? "text-red-500" : "text-muted-foreground"
+                        )}>
+                          {recordingRowIndex === index
+                            ? 'Recording. Press a key combo, or Backspace/Delete to clear.'
+                            : conflictingRowIndexes.has(index)
+                              ? `Conflicts with ${normalizedConflictMap[binding.key.trim().toLowerCase()]?.length ?? 1} rows using ${binding.key || 'this shortcut'}.`
+                              : 'Click to record a key combo'}
+                        </p>
+                      </div>
+
+                      <div className="flex justify-end pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = keybindings.filter((_, currentIndex) => currentIndex !== index);
+                            syncDraftFromKeybindings(next);
+                          }}
+                          className="h-10 px-3 rounded-lg border border-border/60 bg-background hover:bg-muted transition-colors text-xs font-medium inline-flex items-center gap-1.5 active:scale-[0.98]"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <datalist id="gemini-keybinding-commands">
+              {KEYBINDING_COMMAND_OPTIONS.map((option) => (
+                <option key={option.command} value={option.command}>
+                  {option.group} - {option.label}
+                </option>
+              ))}
+            </datalist>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium">Starter bindings</p>
+                  <p className="text-[11px] text-muted-foreground">Quick-add common actions, then fine-tune them in the table.</p>
+                </div>
+                <span className={cn(
+                  "text-[11px]",
+                  conflictingKeys.length > 0 ? "text-red-500 font-medium" : "text-muted-foreground"
+                )}>
+                  {keybindings.length} active rows{conflictingKeys.length > 0 ? `, ${conflictingKeys.length} conflict${conflictingKeys.length === 1 ? '' : 's'}` : ''}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                {KEYBINDING_SUGGESTIONS.map((binding) => (
+                <button
+                  key={`${binding.command}:${binding.key}`}
+                  type="button"
+                  onClick={() => {
+                    const next = [...keybindings, binding];
+                    syncDraftFromKeybindings(next);
+                  }}
+                  className="text-left p-3 rounded-xl border border-border/60 bg-background/70 hover:bg-muted/40 transition-colors active:scale-[0.98] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium truncate">{binding.command}</div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        {KEYBINDING_COMMAND_OPTIONS.find((option) => option.command === binding.command)?.label || 'Shortcut'}
+                      </div>
+                    </div>
+                    <kbd className="px-2.5 py-1 rounded-lg border border-border/60 bg-muted text-[10px] font-mono font-semibold text-foreground">
+                      {binding.key}
+                    </kbd>
+                  </div>
+                </button>
+              ))}
+            </div>
+            </div>
+
+            <div className="rounded-xl border border-border/60 bg-muted/10 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowAdvancedKeybindings((value) => !value)}
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/30 transition-colors"
+              >
+                <div>
+                  <p className="text-xs font-medium">Advanced JSON editor</p>
+                  <p className="text-[11px] text-muted-foreground">Use the raw upstream format for bulk edits, copy/paste, or unbind-heavy changes.</p>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showAdvancedKeybindings ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showAdvancedKeybindings && (
+                <div className="border-t border-border/60 p-4 space-y-3 bg-background/70">
+                  <textarea
+                    value={keybindingsDraft}
+                    onChange={(e) => {
+                      setKeybindingsDraft(e.target.value);
+                      setKeybindingsError(null);
+                    }}
+                    spellCheck={false}
+                    className="flex min-h-[220px] w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-xs font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+                  />
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-muted-foreground">
+                      Example: <code>{`{ "command": "-app.toggleYolo", "key": "ctrl+y" }`}</code> removes a default binding.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const parsed = parseKeybindingsDraft();
+                        if (parsed) syncDraftFromKeybindings(parsed);
+                      }}
+                      className="text-xs px-3 py-2 rounded-lg border border-border/60 bg-background hover:bg-muted transition-colors active:scale-[0.98]"
+                    >
+                      Apply JSON
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {keybindingsError && (
+              <p className="text-xs text-red-500">{keybindingsError}</p>
+            )}
+          </div>
+
           {/* Model Configuration */}
           <div className="space-y-4 pt-4 border-t">
             <h3 className="text-sm font-semibold">Model Configuration</h3>
@@ -557,7 +956,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
           </div>
 
           <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-semibold">Gemini CLI v0.34.0</h3>
+            <h3 className="text-sm font-semibold">Gemini CLI v0.35.2</h3>
 
             <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-4">
               <div className="flex items-start justify-between gap-4">
@@ -649,7 +1048,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
                     Experimental Agents
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Required for remote A2A agents. Gemini CLI v0.34.0 also removed the legacy `agent_card_requires_auth` flag, so GGBond now relies on the remaining auth metadata only.
+                    Required for remote A2A agents. Gemini CLI v0.35.2 continues to use the streamlined auth metadata introduced after the legacy `agent_card_requires_auth` flag was removed, so GGBond relies on the remaining auth fields only.
                   </p>
                 </div>
                 <input
@@ -671,13 +1070,13 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Code2 className="w-4 h-4 text-primary" />
-                  Local v0.34.0 alignment
+                  Local v0.35.2 alignment
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  GGBond follows Gemini CLI Core `v0.34.0`, but intentionally keeps `code` as the default mode instead of switching the whole product to upstream&apos;s default Plan Mode.
+                  GGBond follows Gemini CLI Core `v0.35.2`, but intentionally keeps `code` as the default mode instead of switching the whole product to upstream&apos;s default Plan Mode.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Per-model token usage is now stored and surfaced when a turn spans multiple models; other upstream behaviors continue to flow through the core runtime unless GGBond adds explicit UI for them.
+                  Per-model token usage is still surfaced locally, while newer upstream improvements like keyboard customization, Vim polish, sandbox isolation, and JIT context discovery continue to flow through the core runtime unless GGBond adds explicit UI for them.
                 </p>
               </div>
             </div>
