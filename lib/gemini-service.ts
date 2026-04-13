@@ -8,8 +8,9 @@
 import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
-import { execSync, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import { Config, AuthType, Storage } from '@google/gemini-cli-core';
+import { resolveGeminiCliRuntime } from '@/lib/gemini-cli-runtime';
 import { resolveDefaultWorkspaceRoot, resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 const SETTINGS_CACHE_TTL_MS = 2000;
@@ -942,8 +943,7 @@ export function runGeminiCommand(args: string[]): Promise<string> {
     const commandPromise = new Promise<string>((resolve, reject) => {
         let geminiPath: string;
         try {
-            geminiPath = execSync('which gemini').toString().trim();
-            geminiPath = fs.realpathSync(geminiPath);
+            geminiPath = resolveGeminiCliRuntime().executableRealPath;
         } catch {
             reject(new Error('Gemini CLI not found'));
             return;

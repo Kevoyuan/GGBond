@@ -1,8 +1,8 @@
 import fs from 'fs/promises';
-import fsSync from 'fs';
 import path from 'path';
-import { execSync, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import { NextResponse } from '@/src-sidecar/mock-next-server';
+import { resolveGeminiCliRuntime } from '@/lib/gemini-cli-runtime';
 
 type InstallMethod = 'homebrew' | 'npm-global' | 'unknown' | 'missing';
 
@@ -29,10 +29,9 @@ async function getLocalCoreVersion(): Promise<string | null> {
   return typeof packageJson?.version === 'string' ? packageJson.version : null;
 }
 
-function resolveGlobalGeminiPath(): string | null {
+function resolveGeminiExecutablePath(): string | null {
   try {
-    const geminiPath = execSync('which gemini', { encoding: 'utf-8' }).trim();
-    return geminiPath ? path.resolve(geminiPath) : null;
+    return resolveGeminiCliRuntime().executablePath;
   } catch {
     return null;
   }
@@ -40,8 +39,7 @@ function resolveGlobalGeminiPath(): string | null {
 
 function resolveGlobalGeminiRealPath(): string | null {
   try {
-    const geminiPath = execSync('which gemini', { encoding: 'utf-8' }).trim();
-    return geminiPath ? fsSync.realpathSync(geminiPath) : null;
+    return resolveGeminiCliRuntime().executableRealPath;
   } catch {
     return null;
   }
@@ -65,9 +63,11 @@ function getUpgradeCommand(installMethod: InstallMethod): { command: string; arg
   }
 }
 
-async function readGeminiCliVersion(): Promise<string | null> {
+async function readGeminiCliVersion(geminiPath: string | null): Promise<string | null> {
+  if (!geminiPath) return null;
+
   return new Promise((resolve) => {
-    const child = spawn('gemini', ['--version'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [geminiPath, '--version'], { stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
 
     child.stdout.on('data', (chunk) => {
@@ -91,8 +91,8 @@ async function readGeminiCliVersion(): Promise<string | null> {
 
 async function buildStatus(): Promise<CoreUpgradeStatus> {
   const localCoreVersion = await getLocalCoreVersion();
-  const globalCliPath = resolveGlobalGeminiRealPath() || resolveGlobalGeminiPath();
-  const globalCliVersion = await readGeminiCliVersion();
+  const globalCliPath = resolveGlobalGeminiRealPath() || resolveGeminiExecutablePath();
+  const globalCliVersion = await readGeminiCliVersion(globalCliPath);
   const installMethod = detectInstallMethod(globalCliPath);
   const upgrade = getUpgradeCommand(installMethod);
 

@@ -1,7 +1,7 @@
-import { execSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { resolveGeminiCliRuntime } from '@/lib/gemini-cli-runtime';
 import { resolveGeminiCliHome, resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
 
 const GEMINI_ORIGINAL_HOME = path.join(os.homedir(), '.gemini');
@@ -54,8 +54,7 @@ function ensureGeminiHome(targetHome: string): void {
 
 export function getGeminiPath(): string {
   try {
-    const geminiBin = execSync('which gemini').toString().trim();
-    return fs.realpathSync(geminiBin);
+    return resolveGeminiCliRuntime().executableRealPath;
   } catch (error) {
     console.error('Failed to find gemini executable:', error);
     throw new Error('Gemini CLI not found');

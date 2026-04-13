@@ -426,7 +426,6 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const { action, name, source, content } = await req.json();
-    const geminiPath = getGeminiPath();
     const env = getGeminiEnv();
     const geminiHome = env.GEMINI_CLI_HOME || resolveRuntimeHome();
 
@@ -479,6 +478,8 @@ export async function POST(req: Request) {
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
+
+    const geminiPath = getGeminiPath();
 
     await new Promise<void>((resolve, reject) => {
       const gemini = spawn(process.execPath, [geminiPath, ...args], { env });
