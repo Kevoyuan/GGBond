@@ -381,7 +381,24 @@
       const destination = `${devOrigin}/`;
       const requestTimeoutMs = 2500;
       const retryDelayMs = 900;
+      const bootStorageKey = 'ggbond:boot-events';
       let lastFailure = '';
+
+      function loadingBootMark(name, meta) {
+        try {
+          const raw = sessionStorage.getItem(bootStorageKey);
+          const events = raw ? JSON.parse(raw) : [];
+          events.push({
+            name,
+            ts: Date.now(),
+            elapsedMs: Date.now() - startedAt,
+            ...(meta ? { meta } : {})
+          });
+          sessionStorage.setItem(bootStorageKey, JSON.stringify(events.slice(-40)));
+        } catch (_) {}
+      }
+
+      loadingBootMark('loading:page-start', { protocol: window.location.protocol });
 
       function setRouteState(text, tone) {
         routeStateEl.textContent = text;
@@ -439,13 +456,16 @@
             routeValueEl.textContent = 'ready';
             handoffValueEl.textContent = 'switching to app';
             progressEl.style.width = '100%';
+            loadingBootMark('loading:probe-success', { status: response.status });
             window.location.replace(destination);
             return;
           }
 
           lastFailure = `Main workspace returned HTTP ${response.status}`;
+          loadingBootMark('loading:probe-http-error', { status: response.status });
         } catch (_) {
           lastFailure = 'Main workspace is not responding yet';
+          loadingBootMark('loading:probe-network-error');
         } finally {
           window.clearTimeout(timeoutId);
         }

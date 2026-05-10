@@ -24923,6 +24923,28 @@ var init_session_crud = __esm({
   }
 });
 
+// lib/boot-telemetry.ts
+function bootMark(name, meta) {
+  const now = Date.now();
+  if (originTs === 0) originTs = now;
+  const entry = { name, ts: now, elapsedMs: now - originTs };
+  if (meta !== void 0) entry.meta = meta;
+  events.push(entry);
+  if (events.length > MAX_EVENTS) events.shift();
+}
+function bootTimeline() {
+  return events.slice();
+}
+var MAX_EVENTS, events, originTs;
+var init_boot_telemetry = __esm({
+  "lib/boot-telemetry.ts"() {
+    "use strict";
+    MAX_EVENTS = 100;
+    events = [];
+    originTs = 0;
+  }
+});
+
 // node_modules/object-assign/index.js
 var require_object_assign = __commonJS({
   "node_modules/object-assign/index.js"(exports2, module2) {
@@ -25994,12 +26016,12 @@ async function parseTelemetryLog(maxLines = 500) {
     try {
       const content = await import_promises2.default.readFile(logPath, "utf-8");
       const lines = content.trim().split("\n").slice(-maxLines);
-      const events = [];
+      const events2 = [];
       for (const line of lines) {
         if (!line.trim()) continue;
         try {
           const parsed = JSON.parse(line);
-          events.push({
+          events2.push({
             name: parsed.name || parsed.event || "unknown",
             timestamp: parsed.timestamp || parsed.time,
             attributes: parsed.attributes || parsed
@@ -26007,7 +26029,7 @@ async function parseTelemetryLog(maxLines = 500) {
         } catch {
         }
       }
-      return events;
+      return events2;
     } catch {
     }
   }
@@ -31344,12 +31366,12 @@ function getEventTimeMs(event) {
   if (startTime > 0) return startTime;
   return normalizeTimestamp(event.timestamp);
 }
-function buildDecisionSummary(events) {
+function buildDecisionSummary(events2) {
   let accepted = 0;
   let autoAccepted = 0;
   let rejected = 0;
   let modified = 0;
-  for (const event of events) {
+  for (const event of events2) {
     const decision = typeof event.attributes.decision === "string" ? event.attributes.decision : "";
     switch (decision) {
       case "accept":
@@ -31409,9 +31431,9 @@ function buildToolRows(toolStats) {
     avgDurationMs: value.durationCount > 0 ? Math.round(value.durationSum / value.durationCount) : 0
   })).sort((a, b) => b.total - a.total || a.toolName.localeCompare(b.toolName));
 }
-function buildModelStatsFromTelemetry(events) {
-  const apiResponses = events.filter((event) => event.name === "gemini_cli.api_response");
-  const apiErrors = events.filter((event) => event.name === "gemini_cli.api_error");
+function buildModelStatsFromTelemetry(events2) {
+  const apiResponses = events2.filter((event) => event.name === "gemini_cli.api_response");
+  const apiErrors = events2.filter((event) => event.name === "gemini_cli.api_error");
   const modelMap = /* @__PURE__ */ new Map();
   for (const event of apiResponses) {
     const model = typeof event.attributes.model === "string" ? event.attributes.model : "unknown";
@@ -36695,26 +36717,26 @@ function completionDetectionPlugin({
 } = {}) {
   function createEvents() {
     let exitCode = -1;
-    const events = {
+    const events2 = {
       close: (0, import_promise_deferred2.deferred)(),
       closeTimeout: (0, import_promise_deferred2.deferred)(),
       exit: (0, import_promise_deferred2.deferred)(),
       exitTimeout: (0, import_promise_deferred2.deferred)()
     };
     const result = Promise.race([
-      onClose === false ? never : events.closeTimeout.promise,
-      onExit === false ? never : events.exitTimeout.promise
+      onClose === false ? never : events2.closeTimeout.promise,
+      onExit === false ? never : events2.exitTimeout.promise
     ]);
-    configureTimeout(onClose, events.close, events.closeTimeout);
-    configureTimeout(onExit, events.exit, events.exitTimeout);
+    configureTimeout(onClose, events2.close, events2.closeTimeout);
+    configureTimeout(onExit, events2.exit, events2.exitTimeout);
     return {
       close(code) {
         exitCode = code;
-        events.close.done();
+        events2.close.done();
       },
       exit(code) {
         exitCode = code;
-        events.exit.done();
+        events2.exit.done();
       },
       get exitCode() {
         return exitCode;
@@ -36731,22 +36753,22 @@ function completionDetectionPlugin({
   return {
     type: "spawn.after",
     async action(_data, { spawned, close }) {
-      const events = createEvents();
+      const events2 = createEvents();
       let deferClose = true;
       let quickClose = () => void (deferClose = false);
       spawned.stdout?.on("data", quickClose);
       spawned.stderr?.on("data", quickClose);
       spawned.on("error", quickClose);
-      spawned.on("close", (code) => events.close(code));
-      spawned.on("exit", (code) => events.exit(code));
+      spawned.on("close", (code) => events2.close(code));
+      spawned.on("exit", (code) => events2.exit(code));
       try {
-        await events.result;
+        await events2.result;
         if (deferClose) {
           await delay(50);
         }
-        close(events.exitCode);
+        close(events2.exitCode);
       } catch (err) {
-        close(events.exitCode, err);
+        close(events2.exitCode, err);
       }
     }
   };
@@ -46195,10 +46217,10 @@ function buildFallbackFromDb() {
 }
 async function GET45() {
   try {
-    const events = await parseTelemetryLog(1e3);
-    const apiResponses = events.filter((e) => e.name === "gemini_cli.api_response");
-    const toolCalls = events.filter((e) => e.name === "gemini_cli.tool_call");
-    const apiErrors = events.filter((e) => e.name === "gemini_cli.api_error");
+    const events2 = await parseTelemetryLog(1e3);
+    const apiResponses = events2.filter((e) => e.name === "gemini_cli.api_response");
+    const toolCalls = events2.filter((e) => e.name === "gemini_cli.tool_call");
+    const apiErrors = events2.filter((e) => e.name === "gemini_cli.api_error");
     const apiLatencies = apiResponses.map((e) => e.attributes.duration_ms).filter((v) => typeof v === "number");
     const toolLatencies = toolCalls.map((e) => e.attributes.duration_ms).filter((v) => typeof v === "number");
     const tokensByModel = {};
@@ -46236,8 +46258,8 @@ async function GET45() {
       },
       tokensByModel,
       toolsByName,
-      recentEvents: events.slice(-50),
-      totalEvents: events.length,
+      recentEvents: events2.slice(-50),
+      totalEvents: events2.length,
       dataSource: "telemetry"
     };
     if (response.totalEvents === 0) {
@@ -48443,6 +48465,7 @@ var init_auto_routes = __esm({
 var server_exports = {};
 async function prewarmCoreService() {
   if (process.env.GGBOND_PREWARM === "false") {
+    bootMark("sidecar:prewarm-disabled");
     console.log("[Sidecar] Core prewarm disabled via GGBOND_PREWARM=false");
     return;
   }
@@ -48450,6 +48473,7 @@ async function prewarmCoreService() {
   const model = process.env.GGBOND_PREWARM_MODEL || "gemini-2.5-flash";
   const cwd = resolveDefaultWorkspaceRoot();
   const sessionId = process.env.GGBOND_PREWARM_SESSION_ID || "__ggbond_prewarm__";
+  bootMark("sidecar:prewarm-start", { model, cwd });
   try {
     const core2 = CoreService.getInstance();
     await core2.initialize({
@@ -48463,8 +48487,10 @@ async function prewarmCoreService() {
       }
     });
     const elapsedMs = Math.round((performance.now() - startedAt) * 100) / 100;
+    bootMark("sidecar:prewarm-done", { elapsedMs });
     console.log(`[Sidecar] Core prewarm ready in ${elapsedMs}ms`, { model, cwd, sessionId });
   } catch (error) {
+    bootMark("sidecar:prewarm-fail", { error: String(error) });
     console.warn("[Sidecar] Core prewarm failed:", error);
   }
 }
@@ -48478,11 +48504,16 @@ var init_server = __esm({
     init_auto_routes();
     init_runtime_home();
     init_sidecar_port();
+    init_boot_telemetry();
+    bootMark("sidecar:server-module-loaded");
     app = (0, import_express.default)();
     app.use((0, import_cors.default)());
     app.use(import_express.default.json({ limit: "50mb" }));
     app.get("/api/health", (_req, res) => {
       res.json({ status: "ok", engine: "ggbond-sidecar" });
+    });
+    app.get("/api/diagnostics/boot", (_req, res) => {
+      res.json({ events: bootTimeline() });
     });
     registerAutoRoutes(app);
     app.post("/api/chat/cancel", async (req, res) => {
@@ -48499,6 +48530,7 @@ var init_server = __esm({
     });
     port = process.env.SIDECAR_PORT || SIDECAR_DEFAULT_PORT;
     app.listen(port, () => {
+      bootMark("sidecar:http-listening", { port: String(port) });
       console.log(`[Sidecar] Gemini CLI Core HTTP Server running on port ${port}`);
       void prewarmCoreService();
     });
@@ -48511,6 +48543,8 @@ init_gemini_cli_runtime();
 init_provider_registry();
 init_sidecar_port();
 init_session_crud();
+init_boot_telemetry();
+bootMark("sidecar:bootstrap-entry");
 function startMissingCliServer(error) {
   const app2 = (0, import_express2.default)();
   const port2 = process.env.SIDECAR_PORT || SIDECAR_DEFAULT_PORT;
@@ -48525,6 +48559,12 @@ function startMissingCliServer(error) {
         database: true,
         geminiCore: false
       }
+    });
+  });
+  app2.get("/api/diagnostics/boot", (_req, res) => {
+    res.json({
+      status: "degraded",
+      events: bootTimeline()
     });
   });
   app2.get("/api/sessions", (_req, res) => {
@@ -48633,6 +48673,7 @@ function startMissingCliServer(error) {
     });
   });
   app2.listen(port2, () => {
+    bootMark("sidecar:degraded-http-listening", { port: String(port2) });
     console.error(`[Sidecar] ${message2}`);
     console.error(`[Sidecar] Fallback server listening on port ${port2}`);
   });
@@ -48641,8 +48682,10 @@ try {
   const runtime2 = configureGeminiCliRuntime();
   console.log(`[Sidecar] Using Gemini CLI at ${runtime2.executablePath}`);
   console.log(`[Sidecar] Using gemini-cli-core from ${runtime2.corePackageJsonPath}`);
+  bootMark("sidecar:requiring-server");
   init_server();
 } catch (error) {
+  bootMark("sidecar:runtime-fail", { error: error instanceof Error ? error.message : String(error) });
   console.error("[Sidecar] Failed to start main server:", error);
   startMissingCliServer(error);
 }

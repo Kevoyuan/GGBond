@@ -4,6 +4,9 @@ import { CoreService } from '../lib/core-service';
 import { registerAutoRoutes } from './auto-routes';
 import { resolveDefaultWorkspaceRoot } from '../lib/runtime-home';
 import { SIDECAR_DEFAULT_PORT } from '../lib/sidecar-port';
+import { bootMark, bootTimeline } from '../lib/boot-telemetry';
+
+bootMark('sidecar:server-module-loaded');
 
 const app = express();
 app.use(cors());
@@ -11,6 +14,10 @@ app.use(express.json({ limit: '50mb' }));
 
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', engine: 'ggbond-sidecar' });
+});
+
+app.get('/api/diagnostics/boot', (_req, res) => {
+    res.json({ events: bootTimeline() });
 });
 
 // Route the API surface through the legacy handlers so the sidecar stays thin
@@ -38,6 +45,7 @@ const port = process.env.SIDECAR_PORT || SIDECAR_DEFAULT_PORT;
 
 async function prewarmCoreService() {
     if (process.env.GGBOND_PREWARM === 'false') {
+        bootMark('sidecar:prewarm-disabled');
         console.log('[Sidecar] Core prewarm disabled via GGBOND_PREWARM=false');
         return;
     }
@@ -46,6 +54,7 @@ async function prewarmCoreService() {
     const model = process.env.GGBOND_PREWARM_MODEL || 'gemini-2.5-flash';
     const cwd = resolveDefaultWorkspaceRoot();
     const sessionId = process.env.GGBOND_PREWARM_SESSION_ID || '__ggbond_prewarm__';
+    bootMark('sidecar:prewarm-start', { model, cwd });
 
     try {
         const core = CoreService.getInstance();
@@ -60,13 +69,16 @@ async function prewarmCoreService() {
             },
         });
         const elapsedMs = Math.round((performance.now() - startedAt) * 100) / 100;
+        bootMark('sidecar:prewarm-done', { elapsedMs });
         console.log(`[Sidecar] Core prewarm ready in ${elapsedMs}ms`, { model, cwd, sessionId });
     } catch (error) {
+        bootMark('sidecar:prewarm-fail', { error: String(error) });
         console.warn('[Sidecar] Core prewarm failed:', error);
     }
 }
 
 app.listen(port, () => {
+    bootMark('sidecar:http-listening', { port: String(port) });
     console.log(`[Sidecar] Gemini CLI Core HTTP Server running on port ${port}`);
     void prewarmCoreService();
 });

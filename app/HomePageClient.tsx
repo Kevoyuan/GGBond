@@ -32,6 +32,7 @@ import { useChatCommands } from '@/app/page/hooks/useChatCommands';
 
 import { ChatProvider } from './contexts/ChatContext';
 import { useUIStore } from '@/lib/stores/ui-store';
+import { bootImportFromSessionStorage, bootMark } from '@/lib/boot-telemetry';
 
 const SettingsDialog = dynamic(
   () => import('../components/settings/SettingsDialog').then((mod) => mod.SettingsDialog),
@@ -181,6 +182,11 @@ export default function Home() {
 
   // Toast notifications state (via hook)
   const { toasts, dismissToast, showErrorToast, showWarningToast, showInfoToast } = useToast();
+
+  useEffect(() => {
+    bootImportFromSessionStorage();
+    bootMark('app:mounted');
+  }, []);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -623,6 +629,7 @@ export default function Home() {
 
   // Fetch Sessions on Mount
   const fetchSessions = useCallback(async () => {
+    bootMark('app:sessions-fetch-start');
     try {
       const { response, data } = await fetchJsonWithRetry<Session[] | { error?: string; _fallback?: boolean }>(
         '/api/sessions',
@@ -647,9 +654,11 @@ export default function Home() {
       });
 
       setSessions(allSessions);
+      bootMark('app:sessions-fetch-done', { count: allSessions.length });
     } catch (error) {
       console.error('Failed to fetch sessions', error);
       const message = error instanceof Error ? error.message : String(error);
+      bootMark('app:sessions-fetch-fail', { error: message });
       showWarningToast(`Sessions are temporarily unavailable: ${message}`);
     }
   }, [showWarningToast]);

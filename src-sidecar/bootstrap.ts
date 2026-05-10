@@ -11,6 +11,9 @@ import {
   updateSessionBranch,
   getLatestStats,
 } from '../lib/session-crud';
+import { bootMark, bootTimeline } from '../lib/boot-telemetry';
+
+bootMark('sidecar:bootstrap-entry');
 
 function startMissingCliServer(error: unknown) {
   const app = express();
@@ -28,6 +31,13 @@ function startMissingCliServer(error: unknown) {
         database: true,
         geminiCore: false,
       },
+    });
+  });
+
+  app.get('/api/diagnostics/boot', (_req, res) => {
+    res.json({
+      status: 'degraded',
+      events: bootTimeline(),
     });
   });
 
@@ -148,6 +158,7 @@ function startMissingCliServer(error: unknown) {
   });
 
   app.listen(port, () => {
+    bootMark('sidecar:degraded-http-listening', { port: String(port) });
     console.error(`[Sidecar] ${message}`);
     console.error(`[Sidecar] Fallback server listening on port ${port}`);
   });
@@ -157,8 +168,10 @@ try {
   const runtime = configureGeminiCliRuntime();
   console.log(`[Sidecar] Using Gemini CLI at ${runtime.executablePath}`);
   console.log(`[Sidecar] Using gemini-cli-core from ${runtime.corePackageJsonPath}`);
+  bootMark('sidecar:requiring-server');
   require('./server');
 } catch (error) {
+  bootMark('sidecar:runtime-fail', { error: error instanceof Error ? error.message : String(error) });
   console.error('[Sidecar] Failed to start main server:', error);
   startMissingCliServer(error);
 }
