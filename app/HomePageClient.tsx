@@ -309,6 +309,8 @@ export default function Home() {
       }
     };
 
+    const hasActiveTasks = Object.values(runningSessionCounts).some((count) => count > 0);
+
     const handleVisibilityChange = () => {
       const isVisible = document.visibilityState === 'visible';
 
@@ -320,8 +322,8 @@ export default function Home() {
           clearInterval(pollInterval);
           pollInterval = null;
         }
-      } else {
-        // Page became hidden - start polling to keep track of background jobs
+      } else if (hasActiveTasks) {
+        // Page became hidden - start polling only if there are running tasks
         // Poll every 5 seconds when hidden to update status
         pollInterval = setInterval(() => {
           void checkBackgroundJobs();
@@ -330,8 +332,8 @@ export default function Home() {
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    // Initial check
-    if (document.visibilityState === 'hidden') {
+    // Initial check: only poll if hidden AND there are running tasks
+    if (document.visibilityState === 'hidden' && hasActiveTasks) {
       pollInterval = setInterval(() => {
         void checkBackgroundJobs();
       }, 5000);
@@ -343,7 +345,7 @@ export default function Home() {
         clearInterval(pollInterval);
       }
     };
-  }, [currentSessionId]);
+  }, [currentSessionId, runningSessionCounts]);
 
   const updateRunningSessionCount = useCallback((sessionId: string | null | undefined, delta: number) => {
     if (!sessionId || !Number.isFinite(delta) || delta === 0) return;
