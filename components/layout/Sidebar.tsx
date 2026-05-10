@@ -63,6 +63,7 @@ interface SidebarProps {
   onArchiveWorkspace?: (workspace: string) => void;
   onNewChatInWorkspace?: (workspace: string) => void;
   onOpenSettings: () => void;
+  onOpenDiagnostics?: () => void;
   isDark: boolean;
   toggleTheme: () => void;
   className?: string;
@@ -126,6 +127,7 @@ export const Sidebar = React.memo(function Sidebar({
   onArchiveWorkspace,
   onNewChatInWorkspace,
   onOpenSettings,
+  onOpenDiagnostics,
   isDark,
   toggleTheme,
   onShowStats,
@@ -419,6 +421,21 @@ export const Sidebar = React.memo(function Sidebar({
                 {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
             </Tooltip>
+
+            {onOpenDiagnostics && (
+              <Tooltip content="Diagnostics" side={isCollapsed ? "right" : "top"}>
+                <button
+                  onClick={onOpenDiagnostics}
+                  aria-label="Open diagnostics"
+                  className={cn(
+                    "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
+                    isCollapsed && "w-9 h-9 flex items-center justify-center"
+                  )}
+                >
+                  <Activity className="w-4 h-4" />
+                </button>
+              </Tooltip>
+            )}
 
             <Tooltip content="Settings" side={isCollapsed ? "right" : "top"}>
               <button

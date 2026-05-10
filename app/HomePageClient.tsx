@@ -38,6 +38,10 @@ const SettingsDialog = dynamic(
   () => import('../components/settings/SettingsDialog').then((mod) => mod.SettingsDialog),
   { ssr: false }
 );
+const DiagnosticsDialog = dynamic(
+  () => import('../components/settings/DiagnosticsDialog').then((mod) => mod.DiagnosticsDialog),
+  { ssr: false }
+);
 const SidePanel = dynamic(
   () => import('../components/session/SidePanel').then((mod) => mod.SidePanel),
   { ssr: false }
@@ -109,6 +113,7 @@ export default function Home() {
   // UI state — from Zustand store
   const settingsOpen = useUIStore((s) => s.settingsOpen);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen);
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
   const showUsageStats = useUIStore((s) => s.showUsageStats);
@@ -2971,6 +2976,7 @@ export default function Home() {
             currentWorkspace={currentWorkspace === null ? undefined : currentWorkspace}
             onAddWorkspace={() => setShowAddWorkspace(true)}
             onOpenSettings={() => setSettingsOpen(true)}
+            onOpenDiagnostics={() => setDiagnosticsOpen(true)}
             isDark={isDark}
             toggleTheme={toggleTheme}
             onShowStats={() => setShowUsageStats(true)}
@@ -3077,6 +3083,11 @@ export default function Home() {
           onClose={() => setSettingsOpen(false)}
           settings={settings}
           onSave={handleSaveSettings}
+        />
+
+        <DiagnosticsDialog
+          open={diagnosticsOpen}
+          onClose={() => setDiagnosticsOpen(false)}
         />
 
         <UsageStatsDialog

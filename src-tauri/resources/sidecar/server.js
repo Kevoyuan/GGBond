@@ -48463,6 +48463,15 @@ var init_auto_routes = __esm({
 
 // src-sidecar/server.ts
 var server_exports = {};
+function diagnosticsPayload() {
+  return {
+    status: "ok",
+    engine: "ggbond-sidecar",
+    port: process.env.SIDECAR_PORT || SIDECAR_DEFAULT_PORT,
+    db: getDbDebugInfo(),
+    events: bootTimeline()
+  };
+}
 async function prewarmCoreService() {
   if (process.env.GGBOND_PREWARM === "false") {
     bootMark("sidecar:prewarm-disabled");
@@ -48505,6 +48514,7 @@ var init_server = __esm({
     init_runtime_home();
     init_sidecar_port();
     init_boot_telemetry();
+    init_db();
     bootMark("sidecar:server-module-loaded");
     app = (0, import_express.default)();
     app.use((0, import_cors.default)());
@@ -48512,8 +48522,11 @@ var init_server = __esm({
     app.get("/api/health", (_req, res) => {
       res.json({ status: "ok", engine: "ggbond-sidecar" });
     });
+    app.get("/api/diagnostics", (_req, res) => {
+      res.json(diagnosticsPayload());
+    });
     app.get("/api/diagnostics/boot", (_req, res) => {
-      res.json({ events: bootTimeline() });
+      res.json(diagnosticsPayload());
     });
     registerAutoRoutes(app);
     app.post("/api/chat/cancel", async (req, res) => {
@@ -48544,6 +48557,7 @@ init_provider_registry();
 init_sidecar_port();
 init_session_crud();
 init_boot_telemetry();
+init_db();
 bootMark("sidecar:bootstrap-entry");
 function startMissingCliServer(error) {
   const app2 = (0, import_express2.default)();
@@ -48561,11 +48575,19 @@ function startMissingCliServer(error) {
       }
     });
   });
+  const diagnosticsPayload2 = () => ({
+    status: "degraded",
+    engine: "ggbond-sidecar",
+    error: message2,
+    port: port2,
+    db: getDbDebugInfo(),
+    events: bootTimeline()
+  });
+  app2.get("/api/diagnostics", (_req, res) => {
+    res.json(diagnosticsPayload2());
+  });
   app2.get("/api/diagnostics/boot", (_req, res) => {
-    res.json({
-      status: "degraded",
-      events: bootTimeline()
-    });
+    res.json(diagnosticsPayload2());
   });
   app2.get("/api/sessions", (_req, res) => {
     try {
@@ -48581,7 +48603,7 @@ function startMissingCliServer(error) {
       const title = typeof req.body?.title === "string" ? req.body.title : void 0;
       const result = createSession(workspace, title);
       if ("error" in result) {
-        res.status(result.status).json({ error: result.error });
+        res.status(result.status ?? 500).json({ error: result.error });
         return;
       }
       res.json(result);
@@ -48620,7 +48642,7 @@ function startMissingCliServer(error) {
     try {
       const result = getSession(req.params.id);
       if ("error" in result) {
-        res.status(result.status).json({ error: result.error });
+        res.status(result.status ?? 500).json({ error: result.error });
         return;
       }
       res.json(result);
@@ -48642,7 +48664,7 @@ function startMissingCliServer(error) {
       const { archived } = req.body ?? {};
       const result = archiveSession(req.params.id, archived);
       if ("error" in result) {
-        res.status(result.status).json({ error: result.error });
+        res.status(result.status ?? 500).json({ error: result.error });
         return;
       }
       res.json(result);
@@ -48656,7 +48678,7 @@ function startMissingCliServer(error) {
       const branch = typeof req.body?.branch === "string" ? req.body.branch : null;
       const result = updateSessionBranch(req.params.id, branch);
       if ("error" in result) {
-        res.status(result.status).json({ error: result.error });
+        res.status(result.status ?? 500).json({ error: result.error });
         return;
       }
       res.json(result);

@@ -86,7 +86,7 @@ describe('session-crud integration (real SQLite)', () => {
     expect(result).not.toHaveProperty('error');
     if ('error' in result) return;
 
-    expect(result.session.id).toBe(created.id);
+    expect((result.session as { id: string }).id).toBe(created.id);
     expect(result.messages).toHaveLength(1);
     expect(result.messages[0].content).toBe('Hello');
     expect(result.messages[0].stats).toEqual({ tokens: 10 });

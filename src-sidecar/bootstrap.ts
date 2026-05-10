@@ -12,6 +12,7 @@ import {
   getLatestStats,
 } from '../lib/session-crud';
 import { bootMark, bootTimeline } from '../lib/boot-telemetry';
+import { getDbDebugInfo } from '../lib/db';
 
 bootMark('sidecar:bootstrap-entry');
 
@@ -34,11 +35,21 @@ function startMissingCliServer(error: unknown) {
     });
   });
 
-  app.get('/api/diagnostics/boot', (_req, res) => {
-    res.json({
+  const diagnosticsPayload = () => ({
       status: 'degraded',
+      engine: 'ggbond-sidecar',
+      error: message,
+      port: port,
+      db: getDbDebugInfo(),
       events: bootTimeline(),
-    });
+  });
+
+  app.get('/api/diagnostics', (_req, res) => {
+    res.json(diagnosticsPayload());
+  });
+
+  app.get('/api/diagnostics/boot', (_req, res) => {
+    res.json(diagnosticsPayload());
   });
 
   app.get('/api/sessions', (_req, res) => {
@@ -56,7 +67,7 @@ function startMissingCliServer(error: unknown) {
       const title = typeof req.body?.title === 'string' ? req.body.title : undefined;
       const result = createSession(workspace, title);
       if ('error' in result) {
-        res.status(result.status).json({ error: result.error });
+        res.status(result.status ?? 500).json({ error: result.error });
         return;
       }
       res.json(result);
@@ -100,7 +111,7 @@ function startMissingCliServer(error: unknown) {
     try {
       const result = getSession(req.params.id);
       if ('error' in result) {
-        res.status(result.status).json({ error: result.error });
+        res.status(result.status ?? 500).json({ error: result.error });
         return;
       }
       res.json(result);
@@ -124,7 +135,7 @@ function startMissingCliServer(error: unknown) {
       const { archived } = req.body ?? {};
       const result = archiveSession(req.params.id, archived);
       if ('error' in result) {
-        res.status(result.status).json({ error: result.error });
+        res.status(result.status ?? 500).json({ error: result.error });
         return;
       }
       res.json(result);
@@ -139,7 +150,7 @@ function startMissingCliServer(error: unknown) {
       const branch = typeof req.body?.branch === 'string' ? req.body.branch : null;
       const result = updateSessionBranch(req.params.id, branch);
       if ('error' in result) {
-        res.status(result.status).json({ error: result.error });
+        res.status(result.status ?? 500).json({ error: result.error });
         return;
       }
       res.json(result);

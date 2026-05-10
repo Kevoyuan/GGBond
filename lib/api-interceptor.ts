@@ -274,7 +274,7 @@ export function initApiInterceptor() {
                 if (method === 'GET') return jsonResponse({ content: await dbClient.config.get('geminiignore') || '' });
                 if (method === 'POST') {
                     const { content } = await readBody(init);
-                    await dbClient.config.set('geminiignore', content);
+                    await dbClient.config.set('geminiignore', typeof content === 'string' ? content : '');
                     return jsonResponse({ success: true });
                 }
             }

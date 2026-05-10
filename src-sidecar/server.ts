@@ -5,6 +5,7 @@ import { registerAutoRoutes } from './auto-routes';
 import { resolveDefaultWorkspaceRoot } from '../lib/runtime-home';
 import { SIDECAR_DEFAULT_PORT } from '../lib/sidecar-port';
 import { bootMark, bootTimeline } from '../lib/boot-telemetry';
+import { getDbDebugInfo } from '../lib/db';
 
 bootMark('sidecar:server-module-loaded');
 
@@ -16,8 +17,22 @@ app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', engine: 'ggbond-sidecar' });
 });
 
+function diagnosticsPayload() {
+    return {
+        status: 'ok',
+        engine: 'ggbond-sidecar',
+        port: process.env.SIDECAR_PORT || SIDECAR_DEFAULT_PORT,
+        db: getDbDebugInfo(),
+        events: bootTimeline(),
+    };
+}
+
+app.get('/api/diagnostics', (_req, res) => {
+    res.json(diagnosticsPayload());
+});
+
 app.get('/api/diagnostics/boot', (_req, res) => {
-    res.json({ events: bootTimeline() });
+    res.json(diagnosticsPayload());
 });
 
 // Route the API surface through the legacy handlers so the sidecar stays thin
