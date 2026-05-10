@@ -373,7 +373,6 @@ export const ChatInput = React.memo(function ChatInput({
   }, []);
 
   const currentMode = MODE_OPTIONS.find(m => m.value === mode) || MODE_OPTIONS[0];
-  const isTemporarySession = !workspacePath?.trim();
   const shouldShowRouting = Boolean(routedAgentName);
   const statusSummaryParts = useMemo(() => {
     const parts: string[] = [];
@@ -402,10 +401,6 @@ export const ChatInput = React.memo(function ChatInput({
       parts.push('Plan review');
     }
 
-    if (isTemporarySession) {
-      parts.push('Temporary workspace');
-    }
-
     return parts;
   }, [
     currentModel,
@@ -413,7 +408,6 @@ export const ChatInput = React.memo(function ChatInput({
     effectiveProfile,
     hasAgentOverride,
     hasWorkspaceOverride,
-    isTemporarySession,
     mode,
     routedAgentDisplayName,
     shouldShowRouting,
@@ -1993,16 +1987,9 @@ export const ChatInput = React.memo(function ChatInput({
             </button>
 
             {statusSummaryText && (
-              <div className="px-1">
-                <p className="text-[11px] leading-4 text-muted-foreground/75">
-                  {statusSummaryText}
-                </p>
-                {isTemporarySession && (
-                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground/60">
-                    No workspace selected. Generated files stay in a per-chat temporary folder until you open a project.
-                  </p>
-                )}
-              </div>
+              <p className="px-1 text-[11px] leading-4 text-muted-foreground/75">
+                {statusSummaryText}
+              </p>
             )}
           </div>
 
