@@ -5,6 +5,7 @@ import db, { executeWithRetry, runNonBlockingAsync } from '@/lib/db';
 import { calculateCost } from '@/lib/pricing';
 import { resolveWorkspaceExecutionRoot } from '@/lib/runtime-home';
 import { normalizeTokenStats, type PerModelTokenUsage } from '@/lib/token-stats';
+import { buildUnsupportedProviderMessage, isGeminiCoreModel } from '@/lib/provider-registry';
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';
@@ -147,6 +148,14 @@ export async function POST(req: Request) {
 
     // Respect the model selected by UI/caller; do not silently downgrade.
     let targetModel = resolveRequestedModel(model);
+
+    if (!isGeminiCoreModel(targetModel)) {
+      return NextResponse.json({
+        error: buildUnsupportedProviderMessage(targetModel),
+        providerReady: false,
+        model: targetModel,
+      }, { status: 501 });
+    }
 
     // Initialize CoreService
     const core = CoreService.getInstance();

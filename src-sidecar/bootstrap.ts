@@ -1,6 +1,7 @@
 import express from 'express';
 import db from '../lib/db';
 import { configureGeminiCliRuntime } from '../lib/gemini-cli-runtime';
+import { buildUnsupportedProviderMessage, isGeminiCoreModel } from '../lib/provider-registry';
 
 function parseJsonColumn(value: unknown, fallback: unknown = undefined) {
   if (!value) return fallback;
@@ -84,6 +85,24 @@ function startMissingCliServer(error: unknown) {
   });
 
   app.get('/api/sessions/core', (_req, res) => {
+    res.status(503).json({
+      error: message,
+      degraded: true,
+      install: 'Install and authenticate the Gemini CLI on this machine, then relaunch GGBond.',
+    });
+  });
+
+  app.post('/api/chat', (req, res) => {
+    const model = typeof req.body?.model === 'string' ? req.body.model : '';
+    if (model && !isGeminiCoreModel(model)) {
+      res.status(501).json({
+        error: buildUnsupportedProviderMessage(model),
+        providerReady: false,
+        model,
+      });
+      return;
+    }
+
     res.status(503).json({
       error: message,
       degraded: true,

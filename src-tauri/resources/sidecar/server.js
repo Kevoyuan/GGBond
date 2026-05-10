@@ -24716,6 +24716,96 @@ var init_gemini_cli_runtime = __esm({
   }
 });
 
+// lib/provider-registry.ts
+function csvEnv(name) {
+  return (process.env[name] || "").split(",").map((value) => value.trim()).filter(Boolean);
+}
+function hasAnyEnv(names) {
+  return names.some((name) => Boolean(process.env[name]));
+}
+function isGeminiCoreModel(model) {
+  const value = (model || "").trim();
+  return !value || value === "auto" || value.startsWith("gemini-") || value.startsWith("models/gemini-");
+}
+function parseProviderModel(model) {
+  const value = (model || "").trim();
+  if (value.startsWith("openai:")) {
+    return { provider: "openai-compatible", model: value.slice("openai:".length) };
+  }
+  if (value.startsWith("anthropic:")) {
+    return { provider: "anthropic", model: value.slice("anthropic:".length) };
+  }
+  return { provider: "gemini-core", model: value || "auto" };
+}
+function getExternalProviderCatalog() {
+  const openAiConfigured = hasAnyEnv(["OPENAI_API_KEY", "GGBOND_OPENAI_API_KEY", "OPENAI_BASE_URL"]);
+  const anthropicConfigured = hasAnyEnv(["ANTHROPIC_API_KEY", "GGBOND_ANTHROPIC_API_KEY"]);
+  const openAiModels = csvEnv("GGBOND_OPENAI_MODELS");
+  const anthropicModels = csvEnv("GGBOND_ANTHROPIC_MODELS");
+  const models = [
+    ...openAiModels.map((model) => ({
+      id: `openai:${model}`,
+      name: model,
+      provider: "openai-compatible",
+      providerName: "OpenAI-compatible",
+      configured: openAiConfigured,
+      capabilities: {
+        chat: true,
+        streaming: true,
+        codingAgent: false,
+        tools: false,
+        vision: false
+      }
+    })),
+    ...anthropicModels.map((model) => ({
+      id: `anthropic:${model}`,
+      name: model,
+      provider: "anthropic",
+      providerName: "Anthropic",
+      configured: anthropicConfigured,
+      capabilities: {
+        chat: true,
+        streaming: true,
+        codingAgent: false,
+        tools: false,
+        vision: false
+      }
+    }))
+  ];
+  return {
+    providers: [
+      {
+        id: "openai-compatible",
+        name: "OpenAI-compatible",
+        configured: openAiConfigured,
+        status: openAiConfigured ? "ready" : "missing_config",
+        reason: openAiConfigured ? void 0 : "Set OPENAI_API_KEY or OPENAI_BASE_URL, plus GGBOND_OPENAI_MODELS."
+      },
+      {
+        id: "anthropic",
+        name: "Anthropic",
+        configured: anthropicConfigured,
+        status: anthropicConfigured ? "ready" : "missing_config",
+        reason: anthropicConfigured ? void 0 : "Set ANTHROPIC_API_KEY and GGBOND_ANTHROPIC_MODELS."
+      }
+    ],
+    models
+  };
+}
+function buildUnsupportedProviderMessage(model) {
+  const parsed = parseProviderModel(model);
+  return [
+    `Provider adapter is not enabled for ${parsed.provider}.`,
+    "Gemini CLI Core remains the coding-agent runtime.",
+    "External providers are being exposed behind a separate adapter boundary so they cannot be accidentally routed through Gemini CLI Core."
+  ].join(" ");
+}
+var init_provider_registry = __esm({
+  "lib/provider-registry.ts"() {
+    "use strict";
+  }
+});
+
 // node_modules/object-assign/index.js
 var require_object_assign = __commonJS({
   "node_modules/object-assign/index.js"(exports2, module2) {
@@ -25674,10 +25764,35 @@ async function getKnownModels() {
 async function getModelConfig() {
   const settings = await readSettings();
   const knownModels = await getKnownModels();
+  const externalCatalog = getExternalProviderCatalog();
   return {
     current: settings.model?.name || process.env.GEMINI_MODEL || "gemini-3-pro-preview",
     customAliases: settings.modelConfigs?.customAliases || {},
-    known: knownModels
+    known: [
+      ...knownModels.map((model) => ({
+        ...model,
+        provider: "gemini-core",
+        providerName: "Gemini CLI Core",
+        configured: true,
+        capabilities: {
+          chat: true,
+          streaming: true,
+          codingAgent: true,
+          tools: true,
+          vision: true
+        }
+      })),
+      ...externalCatalog.models
+    ],
+    providers: [
+      {
+        id: "gemini-core",
+        name: "Gemini CLI Core",
+        configured: true,
+        status: "ready"
+      },
+      ...externalCatalog.providers
+    ]
   };
 }
 async function getModelPresets() {
@@ -25863,6 +25978,7 @@ var init_gemini_service = __esm({
     import_gemini_cli_core = require("@google/gemini-cli-core");
     init_gemini_cli_runtime();
     init_runtime_home();
+    init_provider_registry();
     SETTINGS_CACHE_TTL_MS = 2e3;
     CLI_READ_CACHE_TTL_MS = 5e3;
     AUTH_INFO_CACHE_TTL_MS = 3e4;
@@ -32398,6 +32514,13 @@ async function POST7(req) {
       return NextResponse.json({ error: "Prompt or images are required" }, { status: 400 });
     }
     let targetModel = resolveRequestedModel(model);
+    if (!isGeminiCoreModel(targetModel)) {
+      return NextResponse.json({
+        error: buildUnsupportedProviderMessage(targetModel),
+        providerReady: false,
+        model: targetModel
+      }, { status: 501 });
+    }
     const core2 = CoreService.getInstance();
     const finalSessionId = sessionId || crypto.randomUUID();
     const executionRoot = resolveWorkspaceExecutionRoot(workspace, finalSessionId);
@@ -33297,6 +33420,7 @@ var init_route14 = __esm({
     init_pricing();
     init_runtime_home();
     init_token_stats();
+    init_provider_registry();
     import_child_process2 = require("child_process");
     import_fs12 = require("fs");
     import_path16 = __toESM(require("path"));
@@ -48325,6 +48449,7 @@ var init_server = __esm({
 var import_express2 = __toESM(require_express2());
 init_db();
 init_gemini_cli_runtime();
+init_provider_registry();
 function parseJsonColumn(value, fallback = void 0) {
   if (!value) return fallback;
   if (Array.isArray(value)) return value;
@@ -48393,6 +48518,22 @@ function startMissingCliServer(error) {
     res.json({ totalTokens: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, cost: 0, count: 0 });
   });
   app2.get("/api/sessions/core", (_req, res) => {
+    res.status(503).json({
+      error: message2,
+      degraded: true,
+      install: "Install and authenticate the Gemini CLI on this machine, then relaunch GGBond."
+    });
+  });
+  app2.post("/api/chat", (req, res) => {
+    const model = typeof req.body?.model === "string" ? req.body.model : "";
+    if (model && !isGeminiCoreModel(model)) {
+      res.status(501).json({
+        error: buildUnsupportedProviderMessage(model),
+        providerReady: false,
+        model
+      });
+      return;
+    }
     res.status(503).json({
       error: message2,
       degraded: true,

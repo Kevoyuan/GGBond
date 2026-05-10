@@ -12,6 +12,7 @@ import { spawn } from 'child_process';
 import { Config, AuthType, Storage } from '@google/gemini-cli-core';
 import { resolveGeminiCliRuntime } from '@/lib/gemini-cli-runtime';
 import { resolveDefaultWorkspaceRoot, resolveGeminiConfigDir, resolveRuntimeHome } from '@/lib/runtime-home';
+import { getExternalProviderCatalog, type ProviderModel } from '@/lib/provider-registry';
 
 const SETTINGS_CACHE_TTL_MS = 2000;
 const CLI_READ_CACHE_TTL_MS = 5000;
@@ -657,14 +658,40 @@ export async function getKnownModels() {
 export async function getModelConfig(): Promise<{
     current: string;
     customAliases: Record<string, any>;
-    known: typeof FALLBACK_MODELS;
+    known: Array<ProviderModel | (typeof FALLBACK_MODELS[number] & Record<string, unknown>)>;
+    providers: ReturnType<typeof getExternalProviderCatalog>['providers'];
 }> {
     const settings = await readSettings();
     const knownModels = await getKnownModels();
+    const externalCatalog = getExternalProviderCatalog();
     return {
         current: settings.model?.name || process.env.GEMINI_MODEL || 'gemini-3-pro-preview',
         customAliases: settings.modelConfigs?.customAliases || {},
-        known: knownModels,
+        known: [
+            ...knownModels.map((model) => ({
+                ...model,
+                provider: 'gemini-core',
+                providerName: 'Gemini CLI Core',
+                configured: true,
+                capabilities: {
+                    chat: true,
+                    streaming: true,
+                    codingAgent: true,
+                    tools: true,
+                    vision: true,
+                },
+            })),
+            ...externalCatalog.models,
+        ],
+        providers: [
+            {
+                id: 'gemini-core',
+                name: 'Gemini CLI Core',
+                configured: true,
+                status: 'ready',
+            },
+            ...externalCatalog.providers,
+        ],
     };
 }
 
