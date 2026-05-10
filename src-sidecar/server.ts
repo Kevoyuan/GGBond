@@ -3,6 +3,7 @@ import cors from 'cors';
 import { CoreService } from '../lib/core-service';
 import { registerAutoRoutes } from './auto-routes';
 import { resolveDefaultWorkspaceRoot } from '../lib/runtime-home';
+import { SIDECAR_DEFAULT_PORT } from '../lib/sidecar-port';
 
 const app = express();
 app.use(cors());
@@ -33,7 +34,7 @@ app.post('/api/chat/cancel', async (req, res) => {
     }
 });
 
-const port = process.env.SIDECAR_PORT || 14321;
+const port = process.env.SIDECAR_PORT || SIDECAR_DEFAULT_PORT;
 
 async function prewarmCoreService() {
     if (process.env.GGBOND_PREWARM === 'false') {

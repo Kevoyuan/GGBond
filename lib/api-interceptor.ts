@@ -1,12 +1,16 @@
 import { dbClient } from './db-client';
 import { invoke } from '@tauri-apps/api/core';
+import { SIDECAR_DEFAULT_PORT } from './sidecar-port';
 
 let initialized = false;
 let cachedSidecarPort: number | null = null;
 let resolvingSidecarPort: Promise<number> | null = null;
 const sidecarHealthCache = new Map<number, { ok: boolean; expiresAt: number }>();
+const sidecarConsecutiveFailures = new Map<number, number>();
 const SIDECAR_HEALTH_OK_TTL_MS = 2500;
 const SIDECAR_HEALTH_FAIL_TTL_MS = 350;
+const SIDECAR_CIRCUIT_THRESHOLD = 5;
+const SIDECAR_CIRCUIT_RESET_MS = 10000;
 const SESSION_API_RE = /^\/api\/sessions\/[^/]+(?:\/(?:archive|branch))?$/;
 
 // We need a helper to read JSON body
@@ -34,15 +38,32 @@ async function canReachSidecar(port: number, originalFetch: typeof window.fetch,
         return cached.ok;
     }
 
+    // Circuit breaker: skip probe if too many consecutive failures
+    const failures = sidecarConsecutiveFailures.get(port) || 0;
+    if (!forceRefresh && failures >= SIDECAR_CIRCUIT_THRESHOLD) {
+        const backoffMs = Math.min(SIDECAR_CIRCUIT_RESET_MS, SIDECAR_HEALTH_FAIL_TTL_MS * Math.pow(2, failures));
+        const circuitExpiresAt = (cached?.expiresAt ?? 0) + backoffMs;
+        if (now < circuitExpiresAt) {
+            return false;
+        }
+        // Allow one probe through (half-open state)
+    }
+
     try {
         const res = await originalFetch(`http://127.0.0.1:${port}/api/health`);
         const ok = res.ok;
+        if (ok) {
+            sidecarConsecutiveFailures.delete(port);
+        } else {
+            sidecarConsecutiveFailures.set(port, failures + 1);
+        }
         sidecarHealthCache.set(port, {
             ok,
             expiresAt: now + (ok ? SIDECAR_HEALTH_OK_TTL_MS : SIDECAR_HEALTH_FAIL_TTL_MS),
         });
         return ok;
     } catch {
+        sidecarConsecutiveFailures.set(port, failures + 1);
         sidecarHealthCache.set(port, {
             ok: false,
             expiresAt: now + SIDECAR_HEALTH_FAIL_TTL_MS,
@@ -53,6 +74,7 @@ async function canReachSidecar(port: number, originalFetch: typeof window.fetch,
 
 function invalidateSidecarPort(port: number) {
     sidecarHealthCache.delete(port);
+    sidecarConsecutiveFailures.delete(port);
     if (cachedSidecarPort === port) {
         cachedSidecarPort = null;
     }
@@ -91,7 +113,7 @@ async function resolveSidecarPort(originalFetch: typeof window.fetch, forceRefre
     }
 
     resolvingSidecarPort = (async () => {
-        const fallbackPorts = [cachedSidecarPort, 14321].filter((value): value is number => typeof value === 'number');
+        const fallbackPorts = [cachedSidecarPort, SIDECAR_DEFAULT_PORT].filter((value): value is number => typeof value === 'number');
 
         for (let attempt = 0; attempt < 4; attempt += 1) {
             const invokedPort = await invoke<number>('get_sidecar_port').catch(() => null);
@@ -115,7 +137,7 @@ async function resolveSidecarPort(originalFetch: typeof window.fetch, forceRefre
             return finalPort;
         }
 
-        cachedSidecarPort = cachedSidecarPort ?? 14321;
+        cachedSidecarPort = cachedSidecarPort ?? SIDECAR_DEFAULT_PORT;
         return cachedSidecarPort;
     })().finally(() => {
         resolvingSidecarPort = null;

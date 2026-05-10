@@ -1,19 +1,9 @@
 import { NextResponse } from '@/src-sidecar/mock-next-server';
-import db from '@/lib/db';
+import { listSessions, createSession } from '@/lib/session-crud';
 
 export async function GET() {
   try {
-    const sessions = db.prepare(`
-      SELECT
-        s.*,
-        COUNT(m.id) AS message_count
-      FROM sessions s
-      LEFT JOIN messages m ON m.session_id = s.id
-      WHERE s.workspace IS NOT NULL AND trim(s.workspace) <> ''
-      GROUP BY s.id
-      ORDER BY s.updated_at DESC
-    `).all();
-    return NextResponse.json(sessions);
+    return NextResponse.json(listSessions());
   } catch (error) {
     console.error('Failed to fetch sessions:', error);
     return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
@@ -24,29 +14,16 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { workspace, title } = body;
-    const trimmedWorkspace = typeof workspace === 'string' ? workspace.trim() : '';
+    const result = createSession(
+      typeof workspace === 'string' ? workspace : '',
+      typeof title === 'string' ? title : undefined,
+    );
 
-    if (!trimmedWorkspace) {
-      return NextResponse.json({ error: 'workspace is required' }, { status: 400 });
+    if ('error' in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
-    const id = crypto.randomUUID();
-    const now = Date.now();
-    const sessionTitle = title || 'New Chat';
-
-    db.prepare(`
-      INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
-      VALUES (?, ?, ?, ?, ?, NULL)
-    `).run(id, sessionTitle, now, now, trimmedWorkspace);
-
-    return NextResponse.json({
-      id,
-      title: sessionTitle,
-      created_at: now,
-      updated_at: now,
-      workspace: trimmedWorkspace,
-      branch: null
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Failed to create session:', error);
     return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });

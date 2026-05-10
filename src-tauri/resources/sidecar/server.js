@@ -23668,26 +23668,238 @@ var require_express2 = __commonJS({
   }
 });
 
+// lib/gemini-cli-runtime.ts
+function isExecutable(candidatePath) {
+  try {
+    import_fs.default.accessSync(candidatePath, import_fs.default.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function getPathCandidates(binaryName) {
+  const envPath = process.env.PATH || "";
+  const entries = envPath.split(import_path.default.delimiter).filter(Boolean);
+  const extensions = process.platform === "win32" ? (process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM").split(";").filter(Boolean) : [""];
+  const candidates = [];
+  for (const entry of entries) {
+    for (const extension of extensions) {
+      candidates.push(import_path.default.join(entry, `${binaryName}${extension}`));
+    }
+  }
+  if (process.platform === "darwin") {
+    candidates.push("/opt/homebrew/bin/gemini");
+    candidates.push("/usr/local/bin/gemini");
+  }
+  return candidates;
+}
+function findGeminiExecutable() {
+  const explicitCandidates = [
+    process.env.GGBOND_GEMINI_BIN,
+    process.env.GEMINI_BIN
+  ].filter((value) => Boolean(value));
+  for (const candidate of explicitCandidates) {
+    if (import_fs.default.existsSync(candidate) && isExecutable(candidate)) {
+      return candidate;
+    }
+  }
+  const binaryName = process.platform === "win32" ? "gemini.cmd" : "gemini";
+  for (const candidate of getPathCandidates(binaryName)) {
+    if (import_fs.default.existsSync(candidate) && isExecutable(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+function findNodeModulesRoot(startPath) {
+  let current = import_path.default.dirname(startPath);
+  while (true) {
+    if (import_path.default.basename(current) === "node_modules") {
+      return current;
+    }
+    const parent = import_path.default.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
+}
+function resolveGeminiCliRuntime() {
+  const executablePath = findGeminiExecutable();
+  if (!executablePath) {
+    throw new Error("Gemini CLI is not installed. Install it first so GGBond can reuse the local runtime.");
+  }
+  const executableRealPath = import_fs.default.realpathSync(executablePath);
+  const inferredNodeModulesRoot = findNodeModulesRoot(executableRealPath);
+  const moduleSearchBases = [
+    executableRealPath,
+    executablePath,
+    inferredNodeModulesRoot ? import_path.default.join(inferredNodeModulesRoot, "@google", "gemini-cli", "package.json") : null
+  ].filter((value) => Boolean(value));
+  let corePackageJsonPath = null;
+  for (const base of moduleSearchBases) {
+    try {
+      const baseRequire = (0, import_module.createRequire)(base);
+      corePackageJsonPath = baseRequire.resolve("@google/gemini-cli-core/package.json");
+      break;
+    } catch {
+      continue;
+    }
+  }
+  if (!corePackageJsonPath) {
+    throw new Error(`Found Gemini CLI at ${executablePath}, but could not resolve @google/gemini-cli-core from that installation.`);
+  }
+  const nodeModulesPath = findNodeModulesRoot(corePackageJsonPath);
+  if (!nodeModulesPath) {
+    throw new Error(`Resolved gemini-cli-core from ${corePackageJsonPath}, but could not determine its node_modules root.`);
+  }
+  return {
+    executablePath,
+    executableRealPath,
+    nodeModulesPath,
+    corePackageJsonPath
+  };
+}
+function configureGeminiCliRuntime() {
+  const runtime2 = resolveGeminiCliRuntime();
+  const existingNodePath = process.env.NODE_PATH ? process.env.NODE_PATH.split(import_path.default.delimiter).filter(Boolean) : [];
+  if (!existingNodePath.includes(runtime2.nodeModulesPath)) {
+    process.env.NODE_PATH = [runtime2.nodeModulesPath, ...existingNodePath].join(import_path.default.delimiter);
+    import_module.Module._initPaths();
+  }
+  process.env.GGBOND_GEMINI_BIN = runtime2.executablePath;
+  process.env.GGBOND_GEMINI_CLI_CORE = runtime2.corePackageJsonPath;
+  return runtime2;
+}
+var import_fs, import_path, import_module;
+var init_gemini_cli_runtime = __esm({
+  "lib/gemini-cli-runtime.ts"() {
+    "use strict";
+    import_fs = __toESM(require("fs"));
+    import_path = __toESM(require("path"));
+    import_module = require("module");
+  }
+});
+
+// lib/provider-registry.ts
+function csvEnv(name) {
+  return (process.env[name] || "").split(",").map((value) => value.trim()).filter(Boolean);
+}
+function hasAnyEnv(names) {
+  return names.some((name) => Boolean(process.env[name]));
+}
+function isGeminiCoreModel(model) {
+  const value = (model || "").trim();
+  return !value || value === "auto" || value.startsWith("gemini-") || value.startsWith("models/gemini-");
+}
+function parseProviderModel(model) {
+  const value = (model || "").trim();
+  if (value.startsWith("openai:")) {
+    return { provider: "openai-compatible", model: value.slice("openai:".length) };
+  }
+  if (value.startsWith("anthropic:")) {
+    return { provider: "anthropic", model: value.slice("anthropic:".length) };
+  }
+  return { provider: "gemini-core", model: value || "auto" };
+}
+function getExternalProviderCatalog() {
+  const openAiConfigured = hasAnyEnv(["OPENAI_API_KEY", "GGBOND_OPENAI_API_KEY", "OPENAI_BASE_URL"]);
+  const anthropicConfigured = hasAnyEnv(["ANTHROPIC_API_KEY", "GGBOND_ANTHROPIC_API_KEY"]);
+  const openAiModels = csvEnv("GGBOND_OPENAI_MODELS");
+  const anthropicModels = csvEnv("GGBOND_ANTHROPIC_MODELS");
+  const models = [
+    ...openAiModels.map((model) => ({
+      id: `openai:${model}`,
+      name: model,
+      provider: "openai-compatible",
+      providerName: "OpenAI-compatible",
+      configured: openAiConfigured,
+      capabilities: {
+        chat: true,
+        streaming: true,
+        codingAgent: false,
+        tools: false,
+        vision: false
+      }
+    })),
+    ...anthropicModels.map((model) => ({
+      id: `anthropic:${model}`,
+      name: model,
+      provider: "anthropic",
+      providerName: "Anthropic",
+      configured: anthropicConfigured,
+      capabilities: {
+        chat: true,
+        streaming: true,
+        codingAgent: false,
+        tools: false,
+        vision: false
+      }
+    }))
+  ];
+  return {
+    providers: [
+      {
+        id: "openai-compatible",
+        name: "OpenAI-compatible",
+        configured: openAiConfigured,
+        status: openAiConfigured ? "ready" : "missing_config",
+        reason: openAiConfigured ? void 0 : "Set OPENAI_API_KEY or OPENAI_BASE_URL, plus GGBOND_OPENAI_MODELS."
+      },
+      {
+        id: "anthropic",
+        name: "Anthropic",
+        configured: anthropicConfigured,
+        status: anthropicConfigured ? "ready" : "missing_config",
+        reason: anthropicConfigured ? void 0 : "Set ANTHROPIC_API_KEY and GGBOND_ANTHROPIC_MODELS."
+      }
+    ],
+    models
+  };
+}
+function buildUnsupportedProviderMessage(model) {
+  const parsed = parseProviderModel(model);
+  return [
+    `Provider adapter is not enabled for ${parsed.provider}.`,
+    "Gemini CLI Core remains the coding-agent runtime.",
+    "External providers are being exposed behind a separate adapter boundary so they cannot be accidentally routed through Gemini CLI Core."
+  ].join(" ");
+}
+var init_provider_registry = __esm({
+  "lib/provider-registry.ts"() {
+    "use strict";
+  }
+});
+
+// lib/sidecar-port.ts
+var SIDECAR_DEFAULT_PORT;
+var init_sidecar_port = __esm({
+  "lib/sidecar-port.ts"() {
+    "use strict";
+    SIDECAR_DEFAULT_PORT = 14321;
+  }
+});
+
 // lib/runtime-home.ts
-var import_fs, import_os, import_path, normalizeHome, getPlatformDefaultHome, resolveGeminiCliHome, selectRuntimeHome, resolveRuntimeHome, resolveDefaultWorkspaceRoot, resolveSystemTempRoot, resolveDefaultSessionWorkspaceRoot, resolveWorkspaceExecutionRoot, resolveGeminiConfigDir, getRuntimeHomeSource;
+var import_fs2, import_os, import_path2, normalizeHome, getPlatformDefaultHome, resolveGeminiCliHome, selectRuntimeHome, resolveRuntimeHome, resolveDefaultWorkspaceRoot, resolveSystemTempRoot, resolveDefaultSessionWorkspaceRoot, resolveWorkspaceExecutionRoot, resolveGeminiConfigDir, getRuntimeHomeSource;
 var init_runtime_home = __esm({
   "lib/runtime-home.ts"() {
     "use strict";
-    import_fs = __toESM(require("fs"));
+    import_fs2 = __toESM(require("fs"));
     import_os = __toESM(require("os"));
-    import_path = __toESM(require("path"));
+    import_path2 = __toESM(require("path"));
     normalizeHome = (raw) => {
       const trimmed2 = raw.trim();
       if (!trimmed2) return "";
-      return import_path.default.resolve(trimmed2);
+      return import_path2.default.resolve(trimmed2);
     };
     getPlatformDefaultHome = () => {
       const home = import_os.default.homedir();
-      return import_path.default.join(home, ".gemini");
+      return import_path2.default.join(home, ".gemini");
     };
     resolveGeminiCliHome = (dataHome) => {
-      if (import_path.default.basename(dataHome) === ".gemini") {
-        return import_path.default.dirname(dataHome);
+      if (import_path2.default.basename(dataHome) === ".gemini") {
+        return import_path2.default.dirname(dataHome);
       }
       return dataHome;
     };
@@ -23707,7 +23919,7 @@ var init_runtime_home = __esm({
       }
       const { home, source } = selectRuntimeHome();
       const geminiCliHome = resolveGeminiCliHome(home);
-      import_fs.default.mkdirSync(home, { recursive: true });
+      import_fs2.default.mkdirSync(home, { recursive: true });
       process.env.GGBOND_DATA_HOME = home;
       process.env.GEMINI_CLI_HOME = geminiCliHome;
       if (!process.env.GGBOND_HOME) {
@@ -23727,29 +23939,29 @@ var init_runtime_home = __esm({
     resolveSystemTempRoot = () => {
       const explicit = normalizeHome(process.env.GGBOND_TEMP_DIR || "");
       if (explicit) {
-        import_fs.default.mkdirSync(explicit, { recursive: true });
+        import_fs2.default.mkdirSync(explicit, { recursive: true });
         return explicit;
       }
-      const tempRoot = import_path.default.join(import_os.default.tmpdir(), "ggbond");
-      import_fs.default.mkdirSync(tempRoot, { recursive: true });
+      const tempRoot = import_path2.default.join(import_os.default.tmpdir(), "ggbond");
+      import_fs2.default.mkdirSync(tempRoot, { recursive: true });
       return tempRoot;
     };
     resolveDefaultSessionWorkspaceRoot = (sessionId) => {
       const safeSessionId = String(sessionId || "default").trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "default";
-      const sessionRoot = import_path.default.join(resolveSystemTempRoot(), "sessions", safeSessionId);
-      import_fs.default.mkdirSync(sessionRoot, { recursive: true });
+      const sessionRoot = import_path2.default.join(resolveSystemTempRoot(), "sessions", safeSessionId);
+      import_fs2.default.mkdirSync(sessionRoot, { recursive: true });
       return sessionRoot;
     };
     resolveWorkspaceExecutionRoot = (workspace, sessionId) => {
       const trimmedWorkspace = typeof workspace === "string" ? workspace.trim() : "";
       if (trimmedWorkspace && trimmedWorkspace !== "Default") {
-        return import_path.default.resolve(trimmedWorkspace);
+        return import_path2.default.resolve(trimmedWorkspace);
       }
       return resolveDefaultSessionWorkspaceRoot(sessionId);
     };
     resolveGeminiConfigDir = (homeOverride) => {
       const baseHome = homeOverride || resolveRuntimeHome();
-      return import_path.default.basename(baseHome) === ".gemini" ? baseHome : import_path.default.join(baseHome, ".gemini");
+      return import_path2.default.basename(baseHome) === ".gemini" ? baseHome : import_path2.default.join(baseHome, ".gemini");
     };
     getRuntimeHomeSource = () => {
       const globalCache = globalThis;
@@ -23802,49 +24014,49 @@ function getDefaultDataHomes() {
   const homes = [];
   if (process.platform === "darwin") {
     homes.push(
-      import_path2.default.join(home, "Library", "Application Support", "ggbond", "gemini-home"),
-      import_path2.default.join(home, "Library", "Application Support", "GGBond", "gemini-home"),
-      import_path2.default.join(home, "Library", "Application Support", "gg-bond", "gemini-home")
+      import_path3.default.join(home, "Library", "Application Support", "ggbond", "gemini-home"),
+      import_path3.default.join(home, "Library", "Application Support", "GGBond", "gemini-home"),
+      import_path3.default.join(home, "Library", "Application Support", "gg-bond", "gemini-home")
     );
   } else if (process.platform === "win32") {
-    const appData = process.env.APPDATA || import_path2.default.join(home, "AppData", "Roaming");
+    const appData = process.env.APPDATA || import_path3.default.join(home, "AppData", "Roaming");
     homes.push(
-      import_path2.default.join(appData, "ggbond", "gemini-home"),
-      import_path2.default.join(appData, "GGBond", "gemini-home"),
-      import_path2.default.join(appData, "gg-bond", "gemini-home")
+      import_path3.default.join(appData, "ggbond", "gemini-home"),
+      import_path3.default.join(appData, "GGBond", "gemini-home"),
+      import_path3.default.join(appData, "gg-bond", "gemini-home")
     );
   } else {
     homes.push(
-      import_path2.default.join(home, ".local", "share", "ggbond", "gemini-home"),
-      import_path2.default.join(home, ".local", "share", "GGBond", "gemini-home"),
-      import_path2.default.join(home, ".local", "share", "gg-bond", "gemini-home")
+      import_path3.default.join(home, ".local", "share", "ggbond", "gemini-home"),
+      import_path3.default.join(home, ".local", "share", "GGBond", "gemini-home"),
+      import_path3.default.join(home, ".local", "share", "gg-bond", "gemini-home")
     );
   }
-  homes.push(import_path2.default.join(home, ".ggbond"));
+  homes.push(import_path3.default.join(home, ".ggbond"));
   return homes;
 }
 function ensureWritableDirectory(dirPath) {
   try {
-    import_fs2.default.mkdirSync(dirPath, { recursive: true });
-    import_fs2.default.accessSync(dirPath, import_fs2.default.constants.R_OK | import_fs2.default.constants.W_OK);
+    import_fs3.default.mkdirSync(dirPath, { recursive: true });
+    import_fs3.default.accessSync(dirPath, import_fs3.default.constants.R_OK | import_fs3.default.constants.W_OK);
     return true;
   } catch {
     return false;
   }
 }
 function resolveDbPath() {
-  const canonicalGeminiDir = import_path2.default.join(import_os2.default.homedir(), ".gemini");
+  const canonicalGeminiDir = import_path3.default.join(import_os2.default.homedir(), ".gemini");
   if (ensureWritableDirectory(canonicalGeminiDir)) {
-    return import_path2.default.join(canonicalGeminiDir, "ggbond.db");
+    return import_path3.default.join(canonicalGeminiDir, "ggbond.db");
   }
   throw new Error(`Canonical Gemini DB directory is not writable: ${canonicalGeminiDir}`);
 }
 function migrateLegacyDbIfNeeded(targetDbPath) {
   if (targetDbPath === LEGACY_DB_PATH) return;
-  if (!import_fs2.default.existsSync(LEGACY_DB_PATH)) return;
-  if (import_fs2.default.existsSync(targetDbPath)) return;
+  if (!import_fs3.default.existsSync(LEGACY_DB_PATH)) return;
+  if (import_fs3.default.existsSync(targetDbPath)) return;
   try {
-    import_fs2.default.copyFileSync(LEGACY_DB_PATH, targetDbPath);
+    import_fs3.default.copyFileSync(LEGACY_DB_PATH, targetDbPath);
     console.log(`[DB] Migrated legacy DB from ${LEGACY_DB_PATH} to ${targetDbPath}`);
   } catch (error) {
     console.warn("[DB] Failed to migrate legacy database:", error);
@@ -23852,8 +24064,8 @@ function migrateLegacyDbIfNeeded(targetDbPath) {
 }
 function mergeSourceDbDataIfNeeded(sourceDbPath, targetDbPath, targetDb) {
   if (!sourceDbPath || sourceDbPath === targetDbPath) return;
-  if (!import_fs2.default.existsSync(sourceDbPath)) return;
-  if (!import_fs2.default.existsSync(targetDbPath)) return;
+  if (!import_fs3.default.existsSync(sourceDbPath)) return;
+  if (!import_fs3.default.existsSync(targetDbPath)) return;
   let legacyDb = null;
   try {
     legacyDb = new import_better_sqlite3.default(sourceDbPath, { readonly: true });
@@ -23978,42 +24190,42 @@ function mergeKnownDbDataIfNeeded(targetDbPath, targetDb) {
   sourceDbPaths.add(LEGACY_DB_PATH);
   const defaultHomes = getDefaultDataHomes();
   for (const home2 of defaultHomes) {
-    sourceDbPaths.add(import_path2.default.join(home2, "ggbond.db"));
+    sourceDbPaths.add(import_path3.default.join(home2, "ggbond.db"));
   }
   const home = import_os2.default.homedir();
   if (process.platform === "darwin") {
     const roots = [
-      import_path2.default.join(home, "Library", "Application Support", "ggbond"),
-      import_path2.default.join(home, "Library", "Application Support", "GGBond"),
-      import_path2.default.join(home, "Library", "Application Support", "gg-bond")
+      import_path3.default.join(home, "Library", "Application Support", "ggbond"),
+      import_path3.default.join(home, "Library", "Application Support", "GGBond"),
+      import_path3.default.join(home, "Library", "Application Support", "gg-bond")
     ];
     for (const root of roots) {
-      sourceDbPaths.add(import_path2.default.join(root, "ggbond.db"));
-      sourceDbPaths.add(import_path2.default.join(root, ".gemini", "ggbond.db"));
-      sourceDbPaths.add(import_path2.default.join(root, "gemini-home", "ggbond.db"));
+      sourceDbPaths.add(import_path3.default.join(root, "ggbond.db"));
+      sourceDbPaths.add(import_path3.default.join(root, ".gemini", "ggbond.db"));
+      sourceDbPaths.add(import_path3.default.join(root, "gemini-home", "ggbond.db"));
     }
   } else if (process.platform === "win32") {
-    const appData = process.env.APPDATA || import_path2.default.join(home, "AppData", "Roaming");
+    const appData = process.env.APPDATA || import_path3.default.join(home, "AppData", "Roaming");
     const roots = [
-      import_path2.default.join(appData, "ggbond"),
-      import_path2.default.join(appData, "GGBond"),
-      import_path2.default.join(appData, "gg-bond")
+      import_path3.default.join(appData, "ggbond"),
+      import_path3.default.join(appData, "GGBond"),
+      import_path3.default.join(appData, "gg-bond")
     ];
     for (const root of roots) {
-      sourceDbPaths.add(import_path2.default.join(root, "ggbond.db"));
-      sourceDbPaths.add(import_path2.default.join(root, ".gemini", "ggbond.db"));
-      sourceDbPaths.add(import_path2.default.join(root, "gemini-home", "ggbond.db"));
+      sourceDbPaths.add(import_path3.default.join(root, "ggbond.db"));
+      sourceDbPaths.add(import_path3.default.join(root, ".gemini", "ggbond.db"));
+      sourceDbPaths.add(import_path3.default.join(root, "gemini-home", "ggbond.db"));
     }
   } else {
     const roots = [
-      import_path2.default.join(home, ".local", "share", "ggbond"),
-      import_path2.default.join(home, ".local", "share", "GGBond"),
-      import_path2.default.join(home, ".local", "share", "gg-bond")
+      import_path3.default.join(home, ".local", "share", "ggbond"),
+      import_path3.default.join(home, ".local", "share", "GGBond"),
+      import_path3.default.join(home, ".local", "share", "gg-bond")
     ];
     for (const root of roots) {
-      sourceDbPaths.add(import_path2.default.join(root, "ggbond.db"));
-      sourceDbPaths.add(import_path2.default.join(root, ".gemini", "ggbond.db"));
-      sourceDbPaths.add(import_path2.default.join(root, "gemini-home", "ggbond.db"));
+      sourceDbPaths.add(import_path3.default.join(root, "ggbond.db"));
+      sourceDbPaths.add(import_path3.default.join(root, ".gemini", "ggbond.db"));
+      sourceDbPaths.add(import_path3.default.join(root, "gemini-home", "ggbond.db"));
     }
   }
   for (const sourceDbPath of sourceDbPaths) {
@@ -24021,7 +24233,7 @@ function mergeKnownDbDataIfNeeded(targetDbPath, targetDb) {
   }
 }
 function getLegacyImportMarkerPath(targetDbPath) {
-  return import_path2.default.join(import_path2.default.dirname(targetDbPath), LEGACY_IMPORT_MARKER);
+  return import_path3.default.join(import_path3.default.dirname(targetDbPath), LEGACY_IMPORT_MARKER);
 }
 function hasAnySessionRows(db3) {
   try {
@@ -24034,14 +24246,14 @@ function hasAnySessionRows(db3) {
 function markLegacyImportDone(targetDbPath) {
   const marker = getLegacyImportMarkerPath(targetDbPath);
   try {
-    import_fs2.default.writeFileSync(marker, String(Date.now()), "utf8");
+    import_fs3.default.writeFileSync(marker, String(Date.now()), "utf8");
   } catch (error) {
     console.warn("[DB] Failed to write legacy import marker:", error);
   }
 }
 function shouldRunLegacyImport(targetDbPath, db3) {
   const marker = getLegacyImportMarkerPath(targetDbPath);
-  if (import_fs2.default.existsSync(marker)) return false;
+  if (import_fs3.default.existsSync(marker)) return false;
   if (hasAnySessionRows(db3)) {
     markLegacyImportDone(targetDbPath);
     return false;
@@ -24049,36 +24261,36 @@ function shouldRunLegacyImport(targetDbPath, db3) {
   return true;
 }
 function getCoreSessionImportMarkerPath(targetDbPath) {
-  return import_path2.default.join(import_path2.default.dirname(targetDbPath), CORE_SESSION_IMPORT_MARKER);
+  return import_path3.default.join(import_path3.default.dirname(targetDbPath), CORE_SESSION_IMPORT_MARKER);
 }
 function markCoreSessionImportDone(targetDbPath) {
   const marker = getCoreSessionImportMarkerPath(targetDbPath);
   try {
-    import_fs2.default.writeFileSync(marker, String(Date.now()), "utf8");
+    import_fs3.default.writeFileSync(marker, String(Date.now()), "utf8");
   } catch (error) {
     console.warn("[DB] Failed to write core session import marker:", error);
   }
 }
 function shouldRunCoreSessionImport(targetDbPath) {
   const marker = getCoreSessionImportMarkerPath(targetDbPath);
-  return !import_fs2.default.existsSync(marker);
+  return !import_fs3.default.existsSync(marker);
 }
 function isNextProductionBuildPhase() {
   return process.env.NEXT_PHASE === "phase-production-build";
 }
 function collectSessionJsonFiles(rootDir, sink) {
-  if (!import_fs2.default.existsSync(rootDir)) return;
+  if (!import_fs3.default.existsSync(rootDir)) return;
   const stack = [rootDir];
   while (stack.length > 0) {
     const current = stack.pop();
     let entries = [];
     try {
-      entries = import_fs2.default.readdirSync(current, { withFileTypes: true });
+      entries = import_fs3.default.readdirSync(current, { withFileTypes: true });
     } catch {
       continue;
     }
     for (const entry of entries) {
-      const fullPath = import_path2.default.join(current, entry.name);
+      const fullPath = import_path3.default.join(current, entry.name);
       if (entry.isDirectory()) {
         stack.push(fullPath);
         continue;
@@ -24128,7 +24340,7 @@ function importCoreSessionJsonIfNeeded(targetDbPath, targetDb) {
   if (!shouldRunCoreSessionImport(targetDbPath)) return;
   const runtimeHome = resolveRuntimeHome();
   const candidates = [
-    import_path2.default.join(resolveGeminiConfigDir(runtimeHome), "tmp")
+    import_path3.default.join(resolveGeminiConfigDir(runtimeHome), "tmp")
   ];
   const files = [];
   for (const candidate of candidates) {
@@ -24160,7 +24372,7 @@ function importCoreSessionJsonIfNeeded(targetDbPath, targetDb) {
     for (const filePath of uniqueFiles) {
       let parsed;
       try {
-        parsed = JSON.parse(import_fs2.default.readFileSync(filePath, "utf8"));
+        parsed = JSON.parse(import_fs3.default.readFileSync(filePath, "utf8"));
       } catch {
         continue;
       }
@@ -24235,20 +24447,20 @@ function getDbDebugInfo() {
     hasArchivedColumn: hasArchived
   };
 }
-var import_better_sqlite3, import_path2, import_fs2, import_os2, RETRY_MAX_ATTEMPTS, RETRY_BASE_DELAY_MS, RETRY_MAX_DELAY_MS, LEGACY_HOME, LEGACY_DB_PATH, LEGACY_IMPORT_MARKER, CORE_SESSION_IMPORT_MARKER, dbPath, db, db_default, queueMessage, chatSnapshots;
+var import_better_sqlite3, import_path3, import_fs3, import_os2, RETRY_MAX_ATTEMPTS, RETRY_BASE_DELAY_MS, RETRY_MAX_DELAY_MS, LEGACY_HOME, LEGACY_DB_PATH, LEGACY_IMPORT_MARKER, CORE_SESSION_IMPORT_MARKER, dbPath, db, db_default, queueMessage, chatSnapshots;
 var init_db = __esm({
   "lib/db.ts"() {
     "use strict";
     import_better_sqlite3 = __toESM(require("better-sqlite3"));
-    import_path2 = __toESM(require("path"));
-    import_fs2 = __toESM(require("fs"));
+    import_path3 = __toESM(require("path"));
+    import_fs3 = __toESM(require("fs"));
     import_os2 = __toESM(require("os"));
     init_runtime_home();
     RETRY_MAX_ATTEMPTS = 3;
     RETRY_BASE_DELAY_MS = 50;
     RETRY_MAX_DELAY_MS = 500;
-    LEGACY_HOME = import_path2.default.join(process.cwd(), "gemini-home");
-    LEGACY_DB_PATH = import_path2.default.join(LEGACY_HOME, "ggbond.db");
+    LEGACY_HOME = import_path3.default.join(process.cwd(), "gemini-home");
+    LEGACY_DB_PATH = import_path3.default.join(LEGACY_HOME, "ggbond.db");
     LEGACY_IMPORT_MARKER = ".legacy-db-import-v1.done";
     CORE_SESSION_IMPORT_MARKER = ".core-session-import-v1.done";
     dbPath = resolveDbPath();
@@ -24613,206 +24825,101 @@ var init_db = __esm({
   }
 });
 
-// lib/gemini-cli-runtime.ts
-function isExecutable(candidatePath) {
+// lib/session-crud.ts
+function parseJsonColumn(value, fallback = void 0) {
+  if (!value) return fallback;
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return fallback;
   try {
-    import_fs3.default.accessSync(candidatePath, import_fs3.default.constants.X_OK);
-    return true;
+    return JSON.parse(value);
   } catch {
-    return false;
+    return fallback;
   }
 }
-function getPathCandidates(binaryName) {
-  const envPath = process.env.PATH || "";
-  const entries = envPath.split(import_path3.default.delimiter).filter(Boolean);
-  const extensions = process.platform === "win32" ? (process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM").split(";").filter(Boolean) : [""];
-  const candidates = [];
-  for (const entry of entries) {
-    for (const extension of extensions) {
-      candidates.push(import_path3.default.join(entry, `${binaryName}${extension}`));
-    }
-  }
-  if (process.platform === "darwin") {
-    candidates.push("/opt/homebrew/bin/gemini");
-    candidates.push("/usr/local/bin/gemini");
-  }
-  return candidates;
-}
-function findGeminiExecutable() {
-  const explicitCandidates = [
-    process.env.GGBOND_GEMINI_BIN,
-    process.env.GEMINI_BIN
-  ].filter((value) => Boolean(value));
-  for (const candidate of explicitCandidates) {
-    if (import_fs3.default.existsSync(candidate) && isExecutable(candidate)) {
-      return candidate;
-    }
-  }
-  const binaryName = process.platform === "win32" ? "gemini.cmd" : "gemini";
-  for (const candidate of getPathCandidates(binaryName)) {
-    if (import_fs3.default.existsSync(candidate) && isExecutable(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
-}
-function findNodeModulesRoot(startPath) {
-  let current = import_path3.default.dirname(startPath);
-  while (true) {
-    if (import_path3.default.basename(current) === "node_modules") {
-      return current;
-    }
-    const parent = import_path3.default.dirname(current);
-    if (parent === current) {
-      return null;
-    }
-    current = parent;
+function parseJsonArray(value) {
+  if (!value) return void 0;
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return void 0;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : void 0;
+  } catch {
+    return void 0;
   }
 }
-function resolveGeminiCliRuntime() {
-  const executablePath = findGeminiExecutable();
-  if (!executablePath) {
-    throw new Error("Gemini CLI is not installed. Install it first so GGBond can reuse the local runtime.");
-  }
-  const executableRealPath = import_fs3.default.realpathSync(executablePath);
-  const inferredNodeModulesRoot = findNodeModulesRoot(executableRealPath);
-  const moduleSearchBases = [
-    executableRealPath,
-    executablePath,
-    inferredNodeModulesRoot ? import_path3.default.join(inferredNodeModulesRoot, "@google", "gemini-cli", "package.json") : null
-  ].filter((value) => Boolean(value));
-  let corePackageJsonPath = null;
-  for (const base of moduleSearchBases) {
-    try {
-      const baseRequire = (0, import_module.createRequire)(base);
-      corePackageJsonPath = baseRequire.resolve("@google/gemini-cli-core/package.json");
-      break;
-    } catch {
-      continue;
-    }
-  }
-  if (!corePackageJsonPath) {
-    throw new Error(`Found Gemini CLI at ${executablePath}, but could not resolve @google/gemini-cli-core from that installation.`);
-  }
-  const nodeModulesPath = findNodeModulesRoot(corePackageJsonPath);
-  if (!nodeModulesPath) {
-    throw new Error(`Resolved gemini-cli-core from ${corePackageJsonPath}, but could not determine its node_modules root.`);
-  }
-  return {
-    executablePath,
-    executableRealPath,
-    nodeModulesPath,
-    corePackageJsonPath
-  };
+function listSessions() {
+  return db_default.prepare(`
+    SELECT
+      s.*,
+      COUNT(m.id) AS message_count
+    FROM sessions s
+    LEFT JOIN messages m ON m.session_id = s.id
+    WHERE s.workspace IS NOT NULL AND trim(s.workspace) <> ''
+    GROUP BY s.id
+    ORDER BY s.updated_at DESC
+  `).all();
 }
-function configureGeminiCliRuntime() {
-  const runtime2 = resolveGeminiCliRuntime();
-  const existingNodePath = process.env.NODE_PATH ? process.env.NODE_PATH.split(import_path3.default.delimiter).filter(Boolean) : [];
-  if (!existingNodePath.includes(runtime2.nodeModulesPath)) {
-    process.env.NODE_PATH = [runtime2.nodeModulesPath, ...existingNodePath].join(import_path3.default.delimiter);
-    import_module.Module._initPaths();
+function createSession(workspace, title) {
+  const trimmedWorkspace = workspace.trim();
+  if (!trimmedWorkspace) {
+    return { error: "workspace is required", status: 400 };
   }
-  process.env.GGBOND_GEMINI_BIN = runtime2.executablePath;
-  process.env.GGBOND_GEMINI_CLI_CORE = runtime2.corePackageJsonPath;
-  return runtime2;
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  const sessionTitle = title?.trim() || "New Chat";
+  db_default.prepare(`
+    INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
+    VALUES (?, ?, ?, ?, ?, NULL)
+  `).run(id, sessionTitle, now, now, trimmedWorkspace);
+  return { id, title: sessionTitle, created_at: now, updated_at: now, workspace: trimmedWorkspace, branch: null };
 }
-var import_fs3, import_path3, import_module;
-var init_gemini_cli_runtime = __esm({
-  "lib/gemini-cli-runtime.ts"() {
+function getSession(id) {
+  const session = db_default.prepare("SELECT * FROM sessions WHERE id = ? AND workspace IS NOT NULL AND trim(workspace) <> ''").get(id);
+  if (!session) {
+    return { error: "Session not found", status: 404 };
+  }
+  const messages = db_default.prepare("SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC").all(id);
+  const parsedMessages = messages.map((msg) => ({
+    ...msg,
+    stats: parseJsonColumn(msg.stats),
+    thought: typeof msg.thought === "string" ? msg.thought : void 0,
+    citations: parseJsonArray(msg.citations),
+    images: parseJsonArray(msg.images),
+    parent_id: msg.parent_id,
+    parentId: msg.parent_id === null || msg.parent_id === void 0 ? null : String(msg.parent_id),
+    id: msg.id === null || msg.id === void 0 ? void 0 : String(msg.id)
+  }));
+  return { session, messages: parsedMessages };
+}
+function deleteSession(id) {
+  db_default.prepare("DELETE FROM sessions WHERE id = ?").run(id);
+  db_default.prepare("DELETE FROM messages WHERE session_id = ?").run(id);
+  return { success: true };
+}
+function archiveSession(id, archived) {
+  if (typeof archived !== "boolean") {
+    return { error: "Invalid archived value", status: 400 };
+  }
+  const result = db_default.prepare("UPDATE sessions SET archived = ? WHERE id = ?").run(archived ? 1 : 0, id);
+  if (result.changes === 0) {
+    return { error: "Session not found", status: 404 };
+  }
+  return { success: true, archived };
+}
+function updateSessionBranch(id, branch) {
+  const result = db_default.prepare("UPDATE sessions SET branch = ?, updated_at = ? WHERE id = ?").run(branch, Date.now(), id);
+  if (result.changes === 0) {
+    return { error: "Session not found", status: 404 };
+  }
+  return { success: true, branch };
+}
+function getLatestStats() {
+  return { totalTokens: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, cost: 0, count: 0 };
+}
+var init_session_crud = __esm({
+  "lib/session-crud.ts"() {
     "use strict";
-    import_fs3 = __toESM(require("fs"));
-    import_path3 = __toESM(require("path"));
-    import_module = require("module");
-  }
-});
-
-// lib/provider-registry.ts
-function csvEnv(name) {
-  return (process.env[name] || "").split(",").map((value) => value.trim()).filter(Boolean);
-}
-function hasAnyEnv(names) {
-  return names.some((name) => Boolean(process.env[name]));
-}
-function isGeminiCoreModel(model) {
-  const value = (model || "").trim();
-  return !value || value === "auto" || value.startsWith("gemini-") || value.startsWith("models/gemini-");
-}
-function parseProviderModel(model) {
-  const value = (model || "").trim();
-  if (value.startsWith("openai:")) {
-    return { provider: "openai-compatible", model: value.slice("openai:".length) };
-  }
-  if (value.startsWith("anthropic:")) {
-    return { provider: "anthropic", model: value.slice("anthropic:".length) };
-  }
-  return { provider: "gemini-core", model: value || "auto" };
-}
-function getExternalProviderCatalog() {
-  const openAiConfigured = hasAnyEnv(["OPENAI_API_KEY", "GGBOND_OPENAI_API_KEY", "OPENAI_BASE_URL"]);
-  const anthropicConfigured = hasAnyEnv(["ANTHROPIC_API_KEY", "GGBOND_ANTHROPIC_API_KEY"]);
-  const openAiModels = csvEnv("GGBOND_OPENAI_MODELS");
-  const anthropicModels = csvEnv("GGBOND_ANTHROPIC_MODELS");
-  const models = [
-    ...openAiModels.map((model) => ({
-      id: `openai:${model}`,
-      name: model,
-      provider: "openai-compatible",
-      providerName: "OpenAI-compatible",
-      configured: openAiConfigured,
-      capabilities: {
-        chat: true,
-        streaming: true,
-        codingAgent: false,
-        tools: false,
-        vision: false
-      }
-    })),
-    ...anthropicModels.map((model) => ({
-      id: `anthropic:${model}`,
-      name: model,
-      provider: "anthropic",
-      providerName: "Anthropic",
-      configured: anthropicConfigured,
-      capabilities: {
-        chat: true,
-        streaming: true,
-        codingAgent: false,
-        tools: false,
-        vision: false
-      }
-    }))
-  ];
-  return {
-    providers: [
-      {
-        id: "openai-compatible",
-        name: "OpenAI-compatible",
-        configured: openAiConfigured,
-        status: openAiConfigured ? "ready" : "missing_config",
-        reason: openAiConfigured ? void 0 : "Set OPENAI_API_KEY or OPENAI_BASE_URL, plus GGBOND_OPENAI_MODELS."
-      },
-      {
-        id: "anthropic",
-        name: "Anthropic",
-        configured: anthropicConfigured,
-        status: anthropicConfigured ? "ready" : "missing_config",
-        reason: anthropicConfigured ? void 0 : "Set ANTHROPIC_API_KEY and GGBOND_ANTHROPIC_MODELS."
-      }
-    ],
-    models
-  };
-}
-function buildUnsupportedProviderMessage(model) {
-  const parsed = parseProviderModel(model);
-  return [
-    `Provider adapter is not enabled for ${parsed.provider}.`,
-    "Gemini CLI Core remains the coding-agent runtime.",
-    "External providers are being exposed behind a separate adapter boundary so they cannot be accidentally routed through Gemini CLI Core."
-  ].join(" ");
-}
-var init_provider_registry = __esm({
-  "lib/provider-registry.ts"() {
-    "use strict";
+    init_db();
   }
 });
 
@@ -41651,11 +41758,11 @@ async function PATCH2(req, { params }) {
     const { id } = await params;
     const body = await req.json();
     const { archived } = body;
-    if (typeof archived !== "boolean") {
-      return NextResponse.json({ error: "Invalid archived value" }, { status: 400 });
+    const result = archiveSession(id, archived);
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
-    db_default.prepare("UPDATE sessions SET archived = ? WHERE id = ?").run(archived ? 1 : 0, id);
-    return NextResponse.json({ success: true, archived });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Failed to archive session:", error);
     return NextResponse.json({ error: "Failed to archive session" }, { status: 500 });
@@ -41665,7 +41772,7 @@ var init_route47 = __esm({
   "legacy-api/sessions/[id]/archive/route.ts"() {
     "use strict";
     init_mock_next_server();
-    init_db();
+    init_session_crud();
   }
 });
 
@@ -41679,11 +41786,11 @@ async function PATCH3(req, { params }) {
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
     const branch = typeof body.branch === "string" ? body.branch : null;
-    const result = db_default.prepare("UPDATE sessions SET branch = ?, updated_at = ? WHERE id = ?").run(branch, Date.now(), id);
-    if (result.changes === 0) {
-      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    const result = updateSessionBranch(id, branch);
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
-    return NextResponse.json({ success: true, branch });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Failed to update session branch:", error);
     return NextResponse.json({ error: "Failed to update session branch" }, { status: 500 });
@@ -41693,7 +41800,7 @@ var init_route48 = __esm({
   "legacy-api/sessions/[id]/branch/route.ts"() {
     "use strict";
     init_mock_next_server();
-    init_db();
+    init_session_crud();
   }
 });
 
@@ -41706,46 +41813,11 @@ __export(route_exports49, {
 async function GET38(req, { params }) {
   try {
     const { id } = await params;
-    const session = db_default.prepare("SELECT * FROM sessions WHERE id = ? AND workspace IS NOT NULL AND trim(workspace) <> ''").get(id);
-    if (!session) {
-      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    const result = getSession(id);
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
-    const messages = db_default.prepare("SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC").all(id);
-    const parsedMessages = messages.map((msg) => ({
-      ...msg,
-      stats: msg.stats ? JSON.parse(msg.stats) : void 0,
-      thought: typeof msg.thought === "string" ? msg.thought : void 0,
-      citations: (() => {
-        if (!msg.citations) return void 0;
-        if (Array.isArray(msg.citations)) return msg.citations;
-        if (typeof msg.citations === "string") {
-          try {
-            const parsed = JSON.parse(msg.citations);
-            return Array.isArray(parsed) ? parsed : void 0;
-          } catch {
-            return void 0;
-          }
-        }
-        return void 0;
-      })(),
-      images: (() => {
-        if (!msg.images) return void 0;
-        if (Array.isArray(msg.images)) return msg.images;
-        if (typeof msg.images === "string") {
-          try {
-            const parsed = JSON.parse(msg.images);
-            return Array.isArray(parsed) ? parsed : void 0;
-          } catch {
-            return void 0;
-          }
-        }
-        return void 0;
-      })(),
-      parent_id: msg.parent_id,
-      parentId: msg.parent_id === null || msg.parent_id === void 0 ? null : String(msg.parent_id),
-      id: msg.id === null || msg.id === void 0 ? void 0 : String(msg.id)
-    }));
-    return NextResponse.json({ session, messages: parsedMessages });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Failed to fetch session:", error);
     return NextResponse.json({ error: "Failed to fetch session" }, { status: 500 });
@@ -41754,9 +41826,7 @@ async function GET38(req, { params }) {
 async function DELETE7(req, { params }) {
   try {
     const { id } = await params;
-    db_default.prepare("DELETE FROM sessions WHERE id = ?").run(id);
-    db_default.prepare("DELETE FROM messages WHERE session_id = ?").run(id);
-    return NextResponse.json({ success: true });
+    return NextResponse.json(deleteSession(id));
   } catch (error) {
     console.error("Failed to delete session:", error);
     return NextResponse.json({ error: "Failed to delete session" }, { status: 500 });
@@ -41766,7 +41836,7 @@ var init_route49 = __esm({
   "legacy-api/sessions/[id]/route.ts"() {
     "use strict";
     init_mock_next_server();
-    init_db();
+    init_session_crud();
   }
 });
 
@@ -41862,17 +41932,7 @@ __export(route_exports52, {
 });
 async function GET41() {
   try {
-    const sessions = db_default.prepare(`
-      SELECT
-        s.*,
-        COUNT(m.id) AS message_count
-      FROM sessions s
-      LEFT JOIN messages m ON m.session_id = s.id
-      WHERE s.workspace IS NOT NULL AND trim(s.workspace) <> ''
-      GROUP BY s.id
-      ORDER BY s.updated_at DESC
-    `).all();
-    return NextResponse.json(sessions);
+    return NextResponse.json(listSessions());
   } catch (error) {
     console.error("Failed to fetch sessions:", error);
     return NextResponse.json({ error: "Failed to fetch sessions" }, { status: 500 });
@@ -41882,25 +41942,14 @@ async function POST27(req) {
   try {
     const body = await req.json();
     const { workspace, title } = body;
-    const trimmedWorkspace = typeof workspace === "string" ? workspace.trim() : "";
-    if (!trimmedWorkspace) {
-      return NextResponse.json({ error: "workspace is required" }, { status: 400 });
+    const result = createSession(
+      typeof workspace === "string" ? workspace : "",
+      typeof title === "string" ? title : void 0
+    );
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
-    const id = crypto.randomUUID();
-    const now = Date.now();
-    const sessionTitle = title || "New Chat";
-    db_default.prepare(`
-      INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
-      VALUES (?, ?, ?, ?, ?, NULL)
-    `).run(id, sessionTitle, now, now, trimmedWorkspace);
-    return NextResponse.json({
-      id,
-      title: sessionTitle,
-      created_at: now,
-      updated_at: now,
-      workspace: trimmedWorkspace,
-      branch: null
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Failed to create session:", error);
     return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
@@ -41910,7 +41959,7 @@ var init_route52 = __esm({
   "legacy-api/sessions/route.ts"() {
     "use strict";
     init_mock_next_server();
-    init_db();
+    init_session_crud();
   }
 });
 
@@ -48428,6 +48477,7 @@ var init_server = __esm({
     init_core_service();
     init_auto_routes();
     init_runtime_home();
+    init_sidecar_port();
     app = (0, import_express.default)();
     app.use((0, import_cors.default)());
     app.use(import_express.default.json({ limit: "50mb" }));
@@ -48447,7 +48497,7 @@ var init_server = __esm({
         res.status(500).json({ error: message2 });
       }
     });
-    port = process.env.SIDECAR_PORT || 14321;
+    port = process.env.SIDECAR_PORT || SIDECAR_DEFAULT_PORT;
     app.listen(port, () => {
       console.log(`[Sidecar] Gemini CLI Core HTTP Server running on port ${port}`);
       void prewarmCoreService();
@@ -48457,22 +48507,13 @@ var init_server = __esm({
 
 // src-sidecar/bootstrap.ts
 var import_express2 = __toESM(require_express2());
-init_db();
 init_gemini_cli_runtime();
 init_provider_registry();
-function parseJsonColumn(value, fallback = void 0) {
-  if (!value) return fallback;
-  if (Array.isArray(value)) return value;
-  if (typeof value !== "string") return fallback;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
+init_sidecar_port();
+init_session_crud();
 function startMissingCliServer(error) {
   const app2 = (0, import_express2.default)();
-  const port2 = process.env.SIDECAR_PORT || 14321;
+  const port2 = process.env.SIDECAR_PORT || SIDECAR_DEFAULT_PORT;
   const message2 = error instanceof Error ? error.message : "Gemini CLI runtime is unavailable.";
   app2.use(import_express2.default.json({ limit: "50mb" }));
   app2.get("/api/health", (_req, res) => {
@@ -48488,17 +48529,7 @@ function startMissingCliServer(error) {
   });
   app2.get("/api/sessions", (_req, res) => {
     try {
-      const sessions = db_default.prepare(`
-        SELECT
-          s.*,
-          COUNT(m.id) AS message_count
-        FROM sessions s
-        LEFT JOIN messages m ON m.session_id = s.id
-        WHERE s.workspace IS NOT NULL AND trim(s.workspace) <> ''
-        GROUP BY s.id
-        ORDER BY s.updated_at DESC
-      `).all();
-      res.json(sessions);
+      res.json(listSessions());
     } catch (routeError) {
       console.error("[Sidecar] Failed to fetch degraded sessions:", routeError);
       res.status(500).json({ error: "Failed to fetch sessions" });
@@ -48506,26 +48537,21 @@ function startMissingCliServer(error) {
   });
   app2.post("/api/sessions", (req, res) => {
     try {
-      const workspace = typeof req.body?.workspace === "string" ? req.body.workspace.trim() : "";
-      const title = typeof req.body?.title === "string" && req.body.title.trim() ? req.body.title.trim() : "New Chat";
-      if (!workspace) {
-        res.status(400).json({ error: "workspace is required" });
+      const workspace = typeof req.body?.workspace === "string" ? req.body.workspace : "";
+      const title = typeof req.body?.title === "string" ? req.body.title : void 0;
+      const result = createSession(workspace, title);
+      if ("error" in result) {
+        res.status(result.status).json({ error: result.error });
         return;
       }
-      const id = crypto.randomUUID();
-      const now = Date.now();
-      db_default.prepare(`
-        INSERT INTO sessions (id, title, created_at, updated_at, workspace, branch)
-        VALUES (?, ?, ?, ?, ?, NULL)
-      `).run(id, title, now, now, workspace);
-      res.json({ id, title, created_at: now, updated_at: now, workspace, branch: null });
+      res.json(result);
     } catch (routeError) {
       console.error("[Sidecar] Failed to create degraded session:", routeError);
       res.status(500).json({ error: "Failed to create session" });
     }
   });
   app2.get("/api/sessions/latest-stats", (_req, res) => {
-    res.json({ totalTokens: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, cost: 0, count: 0 });
+    res.json(getLatestStats());
   });
   app2.get("/api/sessions/core", (_req, res) => {
     res.status(503).json({
@@ -48552,24 +48578,12 @@ function startMissingCliServer(error) {
   });
   app2.get("/api/sessions/:id", (req, res) => {
     try {
-      const { id } = req.params;
-      const session = db_default.prepare("SELECT * FROM sessions WHERE id = ? AND workspace IS NOT NULL AND trim(workspace) <> ''").get(id);
-      if (!session) {
-        res.status(404).json({ error: "Session not found" });
+      const result = getSession(req.params.id);
+      if ("error" in result) {
+        res.status(result.status).json({ error: result.error });
         return;
       }
-      const messages = db_default.prepare("SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC").all(id);
-      const parsedMessages = messages.map((msg) => ({
-        ...msg,
-        stats: parseJsonColumn(msg.stats),
-        thought: typeof msg.thought === "string" ? msg.thought : void 0,
-        citations: parseJsonColumn(msg.citations),
-        images: parseJsonColumn(msg.images),
-        parent_id: msg.parent_id,
-        parentId: msg.parent_id === null || msg.parent_id === void 0 ? null : String(msg.parent_id),
-        id: msg.id === null || msg.id === void 0 ? void 0 : String(msg.id)
-      }));
-      res.json({ session, messages: parsedMessages });
+      res.json(result);
     } catch (routeError) {
       console.error("[Sidecar] Failed to fetch degraded session:", routeError);
       res.status(500).json({ error: "Failed to fetch session" });
@@ -48577,10 +48591,7 @@ function startMissingCliServer(error) {
   });
   app2.delete("/api/sessions/:id", (req, res) => {
     try {
-      const { id } = req.params;
-      db_default.prepare("DELETE FROM sessions WHERE id = ?").run(id);
-      db_default.prepare("DELETE FROM messages WHERE session_id = ?").run(id);
-      res.json({ success: true });
+      res.json(deleteSession(req.params.id));
     } catch (routeError) {
       console.error("[Sidecar] Failed to delete degraded session:", routeError);
       res.status(500).json({ error: "Failed to delete session" });
@@ -48588,14 +48599,13 @@ function startMissingCliServer(error) {
   });
   app2.patch("/api/sessions/:id/archive", (req, res) => {
     try {
-      const { id } = req.params;
       const { archived } = req.body ?? {};
-      if (typeof archived !== "boolean") {
-        res.status(400).json({ error: "Invalid archived value" });
+      const result = archiveSession(req.params.id, archived);
+      if ("error" in result) {
+        res.status(result.status).json({ error: result.error });
         return;
       }
-      db_default.prepare("UPDATE sessions SET archived = ? WHERE id = ?").run(archived ? 1 : 0, id);
-      res.json({ success: true, archived });
+      res.json(result);
     } catch (routeError) {
       console.error("[Sidecar] Failed to archive degraded session:", routeError);
       res.status(500).json({ error: "Failed to archive session" });
@@ -48603,14 +48613,13 @@ function startMissingCliServer(error) {
   });
   app2.patch("/api/sessions/:id/branch", (req, res) => {
     try {
-      const { id } = req.params;
       const branch = typeof req.body?.branch === "string" ? req.body.branch : null;
-      const result = db_default.prepare("UPDATE sessions SET branch = ?, updated_at = ? WHERE id = ?").run(branch, Date.now(), id);
-      if (result.changes === 0) {
-        res.status(404).json({ error: "Session not found" });
+      const result = updateSessionBranch(req.params.id, branch);
+      if ("error" in result) {
+        res.status(result.status).json({ error: result.error });
         return;
       }
-      res.json({ success: true, branch });
+      res.json(result);
     } catch (routeError) {
       console.error("[Sidecar] Failed to update degraded session branch:", routeError);
       res.status(500).json({ error: "Failed to update session branch" });

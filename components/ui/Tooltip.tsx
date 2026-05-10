@@ -126,20 +126,22 @@ export function Tooltip({
             {isVisible && createPortal(
                 <div
                     ref={tooltipRef}
+                    className={cn(
+                        "px-2.5 py-1.5 rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.5)]",
+                        "text-[10px] font-semibold tracking-wide leading-none whitespace-nowrap",
+                        "pointer-events-none select-none",
+                        className
+                    )}
                     style={{
                         position: 'fixed',
                         top: coords.top,
                         left: coords.left,
                         zIndex: 9999,
                         visibility: isPositioned ? 'visible' : 'hidden',
+                        backgroundColor: 'var(--bg-tertiary, #18181b)',
+                        color: 'var(--text-primary, #ffffff)',
+                        border: '1px solid var(--border, #27272a)',
                     }}
-                    className={cn(
-                        "px-2.5 py-1.5 rounded-md bg-zinc-800 text-zinc-50 border border-zinc-700 shadow-[0_4px_12px_rgba(0,0,0,0.5)]",
-                        "dark:bg-zinc-800 dark:text-zinc-50 dark:border-zinc-700", // Force dark mode aesthetic for "Pro" feel usually
-                        "text-[10px] font-semibold tracking-wide leading-none whitespace-nowrap",
-                        "pointer-events-none select-none",
-                        className
-                    )}
                 >
                     {content}
                 </div>,

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  buildUnsupportedProviderMessage,
   getExternalProviderCatalog,
   isGeminiCoreModel,
   parseProviderModel,
@@ -37,5 +38,20 @@ describe('provider registry', () => {
 
     expect(catalog.providers.find((provider) => provider.id === 'openai-compatible')?.configured).toBe(true);
     expect(catalog.models.map((model) => model.id)).toEqual(['openai:model-a', 'openai:model-b']);
+  });
+
+  it('builds clear rejection messages for unsupported providers', () => {
+    const openaiMsg = buildUnsupportedProviderMessage('openai:gpt-4');
+    expect(openaiMsg).toContain('openai-compatible');
+    expect(openaiMsg).toContain('not enabled');
+
+    const anthropicMsg = buildUnsupportedProviderMessage('anthropic:claude-3');
+    expect(anthropicMsg).toContain('anthropic');
+    expect(anthropicMsg).toContain('not enabled');
+
+    // Gemini models should not produce rejection messages
+    const geminiMsg = buildUnsupportedProviderMessage('gemini-3-pro-preview');
+    expect(geminiMsg).toContain('gemini-core');
+    expect(geminiMsg).toContain('not enabled');
   });
 });
