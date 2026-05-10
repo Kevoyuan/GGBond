@@ -6,6 +6,7 @@ let initialized = false;
 let cachedSidecarPort: number | null = null;
 let resolvingSidecarPort: Promise<number> | null = null;
 let lastResolveFoundLivePort = false;
+let inflightForcedRefresh: Promise<number> | null = null;
 const sidecarHealthCache = new Map<number, { ok: boolean; expiresAt: number }>();
 const sidecarConsecutiveFailures = new Map<number, number>();
 const SIDECAR_HEALTH_OK_TTL_MS = 2500;
@@ -137,14 +138,17 @@ async function resolveSidecarPort(originalFetch: typeof window.fetch, forceRefre
             return fallbackPorts[0];
         }
 
+        // Hoist IPC call: resolve invoke once per resolution attempt so the
+        // retry loop reuses the same port rather than making redundant Tauri
+        // IPC round-trips on every iteration.
+        const invokeResult = allPortsOpen && !forceRefresh
+            ? null
+            : await invoke<number>('get_sidecar_port').catch(() => null);
+
         const maxAttempts = allPortsOpen ? 1 : 4;
 
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-            // Skip invoke when all ports have open circuits (forceRefresh still probes)
-            const invokedPort = allPortsOpen && !forceRefresh
-                ? null
-                : await invoke<number>('get_sidecar_port').catch(() => null);
-            const candidates = [invokedPort, ...fallbackPorts]
+            const candidates = [invokeResult, ...fallbackPorts]
                 .filter((value): value is number => typeof value === 'number' && value > 0)
                 .filter((value, index, array) => array.indexOf(value) === index);
 
@@ -161,9 +165,9 @@ async function resolveSidecarPort(originalFetch: typeof window.fetch, forceRefre
             }
         }
 
-        const finalPort = allPortsOpen && !forceRefresh
-            ? null
-            : await invoke<number>('get_sidecar_port').catch(() => null);
+        // If invoke found a port but all health probes failed, trust the
+        // invoke result as a last resort (same as before, no extra IPC).
+        const finalPort = invokeResult;
         if (typeof finalPort === 'number' && finalPort > 0) {
             cachedSidecarPort = finalPort;
             lastResolveFoundLivePort = false;
@@ -206,9 +210,12 @@ async function proxyToSidecar(
         }
 
         // Only retry with forceRefresh if the last resolution actually found a live port
-        // (avoids doubling the probe time when sidecar is already known to be down)
+        // (avoids doubling the probe time when sidecar is already known to be down).
+        // Concurrent failures share a single forced-refresh resolution to avoid
+        // stampedes of redundant health probes.
         if (!forceRefresh && lastResolveFoundLivePort) {
-            const retryPort = await resolveSidecarPort(originalFetch, true);
+            const retryPort = await (inflightForcedRefresh ??= resolveSidecarPort(originalFetch, true)
+                .finally(() => { inflightForcedRefresh = null; }));
             if (retryPort !== sidecarPort) {
                 return originalFetch(`http://127.0.0.1:${retryPort}${path}${search}`, init);
             }
