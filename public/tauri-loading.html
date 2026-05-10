@@ -9,20 +9,20 @@
     <title>Starting GGBond</title>
     <style>
       :root {
-        color-scheme: light;
-        --bg-top: #eef4ff;
-        --bg-mid: #f8fafc;
-        --bg-bottom: #eef2f7;
-        --panel: rgba(255, 255, 255, 0.88);
-        --panel-border: rgba(255, 255, 255, 0.74);
-        --text: #0f172a;
-        --text-soft: #475569;
-        --text-faint: #94a3b8;
-        --track: #dbe4f0;
-        --accent-1: #0f172a;
-        --accent-2: #2563eb;
-        --accent-3: #60a5fa;
-        --pulse: rgba(245, 158, 11, 0.18);
+        color-scheme: dark;
+        --bg: #07090f;
+        --bg-2: #0c1018;
+        --panel: rgba(13, 17, 25, 0.82);
+        --panel-strong: rgba(17, 24, 39, 0.72);
+        --border: rgba(148, 163, 184, 0.18);
+        --border-strong: rgba(148, 163, 184, 0.28);
+        --text: #f8fafc;
+        --text-soft: #aab4c3;
+        --text-faint: #64748b;
+        --accent: #7c5cff;
+        --accent-2: #14b8a6;
+        --warn: #f59e0b;
+        --danger: #fb7185;
       }
 
       * {
@@ -33,192 +33,346 @@
       body {
         margin: 0;
         min-height: 100%;
-        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
         background:
-          radial-gradient(circle at top, var(--bg-top) 0%, var(--bg-mid) 42%, var(--bg-bottom) 100%);
+          linear-gradient(180deg, rgba(124, 92, 255, 0.1), transparent 34%),
+          linear-gradient(135deg, var(--bg), var(--bg-2));
         color: var(--text);
+        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
       }
 
       body {
         min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 24px;
+        display: grid;
+        grid-template-rows: 1fr auto;
+        padding: 48px 56px 36px;
       }
 
-      .shell {
-        width: min(100%, 460px);
-        border-radius: 24px;
-        border: 1px solid var(--panel-border);
-        background: var(--panel);
-        backdrop-filter: blur(22px);
-        box-shadow: 0 22px 70px rgba(15, 23, 42, 0.12);
-        padding: 28px;
+      .stage {
+        display: grid;
+        place-items: center;
+      }
+
+      .boot {
+        width: min(100%, 560px);
       }
 
       .brand {
         display: flex;
         align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 28px;
+      }
+
+      .brand-left {
+        display: flex;
+        align-items: center;
         gap: 14px;
-        margin-bottom: 24px;
+        min-width: 0;
       }
 
       .mark {
         width: 42px;
         height: 42px;
-        border-radius: 16px;
-        background: #0f172a;
-        color: white;
+        border-radius: 12px;
         display: grid;
         place-items: center;
-        font-weight: 700;
+        color: white;
         font-size: 12px;
-        letter-spacing: 0.2em;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        background:
+          linear-gradient(135deg, rgba(124, 92, 255, 0.96), rgba(20, 184, 166, 0.88));
+        box-shadow: 0 14px 34px rgba(124, 92, 255, 0.24);
+      }
+
+      .eyebrow,
+      .label,
+      .foot,
+      .metric-label {
+        letter-spacing: 0;
       }
 
       .eyebrow {
         margin: 0 0 4px;
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.24em;
-        text-transform: uppercase;
         color: var(--text-faint);
+        font-size: 12px;
+        font-weight: 650;
       }
 
       h1 {
         margin: 0;
-        font-size: 22px;
-        line-height: 1.15;
-        letter-spacing: -0.03em;
+        color: var(--text);
+        font-size: 24px;
+        line-height: 1.1;
+        font-weight: 760;
       }
 
-      .status {
-        display: flex;
+      .pill {
+        min-width: 104px;
+        display: inline-flex;
         align-items: center;
-        gap: 12px;
-        margin-bottom: 18px;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(15, 23, 42, 0.68);
+        color: var(--text-soft);
+        font-size: 13px;
+        font-weight: 650;
+        padding: 8px 12px;
       }
 
-      .dot {
-        width: 12px;
-        height: 12px;
+      .pulse {
+        width: 8px;
+        height: 8px;
         border-radius: 999px;
-        background: #f59e0b;
-        box-shadow: 0 0 0 8px var(--pulse);
-        animation: pulse 1.2s ease-in-out infinite;
+        background: var(--warn);
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45);
+        animation: pulse 1.25s ease-out infinite;
       }
 
       .panel {
+        overflow: hidden;
         border-radius: 18px;
-        background: rgba(248, 250, 252, 0.92);
-        border: 1px solid rgba(203, 213, 225, 0.75);
-        padding: 16px 16px 14px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        box-shadow: 0 32px 80px rgba(0, 0, 0, 0.34);
+        backdrop-filter: blur(20px);
       }
 
-      .row {
+      .terminal {
+        display: grid;
+        grid-template-columns: 96px 1fr;
+        gap: 0;
+        min-height: 164px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .rail {
+        border-right: 1px solid var(--border);
+        background: rgba(2, 6, 23, 0.28);
+        padding: 18px 16px;
+      }
+
+      .metric {
+        margin-bottom: 18px;
+      }
+
+      .metric-label {
+        margin-bottom: 5px;
+        color: var(--text-faint);
+        font-size: 11px;
+      }
+
+      .metric-value {
+        color: var(--text);
+        font-size: 18px;
+        font-weight: 760;
+      }
+
+      .log {
+        padding: 20px 22px;
+      }
+
+      .line {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
+        align-items: baseline;
+        gap: 12px;
+        min-height: 28px;
         font-size: 14px;
-        margin-bottom: 12px;
       }
 
-      .row:last-of-type {
-        margin-bottom: 14px;
+      .prompt {
+        width: 18px;
+        flex: 0 0 auto;
+        color: var(--accent-2);
+        font-weight: 800;
       }
 
       .label {
         color: var(--text-soft);
+        min-width: 118px;
       }
 
       .value {
-        font-weight: 600;
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      .value.warn {
+        color: var(--warn);
+      }
+
+      .value.error {
+        color: var(--danger);
+      }
+
+      .progress-wrap {
+        padding: 18px 22px 20px;
+        background: var(--panel-strong);
+      }
+
+      .status-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 14px;
+      }
+
+      .status {
+        min-width: 0;
+        color: var(--text);
+        font-size: 15px;
+        font-weight: 720;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .elapsed {
+        color: var(--text-faint);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
       }
 
       .track {
-        height: 8px;
+        height: 6px;
         border-radius: 999px;
         overflow: hidden;
-        background: var(--track);
+        background: rgba(148, 163, 184, 0.16);
       }
 
       .bar {
+        width: 34%;
         height: 100%;
-        width: 28%;
         border-radius: inherit;
-        background: linear-gradient(90deg, var(--accent-1) 0%, var(--accent-2) 55%, var(--accent-3) 100%);
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+        box-shadow: 0 0 24px rgba(124, 92, 255, 0.32);
         transition: width 220ms ease;
       }
 
-      .copy {
-        margin: 16px 0 0;
-        color: var(--text-soft);
-        font-size: 14px;
-        line-height: 1.65;
+      .foot {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        margin-top: 16px;
+        color: var(--text-faint);
+        font-size: 12px;
       }
 
-      .meta {
-        margin-top: 14px;
-        color: var(--text-faint);
-        font-size: 11px;
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
+      .foot span {
+        min-width: 0;
       }
 
       @keyframes pulse {
-        0%, 100% {
-          transform: scale(0.96);
-          opacity: 0.86;
+        100% {
+          box-shadow: 0 0 0 12px rgba(245, 158, 11, 0);
         }
-        50% {
-          transform: scale(1.04);
-          opacity: 1;
+      }
+
+      @media (max-width: 640px) {
+        body {
+          padding: 28px 18px 22px;
+        }
+
+        .brand {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .terminal {
+          grid-template-columns: 1fr;
+        }
+
+        .rail {
+          display: flex;
+          gap: 24px;
+          border-right: 0;
+          border-bottom: 1px solid var(--border);
+        }
+
+        .label {
+          min-width: 96px;
         }
       }
     </style>
   </head>
   <body>
-    <main class="shell">
-      <div class="brand">
-        <div class="mark">GG</div>
-        <div>
-          <p class="eyebrow">Desktop Boot</p>
-          <h1>GGBond</h1>
-        </div>
-      </div>
+    <div class="stage">
+      <main class="boot" aria-label="GGBond desktop startup">
+        <header class="brand">
+          <div class="brand-left">
+            <div class="mark">GG</div>
+            <div>
+              <p class="eyebrow">Desktop runtime</p>
+              <h1>GGBond</h1>
+            </div>
+          </div>
+          <div class="pill">
+            <span class="pulse" aria-hidden="true"></span>
+            <span id="pill-state">Booting</span>
+          </div>
+        </header>
 
-      <div class="status">
-        <div class="dot" aria-hidden="true"></div>
-        <div id="status" class="value">Preparing desktop workspace</div>
-      </div>
+        <section class="panel">
+          <div class="terminal">
+            <aside class="rail" aria-label="startup metrics">
+              <div class="metric">
+                <div class="metric-label">Shell</div>
+                <div class="metric-value">Ready</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Route</div>
+                <div id="route-state" class="metric-value">Warm</div>
+              </div>
+            </aside>
 
-      <section class="panel" aria-label="startup progress">
-        <div class="row">
-          <span class="label">Desktop shell</span>
-          <span class="value">Ready</span>
-        </div>
-        <div class="row">
-          <span class="label">Main workspace</span>
-          <span id="route-state" class="value">Warming</span>
-        </div>
-        <div class="track" aria-hidden="true">
-          <div id="progress" class="bar"></div>
-        </div>
-      </section>
+            <div class="log" aria-label="startup log">
+              <div class="line">
+                <span class="prompt">›</span>
+                <span class="label">desktop shell</span>
+                <span class="value">connected</span>
+              </div>
+              <div class="line">
+                <span class="prompt">›</span>
+                <span class="label">workspace route</span>
+                <span id="route-value" class="value warn">compiling</span>
+              </div>
+              <div class="line">
+                <span class="prompt">›</span>
+                <span class="label">handoff</span>
+                <span id="handoff-value" class="value">waiting for Next.js</span>
+              </div>
+            </div>
+          </div>
 
-      <p class="copy">
-        The first dev boot can take longer while Next.js compiles the main workspace route. This startup shell stays visible
-        until the real app is ready instead of leaving the desktop window blank.
-      </p>
+          <div class="progress-wrap">
+            <div class="status-row">
+              <div id="status" class="status">Preparing main workspace</div>
+              <div id="elapsed" class="elapsed">1s</div>
+            </div>
+            <div class="track" aria-hidden="true">
+              <div id="progress" class="bar"></div>
+            </div>
+          </div>
+        </section>
 
-      <p id="elapsed" class="meta">1s elapsed</p>
-    </main>
+        <footer class="foot">
+          <span>Local desktop session</span>
+          <span>GGBond waits here instead of opening a blank window</span>
+        </footer>
+      </main>
+    </div>
 
     <script>
       const statusEl = document.getElementById('status');
       const routeStateEl = document.getElementById('route-state');
+      const routeValueEl = document.getElementById('route-value');
+      const handoffValueEl = document.getElementById('handoff-value');
+      const pillStateEl = document.getElementById('pill-state');
       const progressEl = document.getElementById('progress');
       const elapsedEl = document.getElementById('elapsed');
       const startedAt = Date.now();
@@ -229,23 +383,37 @@
       const retryDelayMs = 900;
       let lastFailure = '';
 
+      function setRouteState(text, tone) {
+        routeStateEl.textContent = text;
+        routeValueEl.className = `value ${tone || ''}`.trim();
+      }
+
       function updateUi() {
         const elapsedMs = Date.now() - startedAt;
         const elapsedSeconds = Math.max(1, Math.round(elapsedMs / 1000));
-        elapsedEl.textContent = `${elapsedSeconds}s elapsed`;
+        elapsedEl.textContent = `${elapsedSeconds}s`;
 
         if (lastFailure && elapsedMs >= 15000) {
+          pillStateEl.textContent = 'Retrying';
           statusEl.textContent = lastFailure;
-          routeStateEl.textContent = 'Retrying';
-          progressEl.style.width = '82%';
+          setRouteState('Retry', 'error');
+          routeValueEl.textContent = 'retrying';
+          handoffValueEl.textContent = 'probing again';
+          progressEl.style.width = '84%';
         } else if (elapsedMs < 12000) {
-          statusEl.textContent = 'Preparing desktop workspace';
-          routeStateEl.textContent = 'Warming';
-          progressEl.style.width = '64%';
+          pillStateEl.textContent = 'Booting';
+          statusEl.textContent = 'Preparing main workspace';
+          setRouteState('Warm', 'warn');
+          routeValueEl.textContent = 'compiling';
+          handoffValueEl.textContent = 'waiting for Next.js';
+          progressEl.style.width = '58%';
         } else {
+          pillStateEl.textContent = 'Compiling';
           statusEl.textContent = 'Still compiling the first screen';
-          routeStateEl.textContent = 'Still warming';
-          progressEl.style.width = '82%';
+          setRouteState('Warm', 'warn');
+          routeValueEl.textContent = 'still warming';
+          handoffValueEl.textContent = 'holding desktop window';
+          progressEl.style.width = '76%';
         }
       }
 
@@ -265,8 +433,11 @@
           });
 
           if (response.ok) {
+            pillStateEl.textContent = 'Ready';
             statusEl.textContent = 'Workspace ready';
-            routeStateEl.textContent = 'Ready';
+            setRouteState('Ready', '');
+            routeValueEl.textContent = 'ready';
+            handoffValueEl.textContent = 'switching to app';
             progressEl.style.width = '100%';
             window.location.replace(destination);
             return;
