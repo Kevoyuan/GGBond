@@ -5,6 +5,7 @@ import { SIDECAR_DEFAULT_PORT } from './sidecar-port';
 let initialized = false;
 let cachedSidecarPort: number | null = null;
 let resolvingSidecarPort: Promise<number> | null = null;
+let lastResolveFoundLivePort = false;
 const sidecarHealthCache = new Map<number, { ok: boolean; expiresAt: number }>();
 const sidecarConsecutiveFailures = new Map<number, number>();
 const SIDECAR_HEALTH_OK_TTL_MS = 2500;
@@ -103,6 +104,15 @@ function getFetchUrl(input: RequestInfo | URL) {
     return '';
 }
 
+function isCircuitOpen(port: number) {
+    const failures = sidecarConsecutiveFailures.get(port) || 0;
+    if (failures < SIDECAR_CIRCUIT_THRESHOLD) return false;
+    const cached = sidecarHealthCache.get(port);
+    const backoffMs = Math.min(SIDECAR_CIRCUIT_RESET_MS, SIDECAR_HEALTH_FAIL_TTL_MS * Math.pow(2, failures));
+    const circuitExpiresAt = (cached?.expiresAt ?? 0) + backoffMs;
+    return Date.now() < circuitExpiresAt;
+}
+
 async function resolveSidecarPort(originalFetch: typeof window.fetch, forceRefresh = false) {
     if (!forceRefresh && cachedSidecarPort && await canReachSidecar(cachedSidecarPort, originalFetch)) {
         return cachedSidecarPort;
@@ -115,7 +125,16 @@ async function resolveSidecarPort(originalFetch: typeof window.fetch, forceRefre
     resolvingSidecarPort = (async () => {
         const fallbackPorts = [cachedSidecarPort, SIDECAR_DEFAULT_PORT].filter((value): value is number => typeof value === 'number');
 
-        for (let attempt = 0; attempt < 4; attempt += 1) {
+        // Fast-fail: if all known ports have open circuits, skip probing
+        const allPortsOpen = fallbackPorts.length > 0 && fallbackPorts.every(isCircuitOpen);
+        if (!forceRefresh && allPortsOpen) {
+            lastResolveFoundLivePort = false;
+            return fallbackPorts[0];
+        }
+
+        const maxAttempts = allPortsOpen ? 1 : 4;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
             const invokedPort = await invoke<number>('get_sidecar_port').catch(() => null);
             const candidates = [invokedPort, ...fallbackPorts]
                 .filter((value): value is number => typeof value === 'number' && value > 0)
@@ -124,20 +143,25 @@ async function resolveSidecarPort(originalFetch: typeof window.fetch, forceRefre
             for (const port of candidates) {
                 if (await canReachSidecar(port, originalFetch, forceRefresh)) {
                     cachedSidecarPort = port;
+                    lastResolveFoundLivePort = true;
                     return port;
                 }
             }
 
-            await sleep(150 * (attempt + 1));
+            if (attempt < maxAttempts - 1) {
+                await sleep(150 * (attempt + 1));
+            }
         }
 
         const finalPort = await invoke<number>('get_sidecar_port').catch(() => null);
         if (typeof finalPort === 'number' && finalPort > 0) {
             cachedSidecarPort = finalPort;
+            lastResolveFoundLivePort = false;
             return finalPort;
         }
 
         cachedSidecarPort = cachedSidecarPort ?? SIDECAR_DEFAULT_PORT;
+        lastResolveFoundLivePort = false;
         return cachedSidecarPort;
     })().finally(() => {
         resolvingSidecarPort = null;
@@ -167,7 +191,9 @@ async function proxyToSidecar(
     } catch (error) {
         invalidateSidecarPort(sidecarPort);
 
-        if (!forceRefresh) {
+        // Only retry with forceRefresh if the last resolution actually found a live port
+        // (avoids doubling the probe time when sidecar is already known to be down)
+        if (!forceRefresh && lastResolveFoundLivePort) {
             const retryPort = await resolveSidecarPort(originalFetch, true);
             if (retryPort !== sidecarPort) {
                 return originalFetch(`http://127.0.0.1:${retryPort}${path}${search}`, init);
