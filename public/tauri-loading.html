@@ -222,8 +222,9 @@
       const progressEl = document.getElementById('progress');
       const elapsedEl = document.getElementById('elapsed');
       const startedAt = Date.now();
-      const rootUrl = '/?__desktop_probe=1';
-      const destination = '/';
+      const devOrigin = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
+      const rootUrl = `${devOrigin}/?__desktop_probe=1`;
+      const destination = `${devOrigin}/`;
       const requestTimeoutMs = 2500;
       const retryDelayMs = 900;
       let lastFailure = '';
