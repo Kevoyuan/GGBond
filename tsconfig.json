@@ -38,6 +38,23 @@
     "**/*.mts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "node_modules.bak",
+    "out",
+    "build",
+    "dist",
+    "**/dist",
+    "coverage",
+    "**/coverage",
+    "cyberpunk-clock",
+    "cyberpunk-clock-app",
+    "demo-video",
+    "gemini-home",
+    "pixel-flip-clock",
+    "pokemon-flip-clock",
+    "src-tauri/target",
+    "src-tauri/resources/next-standalone",
+    "src-tauri/resources/sidecar",
+    "src-sidecar/auto-routes.ts"
   ]
 }

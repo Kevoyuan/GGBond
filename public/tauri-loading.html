@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <title>Starting GGBond</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg-top: #eef4ff;
+        --bg-mid: #f8fafc;
+        --bg-bottom: #eef2f7;
+        --panel: rgba(255, 255, 255, 0.88);
+        --panel-border: rgba(255, 255, 255, 0.74);
+        --text: #0f172a;
+        --text-soft: #475569;
+        --text-faint: #94a3b8;
+        --track: #dbe4f0;
+        --accent-1: #0f172a;
+        --accent-2: #2563eb;
+        --accent-3: #60a5fa;
+        --pulse: rgba(245, 158, 11, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at top, var(--bg-top) 0%, var(--bg-mid) 42%, var(--bg-bottom) 100%);
+        color: var(--text);
+      }
+
+      body {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+
+      .shell {
+        width: min(100%, 460px);
+        border-radius: 24px;
+        border: 1px solid var(--panel-border);
+        background: var(--panel);
+        backdrop-filter: blur(22px);
+        box-shadow: 0 22px 70px rgba(15, 23, 42, 0.12);
+        padding: 28px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 24px;
+      }
+
+      .mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 16px;
+        background: #0f172a;
+        color: white;
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 0.2em;
+      }
+
+      .eyebrow {
+        margin: 0 0 4px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--text-faint);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        line-height: 1.15;
+        letter-spacing: -0.03em;
+      }
+
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: #f59e0b;
+        box-shadow: 0 0 0 8px var(--pulse);
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+
+      .panel {
+        border-radius: 18px;
+        background: rgba(248, 250, 252, 0.92);
+        border: 1px solid rgba(203, 213, 225, 0.75);
+        padding: 16px 16px 14px;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+
+      .row:last-of-type {
+        margin-bottom: 14px;
+      }
+
+      .label {
+        color: var(--text-soft);
+      }
+
+      .value {
+        font-weight: 600;
+      }
+
+      .track {
+        height: 8px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: var(--track);
+      }
+
+      .bar {
+        height: 100%;
+        width: 28%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--accent-1) 0%, var(--accent-2) 55%, var(--accent-3) 100%);
+        transition: width 220ms ease;
+      }
+
+      .copy {
+        margin: 16px 0 0;
+        color: var(--text-soft);
+        font-size: 14px;
+        line-height: 1.65;
+      }
+
+      .meta {
+        margin-top: 14px;
+        color: var(--text-faint);
+        font-size: 11px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+      }
+
+      @keyframes pulse {
+        0%, 100% {
+          transform: scale(0.96);
+          opacity: 0.86;
+        }
+        50% {
+          transform: scale(1.04);
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <div class="brand">
+        <div class="mark">GG</div>
+        <div>
+          <p class="eyebrow">Desktop Boot</p>
+          <h1>GGBond</h1>
+        </div>
+      </div>
+
+      <div class="status">
+        <div class="dot" aria-hidden="true"></div>
+        <div id="status" class="value">Preparing desktop workspace</div>
+      </div>
+
+      <section class="panel" aria-label="startup progress">
+        <div class="row">
+          <span class="label">Desktop shell</span>
+          <span class="value">Ready</span>
+        </div>
+        <div class="row">
+          <span class="label">Main workspace</span>
+          <span id="route-state" class="value">Warming</span>
+        </div>
+        <div class="track" aria-hidden="true">
+          <div id="progress" class="bar"></div>
+        </div>
+      </section>
+
+      <p class="copy">
+        The first dev boot can take longer while Next.js compiles the main workspace route. This startup shell stays visible
+        until the real app is ready instead of leaving the desktop window blank.
+      </p>
+
+      <p id="elapsed" class="meta">1s elapsed</p>
+    </main>
+
+    <script>
+      const statusEl = document.getElementById('status');
+      const routeStateEl = document.getElementById('route-state');
+      const progressEl = document.getElementById('progress');
+      const elapsedEl = document.getElementById('elapsed');
+      const startedAt = Date.now();
+      const rootUrl = '/?__desktop_probe=1';
+      const destination = '/';
+      const requestTimeoutMs = 2500;
+      const retryDelayMs = 900;
+      let lastFailure = '';
+
+      function updateUi() {
+        const elapsedMs = Date.now() - startedAt;
+        const elapsedSeconds = Math.max(1, Math.round(elapsedMs / 1000));
+        elapsedEl.textContent = `${elapsedSeconds}s elapsed`;
+
+        if (lastFailure && elapsedMs >= 15000) {
+          statusEl.textContent = lastFailure;
+          routeStateEl.textContent = 'Retrying';
+          progressEl.style.width = '82%';
+        } else if (elapsedMs < 12000) {
+          statusEl.textContent = 'Preparing desktop workspace';
+          routeStateEl.textContent = 'Warming';
+          progressEl.style.width = '64%';
+        } else {
+          statusEl.textContent = 'Still compiling the first screen';
+          routeStateEl.textContent = 'Still warming';
+          progressEl.style.width = '82%';
+        }
+      }
+
+      async function probeMainRoute() {
+        updateUi();
+
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), requestTimeoutMs);
+
+        try {
+          const response = await fetch(rootUrl, {
+            cache: 'no-store',
+            signal: controller.signal,
+            headers: {
+              'x-ggbond-desktop-probe': '1'
+            }
+          });
+
+          if (response.ok) {
+            statusEl.textContent = 'Workspace ready';
+            routeStateEl.textContent = 'Ready';
+            progressEl.style.width = '100%';
+            window.location.replace(destination);
+            return;
+          }
+
+          lastFailure = `Main workspace returned HTTP ${response.status}`;
+        } catch (_) {
+          lastFailure = 'Main workspace is not responding yet';
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
+
+        window.setTimeout(probeMainRoute, retryDelayMs);
+      }
+
+      updateUi();
+      window.setTimeout(probeMainRoute, 120);
+    </script>
+  </body>
+</html>

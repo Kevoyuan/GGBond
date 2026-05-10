@@ -74,6 +74,7 @@ gemini-home/
 !README.zh-CN.md
 !RELEASE_NOTES.md
 *.html
+!public/tauri-loading.html
 next-env.d.ts
 tsconfig.tsbuildinfo
 script.js
