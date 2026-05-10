@@ -240,20 +240,20 @@ export const ChatContainer = React.memo(function ChatContainer({
                                         </div>
                                         {hasActiveSession ? (
                                             <>
-                                                <h2 className="text-2xl font-semibold tracking-tight">
+                                                <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
                                                     This session is empty
                                                 </h2>
-                                                <p className="text-muted-foreground leading-relaxed">
+                                                <p className="text-[var(--text-secondary)] leading-relaxed">
                                                     No messages were saved in this chat yet. Try selecting another chat from the sidebar.
                                                 </p>
                                             </>
                                         ) : (
                                             <>
-                                                <h2 className="text-2xl font-semibold tracking-tight">
-                                                    How can I help you today?
+                                                <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
+                                                    Ready to assist with your code
                                                 </h2>
-                                                <p className="text-muted-foreground leading-relaxed">
-                                                    I can help you write code, debug issues, or answer questions about your project.
+                                                <p className="text-[var(--text-secondary)] leading-relaxed">
+                                                    Ask about writing, debugging, or understanding code in your workspace.
                                                 </p>
                                             </>
                                         )}

@@ -6,9 +6,10 @@ interface TooltipProps {
     children: React.ReactNode;
     content: React.ReactNode;
     side?: 'top' | 'right' | 'bottom' | 'left';
-    className?: string; // Class for the tooltip content
-    delay?: number; // Delay in ms before showing
-    sideOffset?: number; // Distance from the trigger
+    className?: string;
+    delay?: number;
+    sideOffset?: number;
+    triggerClassName?: string;
 }
 
 export function Tooltip({
@@ -19,7 +20,7 @@ export function Tooltip({
     delay = 0,
     sideOffset = 5,
     triggerClassName
-}: TooltipProps & { triggerClassName?: string }) {
+}: TooltipProps) {
     const [isVisible, setIsVisible] = useState(false);
     const [isPositioned, setIsPositioned] = useState(false);
     const [coords, setCoords] = useState<{ top: number, left: number }>({ top: 0, left: 0 });

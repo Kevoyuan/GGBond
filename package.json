@@ -1,6 +1,6 @@
 {
   "name": "ggbond",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "private": true,
   "author": "Your Name",
   "description": "GGBond - AI-powered coding assistant",
@@ -24,7 +24,7 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@google/gemini-cli-core": "^0.35.2",
+    "@google/gemini-cli-core": "^0.37.1",
     "@tauri-apps/api": "^2.0.0-rc.3",
     "@tauri-apps/plugin-sql": "^2.3.2",
     "@xterm/addon-fit": "^0.10.0",
@@ -75,6 +75,7 @@
     "jsdom": "^28.0.0",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5",
     "vitest": "^4.0.18"
   }

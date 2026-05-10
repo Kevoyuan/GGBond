@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { X, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -30,7 +30,6 @@ const ToastItem = ({ toast, onDismiss }: ToastItemProps) => {
   }, [onDismiss, toast.id]);
 
   useEffect(() => {
-    // Animate in
     requestAnimationFrame(() => setIsVisible(true));
   }, []);
 
@@ -47,22 +46,22 @@ const ToastItem = ({ toast, onDismiss }: ToastItemProps) => {
   const icons = {
     error: <AlertCircle className="w-5 h-5 text-red-500" />,
     success: <CheckCircle className="w-5 h-5 text-green-500" />,
-    info: <Info className="w-5 h-5" style={{ color: 'var(--accent)' }} />,
+    info: <Info className="w-5 h-5 text-[var(--accent)]" />,
     warning: <AlertTriangle className="w-5 h-5 text-yellow-500" />,
   };
 
   const styles = {
-    error: 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800',
-    success: 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800',
-    info: 'bg-[var(--bg-secondary)] border-[var(--border-subtle)] dark:border-white/10',
-    warning: 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800',
+    error: 'bg-[var(--bg-secondary)] border-[var(--border-error)]',
+    success: 'bg-[var(--bg-secondary)] border-[var(--border-subtle)]',
+    info: 'bg-[var(--bg-secondary)] border-[var(--border-subtle)]',
+    warning: 'bg-[var(--bg-secondary)] border-[var(--border-warning)]',
   };
 
   const iconStyles = {
-    error: 'text-red-500',
-    success: 'text-green-500',
+    error: 'text-[var(--text-error)]',
+    success: 'text-[var(--text-success)]',
     info: 'text-[var(--accent)]',
-    warning: 'text-yellow-500',
+    warning: 'text-[var(--text-warning)]',
   };
 
   return (
@@ -75,13 +74,13 @@ const ToastItem = ({ toast, onDismiss }: ToastItemProps) => {
       role="alert"
     >
       <span className={iconStyles[toast.type]}>{icons[toast.type]}</span>
-      <p className="flex-1 text-sm text-gray-900 dark:text-gray-100">{toast.message}</p>
+      <p className="flex-1 text-sm text-[var(--text-primary)]">{toast.message}</p>
       <button
         onClick={handleDismiss}
-        className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors"
+        className="p-1 hover:bg-[var(--bg-hover)] rounded transition-colors cursor-pointer"
         aria-label="Dismiss"
       >
-        <X className="w-4 h-4 text-gray-500" />
+        <X className="w-4 h-4 text-[var(--text-secondary)]" />
       </button>
     </div>
   );
@@ -124,7 +123,6 @@ export const ToastContainer = ({
   );
 };
 
-// Toast context for easy usage across the app
 interface ToastContextValue {
   showToast: (type: ToastType, message: string, duration?: number) => void;
   showError: (message: string, duration?: number) => void;
@@ -133,10 +131,64 @@ interface ToastContextValue {
   showWarning: (message: string, duration?: number) => void;
 }
 
+const ToastContext = createContext<ToastContextValue | null>(null);
+
 export const useToast = () => {
-  // This will be provided via context in the actual implementation
-  // For now, we'll use a simple approach with state in the parent
-  throw new Error('useToast must be used within a ToastProvider');
+  const context = useContext(ToastContext);
+  if (!context) {
+    // Return a no-op function when outside provider instead of throwing
+    const noop = () => {};
+    return {
+      showToast: noop,
+      showError: noop,
+      showSuccess: noop,
+      showInfo: noop,
+      showWarning: noop,
+    };
+  }
+  return context;
+};
+
+interface ToastProviderProps {
+  children: React.ReactNode;
+  defaultPosition?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'top-center' | 'bottom-center';
+}
+
+export const ToastProvider = ({ children, defaultPosition = 'top-right' }: ToastProviderProps) => {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastIdRef = useRef(0);
+
+  const showToast = useCallback((type: ToastType, message: string, duration?: number) => {
+    const id = `toast-${toastIdRef.current++}`;
+    setToasts(prev => [...prev, { id, type, message, duration }]);
+  }, []);
+
+  const showError = useCallback((message: string, duration?: number) => {
+    showToast('error', message, duration);
+  }, [showToast]);
+
+  const showSuccess = useCallback((message: string, duration?: number) => {
+    showToast('success', message, duration);
+  }, [showToast]);
+
+  const showInfo = useCallback((message: string, duration?: number) => {
+    showToast('info', message, duration);
+  }, [showToast]);
+
+  const showWarning = useCallback((message: string, duration?: number) => {
+    showToast('warning', message, duration);
+  }, [showToast]);
+
+  const dismiss = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  return (
+    <ToastContext.Provider value={{ showToast, showError, showSuccess, showInfo, showWarning }}>
+      {children}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} position={defaultPosition} />
+    </ToastContext.Provider>
+  );
 };
 
 // Helper to create toast utilities

@@ -1,3 +1,38 @@
+## GGBond v0.3.8
+
+### Highlights
+
+- Upgraded `@google/gemini-cli-core` from `0.35.2` to `0.37.1` (April 9, 2026), gaining two minor versions of upstream improvements including Chapters tool-based topic grouping, dynamic sandbox expansion, persistent browser sessions, forbiddenPaths sandbox controls, project-level memory scope, and reliability harvester with 500/503 retry support.
+- Updated GGBond's scheduler adapter — the existing `Scheduler({ context: this.config, ... })` pattern remains fully compatible with the v0.37.x API surface. All core Config interface methods (`getMessageBus`, `getToolRegistry`, `getApprovalMode`, etc.) are preserved.
+- Refreshed local alignment copy so Settings, Governance, and Agent auth surfaces now point at the `v0.37.1` baseline.
+
+### Alignment Notes
+
+- `package.json`, `package-lock.json`: Updated to `@google/gemini-cli-core@0.37.1`, aligning with the stable release published on April 9, 2026.
+- `lib/core-service.ts`: No adapter changes required — the `AgentLoopContext` contract is still satisfied by `Config` via the existing `Scheduler({ context: this.config, ... })` pattern. All imported symbols (`Config`, `Scheduler`, `ROOT_SCHEDULER_ID`, `MessageBus`, `MessageBusType`, `ApprovalMode`, `ToolConfirmationOutcome`, `ToolErrorType`, `WriteTodosTool`, `createPolicyUpdater`, `createPolicyEngineConfig`, `resolveTelemetrySettings`, `Storage`) remain exported and signatures-compatible.
+- TypeScript compilation (`tsc -p tsconfig.json --noEmit`): clean, zero errors.
+- Sidecar build (`npm run build:sidecar`): succeeds with 58 auto-generated endpoints.
+
+### Upstream Features Adopted
+
+- Core API compatibility across v0.36.x and v0.37.x, including dynamic sandbox expansion (Linux/Windows), Chapters tool-based topic grouping, persistent browser sessions, `forbiddenPaths` sandbox configuration, reliability harvester with automatic 500/503 retry, project-level `save_memory` scope, and `memoryBoundaryMarkers` setting.
+- All backend-only capabilities that land in core runtime internals (JIT context discovery, read-only tool auto-discovery, subagent context inheritance, snapshot reclamation) are available without UI changes.
+- GGBond's existing `'code'` default mode is retained; upstream planning-first defaults remain intentionally diverged.
+
+### Upstream Features Deferred Or Intentionally Divergent
+
+- GGBond does not add dedicated UI for Chapters, forbiddenPaths sandbox controls, memoryBoundaryMarkers, or persistent browser sessions — those remain backend-only capabilities discoverable through core runtime.
+- GGBond intentionally keeps `'code'` as the default mode instead of mirroring upstream planning-first defaults.
+
+### Downloads
+
+- macOS (Apple Silicon): `ggbond_0.3.8_aarch64.dmg` (pending build)
+- Windows (Intel/x64): `ggbond_0.3.8_x64-setup.exe` (pending build)
+
+Full Changelog: [`v0.3.7...v0.3.8`](https://github.com/Kevoyuan/GGBond/compare/v0.3.7...v0.3.8)
+
+---
+
 ## GGBond v0.3.7
 
 ### Highlights

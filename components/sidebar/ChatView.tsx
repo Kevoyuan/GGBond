@@ -436,17 +436,17 @@ export const ChatView = React.memo(function ChatView({
                     <div className="flex flex-col items-center justify-center h-full text-center p-6">
                         <MessageSquare className="w-12 h-12 text-[var(--text-tertiary)] mb-4" />
                         <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">
-                            {searchTerm ? 'No matching chats' : 'No chats yet'}
+                            {searchTerm ? 'No matching sessions' : 'No sessions yet'}
                         </h3>
                         <p className="text-xs text-[var(--text-secondary)] mb-4">
-                            {searchTerm ? 'Try a different search term' : 'Start a new conversation to get started'}
+                            {searchTerm ? 'Try a different search term' : 'Start a new Gemini CLI session'}
                         </p>
                         {!searchTerm && onAddWorkspace && (
                             <button
                                 onClick={onAddWorkspace}
-                                className="px-3 py-1.5 rounded-md bg-[var(--accent)] text-white text-xs font-medium hover:opacity-90 transition-opacity"
+                                className="px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--accent)] text-white text-xs font-medium hover:bg-[var(--accent-hover)] transition-colors cursor-pointer"
                             >
-                                Start Chat
+                                New Session
                             </button>
                         )}
                     </div>

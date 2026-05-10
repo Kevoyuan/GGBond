@@ -146,12 +146,11 @@ export const SidePanel = React.memo(function SidePanel({
     <div
       ref={panelRef}
       className={cn(
-        "flex-none border-r bg-muted/5 relative flex flex-col overflow-hidden transform-gpu",
+        "flex-none border-r bg-muted/5 relative flex flex-col overflow-hidden",
         // Disable transition during resize for smooth dragging, add will-change for optimization
         !isResizing && "transition-[width] duration-200 ease-in-out will-change-[width]",
         !sidePanelType && "w-0 border-none"
       )}
-      // Use CSS contain for better rendering performance
       style={{ contain: 'layout style' }}
     >
       <AnimatePresence mode="wait">
@@ -162,7 +161,7 @@ export const SidePanel = React.memo(function SidePanel({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -5 }}
             transition={{ duration: 0.1 }}
-            className="flex-1 flex flex-col min-h-0 relative h-full"
+            className="absolute inset-0 flex flex-col"
           >
             <div className="flex-1 min-h-0 relative">
               <ConversationGraph
@@ -195,7 +194,7 @@ export const SidePanel = React.memo(function SidePanel({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -5 }}
             transition={{ duration: 0.1 }}
-            className="flex-1 flex flex-col min-h-0 relative h-full"
+            className="absolute inset-0 flex flex-col"
           >
             <MessageTimeline
               messages={messages}
@@ -212,7 +211,7 @@ export const SidePanel = React.memo(function SidePanel({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -5 }}
             transition={{ duration: 0.1 }}
-            className="flex-1 flex flex-col min-h-0 relative h-full bg-background"
+            className="absolute inset-0 flex flex-col bg-background"
           >
             <ArtifactPreview
               filePath={artifactPath}

@@ -169,7 +169,7 @@ export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset 
                                     value={planFeedback}
                                     onChange={(event) => setPlanFeedback(event.target.value)}
                                     placeholder="Optional: ask Gemini to revise the plan before implementation."
-                                    className="min-h-20 w-full rounded-md border border-border/70 bg-background px-2.5 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                    className="min-h-20 w-full rounded-md border border-border/70 bg-background px-2.5 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-[var(--accent)] cursor-text"
                                 />
                             </label>
                         </div>
@@ -180,21 +180,21 @@ export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset 
                     {type === 'exit_plan_mode' && details.planPath && (
                         <button
                             onClick={handleOpenPlan}
-                            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground border border-border hover:bg-muted hover:text-foreground transition-colors mr-auto"
+                            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground border border-border hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] cursor-pointer mr-auto"
                         >
                             Open in Editor
                         </button>
                     )}
                     <button
                         onClick={() => onCancel(type === 'exit_plan_mode' ? planFeedback : undefined)}
-                        className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                        className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] cursor-pointer"
                     >
                         {type === 'exit_plan_mode' ? 'Request Changes' : 'Cancel'}
                     </button>
                     {showAllowSession && (
                         <button
                             onClick={() => onConfirm('session')}
-                            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground border border-border hover:bg-muted hover:text-foreground transition-colors"
+                            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground border border-border hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] cursor-pointer"
                         >
                             Allow Session
                         </button>
@@ -202,7 +202,7 @@ export function ConfirmationDialog({ details, onConfirm, onCancel, bottomOffset 
                     <button
                         onClick={() => onConfirm('once')}
                         className={cn(
-                            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-semibold text-white transition-colors',
+                            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-semibold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 cursor-pointer',
                             button
                         )}
                     >

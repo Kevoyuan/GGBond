@@ -14,7 +14,8 @@ import {
     Search,
     RefreshCw,
     Layout,
-    FolderOpen
+    FolderOpen,
+    AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PanelHeader } from '@/components/sidebar/PanelHeader';
@@ -171,7 +172,10 @@ function DirectoryNode({ path, name, onFileSelect, depth = 0, defaultExpanded = 
                     ) : (
                         <>
                             {loadError && (
-                                <div className="px-4 py-1 text-[11px] text-destructive/80 ml-4">{loadError}</div>
+                                <div className="flex items-center gap-2 px-3 py-1.5 mx-2 my-1 rounded-[var(--radius-md)] bg-[var(--bg-hover)] text-[11px] text-[var(--text-error)] ml-4">
+                                    <AlertCircle className="w-3 h-3 shrink-0" />
+                                    <span>{loadError}</span>
+                                </div>
                             )}
                             {filteredFiles.map((file) => (
                                 file.type === 'directory' ? (

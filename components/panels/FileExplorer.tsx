@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Folder,
   File,
@@ -10,7 +10,9 @@ import {
   FileImage,
   FileText,
   Home,
-  ArrowUp
+  ArrowUp,
+  AlertCircle,
+  RotateCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -131,7 +133,22 @@ export function FileExplorer({ initialPath, onFileSelect, className }: FileExplo
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
         ) : error ? (
-          <div className="text-center p-4 text-red-400 text-sm">{error}</div>
+          <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
+            <div className="p-3 rounded-full bg-[var(--bg-hover)]">
+              <AlertCircle className="w-6 h-6 text-[var(--text-error)]" />
+            </div>
+            <div>
+              <p className="text-sm text-[var(--text-primary)] font-medium mb-1">Failed to load directory</p>
+              <p className="text-xs text-[var(--text-secondary)]">{error}</p>
+            </div>
+            <button
+              onClick={() => loadFiles(currentPath || undefined)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] transition-colors cursor-pointer"
+            >
+              <RotateCw className="w-3 h-3" />
+              Retry
+            </button>
+          </div>
         ) : (
           <div className="flex flex-col gap-0.5">
             {files.map((file) => (
