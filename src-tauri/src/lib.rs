@@ -118,6 +118,26 @@ fn resolve_sidecar_default_cwd() -> PathBuf {
     dirs::home_dir().unwrap_or(current_dir)
 }
 
+fn resolve_dev_node_path(default_cwd: &PathBuf) -> Option<String> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+
+    let node_modules = default_cwd.join("node_modules");
+    if !node_modules.exists() {
+        return std::env::var("NODE_PATH").ok().filter(|value| !value.is_empty());
+    }
+
+    let node_modules = node_modules.to_string_lossy().to_string();
+    let existing = std::env::var("NODE_PATH").unwrap_or_default();
+    if existing.is_empty() {
+        return Some(node_modules);
+    }
+
+    let separator = if cfg!(target_os = "windows") { ";" } else { ":" };
+    Some(format!("{node_modules}{separator}{existing}"))
+}
+
 fn spawn_sidecar_server(
     entry: &PathBuf,
     server_dir: &PathBuf,
@@ -138,6 +158,10 @@ fn spawn_sidecar_server(
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit());
+
+    if let Some(node_path) = resolve_dev_node_path(default_cwd) {
+        command.env("NODE_PATH", node_path);
+    }
 
     command.spawn().map_err(|e| match runtime {
         Some(path) => format!(
