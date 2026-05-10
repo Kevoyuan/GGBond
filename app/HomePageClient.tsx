@@ -17,6 +17,7 @@ import { UndoPreviewFileChange } from '../components/dialogs/UndoMessageConfirmD
 import { ToastContainer } from '../components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
 import { useWorkspaceBranch } from '@/hooks/useWorkspaceBranch';
+import { fetchJsonWithRetry } from '@/lib/client-fetch';
 
 // Import types and constants from separate module
 import type { Session, UploadedImage, ApiMessageRecord, UndoConfirmState, ChatSnapshot } from '@/app/page/types';
@@ -623,13 +624,20 @@ export default function Home() {
   // Fetch Sessions on Mount
   const fetchSessions = useCallback(async () => {
     try {
-      const dbRes = await fetch('/api/sessions');
-      let allSessions: Session[] = [];
+      const { response, data } = await fetchJsonWithRetry<Session[] | { error?: string; _fallback?: boolean }>(
+        '/api/sessions',
+        undefined,
+        { retries: 3, retryDelayMs: 200 }
+      );
 
-      if (dbRes.ok) {
-        const dbSessions = await dbRes.json();
-        allSessions = [...dbSessions];
+      if (!response.ok || !Array.isArray(data)) {
+        const message = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+          ? data.error
+          : `Session service returned ${response.status}`;
+        throw new Error(message);
       }
+
+      const allSessions = [...data];
 
       // Sort by updated_at desc (most recent first)
       allSessions.sort((a, b) => {
@@ -641,8 +649,10 @@ export default function Home() {
       setSessions(allSessions);
     } catch (error) {
       console.error('Failed to fetch sessions', error);
+      const message = error instanceof Error ? error.message : String(error);
+      showWarningToast(`Sessions are temporarily unavailable: ${message}`);
     }
-  }, []);
+  }, [showWarningToast]);
 
   useEffect(() => {
     fetchSessions();

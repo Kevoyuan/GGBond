@@ -32,6 +32,29 @@ async function canReachSidecar(port: number, originalFetch: typeof window.fetch)
     }
 }
 
+export function shouldProxyApiRequest(url: string, locationOrigin: string) {
+    if (url.startsWith('/api/')) return true;
+
+    try {
+        const parsedUrl = new URL(url, locationOrigin);
+        if (!parsedUrl.pathname.startsWith('/api/')) return false;
+
+        return parsedUrl.origin === locationOrigin
+            || parsedUrl.hostname === 'localhost'
+            || parsedUrl.hostname === '127.0.0.1'
+            || parsedUrl.hostname === '[::1]';
+    } catch {
+        return false;
+    }
+}
+
+function getFetchUrl(input: RequestInfo | URL) {
+    if (typeof input === 'string') return input;
+    if (input instanceof URL) return input.toString();
+    if (input instanceof Request) return input.url;
+    return '';
+}
+
 async function resolveSidecarPort(originalFetch: typeof window.fetch, forceRefresh = false) {
     if (!forceRefresh && cachedSidecarPort && await canReachSidecar(cachedSidecarPort, originalFetch)) {
         return cachedSidecarPort;
@@ -82,10 +105,10 @@ export function initApiInterceptor() {
     const originalFetch = window.fetch;
 
     window.fetch = async (input, init) => {
-        const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+        const url = getFetchUrl(input);
 
-        // If it's not starting with /api, pass through
-        if (!url.startsWith('/api/') && !url.includes('localhost:3000/api/')) {
+        // If it is not an app API request, pass through.
+        if (!shouldProxyApiRequest(url, window.location.origin)) {
             return originalFetch(input, init);
         }
 
