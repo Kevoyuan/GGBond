@@ -4,15 +4,19 @@ import { invoke } from '@tauri-apps/api/core';
 let initialized = false;
 let cachedSidecarPort: number | null = null;
 let resolvingSidecarPort: Promise<number> | null = null;
+const sidecarHealthCache = new Map<number, { ok: boolean; expiresAt: number }>();
+const SIDECAR_HEALTH_OK_TTL_MS = 2500;
+const SIDECAR_HEALTH_FAIL_TTL_MS = 350;
+const SESSION_API_RE = /^\/api\/sessions\/[^/]+(?:\/(?:archive|branch))?$/;
 
 // We need a helper to read JSON body
-async function readBody(init?: RequestInit): Promise<any> {
+async function readBody(init?: RequestInit): Promise<Record<string, unknown>> {
     if (!init?.body) return {};
     if (typeof init.body === 'string') return JSON.parse(init.body);
     return {};
 }
 
-function jsonResponse(data: any, status = 200) {
+function jsonResponse(data: unknown, status = 200) {
     return new Response(JSON.stringify(data), {
         status,
         headers: { 'Content-Type': 'application/json' }
@@ -23,12 +27,34 @@ async function sleep(ms: number) {
     await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function canReachSidecar(port: number, originalFetch: typeof window.fetch) {
+async function canReachSidecar(port: number, originalFetch: typeof window.fetch, forceRefresh = false) {
+    const now = Date.now();
+    const cached = sidecarHealthCache.get(port);
+    if (!forceRefresh && cached && cached.expiresAt > now) {
+        return cached.ok;
+    }
+
     try {
         const res = await originalFetch(`http://127.0.0.1:${port}/api/health`);
-        return res.ok;
+        const ok = res.ok;
+        sidecarHealthCache.set(port, {
+            ok,
+            expiresAt: now + (ok ? SIDECAR_HEALTH_OK_TTL_MS : SIDECAR_HEALTH_FAIL_TTL_MS),
+        });
+        return ok;
     } catch {
+        sidecarHealthCache.set(port, {
+            ok: false,
+            expiresAt: now + SIDECAR_HEALTH_FAIL_TTL_MS,
+        });
         return false;
+    }
+}
+
+function invalidateSidecarPort(port: number) {
+    sidecarHealthCache.delete(port);
+    if (cachedSidecarPort === port) {
+        cachedSidecarPort = null;
     }
 }
 
@@ -74,7 +100,7 @@ async function resolveSidecarPort(originalFetch: typeof window.fetch, forceRefre
                 .filter((value, index, array) => array.indexOf(value) === index);
 
             for (const port of candidates) {
-                if (await canReachSidecar(port, originalFetch)) {
+                if (await canReachSidecar(port, originalFetch, forceRefresh)) {
                     cachedSidecarPort = port;
                     return port;
                 }
@@ -96,6 +122,38 @@ async function resolveSidecarPort(originalFetch: typeof window.fetch, forceRefre
     });
 
     return resolvingSidecarPort;
+}
+
+function isSessionApiPath(path: string) {
+    return path === '/api/sessions'
+        || path === '/api/sessions/core'
+        || path === '/api/sessions/latest-stats'
+        || SESSION_API_RE.test(path);
+}
+
+async function proxyToSidecar(
+    path: string,
+    search: string,
+    init: RequestInit | undefined,
+    originalFetch: typeof window.fetch,
+    forceRefresh = false
+) {
+    const sidecarPort = await resolveSidecarPort(originalFetch, forceRefresh);
+
+    try {
+        return await originalFetch(`http://127.0.0.1:${sidecarPort}${path}${search}`, init);
+    } catch (error) {
+        invalidateSidecarPort(sidecarPort);
+
+        if (!forceRefresh) {
+            const retryPort = await resolveSidecarPort(originalFetch, true);
+            if (retryPort !== sidecarPort) {
+                return originalFetch(`http://127.0.0.1:${retryPort}${path}${search}`, init);
+            }
+        }
+
+        throw error;
+    }
 }
 
 export function initApiInterceptor() {
@@ -123,33 +181,23 @@ export function initApiInterceptor() {
             // 1. CHAT (Sidecar OR React handling)
             // ============================================
             if (path.startsWith('/api/chat/status')) {
-                const sidecarPort = await resolveSidecarPort(originalFetch);
-                return originalFetch(`http://127.0.0.1:${sidecarPort}${path}${parsedUrl.search}`, init);
+                return proxyToSidecar(path, parsedUrl.search, init, originalFetch);
             }
             if (path.startsWith('/api/chat/cancel')) {
-                const sidecarPort = await resolveSidecarPort(originalFetch);
-                return originalFetch(`http://127.0.0.1:${sidecarPort}/api/chat/cancel`, init);
+                return proxyToSidecar('/api/chat/cancel', '', init, originalFetch);
             }
             if (path === '/api/chat') {
-                const sidecarPort = await resolveSidecarPort(originalFetch);
-                return originalFetch(`http://127.0.0.1:${sidecarPort}/api/chat`, init);
+                return proxyToSidecar('/api/chat', '', init, originalFetch);
             }
             if (path === '/api/confirm') {
-                const sidecarPort = await resolveSidecarPort(originalFetch);
-                return originalFetch(`http://127.0.0.1:${sidecarPort}/api/confirm`, init);
+                return proxyToSidecar('/api/confirm', '', init, originalFetch);
             }
 
             // ============================================
             // 2. SESSIONS (Sidecar - single source of truth)
             // ============================================
-            if (path === '/api/sessions'
-                || path === '/api/sessions/core'
-                || path === '/api/sessions/latest-stats'
-                || /\/api\/sessions\/[^/]+$/.test(path)
-                || /\/api\/sessions\/[^/]+\/archive$/.test(path)
-                || /\/api\/sessions\/[^/]+\/branch$/.test(path)) {
-                const sidecarPort = await resolveSidecarPort(originalFetch);
-                return originalFetch(`http://127.0.0.1:${sidecarPort}${path}${parsedUrl.search}`, init);
+            if (isSessionApiPath(path)) {
+                return proxyToSidecar(path, parsedUrl.search, init, originalFetch);
             }
 
             // ============================================
@@ -194,19 +242,9 @@ export function initApiInterceptor() {
             // ============================================
             // 5. Proxy all remaining to Sidecar (skills, agents, models, mcp, git, etc.)
             // ============================================
-            const sidecarPort = await resolveSidecarPort(originalFetch);
             try {
-                return await originalFetch(`http://127.0.0.1:${sidecarPort}${path}${parsedUrl.search}`, init);
+                return await proxyToSidecar(path, parsedUrl.search, init, originalFetch);
             } catch (proxyError) {
-                cachedSidecarPort = null;
-                try {
-                    const retryPort = await resolveSidecarPort(originalFetch, true);
-                    if (retryPort !== sidecarPort) {
-                        return await originalFetch(`http://127.0.0.1:${retryPort}${path}${parsedUrl.search}`, init);
-                    }
-                } catch {
-                    // Fall through to safe fallback below.
-                }
                 console.warn('[Interceptor] Sidecar unreachable for', path, '- returning fallback');
                 // Return safe empty responses per endpoint type when sidecar is down
                 if (path.startsWith('/api/analytics/file-ops')) {
@@ -286,9 +324,10 @@ export function initApiInterceptor() {
                 return jsonResponse({ error: 'Sidecar not available', _fallback: true }, 503);
             }
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('[Interceptor ERROR]', error);
-            return jsonResponse({ error: error.message }, 500);
+            const message = error instanceof Error ? error.message : String(error);
+            return jsonResponse({ error: message }, 500);
         }
     };
 }

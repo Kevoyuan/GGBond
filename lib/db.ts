@@ -618,7 +618,8 @@ db.exec(`
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     workspace TEXT,
-    branch TEXT
+    branch TEXT,
+    archived INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS messages (
@@ -722,6 +723,15 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_message_queue_session ON message_queue(session_id);
   CREATE INDEX IF NOT EXISTS idx_message_queue_status ON message_queue(status);
+  CREATE INDEX IF NOT EXISTS idx_sessions_visible_updated ON sessions(updated_at DESC)
+    WHERE workspace IS NOT NULL AND trim(workspace) <> '';
+  CREATE INDEX IF NOT EXISTS idx_sessions_workspace_updated ON sessions(workspace, updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_sessions_archived_updated ON sessions(archived, updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_messages_session_order ON messages(session_id, id);
+  CREATE INDEX IF NOT EXISTS idx_messages_session_role ON messages(session_id, role);
+  CREATE INDEX IF NOT EXISTS idx_background_jobs_session_status ON background_jobs(session_id, status);
+  CREATE INDEX IF NOT EXISTS idx_tool_stats_created_at ON tool_stats(created_at);
+  CREATE INDEX IF NOT EXISTS idx_file_ops_workspace_created_at ON file_ops(workspace, created_at);
 
   -- Chat snapshots for /chat save/resume functionality
   CREATE TABLE IF NOT EXISTS chat_snapshots (
