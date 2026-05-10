@@ -73,9 +73,14 @@ async function canReachSidecar(port: number, originalFetch: typeof window.fetch,
     }
 }
 
+function recordSidecarFailure(port: number) {
+    const failures = sidecarConsecutiveFailures.get(port) || 0;
+    sidecarConsecutiveFailures.set(port, failures + 1);
+    sidecarHealthCache.set(port, { ok: false, expiresAt: Date.now() + SIDECAR_HEALTH_FAIL_TTL_MS });
+}
+
 function invalidateSidecarPort(port: number) {
     sidecarHealthCache.delete(port);
-    sidecarConsecutiveFailures.delete(port);
     if (cachedSidecarPort === port) {
         cachedSidecarPort = null;
     }
@@ -135,7 +140,10 @@ async function resolveSidecarPort(originalFetch: typeof window.fetch, forceRefre
         const maxAttempts = allPortsOpen ? 1 : 4;
 
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-            const invokedPort = await invoke<number>('get_sidecar_port').catch(() => null);
+            // Skip invoke when all ports have open circuits (forceRefresh still probes)
+            const invokedPort = allPortsOpen && !forceRefresh
+                ? null
+                : await invoke<number>('get_sidecar_port').catch(() => null);
             const candidates = [invokedPort, ...fallbackPorts]
                 .filter((value): value is number => typeof value === 'number' && value > 0)
                 .filter((value, index, array) => array.indexOf(value) === index);
@@ -153,7 +161,9 @@ async function resolveSidecarPort(originalFetch: typeof window.fetch, forceRefre
             }
         }
 
-        const finalPort = await invoke<number>('get_sidecar_port').catch(() => null);
+        const finalPort = allPortsOpen && !forceRefresh
+            ? null
+            : await invoke<number>('get_sidecar_port').catch(() => null);
         if (typeof finalPort === 'number' && finalPort > 0) {
             cachedSidecarPort = finalPort;
             lastResolveFoundLivePort = false;
@@ -189,7 +199,11 @@ async function proxyToSidecar(
     try {
         return await originalFetch(`http://127.0.0.1:${sidecarPort}${path}${search}`, init);
     } catch (error) {
-        invalidateSidecarPort(sidecarPort);
+        // Record failure for circuit breaker (don't clear it)
+        recordSidecarFailure(sidecarPort);
+        if (cachedSidecarPort === sidecarPort) {
+            cachedSidecarPort = null;
+        }
 
         // Only retry with forceRefresh if the last resolution actually found a live port
         // (avoids doubling the probe time when sidecar is already known to be down)

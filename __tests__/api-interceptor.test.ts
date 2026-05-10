@@ -90,4 +90,20 @@ describe('API interceptor fallback stubs', () => {
     expect(body._fallback).toBe(true);
     expect(body.error).toBe('Sidecar not available');
   }, 10000);
+
+  it('consecutive requests both return fallback', async () => {
+    globalThis.fetch = vi.fn(() => Promise.reject(new Error('connection refused')));
+
+    const { initApiInterceptor } = await import('@/lib/api-interceptor');
+    initApiInterceptor();
+
+    // Both requests should return fallback without hanging
+    const r1 = await globalThis.fetch('/api/agents');
+    expect(r1.status).toBe(503);
+
+    const r2 = await globalThis.fetch('/api/agents');
+    expect(r2.status).toBe(503);
+    const body = await r2.json();
+    expect(body._fallback).toBe(true);
+  }, 10000);
 });
