@@ -94,6 +94,10 @@ export default function Home() {
   const headIdRef = useRef<string | null>(null);
   // Counter to trigger re-derivation of messages when queue changes
   const [pendingQueueVersion, setPendingQueueVersion] = useState(0);
+  // Ref for active streaming assistant message updates (avoids full Map clone per token)
+  const streamingMessageRef = useRef<{ id: string; updates: Partial<Message> } | null>(null);
+  // Lightweight counter to trigger re-render when streaming ref is updated
+  const [renderVersion, setRenderVersion] = useState(0);
 
   // Sync state to ref (for parts of the app that only read headId state)
   // but we primarily update headIdRef manually for synchronous access.
@@ -247,12 +251,15 @@ export default function Home() {
       visited.add(currentId);
       const msg = messagesMap.get(currentId);
       if (!msg) break;
-      list.unshift(msg);
+      list.push(msg);
       currentId = msg.parentId || null;
     }
 
-    // Append pending (queued) messages that are NOT already in the tree
-    // This keeps them visible in the UI without polluting the messagesMap
+    // Reverse to chronological order (walk was head→root, we pushed in that order)
+    list.reverse();
+
+    // Append pending (queued) messages that are NOT already in the tree.
+    // Must come after reverse so they remain at the end (after the chronological tree).
     const pendingMsgs = pendingMessagesRef.current;
     for (const pm of pendingMsgs) {
       if (pm.tempId && !visited.has(pm.tempId) && !messagesMap.has(pm.tempId)) {
@@ -272,8 +279,17 @@ export default function Home() {
       }
     }
 
+    // Overlay active streaming message from ref (avoids Map clone per token)
+    const sm = streamingMessageRef.current;
+    if (sm && sm.id) {
+      const idx = list.findIndex((m) => m.id === sm.id);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...sm.updates };
+      }
+    }
+
     return list;
-  }, [headId, messagesMap, pendingQueueVersion]);
+  }, [headId, messagesMap, pendingQueueVersion, renderVersion]);
 
   useEffect(() => {
     currentSessionIdRef.current = currentSessionId;
@@ -910,6 +926,13 @@ export default function Home() {
 
   // Helper to update a message in the tree
   const updateMessageInTree = useCallback((id: string, updates: Partial<Message>) => {
+    // During active streaming, accumulate updates in a ref instead of cloning the full Map.
+    // This avoids O(N) Map allocation per token update.
+    const sm = streamingMessageRef.current;
+    if (sm && sm.id === id) {
+      sm.updates = { ...sm.updates, ...updates };
+      return;
+    }
     setMessagesMap(prev => {
       const next = new Map(prev);
       const msg = next.get(id);
@@ -2108,6 +2131,10 @@ export default function Home() {
       const updates = pendingAssistantUpdates;
       pendingAssistantUpdates = null;
       updateMessageInTree(assistantMsgId, updates);
+      // Trigger re-render so the streaming ref overlay is reflected in the messages derivation.
+      // During streaming, updateMessageInTree writes to the ref (cheap) and this counter bump
+      // drives the useMemo instead of a full Map clone.
+      setRenderVersion(v => v + 1);
     };
     const scheduleAssistantUpdate = (updates: Partial<Message>, immediate = false) => {
       pendingAssistantUpdates = { ...(pendingAssistantUpdates ?? {}), ...updates };
@@ -2136,6 +2163,9 @@ export default function Home() {
       // preventing "transient branching" where queued messages attach to userMsgId because
       // the model message hasn't been created yet during the fetch latency.
       assistantMsgId = addMessageToTree({ role: 'model', content: '' }, userMsgId);
+      // Route high-frequency streaming token updates through a ref instead of cloning the
+      // full messagesMap on every frame. The ref is merged into the map once at stream end.
+      streamingMessageRef.current = { id: assistantMsgId, updates: {} };
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -2512,6 +2542,13 @@ export default function Home() {
         // This will be undefined if error occurred before assistant message was created
         try {
           flushAssistantUpdates();
+          // Clear streaming ref now so subsequent updateMessageInTree calls write directly to Map.
+          // The ref already contains all accumulated streaming updates (including the flush above).
+          const smCatch = streamingMessageRef.current;
+          streamingMessageRef.current = null;
+          if (smCatch?.id && Object.keys(smCatch.updates).length > 0) {
+            updateMessageInTree(smCatch.id, smCatch.updates);
+          }
           if (typeof assistantMsgId !== 'undefined') {
             const errorContent = `\n\n> **Error**: ${errorMessage}\n\nThe conversation was interrupted.`;
             updateMessageInTree(assistantMsgId, { content: errorContent, error: true });
@@ -2529,6 +2566,15 @@ export default function Home() {
       }
     } finally {
       flushAssistantUpdates();
+      // Merge accumulated streaming updates into the messagesMap and clear the ref.
+      // Clear the ref first so updateMessageInTree writes to the Map (not back to the ref).
+      // (The catch block may have already done this; the guard below handles both cases.)
+      const finalSm = streamingMessageRef.current;
+      streamingMessageRef.current = null;
+      if (finalSm?.id && Object.keys(finalSm.updates).length > 0) {
+        updateMessageInTree(finalSm.id, finalSm.updates);
+        setRenderVersion(v => v + 1);
+      }
       if (activeChatAbortRef.current === requestAbortController) {
         activeChatAbortRef.current = null;
       }

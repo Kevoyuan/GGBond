@@ -9,6 +9,7 @@ export default defineConfig({
     globals: true,
     setupFiles: [],
     include: ['**/*.test.{ts,tsx}'],
+    exclude: ['**/node_modules/**', '**/.gemini-gui-home/**', '**/.agents/**', '**/dist/**'],
     alias: {
       '@': resolve(__dirname, './')
     }
