@@ -14,7 +14,6 @@
     "restart": "bash scripts/restart-tauri.sh",
     "doctor:node-native": "node scripts/ensure-node-native.cjs",
     "rebuild:node-native": "npm rebuild better-sqlite3",
-    "postinstall": "node scripts/patch-nextjs-build.cjs",
     "build:web": "env -u TURBOPACK -u __NEXT_PRIVATE_STANDALONE_CONFIG -u __NEXT_PRIVATE_ORIGIN next build",
     "build": "npm run build:web",
     "build:tauri-dist": "npm run build:web && npm run build:sidecar",
