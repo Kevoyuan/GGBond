@@ -47,6 +47,8 @@ describe('API interceptor fallback stubs', () => {
 
   beforeEach(async () => {
     originalFetch = globalThis.fetch;
+    mockInvoke.mockReset();
+    mockInvoke.mockImplementation(() => Promise.reject(new Error('not in tauri')));
     vi.resetModules();
   });
 
@@ -92,6 +94,30 @@ describe('API interceptor fallback stubs', () => {
     const body = await response.json();
     expect(body._fallback).toBe(true);
     expect(body.error).toBe('Sidecar not available');
+  }, 10000);
+
+  it('returns browser-side diagnostics when sidecar diagnostics is down', async () => {
+    mockInvoke.mockResolvedValue(4321);
+    globalThis.fetch = vi.fn(() => Promise.reject(new Error('connection refused')));
+
+    const { initApiInterceptor } = await import('@/lib/api-interceptor');
+    initApiInterceptor();
+
+    const response = await globalThis.fetch('/api/diagnostics');
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body).toMatchObject({
+      status: 'unavailable',
+      engine: 'browser-interceptor',
+      error: 'Sidecar not available',
+      _fallback: true,
+    });
+    expect(body.port).toBe(4321);
+    expect(body.client.cachedSidecarPort).toBe(null);
+    expect(body.client.health.some((entry: { port: number; failures: number }) => (
+      entry.port === 4321 && entry.failures > 0
+    ))).toBe(true);
+    expect(body.events[0].name).toBe('client:diagnostics-fallback');
   }, 10000);
 
   it('consecutive requests both return fallback', async () => {

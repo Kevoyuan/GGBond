@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Database, RefreshCw, Server, X } from 'lucide-react';
+import { Activity, AlertTriangle, Database, RefreshCw, Server, X } from 'lucide-react';
 
 interface BootEvent {
   name: string;
@@ -13,6 +13,25 @@ interface DiagnosticsData {
   engine?: string;
   port?: number | string;
   error?: string;
+  _fallback?: boolean;
+  client?: {
+    cachedSidecarPort?: number | null;
+    lastResolveFoundLivePort?: boolean;
+    resolvingSidecarPort?: boolean;
+    forcedRefreshInFlight?: boolean;
+    health?: Array<{
+      port: number;
+      ok: boolean;
+      ttlMs: number;
+      circuitOpen: boolean;
+      failures: number;
+    }>;
+    consecutiveFailures?: Array<{
+      port: number;
+      failures: number;
+      circuitOpen: boolean;
+    }>;
+  };
   db?: {
     dbPath: string;
     totalSessions: number;
@@ -26,6 +45,14 @@ interface DiagnosticsData {
 interface DiagnosticsDialogProps {
   open: boolean;
   onClose: () => void;
+}
+
+interface ClientPortState {
+  port: number;
+  ok?: boolean;
+  ttlMs?: number;
+  circuitOpen: boolean;
+  failures: number;
 }
 
 function formatMs(value: number) {
@@ -46,6 +73,12 @@ export function DiagnosticsDialog({ open, onClose }: DiagnosticsDialogProps) {
       const response = await fetch('/api/diagnostics');
       const payload = await response.json().catch(() => null) as DiagnosticsData | null;
 
+      if (payload?._fallback) {
+        setData(payload);
+        setError(payload.error ?? null);
+        return;
+      }
+
       if (!response.ok || !payload) {
         throw new Error(payload?.error || `Diagnostics returned ${response.status}`);
       }
@@ -64,6 +97,26 @@ export function DiagnosticsDialog({ open, onClose }: DiagnosticsDialogProps) {
   }, [fetchDiagnostics, open]);
 
   const events = useMemo(() => data?.events ?? [], [data?.events]);
+  const clientPortStates = useMemo(() => {
+    const byPort = new Map<number, ClientPortState>();
+
+    for (const entry of data?.client?.health ?? []) {
+      byPort.set(entry.port, { ...entry });
+    }
+
+    for (const entry of data?.client?.consecutiveFailures ?? []) {
+      const existing = byPort.get(entry.port);
+      byPort.set(entry.port, {
+        port: entry.port,
+        ok: existing?.ok,
+        ttlMs: existing?.ttlMs,
+        circuitOpen: existing?.circuitOpen || entry.circuitOpen,
+        failures: Math.max(existing?.failures ?? 0, entry.failures),
+      });
+    }
+
+    return Array.from(byPort.values()).sort((a, b) => a.port - b.port);
+  }, [data?.client?.consecutiveFailures, data?.client?.health]);
   const totalBootMs = events.length > 0
     ? Math.max(...events.map((event) => event.elapsedMs || 0))
     : 0;
@@ -133,6 +186,50 @@ export function DiagnosticsDialog({ open, onClose }: DiagnosticsDialogProps) {
           {data?.error && (
             <section className="rounded-[var(--radius-md)] border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
               {data.error}
+            </section>
+          )}
+
+          {data?._fallback && (
+            <section className="rounded-[var(--radius-md)] border border-amber-500/30 bg-amber-500/10 p-3">
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-amber-300">
+                <AlertTriangle className="h-4 w-4" />
+                Browser-side fallback
+              </div>
+              <div className="grid gap-2 text-sm sm:grid-cols-2">
+                <div>
+                  <span className="text-[var(--text-secondary)]">Cached port</span>
+                  <div className="font-mono text-[var(--text-primary)]">{data.client?.cachedSidecarPort ?? 'none'}</div>
+                </div>
+                <div>
+                  <span className="text-[var(--text-secondary)]">Last live resolve</span>
+                  <div className="font-mono text-[var(--text-primary)]">{String(Boolean(data.client?.lastResolveFoundLivePort))}</div>
+                </div>
+                <div>
+                  <span className="text-[var(--text-secondary)]">Resolving port</span>
+                  <div className="font-mono text-[var(--text-primary)]">{String(Boolean(data.client?.resolvingSidecarPort))}</div>
+                </div>
+                <div>
+                  <span className="text-[var(--text-secondary)]">Forced refresh</span>
+                  <div className="font-mono text-[var(--text-primary)]">{String(Boolean(data.client?.forcedRefreshInFlight))}</div>
+                </div>
+              </div>
+              {clientPortStates.length > 0 ? (
+                <div className="mt-3 overflow-hidden rounded-[var(--radius-sm)] border border-amber-500/20">
+                  {clientPortStates.map((entry) => (
+                    <div
+                      key={entry.port}
+                      className="grid grid-cols-[80px_1fr_80px] gap-2 border-b border-amber-500/10 px-3 py-2 text-xs last:border-b-0"
+                    >
+                      <span className="font-mono text-[var(--text-primary)]">{entry.port}</span>
+                      <span className="text-[var(--text-secondary)]">
+                        {entry.ok ? 'healthy' : 'unhealthy'}
+                        {entry.circuitOpen ? ' / circuit open' : ''}
+                      </span>
+                      <span className="text-right font-mono text-[var(--text-primary)]">{entry.failures} fails</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </section>
           )}
 

@@ -87,6 +87,55 @@ function invalidateSidecarPort(port: number) {
     }
 }
 
+function buildDiagnosticsFallback(path: string) {
+    const now = Date.now();
+    const health = Array.from(sidecarHealthCache.entries()).map(([port, value]) => ({
+        port,
+        ok: value.ok,
+        ttlMs: Math.max(0, value.expiresAt - now),
+        circuitOpen: isCircuitOpen(port),
+        failures: sidecarConsecutiveFailures.get(port) || 0,
+    }));
+
+    const consecutiveFailures = Array.from(sidecarConsecutiveFailures.entries()).map(([port, failures]) => ({
+        port,
+        failures,
+        circuitOpen: isCircuitOpen(port),
+    }));
+    const inferredPort = cachedSidecarPort
+        ?? health[0]?.port
+        ?? consecutiveFailures[0]?.port
+        ?? SIDECAR_DEFAULT_PORT;
+
+    return {
+        status: 'unavailable',
+        engine: 'browser-interceptor',
+        error: 'Sidecar not available',
+        port: inferredPort,
+        _fallback: true,
+        client: {
+            path,
+            cachedSidecarPort,
+            lastResolveFoundLivePort,
+            resolvingSidecarPort: Boolean(resolvingSidecarPort),
+            forcedRefreshInFlight: Boolean(inflightForcedRefresh),
+            health,
+            consecutiveFailures,
+        },
+        events: [
+            {
+                name: 'client:diagnostics-fallback',
+                ts: now,
+                elapsedMs: 0,
+                meta: {
+                    path,
+                    cachedSidecarPort: cachedSidecarPort ?? 'none',
+                },
+            },
+        ],
+    };
+}
+
 export function shouldProxyApiRequest(url: string, locationOrigin: string) {
     if (url.startsWith('/api/')) return true;
 
@@ -346,6 +395,9 @@ export function initApiInterceptor() {
                         dataSource: 'db_fallback',
                         _fallback: true,
                     }, 503);
+                }
+                if (path.startsWith('/api/diagnostics')) {
+                    return jsonResponse(buildDiagnosticsFallback(path), 503);
                 }
                 if (path.startsWith('/api/governance/summary')) {
                     return jsonResponse({

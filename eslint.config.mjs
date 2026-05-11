@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
       "react-hooks/exhaustive-deps": "off",
       "react-hooks/set-state-in-effect": "off",
       "@typescript-eslint/no-require-imports": "warn",
+      // Disable React Compiler rules enabled in eslint-config-next/react-hooks 7.1.1
+      // as we only use React Compiler conditionally.
+      "react-hooks/refs": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/preserve-manual-memoization": "off",
     },
   },
   // Override default ignores of eslint-config-next.
