@@ -1,7 +1,21 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, memo } from 'react';
-import { X, RefreshCw, ExternalLink, Loader2, Copy, Check, Code, Save } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import type { ChangeEvent } from 'react';
+import {
+  AlertTriangle,
+  Check,
+  Code,
+  Copy,
+  ExternalLink,
+  Eye,
+  FileCode2,
+  FolderOpen,
+  Loader2,
+  RefreshCw,
+  Save,
+  X,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ArtifactPreviewProps {
@@ -19,6 +33,15 @@ export const ArtifactPreview = memo(function ArtifactPreview({ filePath, onClose
   const [isCopied, setIsCopied] = useState(false);
   const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview');
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const isDirty = editedContent !== content;
+  const fileMeta = useMemo(() => {
+    const segments = filePath.split('/').filter(Boolean);
+    const name = segments.at(-1) || filePath;
+    const extension = name.includes('.') ? name.split('.').pop() || 'file' : 'file';
+    const parent = segments.slice(-3, -1).join('/');
+
+    return { name, extension, parent };
+  }, [filePath]);
 
   const fetchContent = useCallback(async () => {
     setIsLoading(true);
@@ -65,13 +88,11 @@ export const ArtifactPreview = memo(function ArtifactPreview({ filePath, onClose
     }
   }, [filePath]);
 
-  const handleToggleViewMode = useCallback(() => {
-    if (viewMode === 'preview') {
-      setEditedContent(content); // Reset edited content to current saved content when entering code mode
-      setViewMode('code');
-    } else {
-      setViewMode('preview');
+  const handleSetViewMode = useCallback((mode: 'preview' | 'code') => {
+    if (mode === 'code' && viewMode === 'preview') {
+      setEditedContent(content);
     }
+    setViewMode(mode);
   }, [viewMode, content]);
 
   const handleSave = useCallback(async () => {
@@ -103,92 +124,122 @@ export const ArtifactPreview = memo(function ArtifactPreview({ filePath, onClose
     setTimeout(() => setIsCopied(false), 2000);
   }, [content, editedContent, viewMode]);
 
-  const handleEditContentChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleEditContentChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     setEditedContent(e.target.value);
   }, []);
 
   return (
-    <div className={cn("flex flex-col h-full bg-background/95 backdrop-blur-xl border-l border-border/40 shadow-2xl z-50 overflow-hidden", className)}>
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/40 bg-background/60 backdrop-blur-xl shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-colors duration-300">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex items-center justify-center w-6 h-6 shrink-0 rounded-full bg-primary/10 border border-primary/20 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)]">
-            <div className={cn("w-2 h-2 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse transition-colors duration-300", viewMode === 'code' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]' : 'bg-green-500')} />
+    <div className={cn("flex h-full flex-col overflow-hidden border-l border-border/70 bg-background text-foreground shadow-2xl", className)}>
+      <div className="shrink-0 border-b border-border/70 bg-background/95">
+        <div className="flex min-h-[64px] items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted/45 text-muted-foreground">
+              <FileCode2 className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-sm font-semibold leading-5 text-foreground">{fileMeta.name}</span>
+                <span className="shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase leading-none text-muted-foreground">
+                  {fileMeta.extension}
+                </span>
+                {isDirty && (
+                  <span className="shrink-0 rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium leading-none text-amber-600 dark:text-amber-400">
+                    Unsaved
+                  </span>
+                )}
+              </div>
+              <div className="mt-0.5 truncate text-[11px] leading-4 text-muted-foreground">
+                {fileMeta.parent ? `${fileMeta.parent}/` : ''}{fileMeta.name}
+              </div>
+            </div>
           </div>
-          <span className="text-sm font-medium tracking-tight truncate text-foreground/90">{filePath.split('/').pop()}{viewMode === 'code' && <span className="text-muted-foreground ml-2 font-normal text-xs">— Code View</span>}</span>
-        </div>
-        <div className="flex items-center gap-1 bg-background/40 rounded-lg p-1 border border-border/50 shadow-sm backdrop-blur-md">
-          {viewMode === 'code' && (
-            <>
+
+          <div className="flex shrink-0 items-center gap-1">
+            {viewMode === 'code' && (
               <button
                 onClick={handleSave}
-                disabled={isSaving || editedContent === content}
+                disabled={isSaving || !isDirty}
                 className={cn(
-                  "relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md transition-colors duration-200 group cursor-pointer",
-                  isSaving ? "text-primary/70 cursor-not-allowed" :
-                    editedContent !== content ? "text-primary hover:bg-primary/10 hover:shadow-sm hover:scale-105 will-change-transform" : "text-muted-foreground/50 cursor-not-allowed"
+                  "flex h-8 w-8 items-center justify-center rounded-md border border-transparent transition-colors",
+                  isDirty
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                    : "text-muted-foreground/45",
+                  (isSaving || !isDirty) && "cursor-not-allowed"
                 )}
-                title="Save Changes"
+                title="Save changes"
               >
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 transition-transform duration-200 will-change-transform" />}
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               </button>
-              <div className="w-[1px] h-4 bg-border/50 mx-0.5" />
-            </>
-          )}
-
-          <button
-            onClick={handleToggleViewMode}
-            className={cn(
-              "relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md transition-colors duration-200 group cursor-pointer",
-              viewMode === 'code' ? "bg-primary/10 text-primary shadow-sm" : "text-muted-foreground hover:bg-background/80 hover:text-foreground hover:shadow-sm hover:scale-105 will-change-transform"
             )}
-            title={viewMode === 'code' ? "Preview Output" : "View Source Code"}
-          >
-            <Code className="w-4 h-4 transition-transform duration-200 will-change-transform" />
-          </button>
-          <div className="w-[1px] h-4 bg-border/50 mx-0.5" />
-
-          <button onClick={handleCopy} className="relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-background/80 hover:text-foreground hover:shadow-sm hover:scale-105 transition-colors duration-200 group cursor-pointer will-change-transform" title="Copy Content">
-            {isCopied ? <Check className="w-4 h-4 text-green-500 transition-colors duration-300 scale-110 will-change-transform" /> : <Copy className="w-4 h-4 transition-transform duration-300 will-change-transform" />}
-          </button>
-          <div className="w-[1px] h-4 bg-border/50 mx-0.5" />
-
-          <button onClick={handleRefresh} className="relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-background/80 hover:text-foreground hover:shadow-sm hover:scale-105 transition-colors duration-200 group cursor-pointer will-change-transform" title="Refresh">
-            <RefreshCw className={cn("w-4 h-4 transition-transform duration-500 group-hover:rotate-180 will-change-transform", isLoading && "animate-spin")} />
-          </button>
-
-          {viewMode === 'preview' && (
-            <button onClick={handleOpenNewTab} className="relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-background/80 hover:text-foreground hover:shadow-sm hover:scale-105 transition-colors duration-200 group cursor-pointer will-change-transform" title="Open in New Tab">
-              <ExternalLink className="w-4 h-4 transition-transform duration-200 group-hover:-translate-y-[1px] group-hover:translate-x-[1px] will-change-transform" />
+            <button onClick={handleEditSource} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" title="Open source file">
+              <FolderOpen className="h-4 w-4" />
             </button>
-          )}
+            <button onClick={handleCopy} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" title="Copy content">
+              {isCopied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+            </button>
+            <button onClick={handleRefresh} className="group flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" title="Refresh">
+              <RefreshCw className={cn("h-4 w-4 transition-transform group-hover:rotate-180", isLoading && "animate-spin")} />
+            </button>
+            {viewMode === 'preview' && (
+              <button onClick={handleOpenNewTab} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" title="Open in new tab">
+                <ExternalLink className="h-4 w-4" />
+              </button>
+            )}
+            <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive" title="Close preview">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
 
-          <div className="w-[1px] h-4 bg-border/50 mx-0.5" />
-          <button onClick={onClose} className="relative flex flex-shrink-0 items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:bg-red-500/15 hover:text-red-600 hover:shadow-sm hover:scale-105 transition-colors duration-200 group cursor-pointer will-change-transform" title="Close Preview">
-            <X className="w-4 h-4 transition-transform duration-200 will-change-transform" />
-          </button>
+        <div className="flex items-center justify-between gap-3 border-t border-border/50 px-4 py-2">
+          <div className="flex rounded-md border border-border bg-muted/35 p-0.5">
+            <button
+              onClick={() => handleSetViewMode('preview')}
+              className={cn(
+                "flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors",
+                viewMode === 'preview' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Eye className="h-3.5 w-3.5" />
+              Preview
+            </button>
+            <button
+              onClick={() => handleSetViewMode('code')}
+              className={cn(
+                "flex h-7 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors",
+                viewMode === 'code' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Code className="h-3.5 w-3.5" />
+              Source
+            </button>
+          </div>
+          <div className="truncate text-[11px] text-muted-foreground">
+            {content.length ? `${content.length.toLocaleString()} chars` : 'Waiting for artifact'}
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 relative bg-background w-full h-full overflow-hidden">
+      <div className="relative h-full w-full flex-1 overflow-hidden bg-muted/20">
         {isLoading && !content && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10 backdrop-blur-sm">
-            <div className="flex flex-col items-center gap-2">
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
-              <span className="text-xs text-muted-foreground">Loading preview...</span>
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80">
+            <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-background px-5 py-4 shadow-sm">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <span className="text-xs font-medium text-muted-foreground">Loading artifact</span>
             </div>
           </div>
         )}
 
         {error ? (
-          <div className="p-8 text-center h-full flex flex-col items-center justify-center bg-white">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-4">
-              <X className="w-6 h-6 text-red-600" />
+          <div className="flex h-full flex-col items-center justify-center bg-background p-8 text-center">
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-md border border-destructive/20 bg-destructive/10">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
             </div>
-            <h3 className="text-sm font-medium text-foreground mb-1">Failed to load preview</h3>
-            <p className="text-xs text-muted-foreground max-w-xs mx-auto">{error}</p>
+            <h3 className="mb-1 text-sm font-semibold text-foreground">Failed to load artifact</h3>
+            <p className="mx-auto max-w-xs text-xs leading-5 text-muted-foreground">{error}</p>
             <button
               onClick={fetchContent}
-              className="mt-4 px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              className="mt-4 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Try Again
             </button>
@@ -198,7 +249,7 @@ export const ArtifactPreview = memo(function ArtifactPreview({ filePath, onClose
             value={editedContent}
             onChange={handleEditContentChange}
             spellCheck={false}
-            className="w-full h-full resize-none p-5 font-mono text-[13px] leading-relaxed bg-[var(--background)] text-[var(--foreground)] border-none focus:outline-none focus:ring-0 selection:bg-primary/20 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent overscroll-contain"
+            className="h-full w-full resize-none border-none bg-background p-5 font-mono text-[13px] leading-relaxed text-foreground selection:bg-primary/20 focus:outline-none focus:ring-0"
             placeholder="File content..."
           />
         ) : (
@@ -214,4 +265,3 @@ export const ArtifactPreview = memo(function ArtifactPreview({ filePath, onClose
     </div>
   );
 });
-
