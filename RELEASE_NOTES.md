@@ -1,3 +1,32 @@
+## Unreleased
+
+### Highlights
+
+- Upgraded `@google/gemini-cli-core` from `0.37.1` to `0.41.2` (latest stable release, May 6, 2026), skipping `0.42.x` preview/nightly builds.
+- Refined the artifact panel with a denser header, file metadata, explicit Preview/Source segmented controls, dirty-state save affordance, source-file open action, and calmer message-level artifact entry point.
+- Expanded the right-side workspace panel into a Workbench with Preview, Tasks, Plan, Terminal, Files, Graph, and Timeline tabs.
+
+### Alignment Notes
+
+- `package.json`, `package-lock.json`: Updated to `@google/gemini-cli-core@0.41.2`.
+- `lib/core-service.ts`: Updated the memory file adapter to use `getMemoryContextManager()`, matching the newer core context split.
+- `components/file/ArtifactPreview.tsx`, `components/chat/MessageBubble.tsx`: Improved artifact discoverability and editing ergonomics without changing artifact file APIs.
+- `components/session/SidePanel.tsx`, `components/layout/Sidebar.tsx`, `components/terminal/TerminalPanel.tsx`, `lib/stores/ui-store.ts`, `app/HomePageClient.tsx`: Added the right Workbench tab router and reused existing terminal/files/insight surfaces inside it.
+
+### Upstream Features Adopted
+
+- v0.38.0: Core runtime inherits context compression improvements and persistent policy approval behavior where exposed by upstream internals.
+- v0.39.0: Decoupled context manager reliability and memory leak fixes are adopted through the dependency bump.
+- v0.40.0: MCP resource tools and updated memory management flow remain backend/core-mediated; GGBond does not add separate UI in this pass.
+- v0.41.0-v0.41.2: Secure environment loading, shell validation hardening, and the v0.41.2 patch are adopted through core. Real-time voice mode remains an upstream capability with no GGBond UI change yet.
+
+### Upstream Features Deferred Or Intentionally Divergent
+
+- No dedicated GGBond UI was added for voice mode, MCP resource browsing, `/memory` inbox workflows, or upstream terminal-only narration features.
+- GGBond intentionally keeps its existing product defaults and panel architecture while consuming core runtime fixes.
+
+---
+
 ## GGBond v0.3.8
 
 ### Highlights
