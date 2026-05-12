@@ -43,6 +43,9 @@ interface ChatContainerProps {
     selectedAgentName?: string;
     activeRoutedAgent?: string | null;
     planStatus?: 'idle' | 'awaiting_choices' | 'review_required';
+    currentBranch?: string | null;
+    hasSessions?: boolean;
+    onOpenWorkspace?: () => void;
     uncommitted?: {
         added: number;
         removed: number;
@@ -83,6 +86,9 @@ export const ChatContainer = React.memo(function ChatContainer({
     selectedAgentName,
     activeRoutedAgent,
     planStatus = 'idle',
+    currentBranch = null,
+    hasSessions = false,
+    onOpenWorkspace,
     uncommitted
 }: ChatContainerProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -250,11 +256,30 @@ export const ChatContainer = React.memo(function ChatContainer({
                                         ) : (
                                             <>
                                                 <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
-                                                    Ready to assist with your code
+                                                    {currentBranch ? `Working on ${currentBranch}` : 'Ready to assist with your code'}
                                                 </h2>
                                                 <p className="text-[var(--text-secondary)] leading-relaxed">
-                                                    Ask about writing, debugging, or understanding code in your workspace.
+                                                    {currentBranch
+                                                        ? 'Ask about writing, debugging, or understanding code in your workspace.'
+                                                        : 'Ask about writing, debugging, or understanding code in your workspace.'}
                                                 </p>
+                                                <div className="flex gap-2 pt-2 justify-center">
+                                                    {currentBranch ? (
+                                                        <>
+                                                            <button className="px-4 py-2 text-sm rounded-lg border border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors">View git status</button>
+                                                            <button className="px-4 py-2 text-sm rounded-lg border border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors">Browse files</button>
+                                                        </>
+                                                    ) : hasSessions ? (
+                                                        <button className="px-4 py-2 text-sm rounded-lg border border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors">Start a new chat</button>
+                                                    ) : (
+                                                        <>
+                                                            <button className="px-4 py-2 text-sm rounded-lg border border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors">Start a new chat</button>
+                                                            {onOpenWorkspace && (
+                                                                <button onClick={onOpenWorkspace} className="px-4 py-2 text-sm rounded-lg border border-[var(--border)] hover:bg-[var(--bg-hover)] transition-colors">Open workspace</button>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
                                             </>
                                         )}
                                     </div>
