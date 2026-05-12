@@ -80,3 +80,4 @@ next-env.d.ts
 tsconfig.tsbuildinfo
 script.js
 style.css
+.gstack/

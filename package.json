@@ -5,6 +5,7 @@
   "author": "Your Name",
   "description": "GGBond - AI-powered coding assistant",
   "scripts": {
+    "postinstall": "node scripts/patch-watchpack.js",
     "dev": "next dev",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:sidecar\" \"npm run tauri dev\"",
     "predev:sidecar": "npx ts-node --project tsconfig.sidecar.json -r tsconfig-paths/register scripts/generate-sidecar-routes.ts",
@@ -24,7 +25,7 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@google/gemini-cli-core": "^0.37.1",
+    "@google/gemini-cli-core": "^0.41.2",
     "@tauri-apps/api": "^2.0.0-rc.3",
     "@tauri-apps/plugin-sql": "^2.3.2",
     "@xterm/addon-fit": "^0.10.0",
@@ -40,8 +41,8 @@
     "lucide-react": "^0.563.0",
     "next": "^15.1.0",
     "next-themes": "^0.4.6",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.0",
     "react-virtuoso": "^4.18.3",
