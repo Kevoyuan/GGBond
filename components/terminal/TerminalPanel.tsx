@@ -19,470 +19,62 @@ import {
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
 import 'xterm/css/xterm.css';
-
-interface TerminalTheme {
-  foreground?: string;
-  background?: string;
-  cursor?: string;
-  cursorAccent?: string;
-  selectionBackground?: string;
-  black?: string;
-  red?: string;
-  green?: string;
-  yellow?: string;
-  blue?: string;
-  magenta?: string;
-  cyan?: string;
-  white?: string;
-  brightBlack?: string;
-  brightRed?: string;
-  brightGreen?: string;
-  brightYellow?: string;
-  brightBlue?: string;
-  brightMagenta?: string;
-  brightCyan?: string;
-  brightWhite?: string;
-}
-
-interface TerminalPanelProps {
-  workspacePath?: string;
-  sessionId?: string | null;
-  onSessionRunStateChange?: (sessionId: string, delta: number) => void;
-  onClose: () => void;
-  onHeightChange?: (height: number) => void;
-}
-
-type TerminalEntryStatus = 'running' | 'completed' | 'failed' | 'stopped' | 'timed_out';
-
-interface TerminalEntry {
-  id: string;
-  runId?: string;
-  command: string;
-  cwd: string;
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-  durationMs: number;
-  createdAt: number;
-  status: TerminalEntryStatus;
-}
-
-interface TerminalAction {
-  id: string;
-  name: string;
-  script: string;
-}
-
-interface TerminalEnvironmentConfig {
-  name: string;
-  shell: string;
-  defaultCwd: string;
-  envText: string;
-  interactiveAutocomplete: boolean;
-  actions: TerminalAction[];
-  selectedActionId: string;
-}
-
-interface TerminalStreamErrorResponse {
-  error?: unknown;
-}
-
-interface TerminalStreamEvent {
-  type?: unknown;
-  runId?: unknown;
-  chunk?: unknown;
-  message?: unknown;
-  cwd?: unknown;
-  exitCode?: unknown;
-  timedOut?: unknown;
-  stopped?: unknown;
-  durationMs?: unknown;
-}
-
-interface TerminalSession {
-  id: string;
-  name: string;
-  entries: TerminalEntry[];
-  command: string;
-  commandHistory: string[];
-  commandHistoryIndex: number | null;
-  historyDraft: string;
-  sessionCwd: string;
-  isRunning: boolean;
-  isStopping: boolean;
-  currentRunId: string | null;
-  term?: {
-    write: (data: string) => void;
-    clear: () => void;
-    focus: () => void;
-    open: (element: HTMLElement) => void;
-    dispose: () => void;
-    onData: (cb: (data: string) => void) => void;
-    element?: HTMLElement;
-    options: { theme?: TerminalTheme };
-  } | null;
-  fitAddon?: { fit: () => void } | null;
-}
-
-const STORAGE_KEY = 'ggbond-terminal-environment-v1';
-const HEIGHT_STORAGE_KEY = 'ggbond-terminal-height-v1';
-const SIDEBAR_WIDTH_STORAGE_KEY = 'ggbond-terminal-sidebar-width-v1';
-const DEFAULT_ACTION_ID = 'run';
-const DEFAULT_HEIGHT = 360;
-const MIN_HEIGHT = 240;
-const DEFAULT_SIDEBAR_WIDTH = 160;
-const MIN_SIDEBAR_WIDTH = 100;
-const MAX_SIDEBAR_WIDTH = 400;
-
-const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
-
-const toNumberOr = (value: unknown, fallback: number) => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  return fallback;
-};
-
-
-
-const toStatus = (exitCode: number, timedOut: boolean, stopped: boolean): TerminalEntryStatus => {
-  if (timedOut) return 'timed_out';
-  if (stopped) return 'stopped';
-  if (exitCode === 0) return 'completed';
-  return 'failed';
-};
-
-const statusMeta: Record<TerminalEntryStatus, { label: string; className: string }> = {
-  running: { label: 'running', className: 'text-sky-300' },
-  completed: { label: 'completed', className: 'text-emerald-300' },
-  failed: { label: 'failed', className: 'text-rose-300' },
-  stopped: { label: 'stopped', className: 'text-amber-300' },
-  timed_out: { label: 'timed out', className: 'text-amber-300' },
-};
-
-type AnsiStyleState = {
-  fg?: string;
-  bg?: string;
-  bold?: boolean;
-};
-
-const ANSI_BASE_COLORS = [
-  '#000000',
-  '#cd3131',
-  '#0dbc79',
-  '#e5e510',
-  '#2472c8',
-  '#bc3fbc',
-  '#11a8cd',
-  '#e5e5e5',
-];
-
-const ANSI_BRIGHT_COLORS = [
-  '#666666',
-  '#f14c4c',
-  '#23d18b',
-  '#f5f543',
-  '#3b8eea',
-  '#d670d6',
-  '#29b8db',
-  '#ffffff',
-];
-
-const clampColorByte = (value: number) => Math.max(0, Math.min(255, Math.floor(value)));
-
-const ansi256ToRgb = (index: number) => {
-  const normalized = Math.max(0, Math.min(255, Math.floor(index)));
-  if (normalized < 8) return ANSI_BASE_COLORS[normalized];
-  if (normalized < 16) return ANSI_BRIGHT_COLORS[normalized - 8];
-  if (normalized < 232) {
-    const n = normalized - 16;
-    const r = Math.floor(n / 36);
-    const g = Math.floor((n % 36) / 6);
-    const b = n % 6;
-    const cube = [0, 95, 135, 175, 215, 255];
-    return `rgb(${cube[r]}, ${cube[g]}, ${cube[b]})`;
-  }
-
-  const gray = 8 + (normalized - 232) * 10;
-  return `rgb(${gray}, ${gray}, ${gray})`;
-};
-
-const applySgrCodes = (codes: number[], currentState: AnsiStyleState): AnsiStyleState => {
-  let nextState: AnsiStyleState = { ...currentState };
-
-  for (let index = 0; index < codes.length; index += 1) {
-    const code = codes[index];
-
-    if (code === 0) {
-      nextState = {};
-      continue;
-    }
-
-    if (code === 1) {
-      nextState.bold = true;
-      continue;
-    }
-
-    if (code === 22) {
-      nextState.bold = false;
-      continue;
-    }
-
-    if (code === 39) {
-      nextState.fg = undefined;
-      continue;
-    }
-
-    if (code === 49) {
-      nextState.bg = undefined;
-      continue;
-    }
-
-    if (code >= 30 && code <= 37) {
-      nextState.fg = ANSI_BASE_COLORS[code - 30];
-      continue;
-    }
-
-    if (code >= 90 && code <= 97) {
-      nextState.fg = ANSI_BRIGHT_COLORS[code - 90];
-      continue;
-    }
-
-    if (code >= 40 && code <= 47) {
-      nextState.bg = ANSI_BASE_COLORS[code - 40];
-      continue;
-    }
-
-    if (code >= 100 && code <= 107) {
-      nextState.bg = ANSI_BRIGHT_COLORS[code - 100];
-      continue;
-    }
-
-    if (code === 38 || code === 48) {
-      const channel = code === 38 ? 'fg' : 'bg';
-      const mode = codes[index + 1];
-
-      if (mode === 5) {
-        const colorIndex = codes[index + 2];
-        if (Number.isFinite(colorIndex)) {
-          nextState[channel] = ansi256ToRgb(colorIndex);
-          index += 2;
-          continue;
-        }
-      }
-
-      if (mode === 2) {
-        const red = codes[index + 2];
-        const green = codes[index + 3];
-        const blue = codes[index + 4];
-        if (Number.isFinite(red) && Number.isFinite(green) && Number.isFinite(blue)) {
-          nextState[channel] = `rgb(${clampColorByte(red)}, ${clampColorByte(green)}, ${clampColorByte(blue)})`;
-          index += 4;
-          continue;
-        }
-      }
-    }
-  }
-
-  return nextState;
-};
-
-const parseAnsiSegments = (input: string): Array<{ text: string; state: AnsiStyleState }> => {
-  if (!input.includes('\u001b[')) {
-    return [{ text: input, state: {} }];
-  }
-
-  const segments: Array<{ text: string; state: AnsiStyleState }> = [];
-  const ansiPattern = /\u001b\[([0-9;]*)m/g;
-  let state: AnsiStyleState = {};
-  let cursor = 0;
-  let match = ansiPattern.exec(input);
-
-  while (match) {
-    if (match.index > cursor) {
-      segments.push({
-        text: input.slice(cursor, match.index),
-        state: { ...state },
-      });
-    }
-
-    const rawCodes = match[1] ?? '';
-    const codes = rawCodes
-      .split(';')
-      .filter((code) => code.length > 0)
-      .map((code) => Number.parseInt(code, 10))
-      .filter((code) => Number.isFinite(code));
-
-    state = applySgrCodes(codes.length > 0 ? codes : [0], state);
-    cursor = ansiPattern.lastIndex;
-    match = ansiPattern.exec(input);
-  }
-
-  if (cursor < input.length) {
-    segments.push({
-      text: input.slice(cursor),
-      state: { ...state },
-    });
-  }
-
-  return segments;
-};
-
-const renderAnsiText = (input: string) => {
-  const segments = parseAnsiSegments(input);
-  return segments.map((segment, index) => {
-    const style: React.CSSProperties = {};
-    if (segment.state.fg) style.color = segment.state.fg;
-    if (segment.state.bg) style.backgroundColor = segment.state.bg;
-    if (segment.state.bold) style.fontWeight = 700;
-
-    return (
-      <span key={`${index}-${segment.text.length}`} style={style}>
-        {segment.text}
-      </span>
-    );
-  });
-};
-
-const stripWrappingQuotes = (value: string) => {
-  const trimmed = value.trim();
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-};
-
-const quoteForPosixShell = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
-
-const quoteForCmdShell = (value: string) => `"${value.replace(/"/g, '""')}"`;
-
-const parseSimpleCdCommand = (command: string) => {
-  const match = command.match(/^cd(?:\s+(.+))?$/);
-  if (!match) return null;
-
-  const rawTarget = (match[1] ?? '').trim();
-  if (/[;&|<>`$()]/.test(rawTarget)) return null;
-
-  return { target: rawTarget };
-};
-
-const buildCdProbeCommand = (target: string, shellHint: string) => {
-  const cleanedTarget = stripWrappingQuotes(target);
-  const isWindowsShell = /(?:^|[\\/])(cmd(?:\.exe)?|powershell(?:\.exe)?|pwsh(?:\.exe)?)$/i.test(
-    shellHint
-  );
-
-  if (isWindowsShell) {
-    if (!cleanedTarget) return 'cd';
-    return `cd /d ${quoteForCmdShell(cleanedTarget)} && cd`;
-  }
-
-  if (!cleanedTarget) return 'cd && pwd';
-  return `cd ${quoteForPosixShell(cleanedTarget)} && pwd`;
-};
-
-const parseResolvedCwdFromStdout = (stdout: string) => {
-  const lines = stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  return lines.length > 0 ? lines[lines.length - 1] : null;
-};
-
-const generateActionId = () => `action-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-const clampHeight = (height: number) => {
-  if (typeof window === 'undefined') return Math.max(MIN_HEIGHT, height);
-  const maxHeight = Math.max(MIN_HEIGHT + 80, Math.floor(window.innerHeight * 0.78));
-  return Math.min(maxHeight, Math.max(MIN_HEIGHT, Math.floor(height)));
-};
-
-const clampSidebarWidth = (width: number) => {
-  return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.floor(width)));
-};
-
-const parseEnvironmentVariables = (envText: string) => {
-  const vars: Record<string, string> = {};
-  const lines = envText.split(/\r?\n/);
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-
-    const separatorIndex = trimmed.indexOf('=');
-    if (separatorIndex <= 0) continue;
-
-    const key = trimmed.slice(0, separatorIndex).trim();
-    const value = trimmed.slice(separatorIndex + 1);
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
-    vars[key] = value;
-  }
-
-  return vars;
-};
-
-const createDefaultEnvironment = (workspacePath?: string): TerminalEnvironmentConfig => ({
-  name: workspacePath ? workspacePath.split('/').filter(Boolean).pop() || 'workspace' : 'workspace',
-  shell: '',
-  defaultCwd: workspacePath || '',
-  envText: '',
-  interactiveAutocomplete: true,
-  actions: [
-    {
-      id: DEFAULT_ACTION_ID,
-      name: 'Run',
-      script: 'npm run dev',
-    },
-  ],
-  selectedActionId: DEFAULT_ACTION_ID,
-});
-
-const normalizeEnvironment = (
-  value: unknown,
-  workspacePath?: string
-): TerminalEnvironmentConfig => {
-  const base = createDefaultEnvironment(workspacePath);
-  if (!value || typeof value !== 'object') return base;
-
-  const source = value as Partial<TerminalEnvironmentConfig>;
-  const normalizedActions = Array.isArray(source.actions)
-    ? source.actions
-      .map((action) => {
-        if (!action || typeof action !== 'object') return null;
-        const actionRecord = action as Partial<TerminalAction>;
-        const id = toStringOrEmpty(actionRecord.id) || generateActionId();
-        const name = toStringOrEmpty(actionRecord.name).trim() || 'Action';
-        const script = toStringOrEmpty(actionRecord.script);
-        return { id, name, script };
-      })
-      .filter((action): action is TerminalAction => Boolean(action))
-    : [];
-
-  const actions = normalizedActions.length > 0 ? normalizedActions : base.actions;
-  const selectedActionId = toStringOrEmpty(source.selectedActionId);
-  const hasSelectedAction = actions.some((action) => action.id === selectedActionId);
-
-  return {
-    name: toStringOrEmpty(source.name).trim() || base.name,
-    shell: toStringOrEmpty(source.shell).trim(),
-    defaultCwd: toStringOrEmpty(source.defaultCwd).trim() || base.defaultCwd,
-    envText: toStringOrEmpty(source.envText),
-    interactiveAutocomplete:
-      typeof source.interactiveAutocomplete === 'boolean'
-        ? source.interactiveAutocomplete
-        : base.interactiveAutocomplete,
-    actions,
-    selectedActionId: hasSelectedAction ? selectedActionId : actions[0].id,
-  };
-};
+import { TerminalEnvironmentDialog } from './TerminalEnvironmentDialog';
+
+import { 
+  TerminalTheme,
+  TerminalPanelProps,
+  TerminalEntryStatus,
+  TerminalEntry,
+  TerminalAction,
+  TerminalEnvironmentConfig,
+  TerminalStreamErrorResponse,
+  TerminalStreamEvent,
+  TerminalSession
+} from './types';
+import {
+  STORAGE_KEY,
+  HEIGHT_STORAGE_KEY,
+  SIDEBAR_WIDTH_STORAGE_KEY,
+  DEFAULT_ACTION_ID,
+  DEFAULT_HEIGHT,
+  MIN_HEIGHT,
+  DEFAULT_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  toStringOrEmpty,
+  toNumberOr,
+  toStatus,
+  statusMeta,
+  AnsiStyleState,
+  ANSI_BASE_COLORS,
+  ANSI_BRIGHT_COLORS,
+  clampColorByte,
+  ansi256ToRgb,
+  applySgrCodes,
+  parseAnsiSegments,
+  renderAnsiText,
+  stripWrappingQuotes,
+  quoteForPosixShell,
+  quoteForCmdShell,
+  parseSimpleCdCommand,
+  buildCdProbeCommand,
+  parseResolvedCwdFromStdout,
+  generateActionId,
+  clampHeight,
+  clampSidebarWidth,
+  parseEnvironmentVariables,
+  createDefaultEnvironment,
+  normalizeEnvironment
+} from './utils';
 
 export const TerminalPanel = React.memo(function TerminalPanel({
   workspacePath,
-  sessionId,
+  sessionId: chatSessionId,
   onSessionRunStateChange,
   onClose,
   onHeightChange,
+  variant = 'bottom',
 }: TerminalPanelProps) {
   const { theme, systemTheme } = useTheme();
   const currentTheme = theme === 'system' ? systemTheme : theme;
@@ -714,8 +306,10 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   }, [sidebarWidth]);
 
   useEffect(() => {
-    onHeightChange?.(panelHeight);
-  }, [onHeightChange, panelHeight]);
+    if (variant === 'bottom') {
+      onHeightChange?.(panelHeight);
+    }
+  }, [onHeightChange, panelHeight, variant]);
 
   useEffect(() => {
     if (!environment.defaultCwd && workspacePath) {
@@ -827,7 +421,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
       const resizeState = resizeStartRef.current;
       if (!resizeState) return;
 
-      if (isResizing) {
+      if (isResizing && variant === 'bottom') {
         const delta = resizeState.startY - event.clientY;
         setPanelHeight(clampHeight(resizeState.startHeight + delta));
       }
@@ -855,7 +449,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isResizing, isSidebarResizing]);
+  }, [isResizing, isSidebarResizing, variant]);
 
   useEffect(() => {
     return () => {
@@ -907,10 +501,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
 
       const startedAt = Date.now();
       const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const runSessionId = typeof sessionId === 'string' && sessionId.trim() ? sessionId : null; // Using internal terminal sessionId as key if external one not mapped? Actually props.sessionId is for chat session.
-      // We should use props.sessionId if available for tracking, but maybe we should scope it? 
-      // For simplicity, reusing prop sessionId for all tabs run state tracking if present.
-      const externalSessionId = typeof sessionId === 'string' && sessionId.trim() ? sessionId : null;
+      const externalSessionId = typeof chatSessionId === 'string' && chatSessionId.trim() ? chatSessionId : null;
 
       activeRunSessionIdRef.current[sessionId] = externalSessionId;
       if (externalSessionId) {
@@ -1080,16 +671,13 @@ export const TerminalPanel = React.memo(function TerminalPanel({
       finalizeActiveRun,
       getCurrentWorkingDirectory,
       onSessionRunStateChange,
-      sessionId, // props sessionId
+      chatSessionId,
       sessions,
       updateEntry,
       updateSession,
       writeToTerminal
     ]
   );
-
-  // Use alias for prop sessionId to avoid confusion
-  const propsSessionId = sessionId;
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -1252,6 +840,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
   );
 
   const handleResizeStart = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (variant !== 'bottom') return;
     event.preventDefault();
     resizeStartRef.current = {
       startY: event.clientY,
@@ -1337,19 +926,22 @@ export const TerminalPanel = React.memo(function TerminalPanel({
     <>
       <div
         className={cn(
-          "relative border-t border-border bg-background/80 dark:bg-[#020617]/80 backdrop-blur-md flex flex-col shadow-2xl transform-gpu",
-          !isResizing && "transition-[height] duration-200 ease-in-out will-change-[height]"
+          "relative bg-background/80 dark:bg-[#020617]/80 backdrop-blur-md flex flex-col transform-gpu",
+          variant === 'bottom' ? "border-t border-border shadow-2xl" : "h-full border-0 shadow-none",
+          !isResizing && variant === 'bottom' && "transition-[height] duration-200 ease-in-out will-change-[height]"
         )}
-        style={{ height: `${panelHeight}px`, contain: 'layout style' }}
+        style={{ height: variant === 'bottom' ? `${panelHeight}px` : '100%', contain: 'layout style' }}
       >
-        <div
-          className={cn(
-            'absolute top-0 left-0 right-0 h-2 cursor-row-resize z-20',
-            isResizing ? 'bg-primary/30' : 'hover:bg-primary/20'
-          )}
-          onMouseDown={handleResizeStart}
-          title="Drag to resize terminal"
-        />
+        {variant === 'bottom' && (
+          <div
+            className={cn(
+              'absolute top-0 left-0 right-0 h-2 cursor-row-resize z-20',
+              isResizing ? 'bg-primary/30' : 'hover:bg-primary/20'
+            )}
+            onMouseDown={handleResizeStart}
+            title="Drag to resize terminal"
+          />
+        )}
 
         <div className="h-10 px-3 border-b border-border/40 bg-zinc-50/50 dark:bg-zinc-900/50 flex items-center justify-between gap-3 select-none">
           <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -1561,7 +1153,7 @@ export const TerminalPanel = React.memo(function TerminalPanel({
                     }
                   }}
                   className="flex-1 min-w-0 bg-transparent font-mono text-[15px] leading-relaxed text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 dark:placeholder:text-zinc-500 border-none rounded-none px-0 py-0.5 focus:outline-none resize-none"
-                  placeholder="Type command. Enter run, Shift+Enter newline, Up/Down history, Ctrl+C interrupt."
+                  placeholder="Type a command… (Enter to run)"
                   spellCheck={false}
                   autoComplete="off"
                   rows={1}
@@ -1640,142 +1232,15 @@ export const TerminalPanel = React.memo(function TerminalPanel({
       </div>
 
       {showEnvironmentSettings && (
-        <div className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          {/* ... Environment Settings Modal Content ... */}
-          <div className="w-[min(980px,96vw)] h-[min(760px,88vh)] rounded-xl border border-border bg-background shadow-2xl flex flex-col overflow-hidden">
-            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-              <div>
-                <div className="text-sm font-semibold text-foreground">Environment Settings</div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  Configure shell, default cwd, env vars, and reusable run actions.
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowEnvironmentSettings(false)}
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              <div className="grid gap-3 md:grid-cols-3">
-                <label className="space-y-1">
-                  <span className="text-[11px] text-muted-foreground uppercase tracking-[0.08em]">Name</span>
-                  <input
-                    value={environment.name}
-                    onChange={(event) => setEnvironment((prev) => ({ ...prev, name: event.target.value }))}
-                    className="w-full bg-background text-sm text-foreground border border-border/70 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </label>
-
-                <label className="space-y-1">
-                  <span className="text-[11px] text-muted-foreground uppercase tracking-[0.08em]">Shell</span>
-                  <input
-                    value={environment.shell}
-                    onChange={(event) => setEnvironment((prev) => ({ ...prev, shell: event.target.value }))}
-                    placeholder="/bin/zsh"
-                    className="w-full bg-background text-sm text-foreground border border-border/70 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </label>
-
-                <label className="space-y-1">
-                  <span className="text-[11px] text-muted-foreground uppercase tracking-[0.08em]">Default CWD</span>
-                  <input
-                    value={environment.defaultCwd}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setEnvironment((prev) => ({ ...prev, defaultCwd: nextValue }));
-                      setSessions(prev => prev.map(s => ({ ...s, sessionCwd: nextValue }))); // Update all sessions? or just active? Updating all for consistency with env change
-                    }}
-                    className="w-full bg-background text-sm text-foreground border border-border/70 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </label>
-              </div>
-
-              <label className="space-y-1 block">
-                <span className="text-[11px] text-muted-foreground uppercase tracking-[0.08em]">
-                  Environment Variables (KEY=VALUE, one per line)
-                </span>
-                <textarea
-                  value={environment.envText}
-                  onChange={(event) => setEnvironment((prev) => ({ ...prev, envText: event.target.value }))}
-                  rows={6}
-                  className="w-full bg-background text-sm font-mono text-foreground border border-border/70 rounded-md px-3 py-3 resize-y focus:outline-none focus:ring-1 focus:ring-ring"
-                  placeholder={`NODE_ENV=development\nPORT=3000`}
-                />
-              </label>
-
-              <label className="flex items-center gap-2 rounded-md border border-border/70 px-3 py-2 bg-muted/10">
-                <input
-                  type="checkbox"
-                  checked={environment.interactiveAutocomplete}
-                  onChange={(event) =>
-                    setEnvironment((prev) => ({
-                      ...prev,
-                      interactiveAutocomplete: event.target.checked,
-                    }))
-                  }
-                />
-                <span className="text-xs text-muted-foreground">
-                  Interactive shell autocompletion
-                </span>
-              </label>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-muted-foreground uppercase tracking-[0.08em]">Actions</span>
-                  <button
-                    type="button"
-                    onClick={handleAddAction}
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  >
-                    <Plus size={12} />
-                    Add Action
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  {environment.actions.map((action) => (
-                    <div key={action.id} className="grid grid-cols-[180px_1fr_auto] gap-2 items-center">
-                      <input
-                        value={action.name}
-                        onChange={(event) => updateAction(action.id, { name: event.target.value })}
-                        className="bg-background text-sm text-foreground border border-border/70 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring"
-                        placeholder="Action name"
-                      />
-                      <input
-                        value={action.script}
-                        onChange={(event) => updateAction(action.id, { script: event.target.value })}
-                        className="bg-background font-mono text-sm text-foreground border border-border/70 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring"
-                        placeholder="npm run dev"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAction(action.id)}
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                        title="Remove action"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="px-4 py-3 border-t border-border flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowEnvironmentSettings(false)}
-                className="rounded-md px-3 py-1.5 text-sm border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <TerminalEnvironmentDialog
+          environment={environment}
+          setEnvironment={setEnvironment}
+          setSessions={setSessions}
+          handleAddAction={handleAddAction}
+          updateAction={updateAction}
+          handleRemoveAction={handleRemoveAction}
+          onClose={() => setShowEnvironmentSettings(false)}
+        />
       )}
     </>
   );
