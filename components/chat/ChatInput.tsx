@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import Image from 'next/image';
 import { Send, Square, Paperclip, Image as ImageIcon, AtSign, Slash, Sparkles, ChevronDown, Zap, Code2, MessageSquare, History, RotateCcw, Copy, Hammer, Server, Puzzle, Brain, FileText, Folder, Settings, Cpu, Palette, ArchiveRestore, Shrink, ClipboardList, HelpCircle, TerminalSquare, Shield, X, User, Info, BookOpen, Layout, Laptop, Keyboard, Monitor, Key, Bug, Github, FileCode, Eye, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getModelInfo } from '@/lib/pricing';
 import { fetchJsonWithRetry } from '@/lib/client-fetch';
-import { AnimatePresence, motion } from 'framer-motion';
 import { ModelSelector } from '@/components/layout/ModelSelector';
+import { ContextTooltip } from '@/components/chat/ContextTooltip';
+import { ImagePreview } from '@/components/chat/ImagePreview';
+import { ModeMenu } from '@/components/chat/ModeMenu';
+import { CommandSuggestions } from '@/components/chat/CommandSuggestions';
 import { useChatContext } from '@/app/contexts/ChatContext';
 
 interface UploadedImage {
@@ -44,27 +46,27 @@ interface ChatInputProps {
   steeringSummary?: SteeringSummary | null;
 }
 
-interface CommandItem {
+export interface CommandItem {
   command: string;
   description: string;
   icon: React.ElementType;
   group?: string;
 }
 
-interface SkillRecord {
+export interface SkillRecord {
   id: string;
   name: string;
   status: 'Enabled' | 'Disabled';
   description: string;
 }
 
-interface MentionItem {
+export interface MentionItem {
   path: string;
   displayPath: string;
   type: 'directory' | 'file';
 }
 
-interface AgentItem {
+export interface AgentItem {
   name: string;
   displayName?: string;
   description: string;
@@ -85,7 +87,7 @@ export interface SteeringSummary {
   };
 }
 
-interface SkillSuggestionItem {
+export interface SkillSuggestionItem {
   id: string;
   name: string;
   description: string;
@@ -136,19 +138,6 @@ const BASE_COMMANDS: CommandItem[] = [
   { command: '/docs', description: 'Show help documentation', icon: BookOpen, group: 'Built-in' },
 ];
 
-interface ModeOption {
-  value: 'code' | 'plan' | 'ask';
-  label: string;
-  icon: React.ElementType;
-  description: string;
-  shortcut?: string;
-}
-
-const MODE_OPTIONS: ModeOption[] = [
-  { value: 'code', label: 'Code', icon: Code2, description: 'GGBond default: read, write, and execute', shortcut: 'Ctrl+1' },
-  { value: 'plan', label: 'Plan', icon: ClipboardList, description: 'Review-first planning, no execution', shortcut: 'Ctrl+2' },
-  { value: 'ask', label: 'Ask', icon: HelpCircle, description: 'Answer questions only', shortcut: 'Ctrl+3' },
-];
 
 const GENERALIST_KEYWORD_PATTERN = /\b(plan|analyze|investigate|compare|refactor|architecture|workflow|multi-step|complex)\b/i;
 
@@ -158,6 +147,70 @@ function normalizeSuggestionDraft(value: string) {
     .replace(/[ \t]{2,}/g, ' ')
     .trim();
 }
+
+const KeyboardShortcuts = React.memo(function KeyboardShortcuts() {
+  const [show, setShow] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!show) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShow(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [show]);
+
+  const shortcuts = [
+    { key: '⌘1-7', label: 'Switch Views' },
+    { key: '⌘K', label: 'Command Palette' },
+    { key: '⌘J', label: 'Toggle Terminal' },
+    { key: '⌘N', label: 'New Chat' },
+    { key: '⌘,', label: 'Settings' },
+    { key: '⌘Enter', label: 'Send Message' },
+  ];
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => setShow(!show)}
+        className={cn(
+          "p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0",
+          show && "text-foreground bg-muted"
+        )}
+        title="Keyboard Shortcuts"
+      >
+        <HelpCircle className="w-4 h-4" />
+      </button>
+
+      {show && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShow(false)} />
+          <div className="absolute bottom-full right-0 mb-2 w-64 bg-background/95 backdrop-blur-md border border-border/50 rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50 p-3">
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 px-1">Keyboard Shortcuts</h3>
+            <div className="space-y-2">
+              {shortcuts.map((s) => (
+                <div key={s.key} className="flex items-center justify-between text-xs px-1">
+                  <span className="text-muted-foreground">{s.label}</span>
+                  <kbd className="h-5 inline-flex items-center gap-1 rounded border border-border/50 bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                    {s.key}
+                  </kbd>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-border/30">
+              <p className="text-[10px] text-muted-foreground/60 text-center italic">
+                Use /cmd for quick actions
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+});
 
 function formatProfileLabel(profile: string) {
   if (profile === 'autoEdit') return 'Auto Edit';
@@ -170,7 +223,7 @@ const INLINE_SKILL_TOKEN_SOURCE = `([A-Za-z0-9._/\\\\-\u2011]+)${INLINE_SKILL_TO
 const INLINE_SKILL_COMMAND = '/skills';
 const LEGACY_INLINE_SKILL_COMMAND = '/skill';
 const ARTIFACT_SKILL_ID = 'web-artifacts-builder';
-const SKILL_COMMAND_PREFIX = '__skill__:';
+export const SKILL_COMMAND_PREFIX = '__skill__:';
 const SKILLS_MANAGEMENT_SUBCOMMANDS = new Set([
   'list',
   'enable',
@@ -205,8 +258,8 @@ export const ChatInput = React.memo(function ChatInput({
   const [input, setInput] = useState('');
   useChatContext();
   const [showCommands, setShowCommands] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [activeTrigger, setActiveTrigger] = useState<'/' | '@' | '#' | 'skill' | null>(null);
-  const [showModeMenu, setShowModeMenu] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filteredCommands, setFilteredCommands] = useState<CommandItem[]>(BASE_COMMANDS);
   const [filteredMentions, setFilteredMentions] = useState<MentionItem[]>([]);
@@ -219,11 +272,9 @@ export const ChatInput = React.memo(function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputOverlayRef = useRef<HTMLDivElement>(null);
   const commandListRef = useRef<HTMLDivElement>(null);
-  const modeMenuRef = useRef<HTMLDivElement>(null);
   const mentionRequestCounter = useRef(0);
   const cursorRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   const [cursorPosition, setCursorPosition] = useState(0);
-  const [showContextTooltip, setShowContextTooltip] = useState(false);
   const [canvasEnabled, setCanvasEnabled] = useState(false);
   const [dismissedGeneralistSuggestionForDraft, setDismissedGeneralistSuggestionForDraft] = useState<string | null>(null);
 
@@ -372,7 +423,6 @@ export const ChatInput = React.memo(function ChatInput({
     setUploadedImages(prev => prev.filter(img => img.id !== id));
   }, []);
 
-  const currentMode = MODE_OPTIONS.find(m => m.value === mode) || MODE_OPTIONS[0];
   const shouldShowRouting = Boolean(routedAgentName);
   const statusSummaryParts = useMemo(() => {
     const parts: string[] = [];
@@ -661,6 +711,12 @@ export const ChatInput = React.memo(function ChatInput({
       // Ignore localStorage failures.
     }
   }, [canvasEnabled]);
+
+  useEffect(() => {
+    if (isLoading) {
+      setIsSending(false);
+    }
+  }, [isLoading]);
 
   const adjustHeight = () => {
     const textarea = textareaRef.current;
@@ -1341,6 +1397,9 @@ export const ChatInput = React.memo(function ChatInput({
       ? `${skillPrefix}${bodyWithCanvas ? `\n${bodyWithCanvas}` : ''}`
       : bodyWithCanvas;
 
+    setIsSending(true);
+    setTimeout(() => setIsSending(false), 800);
+
     onSend(finalMessage.replace(/\u2011/g, '-'), { approvalMode: currentApprovalMode, images: uploadedImages, agentName: inlineAgentName });
     setInput('');
     setUploadedImages([]);
@@ -1491,135 +1550,24 @@ export const ChatInput = React.memo(function ChatInput({
         />
 
         {/* Image preview area */}
-        {uploadedImages.length > 0 && (
-          <div className="flex gap-2 mb-2 flex-wrap">
-            {uploadedImages.map((img) => (
-              <div key={img.id} className="relative group">
-                <Image
-                  src={img.preview}
-                  alt="Uploaded"
-                  width={64}
-                  height={64}
-                  className="w-16 h-16 object-cover rounded-lg border"
-                />
-                <button
-                  onClick={() => removeImage(img.id)}
-                  className="absolute -top-1 -right-1 w-5 h-5 bg-background border rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <ImagePreview images={uploadedImages} onRemove={removeImage} />
 
         {/* Command Suggestions */}
         {showCommands && (
-          <div className="absolute bottom-full left-0 mb-2 w-64 bg-card border rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50">
-            <div className="max-h-64 overflow-y-auto p-1" ref={commandListRef}>
-              {activeTrigger === '/' && filteredCommands.map((cmd, index) => {
-                const showHeader = index === 0 || cmd.group !== filteredCommands[index - 1].group;
-                return (
-                  <React.Fragment key={cmd.command}>
-                    {showHeader && (
-                      <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground bg-muted/30 border-y first:border-t-0 border-border sticky top-0 z-10 backdrop-blur-sm">
-                        {cmd.group || 'Commands'}
-                      </div>
-                    )}
-                    <button
-                      data-index={index}
-                      onClick={() => handleCommandSelect(cmd.command)}
-                      className={cn(
-                        "w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors",
-                        index === selectedIndex
-                          ? "bg-accent text-accent-foreground"
-                          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                      )}
-                      onMouseEnter={() => setSelectedIndex(index)}
-                    >
-                      <div className="flex items-center justify-center w-5 h-5 rounded bg-background border shadow-sm">
-                        <cmd.icon className="w-3 h-3" />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-medium">{cmd.command.startsWith(SKILL_COMMAND_PREFIX) ? cmd.command.slice(SKILL_COMMAND_PREFIX.length) : cmd.command}</span>
-                        <span className="text-[10px] opacity-70 truncate">{cmd.description}</span>
-                      </div>
-                    </button>
-                  </React.Fragment>
-                );
-              })}
-              {activeTrigger === '@' && filteredMentions.map((mention, index) => (
-                <button
-                  key={mention.path}
-                  data-index={index}
-                  onClick={() => handleMentionSelect(mention.path)}
-                  className={cn(
-                    "w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors",
-                    index === selectedIndex
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  )}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  <div className="flex items-center justify-center w-5 h-5 rounded bg-background border shadow-sm">
-                    {mention.type === 'directory' ? (
-                      <Folder className="w-3 h-3" />
-                    ) : (
-                      <AtSign className="w-3 h-3" />
-                    )}
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-medium truncate">{mention.displayPath}</span>
-                    <span className="text-[10px] opacity-70">{mention.type}</span>
-                  </div>
-                </button>
-              ))}
-              {activeTrigger === 'skill' && filteredSkills.map((skill, index) => (
-                <button
-                  key={skill.id}
-                  data-index={index}
-                  onClick={() => handleSkillSelect(skill.id)}
-                  className={cn(
-                    "w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors",
-                    index === selectedIndex
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  )}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  <div className="flex items-center justify-center w-5 h-5 rounded bg-background border shadow-sm">
-                    <Sparkles className="w-3 h-3" />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-medium truncate">{skill.id}</span>
-                    <span className="text-[10px] opacity-70 truncate">{skill.description || skill.name}</span>
-                  </div>
-                </button>
-              ))}
-              {activeTrigger === '#' && filteredAgents.map((agent, index) => (
-                <button
-                  key={agent.name}
-                  data-index={index}
-                  onClick={() => handleAgentSelect(agent.name)}
-                  className={cn(
-                    "w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors",
-                    index === selectedIndex
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  )}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  <div className="flex items-center justify-center w-5 h-5 rounded bg-background border shadow-sm">
-                    <User className="w-3 h-3" />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-medium truncate">#{agent.name}</span>
-                    <span className="text-[10px] opacity-70 truncate">{agent.displayName || agent.description}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
+          <CommandSuggestions
+            activeTrigger={activeTrigger}
+            filteredCommands={filteredCommands}
+            filteredMentions={filteredMentions}
+            filteredSkills={filteredSkills}
+            filteredAgents={filteredAgents}
+            selectedIndex={selectedIndex}
+            setSelectedIndex={setSelectedIndex}
+            handleCommandSelect={handleCommandSelect}
+            handleMentionSelect={handleMentionSelect}
+            handleSkillSelect={handleSkillSelect}
+            handleAgentSelect={handleAgentSelect}
+            commandListRef={commandListRef}
+          />
         )}
 
         <div className={cn(
@@ -1628,8 +1576,8 @@ export const ChatInput = React.memo(function ChatInput({
         )}>
           <div className="relative min-h-[40px] max-h-[200px]">
             {input.length === 0 && (
-              <div className="pointer-events-none absolute inset-0 px-2 py-1 text-sm text-muted-foreground z-20">
-                Ask anything… (Type / for commands & skills, @ for files, # for agents)
+              <div className="pointer-events-none absolute inset-0 px-2 py-1 text-sm text-muted-foreground/60 z-20">
+                Ask anything…
               </div>
             )}
 
@@ -1660,6 +1608,14 @@ export const ChatInput = React.memo(function ChatInput({
 
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-1 relative">
+              {/* Hint badges — shows available triggers persistently */}
+              {!input.trim() && (
+                <div className="flex items-center gap-1 mr-1">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground/50 border border-border/30 leading-none">/ cmd</span>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground/50 border border-border/30 leading-none">@ file</span>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground/50 border border-border/30 leading-none"># agent</span>
+                </div>
+              )}
               {/* Model Selector */}
               <ModelSelector
                 value={currentModel}
@@ -1670,69 +1626,13 @@ export const ChatInput = React.memo(function ChatInput({
               <div className="w-px h-4 bg-border mx-1" />
 
               {/* Mode Selector */}
-              <div className="relative" ref={modeMenuRef}>
-                <button
-                  onClick={() => setShowModeMenu(!showModeMenu)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-colors duration-200 cursor-pointer z-20 relative",
-                    "bg-transparent text-muted-foreground hover:text-foreground hover:bg-accent"
-                  )}
-                  title={`Mode: ${currentMode.label}`}
-                >
-                  <currentMode.icon className="w-3.5 h-3.5" />
-                  <span>{currentMode.label}</span>
-                  <ChevronDown className={cn("w-3 h-3 opacity-50 transition-transform duration-200", showModeMenu && "rotate-180")} />
-                </button>
-
-                {showModeMenu && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowModeMenu(false)} />
-                    <div className="absolute bottom-full left-0 mb-2 w-56 bg-background/90 backdrop-blur-md border border-border/50 rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 z-50 p-1">
-                      {MODE_OPTIONS.map(opt => {
-                        const isActive = opt.value === mode;
-                        return (
-                          <button
-                            key={opt.value}
-                            onClick={() => {
-                              onModeChange?.(opt.value);
-                              setShowModeMenu(false);
-                            }}
-                            className={cn(
-                              "w-full text-left px-3 py-2 text-xs flex items-center gap-3 transition-colors relative rounded-lg",
-                              isActive
-                                ? "bg-accent/80 text-foreground"
-                                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                            )}
-                          >
-                            <opt.icon className={cn("w-4 h-4 shrink-0", isActive ? "text-foreground" : "text-muted-foreground/80")} />
-                            <div className="flex flex-col min-w-0 flex-1">
-                              <span className="font-medium">{opt.label}</span>
-                              <span className="text-[10px] opacity-70 whitespace-nowrap overflow-hidden text-ellipsis">{opt.description}</span>
-                            </div>
-                            {opt.shortcut && (
-                              <kbd className={cn(
-                                "hidden sm:inline-flex h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium",
-                                isActive ? "bg-background/50 border-border/50 text-foreground/80" : "bg-muted text-muted-foreground"
-                              )}>
-                                {opt.shortcut}
-                              </kbd>
-                            )}
-                            {isActive && (
-                              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-foreground" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
+              <ModeMenu mode={mode} onChange={onModeChange} />
 
               <div className="w-px h-4 bg-border mx-1" />
               <button
                 onClick={() => setCanvasEnabled((prev) => !prev)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs border transition-colors",
+                  "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0",
                   canvasEnabled
                     ? "bg-primary/10 text-primary border-primary/40 hover:bg-primary/15"
                     : "bg-transparent text-muted-foreground border-border hover:bg-muted hover:text-foreground"
@@ -1743,11 +1643,11 @@ export const ChatInput = React.memo(function ChatInput({
                 {canvasEnabled && <X className="w-3 h-3 opacity-80" />}
               </button>
 
-              <button className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors" title="Attach file">
+              <button className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0" title="Attach file">
                 <Paperclip className="w-4 h-4" />
               </button>
               <button
-                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0"
                 title="Add Image"
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -1759,21 +1659,28 @@ export const ChatInput = React.memo(function ChatInput({
               <span className="text-[10px] text-muted-foreground hidden sm:inline-block">
                 Cmd+Enter
               </span>
-              {isLoading ? (
+              <KeyboardShortcuts />
+              {isLoading || isSending ? (
                 <button
                   onClick={onStop}
-                  disabled={!onStop}
-                  aria-label="Stop"
+                  disabled={!onStop && !isSending}
+                  aria-label={isSending ? "Sending..." : "Stop"}
                   className={cn(
-                    "group/stopbtn h-8 w-8 rounded-full transition-colors duration-200 inline-flex items-center justify-center relative",
-                    onStop
-                      ? "bg-foreground text-background hover:opacity-90 shadow-sm"
-                      : "bg-muted text-muted-foreground cursor-not-allowed"
+                    "group/stopbtn h-8 w-8 rounded-full transition-colors duration-200 inline-flex items-center justify-center relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0",
+                    isSending
+                      ? "bg-primary text-primary-foreground opacity-90 cursor-wait"
+                      : onStop
+                        ? "bg-foreground text-background hover:opacity-90 shadow-sm"
+                        : "bg-muted text-muted-foreground cursor-not-allowed"
                   )}
                 >
-                  <Square className="w-3.5 h-3.5 fill-current" />
+                  {isSending ? (
+                    <div className="h-3.5 w-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  ) : (
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                  )}
                   <span className="absolute bottom-full mb-2 px-2 py-1 bg-card text-foreground text-xs rounded-md shadow-md opacity-0 invisible group-hover/stopbtn:opacity-100 group-hover/stopbtn:visible transition-colors whitespace-nowrap z-50 border border-border">
-                    Stop response
+                    {isSending ? "Sending message..." : "Stop response"}
                   </span>
                 </button>
               ) : (
@@ -1782,7 +1689,7 @@ export const ChatInput = React.memo(function ChatInput({
                   disabled={!input.trim()}
                   aria-label="Send"
                   className={cn(
-                    "group/sendbtn h-8 w-8 rounded-full transition-colors duration-200 inline-flex items-center justify-center relative",
+                    "group/sendbtn h-8 w-8 rounded-full transition-colors duration-200 inline-flex items-center justify-center relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0",
                     input.trim()
                       ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
@@ -1825,139 +1732,16 @@ export const ChatInput = React.memo(function ChatInput({
 
         <div className="mt-2 flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
-            <div
-              className="relative flex items-center gap-1.5"
-              onMouseEnter={() => setShowContextTooltip(true)}
-              onMouseLeave={() => setShowContextTooltip(false)}
-            >
-              <button
-                className="flex items-center justify-center gap-1 px-1.5 h-[28px] w-[64px] text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg border border-transparent transition-colors hidden sm:flex group"
-              >
-                <div className="relative w-4 h-4 flex items-center justify-center">
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle
-                      cx="8"
-                      cy="8"
-                      r={radius}
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      fill="transparent"
-                      className="text-muted/20"
-                    />
-                    <circle
-                      cx="8"
-                      cy="8"
-                      r={radius}
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      fill="transparent"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={strokeDashoffset}
-                      strokeLinecap="round"
-                      className={cn(
-                        "transition-colors duration-300",
-                        contextPercent > 90 ? "text-red-500" :
-                          contextPercent > 75 ? "text-yellow-500" :
-                            "text-primary"
-                      )}
-                    />
-                  </svg>
-                </div>
-                <span>{contextPercent.toFixed(0)}%</span>
-              </button>
-
-              <AnimatePresence>
-                {showContextTooltip && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    className="absolute bottom-full mb-3 left-0 w-[280px] p-4 rounded-xl bg-background/80 dark:bg-zinc-900/80 border border-border/50 shadow-2xl backdrop-blur-xl z-50 ring-1 ring-black/5 dark:ring-white/10"
-                  >
-                    <div className="flex flex-col gap-4">
-                      {/* Header */}
-                      <div className="flex items-center justify-between border-b border-border/40 pb-3">
-                        <div className="flex items-center gap-2">
-                          <div className={cn(
-                            "p-1.5 rounded-md",
-                            contextPercent > 90 ? "bg-red-500/10 text-red-500" :
-                              contextPercent > 75 ? "bg-amber-500/10 text-amber-500" :
-                                "bg-primary/10 text-primary"
-                          )}>
-                            <Cpu className="w-4 h-4" />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-xs font-bold tracking-wide">CONTEXT WINDOW</span>
-                            <span className="text-[10px] text-muted-foreground">{currentModel}</span>
-                          </div>
-                        </div>
-                        <div className={cn(
-                          "text-xs font-bold px-2 py-0.5 rounded-full border",
-                          contextPercent > 90 ? "bg-red-500/10 text-red-500 border-red-500/20" :
-                            contextPercent > 75 ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
-                              "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        )}>
-                          {contextPercent.toFixed(1)}%
-                        </div>
-                      </div>
-
-                      {/* Stats */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="flex flex-col gap-1 p-2 rounded-lg bg-muted/40 border border-border/20">
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground/70 tracking-wider">Used</span>
-                          <span className="text-sm font-bold font-mono text-foreground flex items-center gap-1">
-                            {usedTokens.toLocaleString()}
-                            <span className="text-[10px] font-normal text-muted-foreground">tok</span>
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-1 p-2 rounded-lg bg-muted/40 border border-border/20">
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground/70 tracking-wider">Remaining</span>
-                          <span className="text-sm font-bold font-mono text-foreground flex items-center gap-1">
-                            {(contextLimit - usedTokens).toLocaleString()}
-                            <span className="text-[10px] font-normal text-muted-foreground">tok</span>
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Visual Bar */}
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between text-[10px] font-medium text-muted-foreground px-0.5">
-                          <span>Capacity Usage</span>
-                          <span>{(contextLimit / 1000).toFixed(0)}k Limit</span>
-                        </div>
-                        <div className="h-2 w-full bg-muted/60 rounded-full overflow-hidden ring-1 ring-black/5 dark:ring-white/5 relative">
-                          {/* Background ticks */}
-                          <div className="absolute inset-0 flex justify-between px-[25%] opacity-20 z-0">
-                            <div className="w-px h-full bg-foreground/50" />
-                            <div className="w-px h-full bg-foreground/50" />
-                            <div className="w-px h-full bg-foreground/50" />
-                          </div>
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${Math.max(contextPercent, 2)}%` }}
-                            transition={{ duration: 0.5, ease: "easeOut" }}
-                            className={cn(
-                              "h-full rounded-full relative z-10 shadow-sm",
-                              contextPercent > 90
-                                ? "bg-gradient-to-r from-red-500 to-rose-600 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
-                                : contextPercent > 75
-                                  ? "bg-gradient-to-r from-amber-400 to-orange-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]"
-                                  : "bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]"
-                            )}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Tiny info */}
-                      <div className="text-[9px] text-center text-muted-foreground/50">
-                        Auto-compression at {Math.round(compressionThreshold * 100)}%
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            <ContextTooltip
+              usedTokens={usedTokens}
+              contextLimit={contextLimit}
+              contextPercent={contextPercent}
+              currentModel={currentModel}
+              compressionThreshold={compressionThreshold}
+              circumference={circumference}
+              strokeDashoffset={strokeDashoffset}
+              radius={radius}
+            />
 
             {/* Approval Mode Toggle */}
             <button
@@ -1966,7 +1750,7 @@ export const ChatInput = React.memo(function ChatInput({
                 setCurrentApprovalMode(nextMode);
               }}
               className={cn(
-                "flex items-center justify-center gap-1.5 px-2 h-[28px] w-[64px] text-[11px] font-bold rounded-lg transition-colors duration-300 relative z-20",
+                "flex items-center justify-center gap-1.5 px-2 h-[28px] w-[84px] text-[11px] font-bold rounded-lg transition-colors duration-300 relative z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0",
                 currentApprovalMode === 'auto'
                   ? "text-orange-500 bg-orange-500/10 hover:bg-orange-500/20 ring-1 ring-orange-500/20"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -1976,12 +1760,12 @@ export const ChatInput = React.memo(function ChatInput({
               {currentApprovalMode === 'auto' ? (
                 <>
                   <Zap className="w-3.5 h-3.5 fill-current animate-pulse shrink-0" />
-                  <span>YOLO</span>
+                  <span>Auto Mode</span>
                 </>
               ) : (
                 <>
                   <Shield className="w-3.5 h-3.5 opacity-70 shrink-0" />
-                  <span>Safe</span>
+                  <span>Safe Mode</span>
                 </>
               )}
             </button>
@@ -1997,7 +1781,7 @@ export const ChatInput = React.memo(function ChatInput({
             <button
               onClick={onToggleTerminal}
               className={cn(
-                "inline-flex items-center justify-center gap-1.5 px-3 h-[28px] rounded-lg text-[11px] font-bold transition-colors",
+                "inline-flex items-center justify-center gap-1.5 px-3 h-[28px] rounded-lg text-[11px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0",
                 showTerminal
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
