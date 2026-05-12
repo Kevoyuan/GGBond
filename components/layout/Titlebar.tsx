@@ -1,9 +1,10 @@
 import React from 'react';
-import { SquarePen, PanelLeftClose, ChevronRight } from 'lucide-react';
+import { SquarePen, PanelLeftClose, LayoutDashboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TokenUsageDisplay } from './TokenUsageDisplay';
 import { GitBranchSwitcher } from './GitBranchSwitcher';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import type { WorkbenchPanelType } from '@/components/session/SidePanel';
 
 interface TitlebarProps {
     isCollapsed: boolean;
@@ -30,6 +31,8 @@ interface TitlebarProps {
     onRefreshBranches?: () => Promise<void> | void;
     currentModel?: string;
     className?: string;
+    sidePanelType?: WorkbenchPanelType;
+    onToggleSidePanel?: () => void;
 }
 
 export const Titlebar = React.memo(function Titlebar({
@@ -46,7 +49,9 @@ export const Titlebar = React.memo(function Titlebar({
     onSelectBranch,
     onRefreshBranches,
     currentModel = 'Gemini 3 Pro',
-    className
+    className,
+    sidePanelType,
+    onToggleSidePanel
 }: TitlebarProps) {
     const isInteractiveTarget = (target: EventTarget | null) => {
         if (!(target instanceof HTMLElement)) return false;
@@ -75,11 +80,12 @@ export const Titlebar = React.memo(function Titlebar({
         <div 
             onMouseDown={startDrag}
             className={cn(
-                "h-[var(--titlebar-h)] flex items-stretch shrink-0 border-b border-[var(--border-subtle)] select-none bg-[var(--bg-secondary)] z-50",
+                "h-[var(--titlebar-h)] flex items-stretch shrink-0 border-b border-[var(--border-subtle)] select-none z-50",
+                isCollapsed ? "bg-[var(--bg-primary)]" : "bg-[var(--bg-secondary)]",
                 className
             )}
         >
-            {/* Titlebar Left - Fixed at Panel Width */}
+            {/* Titlebar Left — traffic lights + collapse/expand always visible */}
             <div
                 onMouseDown={(e) => {
                     // Keep button clicks from bubbling into the titlebar drag handler.
@@ -88,19 +94,21 @@ export const Titlebar = React.memo(function Titlebar({
                     }
                 }}
                 className={cn(
-                    "relative z-20 flex items-center justify-between px-4 shrink-0 transition-colors duration-200 ease-in-out border-r w-[var(--panel-width)]",
-                    // When collapsed: match main content background, hide border
+                    "relative flex items-center gap-1.5 shrink-0 transition-colors duration-200 ease-in-out border-r",
                     isCollapsed
-                        ? "bg-[var(--bg-primary)] border-r-transparent"
-                        : "bg-[var(--bg-secondary)] border-r-[var(--border-subtle)]"
+                        ? "pl-4 border-r border-r-transparent"
+                        : "w-[var(--panel-width)] px-4 border-r border-r-[var(--border-subtle)]"
                 )}
             >
-                {/* Left Group: Info */}
-                <div className="flex items-center gap-3 overflow-hidden pl-2 relative z-10">
+                {/* Traffic lights — always visible */}
+                <div className="flex items-center min-w-0 gap-2">
                     {nativeWindowControls ? (
-                        <div aria-hidden="true" className="h-3 w-[54px] shrink-0" />
+                        <div aria-hidden="true" className="h-3 w-[84px] shrink-0" />
                     ) : (
-                        <div className="flex gap-2 shrink-0 group no-drag" onMouseDown={(e) => e.stopPropagation()}>
+                        <div
+                            className="flex shrink-0 gap-2 group no-drag"
+                            onMouseDown={(e) => e.stopPropagation()}
+                        >
                             <button
                                 onClick={async () => {
                                     try {
@@ -109,19 +117,19 @@ export const Titlebar = React.memo(function Titlebar({
                                         window.close();
                                     }
                                 }}
-                                className="w-3 h-3 rounded-full bg-[#ff5f57] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
+                                className="w-3 h-3 rounded-full bg-[#ff5f57] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0"
                             >
                                 <span className="opacity-0 group-hover:opacity-100 text-[#4c0000] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">×</span>
                             </button>
                             <button
                                 onClick={() => void withWindow((win) => win.minimize())}
-                                className="w-3 h-3 rounded-full bg-[#febc2e] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
+                                className="w-3 h-3 rounded-full bg-[#febc2e] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0"
                             >
                                 <span className="opacity-0 group-hover:opacity-100 text-[#995700] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">−</span>
                             </button>
                             <button
                                 onClick={() => void withWindow((win) => win.toggleMaximize())}
-                                className="w-3 h-3 rounded-full bg-[#28c840] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none"
+                                className="w-3 h-3 rounded-full bg-[#28c840] border-[0.5px] border-[#00000026] flex items-center justify-center relative focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0"
                             >
                                 <span className="opacity-0 group-hover:opacity-100 text-[#006500] text-[8px] font-extrabold leading-none -translate-y-[0.5px]">+</span>
                             </button>
@@ -129,69 +137,84 @@ export const Titlebar = React.memo(function Titlebar({
                     )}
                 </div>
 
-                {/* Right Group: Actions - Fixed Position */}
-                <div className="flex items-center gap-1 shrink-0 no-drag relative z-30" onMouseDown={(e) => e.stopPropagation()}>
+                {/* Collapse/expand — always visible, fixed right after traffic lights */}
+                <button
+                    onClick={onToggleCollapse}
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors shrink-0 no-drag focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0"
+                    title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                >
+                    <PanelLeftClose
+                        className={cn(
+                            "w-4 h-4 transition-transform duration-200",
+                            isCollapsed && "rotate-180"
+                        )}
+                    />
+                </button>
+
+                {/* New chat — expanded only */}
+                {!isCollapsed && (
                     <button
                         onClick={onNewChat}
-                        className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+                        className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors shrink-0 no-drag focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0"
                         title="New chat"
                     >
                         <SquarePen className="w-4 h-4" />
                     </button>
-                    <button
-                        onClick={onToggleCollapse}
-                        className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
-                        title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                    >
-                        <PanelLeftClose
-                            className={cn(
-                                "w-4 h-4 transition-transform duration-200",
-                                isCollapsed && "rotate-180"
-                            )}
-                        />
-                    </button>
-                </div>
+                )}
             </div>
 
-            {/* Titlebar Right */}
-            <div className="relative z-10 flex-1 flex items-center justify-between px-4 min-w-0 bg-[var(--bg-primary)]">
+            {/* Titlebar Right — draggable except on interactive controls */}
+            <div className="relative z-10 flex-1 flex items-center justify-end px-4 gap-2 min-w-0">
+                {/* Branch Info */}
+                {onSelectBranch && (
+                    <div className="no-drag" onMouseDown={(e) => e.stopPropagation()}>
+                        <GitBranchSwitcher
+                            branch={currentBranch ?? null}
+                            branches={branches}
+                            uncommitted={uncommitted}
+                            loading={branchLoading}
+                            switchingTo={branchSwitchingTo}
+                            onSelectBranch={onSelectBranch}
+                            onRefresh={onRefreshBranches}
+                        />
+                    </div>
+                )}
 
-                {/* Left Side (Empty for now) */}
-                <div className="flex items-center gap-2 no-drag relative z-10">
-                </div>
+                {/* Token Usage */}
+                {stats && (
+                    <div className="hidden md:block no-drag" onMouseDown={(e) => e.stopPropagation()}>
+                        <TokenUsageDisplay
+                            stats={{ ...stats, model: currentModel }}
+                            compact={true}
+                            floating={true}
+                            hover={true}
+                            label="Session"
+                            hideContextPercentage={true}
+                            className="relative"
+                        />
+                    </div>
+                )}
 
-                {/* Right Side Info */}
-                <div className="flex items-center gap-4 no-drag relative z-10" onMouseDown={(e) => e.stopPropagation()}>
-                    {/* Branch Info - Show first */}
-                    {onSelectBranch ? (
-                        <div>
-                            <GitBranchSwitcher
-                                branch={currentBranch ?? null}
-                                branches={branches}
-                                uncommitted={uncommitted}
-                                loading={branchLoading}
-                                switchingTo={branchSwitchingTo}
-                                onSelectBranch={onSelectBranch}
-                                onRefresh={onRefreshBranches}
-                            />
-                        </div>
-                    ) : null}
+                {/* Divider before Workbench */}
+                {onToggleSidePanel && (onSelectBranch || stats) && (
+                    <div className="w-px h-4 bg-[var(--border-subtle)] mx-0.5 shrink-0" />
+                )}
 
-                    {/* Stats - Token Usage Display with Hover Panel */}
-                    {stats && (
-                        <div className="hidden md:block">
-                            <TokenUsageDisplay
-                                stats={{ ...stats, model: currentModel }}
-                                compact={true}
-                                floating={true}
-                                hover={true}
-                                label="Session"
-                                hideContextPercentage={true}
-                                className="relative"
-                            />
-                        </div>
-                    )}
-                </div>
+                {/* Workbench Toggle */}
+                {onToggleSidePanel && (
+                    <button
+                        onClick={onToggleSidePanel}
+                        className={cn(
+                            "w-7 h-7 flex items-center justify-center rounded-md transition-colors shrink-0 no-drag focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0",
+                            sidePanelType
+                                ? "text-[var(--accent)] bg-[var(--accent-subtle)]"
+                                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                        )}
+                        title={sidePanelType ? "Close Workbench" : "Open Workbench"}
+                    >
+                        <LayoutDashboard className="w-4 h-4" />
+                    </button>
+                )}
             </div>
         </div>
     );
