@@ -54,7 +54,7 @@ export function TaskProgressDock({ todos }: TaskProgressDockProps) {
             <button
               type="button"
               onClick={() => setCollapsed((prev) => !prev)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-background/70 hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-background/70 hover:bg-muted transition-colors"
               aria-label={collapsed ? 'Expand task progress' : 'Collapse task progress'}
               aria-expanded={!collapsed}
               title={collapsed ? 'Expand' : 'Collapse'}
@@ -65,7 +65,7 @@ export function TaskProgressDock({ todos }: TaskProgressDockProps) {
               <button
                 type="button"
                 onClick={() => setDismissed(true)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-background/70 hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-background/70 hover:bg-muted transition-colors"
                 aria-label="Close task progress"
                 title="Close"
               >

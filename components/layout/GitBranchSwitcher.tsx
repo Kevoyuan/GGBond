@@ -95,6 +95,7 @@ export const GitBranchSwitcher = memo(function GitBranchSwitcher({
                                 autoFocus
                                 type="text"
                                 placeholder="Search branches..."
+                                aria-label="Search branches"
                                 value={searchQuery}
                                 onChange={handleSearchChange}
                                 className="w-full bg-zinc-100/50 dark:bg-zinc-900/60 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 focus:bg-white dark:focus:bg-zinc-800 border border-zinc-200 dark:border-zinc-800/50 focus:border-zinc-300 dark:focus:border-zinc-600/80 rounded-lg py-1.5 pl-8 pr-3 text-[12px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 transition-colors outline-none"

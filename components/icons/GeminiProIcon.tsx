@@ -10,9 +10,9 @@ export const GeminiProIcon = ({ className, ...props }: React.SVGProps<SVGSVGElem
     >
         <defs>
             <linearGradient id="gemini-pro-gradient" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#ff7ac6" />
-                <stop offset="50%" stopColor="#c56dfc" />
-                <stop offset="100%" stopColor="#6c5ce7" />
+                <stop offset="0%" stopColor="var(--accent, #ff7ac6)" />
+                <stop offset="50%" stopColor="var(--accent, #c56dfc)" />
+                <stop offset="100%" stopColor="var(--accent, #6c5ce7)" />
             </linearGradient>
         </defs>
         <path

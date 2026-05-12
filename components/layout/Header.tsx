@@ -9,13 +9,11 @@ interface HeaderProps {
     totalTokens: number;
     totalCost: number;
   };
-  onShowStats?: () => void;
   currentBranch?: string | null;
 }
 
 export function Header({
   stats,
-  onShowStats,
   currentBranch,
 }: HeaderProps) {
   const startDrag = async (e: React.MouseEvent) => {

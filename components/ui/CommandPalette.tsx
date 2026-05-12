@@ -218,6 +218,7 @@ export function CommandPalette({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search commands..."
+                aria-label="Search commands"
                 className="flex-1 bg-transparent border-none focus:outline-none px-3 text-base"
               />
               <div className="flex items-center gap-1.5 ml-2">

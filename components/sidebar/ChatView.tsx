@@ -43,7 +43,6 @@ interface ChatViewProps {
     onArchiveWorkspace?: (workspace: string) => void;
     onNewChatInWorkspace?: (workspace: string) => void;
     onAddWorkspace?: () => void;
-    onShowStats?: () => void;
     currentWorkspace?: string;
     workspaceBranchSummary: Record<string, { label: string; title: string; mixed: boolean } | null>;
     formatSessionAge: (session: Session) => string;
@@ -61,7 +60,6 @@ export const ChatView = React.memo(function ChatView({
     onArchiveWorkspace,
     onNewChatInWorkspace,
     onAddWorkspace,
-    onShowStats,
     currentWorkspace,
     workspaceBranchSummary,
     formatSessionAge,

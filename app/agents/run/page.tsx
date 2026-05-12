@@ -216,6 +216,7 @@ function RunAgentContent() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search agents..."
+                aria-label="Search agents"
                 className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-transparent text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
             </div>

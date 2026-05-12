@@ -552,6 +552,7 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
     }
 
     return (
+        <div data-testid="skills-manager">
         <ModuleCard title="Skills Registry" description={loading ? "Syncing..." : `${skills.length} modules · ${enabledCount} active`} icon={Puzzle} actions={headerActions}>
             {loading && skills.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 opacity-40">
@@ -563,5 +564,6 @@ export const SkillsManager = memo(function SkillsManager({ compact = false, clas
             )}
             <SkillPreviewDialog open={!!selectedSkill} onOpenChange={(open) => !open && setSelectedSkill(null)} skill={selectedSkill} />
         </ModuleCard>
+        </div>
     );
 });

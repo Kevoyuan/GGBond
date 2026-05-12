@@ -51,7 +51,7 @@ export function StateSnapshotDisplay({ content }: StateSnapshotDisplayProps) {
       <div className="border border-border/60 rounded-xl bg-card overflow-hidden shadow-sm">
         <button 
           onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          className="w-full flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 transition-colors"
           aria-expanded={isExpanded}
         >
           <div className="flex items-center gap-2">

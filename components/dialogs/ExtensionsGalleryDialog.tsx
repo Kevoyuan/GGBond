@@ -205,6 +205,7 @@ export function ExtensionsGalleryDialog({ open, onClose, onInstalled }: Extensio
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search extensions by name or description..."
+                            aria-label="Search extensions"
                             className="w-full pl-12 pr-4 py-3 rounded-lg border border-border/60 bg-background/80 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-colors"
                             autoFocus
                         />
