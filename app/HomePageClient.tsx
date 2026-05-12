@@ -29,6 +29,7 @@ import {
 
 // Import hooks
 import { useChatCommands } from '@/app/page/hooks/useChatCommands';
+import { useKeyboardShortcuts } from '@/app/page/hooks/useKeyboardShortcuts';
 
 import { ChatProvider } from './contexts/ChatContext';
 import { useUIStore } from '@/lib/stores/ui-store';
@@ -38,20 +39,8 @@ const SettingsDialog = dynamic(
   () => import('../components/settings/SettingsDialog').then((mod) => mod.SettingsDialog),
   { ssr: false }
 );
-const DiagnosticsDialog = dynamic(
-  () => import('../components/settings/DiagnosticsDialog').then((mod) => mod.DiagnosticsDialog),
-  { ssr: false }
-);
 const SidePanel = dynamic(
   () => import('../components/session/SidePanel').then((mod) => mod.SidePanel),
-  { ssr: false }
-);
-const UsageStatsDialog = dynamic(
-  () => import('../components/dialogs/UsageStatsDialog').then((mod) => mod.UsageStatsDialog),
-  { ssr: false }
-);
-const ExtensionsGalleryDialog = dynamic(
-  () => import('../components/dialogs/ExtensionsGalleryDialog').then((mod) => mod.ExtensionsGalleryDialog),
   { ssr: false }
 );
 const AddWorkspaceDialog = dynamic(
@@ -117,13 +106,9 @@ export default function Home() {
   // UI state — from Zustand store
   const settingsOpen = useUIStore((s) => s.settingsOpen);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'extensions' | 'diagnostics' | 'about'>('general');
   const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen);
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
-  const showUsageStats = useUIStore((s) => s.showUsageStats);
-  const setShowUsageStats = useUIStore((s) => s.setShowUsageStats);
-  const showExtensionsDialog = useUIStore((s) => s.showExtensionsDialog);
-  const setShowExtensionsDialog = useUIStore((s) => s.setShowExtensionsDialog);
   const showAddWorkspace = useUIStore((s) => s.showAddWorkspace);
   const setShowAddWorkspace = useUIStore((s) => s.setShowAddWorkspace);
   const mode = useUIStore((s) => s.mode);
@@ -148,13 +133,14 @@ export default function Home() {
   const setStreamingStatus = useUIStore((s) => s.setStreamingStatus);
   const isSidebarCollapsed = useUIStore((s) => s.isSidebarCollapsed);
   const setIsSidebarCollapsed = useUIStore((s) => s.setIsSidebarCollapsed);
-  const showSidebarToggle = useUIStore((s) => s.showSidebarToggle);
-  const setShowSidebarToggle = useUIStore((s) => s.setShowSidebarToggle);
   const sidebarView = useUIStore((s) => s.sidebarView);
   const setSidebarView = useUIStore((s) => s.setSidebarView);
 
   // Theme state (local — browser-specific)
   const { theme, setTheme, resolvedTheme } = useTheme();
+  const toggleTheme = useCallback(() => {
+    setTheme(theme === 'light' ? 'dark' : 'light');
+  }, [theme, setTheme]);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const isDark = mounted ? resolvedTheme === 'dark' : false;
@@ -197,34 +183,7 @@ export default function Home() {
     bootMark('app:mounted');
   }, []);
 
-  // Global keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd+K or Ctrl+K for Command Palette
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setCommandPaletteOpen(!commandPaletteOpen);
-      }
-      // Cmd+J or Ctrl+J for Terminal
-      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
-        e.preventDefault();
-        setShowTerminal(!showTerminal);
-      }
-      // Cmd+N or Ctrl+N for New Chat
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-        e.preventDefault();
-        handleNewChat();
-      }
-      // Cmd+, or Ctrl+, for Settings
-      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
-        e.preventDefault();
-        setSettingsOpen(true);
-      }
-    };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
 
   const currentSessionIdRef = useRef<string | null>(currentSessionId);
@@ -631,9 +590,21 @@ export default function Home() {
     }
   }, [sidebarView, isSidebarCollapsed, setIsSidebarCollapsed]);
 
-  const toggleTheme = useCallback(() => {
-    setTheme(theme === 'light' ? 'dark' : 'light');
-  }, [theme]);
+  const handleOpenExtensions = useCallback(() => {
+    setShowAddWorkspace(false);
+    setSettingsTab('extensions');
+    setSettingsOpen(true);
+  }, [setSettingsOpen, setShowAddWorkspace]);
+
+  const handleOpenDiagnostics = useCallback(() => {
+    setShowAddWorkspace(false);
+    setSettingsTab('diagnostics');
+    setSettingsOpen(true);
+  }, [setSettingsOpen, setShowAddWorkspace]);
+
+  const handleShowStats = useCallback(() => {
+    setSidePanelType(sidePanelType === 'usage' ? null : 'usage');
+  }, [sidePanelType, setSidePanelType]);
 
   const handleToggleSidebar = useCallback(() => {
     const newState = !isSidebarCollapsed;
@@ -677,12 +648,17 @@ export default function Home() {
       });
 
       setSessions(allSessions);
+      localStorage.setItem('ggbond-has-had-sessions', 'true');
       bootMark('app:sessions-fetch-done', { count: allSessions.length });
     } catch (error) {
       console.error('Failed to fetch sessions', error);
       const message = error instanceof Error ? error.message : String(error);
       bootMark('app:sessions-fetch-fail', { error: message });
-      showWarningToast(`Sessions are temporarily unavailable: ${message}`);
+
+      const hasHadSessions = localStorage.getItem('ggbond-has-had-sessions') === 'true';
+      if (hasHadSessions) {
+        showWarningToast(`Sessions are temporarily unavailable: ${message}`);
+      }
     }
   }, [showWarningToast]);
 
@@ -784,6 +760,7 @@ export default function Home() {
   const handleNewChat = () => {
     const workspace = currentWorkspaceRef.current?.trim();
     if (!workspace) {
+      setSettingsOpen(false);
       setShowAddWorkspace(true);
       showInfoToast('Select a workspace before starting a new chat.');
       return;
@@ -795,6 +772,7 @@ export default function Home() {
   const handleNewChatInWorkspace = (workspace: string) => {
     const trimmedWorkspace = workspace.trim();
     if (!trimmedWorkspace || trimmedWorkspace === 'Default' || trimmedWorkspace === '__NO_WORKSPACE__') {
+      setSettingsOpen(false);
       setShowAddWorkspace(true);
       showInfoToast('Select a workspace before starting a new chat.');
       return;
@@ -811,6 +789,18 @@ export default function Home() {
     setHeadId(null);
     headIdRef.current = null;
   };
+
+  useKeyboardShortcuts({
+    commandPaletteOpen,
+    setCommandPaletteOpen,
+    showTerminal,
+    setShowTerminal,
+    handleNewChat,
+    setSettingsOpen,
+    setSidebarView,
+    isSidebarCollapsed,
+    setIsSidebarCollapsed,
+  });
 
   const handleAddWorkspace = async (workspacePath: string) => {
     // Note: We intentionally do NOT stop running sessions here
@@ -1129,7 +1119,7 @@ export default function Home() {
     }
 
     if (trimmedInput.startsWith('/cost')) {
-      setShowUsageStats(true);
+      handleShowStats();
       return;
     }
 
@@ -3006,6 +2996,8 @@ export default function Home() {
           onSelectBranch={handleSelectWorkspaceBranch}
           onRefreshBranches={refreshWorkspaceBranches}
           currentModel={settings.model}
+          sidePanelType={sidePanelType}
+          onToggleSidePanel={() => setSidePanelType(sidePanelType ? null : 'tasks')}
         />
 
         {/* Main Content Area: Sidebar + Chat */}
@@ -3021,13 +3013,13 @@ export default function Home() {
             onRestoreSession={handleRestoreSession}
             onArchiveWorkspace={handleArchiveWorkspace}
             onNewChatInWorkspace={handleNewChatInWorkspace}
+            onOpenSettings={() => {
+              setShowAddWorkspace(false);
+              setSettingsTab('general');
+              setSettingsOpen(true);
+            }}
             currentWorkspace={currentWorkspace === null ? undefined : currentWorkspace}
-            onAddWorkspace={() => setShowAddWorkspace(true)}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onOpenDiagnostics={() => setDiagnosticsOpen(true)}
-            isDark={isDark}
-            toggleTheme={toggleTheme}
-            onShowStats={() => setShowUsageStats(true)}
+            onAddWorkspace={() => { setSettingsOpen(false); setShowAddWorkspace(true); }}
             onFileSelect={(file) => {
               if (file.path.endsWith('.html')) {
                 openArtifact(file.path);
@@ -3051,7 +3043,6 @@ export default function Home() {
                 setIsSidebarCollapsed(false);
               }
             }}
-            onOpenExtensions={() => setShowExtensionsDialog(true)}
           />
 
           {/* Chat Content */}
@@ -3090,6 +3081,9 @@ export default function Home() {
                     showTerminal={showTerminal}
                     onToggleTerminal={() => setShowTerminal(!showTerminal)}
                     onOpenArtifact={openArtifact}
+                    currentBranch={currentBranch}
+                    hasSessions={sessions.length > 0}
+                    onOpenWorkspace={() => setShowAddWorkspace(true)}
                   />
                 </ToolExecutionOutputProvider>
               </ChatProvider>
@@ -3099,6 +3093,7 @@ export default function Home() {
                 <TerminalPanel
                   workspacePath={currentWorkspace || undefined}
                   sessionId={currentSessionId}
+                  onSessionRunStateChange={updateTerminalRunningSessionCount}
                   onClose={() => setShowTerminal(false)}
                   onHeightChange={(height) => {
                     setTerminalPanelHeight(height);
@@ -3122,6 +3117,13 @@ export default function Home() {
               showInfoToast={showInfoToast}
               artifactPath={artifactPath}
               onCloseArtifact={() => setSidePanelType(null)}
+              workspacePath={currentWorkspace || undefined}
+              sessionId={currentSessionId}
+              onSessionRunStateChange={updateTerminalRunningSessionCount}
+              onOpenArtifact={openArtifact}
+              onOpenFile={(file) => setPreviewFile(file)}
+              onSelectPanel={(type) => setSidePanelType(type)}
+              onClosePanel={() => setSidePanelType(null)}
             />
           </main>
         </div>
@@ -3131,50 +3133,8 @@ export default function Home() {
           onClose={() => setSettingsOpen(false)}
           settings={settings}
           onSave={handleSaveSettings}
+          initialTab={settingsTab}
         />
-
-        <DiagnosticsDialog
-          open={diagnosticsOpen}
-          onClose={() => setDiagnosticsOpen(false)}
-        />
-
-        <UsageStatsDialog
-          open={showUsageStats}
-          onClose={() => setShowUsageStats(false)}
-        />
-
-        <ExtensionsGalleryDialog
-          open={showExtensionsDialog}
-          onClose={() => setShowExtensionsDialog(false)}
-        />
-
-        <AddWorkspaceDialog
-          open={showAddWorkspace}
-          onClose={() => setShowAddWorkspace(false)}
-          onAdd={handleAddWorkspace}
-        />
-
-        {activeQuestion && (
-          <QuestionPanel
-            questions={activeQuestion.questions}
-            title={activeQuestion.title}
-            correlationId={activeQuestion.correlationId}
-            onSubmit={handleQuestionSubmit}
-            onCancel={handleQuestionCancel}
-          />
-        )}
-
-        {confirmation && (
-          <ConfirmationDialog
-            details={confirmation.details}
-            onConfirm={(mode) => void handleConfirm(true, mode)}
-            onCancel={(feedback) => void handleConfirm(false, 'once', feedback)}
-            bottomOffset={
-              (showTerminal ? terminalPanelHeight : 0)
-              + Math.max(80, inputAreaHeight)
-            }
-          />
-        )}
 
         <CommandPalette
           isOpen={commandPaletteOpen}
@@ -3184,12 +3144,20 @@ export default function Home() {
           actions={{
             onNewChat: handleNewChat,
             onClearChat: handleNewChat, // /clear maps to new chat in this context
-            onOpenSettings: () => setSettingsOpen(true),
+            onOpenSettings: () => {
+              setShowAddWorkspace(false);
+              setSettingsTab('general');
+              setSettingsOpen(true);
+            },
             onToggleTerminal: () => setShowTerminal(!showTerminal),
             onSetMode: (m) => setMode(m),
             onToggleApproval: () => setApprovalMode(approvalMode === 'safe' ? 'auto' : 'safe'),
-            onShowStats: () => setShowUsageStats(true),
-            onOpenCoreUpgrade: () => setSettingsOpen(true),
+            onShowStats: handleShowStats,
+            onOpenCoreUpgrade: () => {
+              setShowAddWorkspace(false);
+              setSettingsTab('about');
+              setSettingsOpen(true);
+            },
           }}
         />
       </div>
