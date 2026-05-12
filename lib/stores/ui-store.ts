@@ -5,7 +5,7 @@ import { persist } from 'zustand/middleware';
 // Types
 // ============================================================================
 
-export type SidePanelType = 'graph' | 'timeline' | 'artifact' | null;
+export type SidePanelType = 'graph' | 'timeline' | 'artifact' | 'tasks' | 'plan' | 'terminal' | 'files' | 'modules' | 'usage' | null;
 export type SidebarView = 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory' | null;
 export type AppMode = 'code' | 'plan' | 'ask';
 export type ApprovalMode = 'safe' | 'auto';
@@ -19,8 +19,6 @@ interface UIState {
   // Dialog visibility
   settingsOpen: boolean;
   commandPaletteOpen: boolean;
-  showUsageStats: boolean;
-  showExtensionsDialog: boolean;
   showAddWorkspace: boolean;
 
   // App mode
@@ -31,7 +29,6 @@ interface UIState {
   sidePanelType: SidePanelType;
   sidePanelWidth: number;
   isSidebarCollapsed: boolean;
-  showSidebarToggle: boolean;
   sidebarView: SidebarView;
 
   // Terminal state
@@ -49,8 +46,6 @@ interface UIState {
   // Actions — Dialogs
   setSettingsOpen: (open: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
-  setShowUsageStats: (open: boolean) => void;
-  setShowExtensionsDialog: (open: boolean) => void;
   setShowAddWorkspace: (open: boolean) => void;
 
   // Actions — Mode
@@ -61,7 +56,6 @@ interface UIState {
   setSidePanelType: (type: SidePanelType) => void;
   setSidePanelWidth: (width: number) => void;
   setIsSidebarCollapsed: (collapsed: boolean) => void;
-  setShowSidebarToggle: (show: boolean) => void;
   setSidebarView: (view: SidebarView) => void;
 
   // Actions — Terminal
@@ -95,8 +89,6 @@ export const useUIStore = create<UIState>()(
       // Initial state — Dialogs
       settingsOpen: false,
       commandPaletteOpen: false,
-      showUsageStats: false,
-      showExtensionsDialog: false,
       showAddWorkspace: false,
 
       // Initial state — Mode
@@ -107,7 +99,6 @@ export const useUIStore = create<UIState>()(
       sidePanelType: null,
       sidePanelWidth: 400,
       isSidebarCollapsed: false,
-      showSidebarToggle: true,
       sidebarView: null,
 
       // Initial state — Terminal
@@ -125,8 +116,6 @@ export const useUIStore = create<UIState>()(
       // Actions — Dialogs
       setSettingsOpen: (open) => set({ settingsOpen: open }),
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
-      setShowUsageStats: (open) => set({ showUsageStats: open }),
-      setShowExtensionsDialog: (open) => set({ showExtensionsDialog: open }),
       setShowAddWorkspace: (open) => set({ showAddWorkspace: open }),
 
       // Actions — Mode
@@ -137,7 +126,6 @@ export const useUIStore = create<UIState>()(
       setSidePanelType: (type) => set({ sidePanelType: type }),
       setSidePanelWidth: (width) => set({ sidePanelWidth: width }),
       setIsSidebarCollapsed: (collapsed) => set({ isSidebarCollapsed: collapsed }),
-      setShowSidebarToggle: (show) => set({ showSidebarToggle: show }),
       setSidebarView: (view) => set({ sidebarView: view }),
 
       // Actions — Terminal
@@ -170,7 +158,6 @@ export const useUIStore = create<UIState>()(
       // Only persist these keys — streaming and ephemeral state excluded
       partialize: (state) => ({
         isSidebarCollapsed: state.isSidebarCollapsed,
-        showSidebarToggle: state.showSidebarToggle,
         sidePanelWidth: state.sidePanelWidth,
         terminalPanelHeight: state.terminalPanelHeight,
         inputAreaHeight: state.inputAreaHeight,
@@ -180,10 +167,3 @@ export const useUIStore = create<UIState>()(
     }
   )
 );
-
-// ============================================================================
-// Derived selectors (computed in components, not stored)
-// ============================================================================
-
-// Use these in components that need derived values from UIState + other sources
-// e.g.: useUIStore((s) => s.mode) + useTheme() → combined in component
