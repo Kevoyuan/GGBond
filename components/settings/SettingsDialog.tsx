@@ -1,9 +1,55 @@
-import React, { useEffect, useState } from 'react';
-import { X, Settings, Save, RotateCcw, Shield, Zap, Code2, Plus, Trash2, Wrench, Folder, FolderOpen, Terminal, Eye, EyeOff, Clock3, Bot, Download, Keyboard, ChevronDown, Command } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import {
+  X,
+  Settings,
+  Save,
+  RotateCcw,
+  Shield,
+  Zap,
+  Code2,
+  Plus,
+  Trash2,
+  Wrench,
+  Folder,
+  FolderOpen,
+  Terminal as TerminalIcon,
+  Eye,
+  Clock3,
+  Bot,
+  Download,
+  Keyboard,
+  ChevronDown,
+  Command,
+  Monitor,
+  Package,
+  Activity,
+  Info,
+  RefreshCw,
+  AlertTriangle,
+  Server,
+  Database,
+  Search,
+  Tag,
+  Sparkles,
+  AlertCircle,
+  ExternalLink,
+  Copy,
+  Check,
+  User,
+  Loader2,
+  Moon,
+  Sun
+} from 'lucide-react';
+import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { Select } from '@/components/ui/Select';
+import { UISettingsSection } from './sections/UISettingsSection';
+import { ModelConfigSection } from './sections/ModelConfigSection';
+import { CustomToolsSection, CustomTool } from './sections/CustomToolsSection';
+import packageJson from '../../package.json';
 
-// Types for config
+// --- Types ---
+
 interface GeminiIgnoreConfig {
   patterns: string[];
   enabled: boolean;
@@ -33,7 +79,6 @@ interface McpSecurityConfig {
   allowedRepoPatterns: string[];
 }
 
-// Types for presets and custom tools
 interface ModelPreset {
   id: string;
   name: string;
@@ -52,13 +97,6 @@ interface ModelPreset {
       temperature?: number;
     }>;
   };
-}
-
-interface CustomTool {
-  id: string;
-  name: string;
-  description: string;
-  enabled: boolean;
 }
 
 export interface ChatSettings {
@@ -87,6 +125,7 @@ interface SettingsDialogProps {
   onClose: () => void;
   settings: ChatSettings;
   onSave: (settings: ChatSettings) => void;
+  initialTab?: SettingsTab;
 }
 
 interface CoreSettings {
@@ -116,6 +155,59 @@ interface GeminiKeybinding {
   command: string;
   key: string;
 }
+
+interface BootEvent {
+  name: string;
+  ts?: number;
+  elapsedMs: number;
+  meta?: Record<string, unknown>;
+}
+
+interface DiagnosticsData {
+  status?: string;
+  engine?: string;
+  port?: number | string;
+  error?: string;
+  _fallback?: boolean;
+  client?: {
+    cachedSidecarPort?: number | null;
+    lastResolveFoundLivePort?: boolean;
+    resolvingSidecarPort?: boolean;
+    forcedRefreshInFlight?: boolean;
+    health?: Array<{
+      port: number;
+      ok: boolean;
+      ttlMs: number;
+      circuitOpen: boolean;
+      failures: number;
+    }>;
+    consecutiveFailures?: Array<{
+      port: number;
+      failures: number;
+      circuitOpen: boolean;
+    }>;
+  };
+  db?: {
+    dbPath: string;
+    totalSessions: number;
+    activeSessions: number;
+    archivedSessions: number;
+    hasArchivedColumn: boolean;
+  };
+  events?: BootEvent[];
+}
+
+interface GalleryExtension {
+  id: string;
+  name: string;
+  description: string;
+  installCommand: string;
+  category?: string;
+  author?: string;
+  githubUrl?: string;
+}
+
+// --- Constants ---
 
 const KEYBINDING_COMMAND_OPTIONS = [
   { command: 'input.submit', label: 'Submit prompt', group: 'Input' },
@@ -170,15 +262,26 @@ const FALLBACK_MODELS = [
   { id: 'gemini-2.5-flash-lite', name: 'gemini-2.5-flash-lite', icon: Zap },
 ];
 
-export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDialogProps) {
+type SettingsTab = 'general' | 'extensions' | 'diagnostics' | 'about';
+
+// --- Utility Functions ---
+
+function formatMs(value: number) {
+  if (value >= 1000) return `${(value / 1000).toFixed(2)}s`;
+  return `${Math.round(value)}ms`;
+}
+
+// --- Component ---
+
+export function SettingsDialog({ open, onClose, settings, onSave, initialTab }: SettingsDialogProps) {
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [localSettings, setLocalSettings] = useState<ChatSettings>(settings);
   const [models, setModels] = useState<typeof FALLBACK_MODELS>(FALLBACK_MODELS);
   const [defaultModel, setDefaultModel] = useState('gemini-3.1-pro-preview');
   const [presets, setPresets] = useState<ModelPreset[]>([]);
   const [customTools, setCustomTools] = useState<CustomTool[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<string>('balanced');
-  const [showAddTool, setShowAddTool] = useState(false);
-  const [newTool, setNewTool] = useState<Partial<CustomTool>>({ name: '', description: '', enabled: true });
 
   // Config state for new features
   const [geminiIgnore, setGeminiIgnore] = useState<GeminiIgnoreConfig>({ patterns: [], enabled: true });
@@ -218,6 +321,27 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
   const [showAdvancedKeybindings, setShowAdvancedKeybindings] = useState(false);
   const [recordingRowIndex, setRecordingRowIndex] = useState<number | null>(null);
 
+  // Diagnostics State
+  const [diagnosticsData, setDiagnosticsData] = useState<DiagnosticsData | null>(null);
+  const [isLoadingDiagnostics, setIsLoadingDiagnostics] = useState(false);
+  const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
+
+  // Extensions State
+  const [galleryExtensions, setGalleryExtensions] = useState<GalleryExtension[]>([]);
+  const [galleryCategories, setGalleryCategories] = useState<string[]>([]);
+  const [isLoadingGallery, setIsLoadingGallery] = useState(false);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [installingExtension, setInstallingExtension] = useState<string | null>(null);
+  const [installedExtensionNames, setInstalledExtensionNames] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (open && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [open, initialTab]);
+
   const syncDraftFromKeybindings = (next: GeminiKeybinding[]) => {
     setKeybindings(next);
     setKeybindingsDraft(JSON.stringify(next, null, 2));
@@ -244,7 +368,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
     }
   };
 
-  const normalizedConflictMap = keybindings.reduce<Record<string, number[]>>((accumulator, binding, index) => {
+  const normalizedConflictMap = useMemo(() => keybindings.reduce<Record<string, number[]>>((accumulator, binding, index) => {
     const normalizedKey = binding.key.trim().toLowerCase();
     if (!normalizedKey) {
       return accumulator;
@@ -254,10 +378,10 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
     }
     accumulator[normalizedKey].push(index);
     return accumulator;
-  }, {});
+  }, {}), [keybindings]);
 
   const conflictingKeys = Object.entries(normalizedConflictMap).filter(([, indexes]) => indexes.length > 1);
-  const conflictingRowIndexes = new Set(conflictingKeys.flatMap(([, indexes]) => indexes));
+  const conflictingRowIndexes = useMemo(() => new Set(conflictingKeys.flatMap(([, indexes]) => indexes)), [conflictingKeys]);
 
   const normalizeRecordedKey = (event: React.KeyboardEvent<HTMLInputElement>): string | null => {
     const rawKey = event.key;
@@ -279,7 +403,9 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
     return parts.join('+');
   };
 
-  // Fetch models, presets, custom tools, and config from API
+  // --- Effects ---
+
+  // Initial data loading
   useEffect(() => {
     if (!open) return;
     setCoreUpgradeLoading(true);
@@ -293,7 +419,6 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
       fetch('/api/core/upgrade').then(r => r.json()).catch(() => null),
       fetch('/api/keybindings').then(r => r.json()).catch(() => null),
     ]).then(([modelsData, presetsData, toolsData, configData, geminiSettings, upgradeData, keybindingsData]) => {
-      // Set models
       const modelList: typeof FALLBACK_MODELS = (modelsData.known || []).map((m: { id: string; name?: string; tier?: string }) => ({
         id: m.id,
         name: m.name || m.id,
@@ -306,27 +431,13 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
         setModels(dedupedModels);
         setDefaultModel(modelsData.current || dedupedModels[0].id);
       }
-      // Set presets
-      if (presetsData.presets) {
-        setPresets(presetsData.presets);
-      }
-      // Set custom tools
-      if (toolsData.tools) {
-        setCustomTools(toolsData.tools);
-      }
-      // Set config (new features)
-      if (configData.geminiIgnore) {
-        setGeminiIgnore(configData.geminiIgnore);
-      }
-      if (configData.trustedFolders) {
-        setTrustedFolders(configData.trustedFolders);
-      }
-      if (configData.customCommands) {
-        setCustomCommands(configData.customCommands);
-      }
-      if (configData.mcpSecurity) {
-        setMcpSecurity(configData.mcpSecurity);
-      }
+      if (presetsData.presets) setPresets(presetsData.presets);
+      if (toolsData.tools) setCustomTools(toolsData.tools);
+      if (configData.geminiIgnore) setGeminiIgnore(configData.geminiIgnore);
+      if (configData.trustedFolders) setTrustedFolders(configData.trustedFolders);
+      if (configData.customCommands) setCustomCommands(configData.customCommands);
+      if (configData.mcpSecurity) setMcpSecurity(configData.mcpSecurity);
+
       setCoreSettings({
         general: {
           sessionRetention: {
@@ -340,9 +451,8 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
           enableAgents: geminiSettings?.experimental?.enableAgents ?? true,
         },
       });
-      if (upgradeData) {
-        setCoreUpgradeStatus(upgradeData);
-      }
+
+      if (upgradeData) setCoreUpgradeStatus(upgradeData);
       if (keybindingsData?.keybindings) {
         setKeybindings(keybindingsData.keybindings);
         setKeybindingsDraft(JSON.stringify(keybindingsData.keybindings, null, 2));
@@ -357,7 +467,6 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
   }, [open]);
 
   useEffect(() => {
-    // Merge provided settings with defaults to ensure all fields exist
     setLocalSettings({
       ...settings,
       toolPermissionStrategy: settings.toolPermissionStrategy ?? 'safe',
@@ -379,30 +488,77 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
     });
   }, [settings, open]);
 
+  // Load Diagnostics
+  const fetchDiagnostics = useCallback(async () => {
+    setIsLoadingDiagnostics(true);
+    setDiagnosticsError(null);
+    try {
+      const response = await fetch('/api/diagnostics');
+      const payload = await response.json().catch(() => null) as DiagnosticsData | null;
+      if (payload?._fallback) {
+        setDiagnosticsData(payload);
+        setDiagnosticsError(payload.error ?? null);
+        return;
+      }
+      if (!response.ok || !payload) {
+        throw new Error(payload?.error || `Diagnostics returned ${response.status}`);
+      }
+      setDiagnosticsData(payload);
+    } catch (err) {
+      setDiagnosticsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsLoadingDiagnostics(false);
+    }
+  }, []);
+
+  // Load Extensions Gallery
+  const loadGallery = useCallback(async () => {
+    setIsLoadingGallery(true);
+    setGalleryError(null);
+    try {
+      const [galleryRes, installedRes] = await Promise.all([
+        fetch('/api/mcp/gallery'),
+        fetch('/api/extensions'),
+      ]);
+      if (!galleryRes.ok) throw new Error('Failed to load extensions gallery');
+      const data = await galleryRes.json() as { extensions: GalleryExtension[]; categories: string[] };
+      setGalleryExtensions(data.extensions);
+      setGalleryCategories(data.categories);
+      if (installedRes.ok) {
+        const installedData = await installedRes.json() as Array<{ name?: string }>;
+        setInstalledExtensionNames(new Set(
+          installedData.map((item) => (item.name || '').trim().toLowerCase()).filter(Boolean)
+        ));
+      }
+    } catch (err) {
+      setGalleryError(err instanceof Error ? err.message : 'Failed to load gallery');
+    } finally {
+      setIsLoadingGallery(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    if (activeTab === 'diagnostics') void fetchDiagnostics();
+    if (activeTab === 'extensions') void loadGallery();
+  }, [activeTab, fetchDiagnostics, loadGallery, open]);
+
+  // --- Handlers ---
+
   const handleSave = async () => {
     const parsedKeybindings = parseKeybindingsDraft();
-    if (!parsedKeybindings) {
-      return;
-    }
+    if (!parsedKeybindings) return;
     if (conflictingKeys.length > 0) {
       setKeybindingsError(`Resolve ${conflictingKeys.length} shortcut conflict${conflictingKeys.length === 1 ? '' : 's'} before saving.`);
       return;
     }
 
-    // Save chat settings
     onSave(localSettings);
-
-    // Save new config (geminiignore, trusted folders, custom commands)
     try {
       await fetch('/api/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          geminiIgnore,
-          trustedFolders,
-          customCommands,
-          mcpSecurity,
-        }),
+        body: JSON.stringify({ geminiIgnore, trustedFolders, customCommands, mcpSecurity }),
       });
       await fetch('/api/settings', {
         method: 'PUT',
@@ -418,7 +574,6 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
     } catch (error) {
       console.error('Failed to save config:', error);
     }
-
     onClose();
   };
 
@@ -430,10 +585,7 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
       ui: {
         lowLatencyMode: true,
         advancedMode: false,
-        footer: {
-          hideModelInfo: false,
-          hideContextPercentage: false,
-        },
+        footer: { hideModelInfo: false, hideContextPercentage: false },
         showMemoryUsage: true,
       },
       modelSettings: {
@@ -445,16 +597,9 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
     });
     setCoreSettings({
       general: {
-        sessionRetention: {
-          enabled: true,
-          maxAge: '30d',
-          maxCount: 50,
-          minRetention: '1d',
-        },
+        sessionRetention: { enabled: true, maxAge: '30d', maxCount: 50, minRetention: '1d' },
       },
-      experimental: {
-        enableAgents: true,
-      },
+      experimental: { enableAgents: true },
     });
     syncDraftFromKeybindings([]);
   };
@@ -472,11 +617,8 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
         setCoreUpgradeMessage(payload.error || 'Failed to run Gemini CLI upgrade.');
         return;
       }
-
-      const beforeVersion = payload.beforeVersion || 'unknown';
-      const afterVersion = payload.afterVersion || 'unknown';
       setCoreUpgradeStatus(payload.status || null);
-      setCoreUpgradeMessage(`Gemini CLI upgrade finished: ${beforeVersion} -> ${afterVersion}`);
+      setCoreUpgradeMessage(`Gemini CLI upgrade finished: ${payload.beforeVersion || 'unknown'} -> ${payload.afterVersion || 'unknown'}`);
     } catch (error) {
       setCoreUpgradeMessage(error instanceof Error ? error.message : 'Failed to run Gemini CLI upgrade.');
     } finally {
@@ -484,1125 +626,573 @@ export function SettingsDialog({ open, onClose, settings, onSave }: SettingsDial
     }
   };
 
+  const handleInstallExtension = async (extension: GalleryExtension) => {
+    setInstallingExtension(extension.id);
+    try {
+      const urlMatch = extension.installCommand.match(/https:\/\/[^\s]+/);
+      if (!urlMatch) throw new Error('Invalid install command');
+      const repoUrl = urlMatch[0];
+      const res = await fetch('/api/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'installExtension', name: extension.name, repoUrl }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to install extension');
+      }
+      setInstalledExtensionNames((prev) => new Set(prev).add(extension.name.trim().toLowerCase()));
+    } catch (err) {
+      setGalleryError(err instanceof Error ? err.message : 'Failed to install extension');
+    } finally {
+      setInstallingExtension(null);
+    }
+  };
+
+  const filteredExtensions = useMemo(() => {
+    let filtered = galleryExtensions;
+    if (selectedCategory) filtered = filtered.filter(ext => ext.category === selectedCategory);
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(ext => ext.name.toLowerCase().includes(query) || ext.description.toLowerCase().includes(query));
+    }
+    return filtered;
+  }, [galleryExtensions, searchQuery, selectedCategory]);
+
+  const bootEvents = useMemo(() => diagnosticsData?.events ?? [], [diagnosticsData?.events]);
+
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-background border rounded-xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh]">
+  // --- Sub-renderers ---
 
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b bg-muted/30">
-          <div className="flex items-center gap-2 font-medium text-lg">
-            <Settings className="w-5 h-5 text-primary" />
-            Settings
+  const renderGeneralTab = () => (
+    <div className="space-y-6">
+      {/* Theme Section */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Monitor className="w-4 h-4 text-primary" />
+          Appearance
+        </h3>
+        <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
+          <div className="space-y-0.5">
+            <div className="text-sm font-medium">Theme</div>
+            <div className="text-xs text-muted-foreground">Customize application look and feel</div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-muted rounded-full transition-colors"
-          >
-            <X className="w-5 h-5 opacity-70" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 space-y-6 overflow-y-auto">
-
-          {/* Preset Selection */}
-          <Select
-            label="Model Preset"
-            value={selectedPreset}
-            onChange={(value) => {
-              setSelectedPreset(value);
-              const preset = presets.find(p => p.id === value);
-              if (preset) {
-                setLocalSettings(s => ({
-                  ...s,
-                  model: preset.model,
-                }));
-              }
-            }}
-            options={presets.map(p => ({
-              id: p.id,
-              name: p.name,
-              description: p.description,
-              icon: p.model.includes('pro') ? Code2 : Zap,
-            }))}
-            description="Select a preset configuration for different use cases."
-          />
-
-          {/* Model Selection */}
-          <Select
-            label="Model"
-            value={localSettings.model}
-            onChange={(value) => setLocalSettings(s => ({ ...s, model: value }))}
-            options={models}
-            description="Select the AI model to use."
-          />
-
-          {/* System Instruction */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none">System Instruction</label>
-            <textarea
-              value={localSettings.systemInstruction}
-              onChange={(e) => setLocalSettings(s => ({ ...s, systemInstruction: e.target.value }))}
-              placeholder="e.g. You are a helpful coding assistant..."
-              className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
-            />
-          </div>
-
-          {/* Tool Permissions */}
-          <Select
-            label="Tool Permission Strategy"
-            value={localSettings.toolPermissionStrategy}
-            onChange={(value) => setLocalSettings(s => ({
-              ...s,
-              toolPermissionStrategy: value as 'safe' | 'auto'
-            }))}
-            options={[
-              { id: 'safe', name: 'Safe', description: 'Approve / Deny / Allow Session', icon: Shield },
-              { id: 'auto', name: 'Auto', description: 'Always Allow', icon: Zap },
-            ]}
-            description="Safe mode prompts for each privileged tool call. Auto mode sends tool calls without confirmation."
-          />
-
-          {/* UI Settings */}
-          <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-semibold">UI Settings</h3>
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Low Latency Mode</label>
-              <input
-                type="checkbox"
-                checked={localSettings.ui.lowLatencyMode}
-                onChange={(e) => setLocalSettings(s => ({
-                  ...s,
-                  ui: { ...s.ui, lowLatencyMode: e.target.checked }
-                }))}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Advanced Mode</label>
-              <input
-                type="checkbox"
-                checked={localSettings.ui.advancedMode}
-                onChange={(e) => setLocalSettings(s => ({
-                  ...s,
-                  ui: { ...s.ui, advancedMode: e.target.checked }
-                }))}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Hide Model Info (Footer)</label>
-              <input
-                type="checkbox"
-                checked={localSettings.ui.footer.hideModelInfo}
-                onChange={(e) => setLocalSettings(s => ({
-                  ...s,
-                  ui: { ...s.ui, footer: { ...s.ui.footer, hideModelInfo: e.target.checked } }
-                }))}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Hide Context Percentage</label>
-              <input
-                type="checkbox"
-                checked={localSettings.ui.footer.hideContextPercentage}
-                onChange={(e) => setLocalSettings(s => ({
-                  ...s,
-                  ui: { ...s.ui, footer: { ...s.ui.footer, hideContextPercentage: e.target.checked } }
-                }))}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Show Memory Usage</label>
-              <input
-                type="checkbox"
-                checked={localSettings.ui.showMemoryUsage}
-                onChange={(e) => setLocalSettings(s => ({
-                  ...s,
-                  ui: { ...s.ui, showMemoryUsage: e.target.checked }
-                }
-                ))}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-4 pt-4 border-t">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold flex items-center gap-2">
-                  <Keyboard className="w-4 h-4 text-primary" />
-                  Keyboard Shortcuts
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Manage Gemini CLI&apos;s global <code>keybindings.json</code> with a table-first editor. This maps directly to upstream keyboard customization in v0.35.x.
-                </p>
-                {keybindingsPath && (
-                  <p className="text-[11px] font-mono text-muted-foreground break-all">
-                    {keybindingsPath}
-                  </p>
-                )}
-                {conflictingKeys.length > 0 && (
-                  <p className="text-[11px] text-red-500">
-                    {conflictingKeys.length} conflict{conflictingKeys.length === 1 ? '' : 's'} detected. Conflicting rows are highlighted below.
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => syncDraftFromKeybindings([...keybindings, { command: '', key: '' }])}
-                  className="text-xs px-2.5 py-1.5 rounded-md border border-input hover:bg-muted transition-colors inline-flex items-center gap-1.5 active:scale-[0.98]"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Row
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const parsed = parseKeybindingsDraft();
-                    if (parsed) syncDraftFromKeybindings(parsed);
-                  }}
-                  className="text-xs px-2.5 py-1.5 rounded-md border border-input hover:bg-muted transition-colors"
-                >
-                  Revert
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border/60 bg-muted/20 overflow-hidden">
-              <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_auto] gap-3 px-4 py-3 border-b border-border/60 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                <span>Command</span>
-                <span>Key</span>
-                <span className="text-right">Action</span>
-              </div>
-
-              <div className="divide-y divide-border/50">
-                {keybindings.length === 0 ? (
-                  <div className="px-4 py-8 text-center space-y-2">
-                    <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-border/60 bg-background/70">
-                      <Command className="w-4 h-4 text-muted-foreground" />
-                    </div>
-                    <p className="text-sm font-medium">No custom keybindings yet</p>
-                    <p className="text-xs text-muted-foreground max-w-[56ch] mx-auto">
-                      Add alternative bindings, or prefix a command with <code>-</code> to unbind an upstream default shortcut.
-                    </p>
-                  </div>
-                ) : (
-                  keybindings.map((binding, index) => (
-                    <div
-                      key={`${binding.command}:${binding.key}:${index}`}
-                      className={cn(
-                        "grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_auto] gap-3 px-4 py-3 items-start bg-background/50",
-                        conflictingRowIndexes.has(index) && "bg-red-500/5"
-                      )}
-                    >
-                      <div className="space-y-1.5 min-w-0">
-                        <input
-                          list="gemini-keybinding-commands"
-                          value={binding.command}
-                          onChange={(e) => {
-                            const next = [...keybindings];
-                            next[index] = { ...next[index], command: e.target.value };
-                            syncDraftFromKeybindings(next);
-                          }}
-                          placeholder="input.submit"
-                          className={cn(
-                            "flex h-10 w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                            conflictingRowIndexes.has(index) && "border-red-500/50 focus-visible:ring-red-500/30"
-                          )}
-                        />
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {KEYBINDING_COMMAND_OPTIONS.find((option) => option.command === binding.command)?.label || 'Custom or unbind command'}
-                        </p>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <input
-                          readOnly
-                          value={binding.key}
-                          onFocus={() => setRecordingRowIndex(index)}
-                          onBlur={() => {
-                            if (recordingRowIndex === index) {
-                              setRecordingRowIndex(null);
-                            }
-                          }}
-                          onKeyDown={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-
-                            if (!event.ctrlKey && !event.metaKey && !event.altKey && ['Backspace', 'Delete'].includes(event.key)) {
-                              const next = [...keybindings];
-                              next[index] = { ...next[index], key: '' };
-                              syncDraftFromKeybindings(next);
-                              return;
-                            }
-
-                            const recordedKey = normalizeRecordedKey(event);
-                            if (!recordedKey) {
-                              return;
-                            }
-
-                            const next = [...keybindings];
-                            next[index] = { ...next[index], key: recordedKey };
-                            syncDraftFromKeybindings(next);
-                            setRecordingRowIndex(null);
-                            event.currentTarget.blur();
-                          }}
-                          placeholder="Click and press keys"
-                          className={cn(
-                            "flex h-10 w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors",
-                            recordingRowIndex === index && "border-primary bg-primary/5 ring-2 ring-primary/20",
-                            conflictingRowIndexes.has(index) && "border-red-500/50 focus-visible:ring-red-500/30"
-                          )}
-                        />
-                        <p className={cn(
-                          "text-[11px]",
-                          conflictingRowIndexes.has(index) ? "text-red-500" : "text-muted-foreground"
-                        )}>
-                          {recordingRowIndex === index
-                            ? 'Recording. Press a key combo, or Backspace/Delete to clear.'
-                            : conflictingRowIndexes.has(index)
-                              ? `Conflicts with ${normalizedConflictMap[binding.key.trim().toLowerCase()]?.length ?? 1} rows using ${binding.key || 'this shortcut'}.`
-                              : 'Click to record a key combo'}
-                        </p>
-                      </div>
-
-                      <div className="flex justify-end pt-0.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = keybindings.filter((_, currentIndex) => currentIndex !== index);
-                            syncDraftFromKeybindings(next);
-                          }}
-                          className="h-10 px-3 rounded-lg border border-border/60 bg-background hover:bg-muted transition-colors text-xs font-medium inline-flex items-center gap-1.5 active:scale-[0.98]"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <datalist id="gemini-keybinding-commands">
-              {KEYBINDING_COMMAND_OPTIONS.map((option) => (
-                <option key={option.command} value={option.command}>
-                  {option.group} - {option.label}
-                </option>
-              ))}
-            </datalist>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <p className="text-xs font-medium">Starter bindings</p>
-                  <p className="text-[11px] text-muted-foreground">Quick-add common actions, then fine-tune them in the table.</p>
-                </div>
-                <span className={cn(
-                  "text-[11px]",
-                  conflictingKeys.length > 0 ? "text-red-500 font-medium" : "text-muted-foreground"
-                )}>
-                  {keybindings.length} active rows{conflictingKeys.length > 0 ? `, ${conflictingKeys.length} conflict${conflictingKeys.length === 1 ? '' : 's'}` : ''}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                {KEYBINDING_SUGGESTIONS.map((binding) => (
-                <button
-                  key={`${binding.command}:${binding.key}`}
-                  type="button"
-                  onClick={() => {
-                    const next = [...keybindings, binding];
-                    syncDraftFromKeybindings(next);
-                  }}
-                  className="text-left p-3 rounded-xl border border-border/60 bg-background/70 hover:bg-muted/40 transition-colors active:scale-[0.98] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium truncate">{binding.command}</div>
-                      <div className="text-[11px] text-muted-foreground truncate">
-                        {KEYBINDING_COMMAND_OPTIONS.find((option) => option.command === binding.command)?.label || 'Shortcut'}
-                      </div>
-                    </div>
-                    <kbd className="px-2.5 py-1 rounded-lg border border-border/60 bg-muted text-[10px] font-mono font-semibold text-foreground">
-                      {binding.key}
-                    </kbd>
-                  </div>
-                </button>
-              ))}
-            </div>
-            </div>
-
-            <div className="rounded-xl border border-border/60 bg-muted/10 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setShowAdvancedKeybindings((value) => !value)}
-                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/30 transition-colors"
-              >
-                <div>
-                  <p className="text-xs font-medium">Advanced JSON editor</p>
-                  <p className="text-[11px] text-muted-foreground">Use the raw upstream format for bulk edits, copy/paste, or unbind-heavy changes.</p>
-                </div>
-                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showAdvancedKeybindings ? 'rotate-180' : ''}`} />
-              </button>
-
-              {showAdvancedKeybindings && (
-                <div className="border-t border-border/60 p-4 space-y-3 bg-background/70">
-                  <textarea
-                    value={keybindingsDraft}
-                    onChange={(e) => {
-                      setKeybindingsDraft(e.target.value);
-                      setKeybindingsError(null);
-                    }}
-                    spellCheck={false}
-                    className="flex min-h-[220px] w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-xs font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
-                  />
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs text-muted-foreground">
-                      Example: <code>{`{ "command": "-app.toggleYolo", "key": "ctrl+y" }`}</code> removes a default binding.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const parsed = parseKeybindingsDraft();
-                        if (parsed) syncDraftFromKeybindings(parsed);
-                      }}
-                      className="text-xs px-3 py-2 rounded-lg border border-border/60 bg-background hover:bg-muted transition-colors active:scale-[0.98]"
-                    >
-                      Apply JSON
-                    </button>
-                  </div>
-                </div>
+          <div className="flex p-1 rounded-lg bg-background border gap-1">
+            <button
+              onClick={() => setTheme('light')}
+              className={cn(
+                "p-1.5 rounded-md transition-colors",
+                theme === 'light' ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-muted text-muted-foreground"
               )}
-            </div>
-
-            {keybindingsError && (
-              <p className="text-xs text-red-500">{keybindingsError}</p>
-            )}
+            >
+              <Sun className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setTheme('dark')}
+              className={cn(
+                "p-1.5 rounded-md transition-colors",
+                theme === 'dark' ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-muted text-muted-foreground"
+              )}
+            >
+              <Moon className="w-4 h-4" />
+            </button>
           </div>
-
-          {/* Model Configuration */}
-          <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-semibold">Model Configuration</h3>
-
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <label className="text-sm font-medium">Compression Threshold <span className="text-muted-foreground font-normal">(default: 50%)</span></label>
-                <span className="text-sm text-muted-foreground">{localSettings.modelSettings.compressionThreshold}</span>
-              </div>
-              <input
-                type="range" min="0" max="1" step="0.1"
-                value={localSettings.modelSettings.compressionThreshold}
-                onChange={(e) => setLocalSettings(s => ({
-                  ...s,
-                  modelSettings: { ...s.modelSettings, compressionThreshold: parseFloat(e.target.value) }
-                }))}
-                className="w-full"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Max Session Turns (-1 for infinite)</label>
-              <input
-                type="number"
-                value={localSettings.modelSettings.maxSessionTurns}
-                onChange={(e) => setLocalSettings(s => ({
-                  ...s,
-                  modelSettings: { ...s.modelSettings, maxSessionTurns: parseInt(e.target.value) }
-                }))}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Shell Token Budget</label>
-              <input
-                type="number"
-                value={localSettings.modelSettings.tokenBudget}
-                onChange={(e) => setLocalSettings(s => ({
-                  ...s,
-                  modelSettings: { ...s.modelSettings, tokenBudget: parseInt(e.target.value) }
-                }))}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Max Retries</label>
-              <input
-                type="number"
-                value={localSettings.modelSettings.maxRetries}
-                onChange={(e) => setLocalSettings(s => ({
-                  ...s,
-                  modelSettings: { ...s.modelSettings, maxRetries: parseInt(e.target.value) }
-                }))}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <p className="text-xs text-muted-foreground">
-                Applies to normal models. Preview models retry less aggressively to keep the app responsive.
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-semibold">Gemini CLI v0.35.2</h3>
-
-            <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Clock3 className="w-4 h-4 text-primary" />
-                    Session Retention
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Stable Gemini CLI now defaults to retaining chat history for 30 days. Control cleanup here instead of relying on implicit defaults.
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={coreSettings.general.sessionRetention.enabled}
-                  onChange={(e) => setCoreSettings((prev) => ({
-                    ...prev,
-                    general: {
-                      sessionRetention: {
-                        ...prev.general.sessionRetention,
-                        enabled: e.target.checked,
-                      },
-                    },
-                  }))}
-                  className="h-4 w-4 rounded border-gray-300"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <label className="space-y-1">
-                  <span className="text-xs font-medium">Max Age</span>
-                  <input
-                    type="text"
-                    value={coreSettings.general.sessionRetention.maxAge}
-                    onChange={(e) => setCoreSettings((prev) => ({
-                      ...prev,
-                      general: {
-                        sessionRetention: {
-                          ...prev.general.sessionRetention,
-                          maxAge: e.target.value,
-                        },
-                      },
-                    }))}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs font-medium">Max Count</span>
-                  <input
-                    type="number"
-                    value={coreSettings.general.sessionRetention.maxCount ?? 50}
-                    onChange={(e) => setCoreSettings((prev) => ({
-                      ...prev,
-                      general: {
-                        sessionRetention: {
-                          ...prev.general.sessionRetention,
-                          maxCount: Number.isFinite(parseInt(e.target.value, 10)) ? parseInt(e.target.value, 10) : undefined,
-                        },
-                      },
-                    }))}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs font-medium">Min Retention</span>
-                  <input
-                    type="text"
-                    value={coreSettings.general.sessionRetention.minRetention}
-                    onChange={(e) => setCoreSettings((prev) => ({
-                      ...prev,
-                      general: {
-                        sessionRetention: {
-                          ...prev.general.sessionRetention,
-                          minRetention: e.target.value,
-                        },
-                      },
-                    }))}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Bot className="w-4 h-4 text-primary" />
-                    Experimental Agents
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Required for remote A2A agents. Gemini CLI v0.35.2 continues to use the streamlined auth metadata introduced after the legacy `agent_card_requires_auth` flag was removed, so GGBond relies on the remaining auth fields only.
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={coreSettings.experimental.enableAgents}
-                  onChange={(e) => setCoreSettings((prev) => ({
-                    ...prev,
-                    experimental: {
-                      ...prev.experimental,
-                      enableAgents: e.target.checked,
-                    },
-                  }))}
-                  className="h-4 w-4 rounded border-gray-300"
-                />
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Code2 className="w-4 h-4 text-primary" />
-                  Local v0.35.2 alignment
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  GGBond follows Gemini CLI Core `v0.35.2`, but intentionally keeps `code` as the default mode instead of switching the whole product to upstream&apos;s default Plan Mode.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Per-model token usage is still surfaced locally, while newer upstream improvements like keyboard customization, Vim polish, sandbox isolation, and JIT context discovery continue to flow through the core runtime unless GGBond adds explicit UI for them.
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Download className="w-4 h-4 text-primary" />
-                    Core Upgrade
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    GGBond ships with Gemini CLI Core <code>v{coreUpgradeStatus?.localCoreVersion || 'unknown'}</code> and keeps Code mode as the product default. Use this to inspect or upgrade the external Gemini CLI install on this machine.
-                  </p>
-                </div>
-                <button
-                  onClick={handleCoreUpgrade}
-                  disabled={coreUpgradeRunning || coreUpgradeLoading || !coreUpgradeStatus?.canUpgrade}
-                  className={cn(
-                    'inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors',
-                    coreUpgradeRunning || coreUpgradeLoading || !coreUpgradeStatus?.canUpgrade
-                      ? 'cursor-not-allowed border border-border bg-muted text-muted-foreground'
-                      : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                  )}
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  {coreUpgradeRunning ? 'Upgrading...' : 'Upgrade CLI'}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="rounded-md border border-border/60 bg-background/60 p-3 space-y-1">
-                  <div className="text-muted-foreground">Bundled core</div>
-                  <div className="font-mono">{coreUpgradeStatus?.localCoreVersion || 'Unavailable'}</div>
-                </div>
-                <div className="rounded-md border border-border/60 bg-background/60 p-3 space-y-1">
-                  <div className="text-muted-foreground">External Gemini CLI</div>
-                  <div className="font-mono">{coreUpgradeStatus?.globalCliVersion || 'Not detected'}</div>
-                </div>
-              </div>
-
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <p>
-                  Install method: <span className="font-mono text-foreground">{coreUpgradeStatus?.installMethod || 'unknown'}</span>
-                </p>
-                {coreUpgradeStatus?.upgradeCommand && (
-                  <p>
-                    Upgrade command: <code>{coreUpgradeStatus.upgradeCommand}</code>
-                  </p>
-                )}
-                {coreUpgradeStatus?.globalCliPath && (
-                  <p className="break-all">
-                    CLI path: <code>{coreUpgradeStatus.globalCliPath}</code>
-                  </p>
-                )}
-                {coreUpgradeMessage && (
-                  <p className="text-foreground">{coreUpgradeMessage}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Custom Tools */}
-          <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-semibold">Custom Tools</h3>
-
-            {customTools.length > 0 && (
-              <div className="space-y-2">
-                {customTools.map(tool => (
-                  <div key={tool.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                    <div className="flex items-center gap-2">
-                      <Wrench className="w-4 h-4 text-muted-foreground" />
-                      <div>
-                        <div className="text-sm font-medium">{tool.name}</div>
-                        <div className="text-xs text-muted-foreground">{tool.description}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={tool.enabled}
-                        onChange={async (e) => {
-                          const updated = customTools.map(t =>
-                            t.id === tool.id ? { ...t, enabled: e.target.checked } : t
-                          );
-                          setCustomTools(updated);
-                          await fetch('/api/custom-tools', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ...tool, enabled: e.target.checked }),
-                          });
-                        }}
-                        className="h-4 w-4"
-                      />
-                      <button
-                        onClick={async () => {
-                          await fetch(`/api/custom-tools?id=${tool.id}`, { method: 'DELETE' });
-                          setCustomTools(customTools.filter(t => t.id !== tool.id));
-                        }}
-                        className="p-1 hover:bg-destructive/20 rounded text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {showAddTool ? (
-              <div className="space-y-2 p-3 border rounded-md">
-                <input
-                  type="text"
-                  placeholder="Tool name"
-                  value={newTool.name || ''}
-                  onChange={(e) => setNewTool({ ...newTool, name: e.target.value })}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                />
-                <input
-                  type="text"
-                  placeholder="Description"
-                  value={newTool.description || ''}
-                  onChange={(e) => setNewTool({ ...newTool, description: e.target.value })}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={async () => {
-                      if (!newTool.name) return;
-                      const tool: CustomTool = {
-                        id: `custom-${Date.now()}`,
-                        name: newTool.name,
-                        description: newTool.description || '',
-                        enabled: true,
-                      };
-                      await fetch('/api/custom-tools', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(tool),
-                      });
-                      setCustomTools([...customTools, tool]);
-                      setNewTool({ name: '', description: '', enabled: true });
-                      setShowAddTool(false);
-                    }}
-                    className="flex-1 px-3 py-1 bg-primary text-primary-foreground rounded text-sm"
-                  >
-                    Add
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowAddTool(false);
-                      setNewTool({ name: '', description: '', enabled: true });
-                    }}
-                    className="flex-1 px-3 py-1 border rounded text-sm"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowAddTool(true)}
-                className="flex items-center gap-2 text-sm text-primary hover:underline"
-              >
-                <Plus className="w-4 h-4" />
-                Add Custom Tool
-              </button>
-            )}
-          </div>
-
-          {/* GeminiIgnore */}
-          <div className="space-y-4 pt-4 border-t">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Eye className="w-4 h-4" />
-                .geminiignore
-              </h3>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-muted-foreground">Enabled</label>
-                <input
-                  type="checkbox"
-                  checked={geminiIgnore.enabled}
-                  onChange={(e) => setGeminiIgnore({ ...geminiIgnore, enabled: e.target.checked })}
-                  className="h-4 w-4"
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Configure patterns to ignore files during AI operations.
-            </p>
-
-            {geminiIgnore.patterns.length > 0 && (
-              <div className="space-y-2">
-                {geminiIgnore.patterns.map((pattern, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                    <code className="text-sm font-mono">{pattern}</code>
-                    <button
-                      onClick={() => {
-                        const newPatterns = geminiIgnore.patterns.filter((_, i) => i !== index);
-                        setGeminiIgnore({ ...geminiIgnore, patterns: newPatterns });
-                      }}
-                      className="p-1 hover:bg-destructive/20 rounded text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Add pattern (e.g., *.log, node_modules/, **/dist)"
-                value={newIgnorePattern}
-                onChange={(e) => setNewIgnorePattern(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newIgnorePattern.trim()) {
-                    setGeminiIgnore({
-                      ...geminiIgnore,
-                      patterns: [...geminiIgnore.patterns, newIgnorePattern.trim()]
-                    });
-                    setNewIgnorePattern('');
-                  }
-                }}
-                className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-              />
-              <button
-                onClick={() => {
-                  if (newIgnorePattern.trim()) {
-                    setGeminiIgnore({
-                      ...geminiIgnore,
-                      patterns: [...geminiIgnore.patterns, newIgnorePattern.trim()]
-                    });
-                    setNewIgnorePattern('');
-                  }
-                }}
-                className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Trusted Folders */}
-          <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <FolderOpen className="w-4 h-4" />
-              Trusted Folders
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Mark folders as trusted for file operations without confirmation.
-            </p>
-
-            {trustedFolders.length > 0 && (
-              <div className="space-y-2">
-                {trustedFolders.map((folder) => (
-                  <div key={folder.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                    <div className="flex items-center gap-2">
-                      <Folder className="w-4 h-4 text-muted-foreground" />
-                      <div>
-                        <div className="text-sm font-medium">{folder.path}</div>
-                        {folder.description && (
-                          <div className="text-xs text-muted-foreground">{folder.description}</div>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        await fetch(`/api/config/trusted-folders?id=${folder.id}`, { method: 'DELETE' });
-                        setTrustedFolders(trustedFolders.filter(f => f.id !== folder.id));
-                      }}
-                      className="p-1 hover:bg-destructive/20 rounded text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Folder path (e.g., /Users/me/projects)"
-                value={newFolderPath}
-                onChange={(e) => setNewFolderPath(e.target.value)}
-                className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-              />
-              <button
-                onClick={async () => {
-                  if (newFolderPath.trim()) {
-                    const res = await fetch('/api/config/trusted-folders', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ path: newFolderPath.trim(), description: '' }),
-                    });
-                    const data = await res.json();
-                    if (data.folder) {
-                      setTrustedFolders([...trustedFolders, data.folder]);
-                      setNewFolderPath('');
-                    }
-                  }
-                }}
-                className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Custom Commands */}
-          <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <Terminal className="w-4 h-4" />
-              Custom Commands
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Define slash commands (e.g., /build, /test) to run custom actions.
-            </p>
-
-            {customCommands.length > 0 && (
-              <div className="space-y-2">
-                {customCommands.map((cmd) => (
-                  <div key={cmd.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                    <div className="flex items-center gap-2">
-                      <Terminal className="w-4 h-4 text-muted-foreground" />
-                      <div>
-                        <div className="text-sm font-medium">/{cmd.name}</div>
-                        <div className="text-xs text-muted-foreground">{cmd.description}</div>
-                        <code className="text-xs text-primary">{cmd.command}</code>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={cmd.enabled}
-                        onChange={async (e) => {
-                          const updated = customCommands.map(c =>
-                            c.id === cmd.id ? { ...c, enabled: e.target.checked } : c
-                          );
-                          setCustomCommands(updated);
-                          await fetch('/api/config/custom-commands', {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: cmd.id, enabled: e.target.checked }),
-                          });
-                        }}
-                        className="h-4 w-4"
-                      />
-                      <button
-                        onClick={async () => {
-                          await fetch(`/api/config/custom-commands?id=${cmd.id}`, { method: 'DELETE' });
-                          setCustomCommands(customCommands.filter(c => c.id !== cmd.id));
-                        }}
-                        className="p-1 hover:bg-destructive/20 rounded text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {newCommand.name !== undefined && newCommand.name !== '' ? (
-              <div className="space-y-2 p-3 border rounded-md">
-                <div className="flex gap-2">
-                  <span className="text-sm font-medium self-center">/</span>
-                  <input
-                    type="text"
-                    placeholder="Command name"
-                    value={newCommand.name}
-                    onChange={(e) => setNewCommand({ ...newCommand, name: e.target.value })}
-                    className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-                  />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Description"
-                  value={newCommand.description || ''}
-                  onChange={(e) => setNewCommand({ ...newCommand, description: e.target.value })}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                />
-                <input
-                  type="text"
-                  placeholder="Command to run (e.g., npm run build)"
-                  value={newCommand.command || ''}
-                  onChange={(e) => setNewCommand({ ...newCommand, command: e.target.value })}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm font-mono"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={async () => {
-                      if (!newCommand.name || !newCommand.command) return;
-                      const res = await fetch('/api/config/custom-commands', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(newCommand),
-                      });
-                      const data = await res.json();
-                      if (data.command) {
-                        setCustomCommands([...customCommands, data.command]);
-                        setNewCommand({ name: '', description: '', command: '', enabled: true });
-                      }
-                    }}
-                    className="flex-1 px-3 py-1 bg-primary text-primary-foreground rounded text-sm"
-                  >
-                    Add
-                  </button>
-                  <button
-                    onClick={() => {
-                      setNewCommand({ name: '', description: '', command: '', enabled: true });
-                    }}
-                    className="flex-1 px-3 py-1 border rounded text-sm"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setNewCommand({ name: '', description: '', command: '', enabled: true })}
-                className="flex items-center gap-2 text-sm text-primary hover:underline"
-              >
-                <Plus className="w-4 h-4" />
-                Add Custom Command
-              </button>
-            )}
-          </div>
-
-          {/* MCP Security */}
-          <div className="space-y-4 pt-4 border-t">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Shield className="w-4 h-4" />
-                MCP Allowlist
-              </h3>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-muted-foreground">Enabled</label>
-                <input
-                  type="checkbox"
-                  checked={mcpSecurity.enabled}
-                  onChange={(e) => setMcpSecurity({ ...mcpSecurity, enabled: e.target.checked })}
-                  className="h-4 w-4"
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Restrict MCP server creation/installation to allowed names, command patterns and repository sources.
-            </p>
-
-            <div className="grid gap-3">
-              <label className="grid gap-1">
-                <span className="text-xs text-muted-foreground">Allowed server names (one per line)</span>
-                <textarea
-                  rows={3}
-                  value={mcpSecurity.allowedServerNames.join('\n')}
-                  onChange={(e) => setMcpSecurity({
-                    ...mcpSecurity,
-                    allowedServerNames: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean),
-                  })}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
-                />
-              </label>
-
-              <label className="grid gap-1">
-                <span className="text-xs text-muted-foreground">Allowed command regex (one per line)</span>
-                <textarea
-                  rows={3}
-                  value={mcpSecurity.allowedCommandRegex.join('\n')}
-                  onChange={(e) => setMcpSecurity({
-                    ...mcpSecurity,
-                    allowedCommandRegex: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean),
-                  })}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
-                />
-              </label>
-
-              <label className="grid gap-1">
-                <span className="text-xs text-muted-foreground">Blocked command regex (one per line)</span>
-                <textarea
-                  rows={3}
-                  value={mcpSecurity.blockedCommandRegex.join('\n')}
-                  onChange={(e) => setMcpSecurity({
-                    ...mcpSecurity,
-                    blockedCommandRegex: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean),
-                  })}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
-                />
-              </label>
-
-              <label className="grid gap-1">
-                <span className="text-xs text-muted-foreground">Allowed repo URL patterns (one per line)</span>
-                <textarea
-                  rows={3}
-                  value={mcpSecurity.allowedRepoPatterns.join('\n')}
-                  onChange={(e) => setMcpSecurity({
-                    ...mcpSecurity,
-                    allowedRepoPatterns: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean),
-                  })}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
-                />
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t bg-muted/30 flex justify-between">
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <RotateCcw className="w-4 h-4" />
-            Reset Defaults
-          </button>
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium shadow-sm"
-          >
-            <Save className="w-4 h-4" />
-            Save Changes
-          </button>
         </div>
       </div>
+
+      {/* Model Selection */}
+      <div className="space-y-4 pt-4 border-t">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Zap className="w-4 h-4 text-primary" />
+          Model Settings
+        </h3>
+        <Select
+          label="Model Preset"
+          value={selectedPreset}
+          onChange={(value) => {
+            setSelectedPreset(value);
+            const preset = presets.find(p => p.id === value);
+            if (preset) setLocalSettings(s => ({ ...s, model: preset.model }));
+          }}
+          options={presets.map(p => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            icon: p.model.includes('pro') ? Code2 : Zap,
+          }))}
+          description="Select a preset configuration for different use cases."
+        />
+        <Select
+          label="Model"
+          value={localSettings.model}
+          onChange={(value) => setLocalSettings(s => ({ ...s, model: value }))}
+          options={models}
+          description="Select the AI model to use."
+        />
+      </div>
+
+      {/* Permissions & Behavior */}
+      <div className="space-y-4 pt-4 border-t">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Shield className="w-4 h-4 text-primary" />
+          Behavior
+        </h3>
+        <Select
+          label="Tool Permission Strategy"
+          value={localSettings.toolPermissionStrategy}
+          onChange={(value) => setLocalSettings(s => ({
+            ...s,
+            toolPermissionStrategy: value as 'safe' | 'auto'
+          }))}
+          options={[
+            { id: 'safe', name: 'Safe Mode', description: 'Approve / Deny / Allow Session', icon: Shield },
+            { id: 'auto', name: 'Auto Mode', description: 'Always Allow', icon: Zap },
+          ]}
+          description="Safe mode prompts for each tool call. Auto mode executes without confirmation."
+        />
+        <div className="space-y-2">
+          <label className="text-sm font-medium leading-none">System Instruction</label>
+          <textarea
+            value={localSettings.systemInstruction}
+            onChange={(e) => setLocalSettings(s => ({ ...s, systemInstruction: e.target.value }))}
+            placeholder="e.g. You are a helpful coding assistant..."
+            className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+          />
+        </div>
+      </div>
+
+      {/* UI Controls */}
+      <UISettingsSection localSettings={localSettings} setLocalSettings={setLocalSettings} />
+
+      {/* Keyboard Shortcuts */}
+      <div className="space-y-4 pt-4 border-t">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Keyboard className="w-4 h-4 text-primary" />
+            Keyboard Shortcuts
+          </h3>
+          <button
+            type="button"
+            onClick={() => syncDraftFromKeybindings([...keybindings, { command: '', key: '' }])}
+            className="text-xs px-2.5 py-1.5 rounded-md border border-input hover:bg-muted transition-colors inline-flex items-center gap-1.5"
+          >
+            <Plus className="w-3 h-3" />
+            Add
+          </button>
+        </div>
+        {conflictingKeys.length > 0 && (
+          <p className="text-[11px] text-red-500 font-medium">{conflictingKeys.length} conflicts detected.</p>
+        )}
+        <div className="rounded-lg border overflow-hidden">
+          <div className="divide-y">
+            {keybindings.map((binding, index) => (
+              <div key={index} className={cn("grid grid-cols-[1fr_120px_auto] gap-2 p-2 items-center", conflictingRowIndexes.has(index) && "bg-red-500/5")}>
+                <input
+                  list="gemini-keybinding-commands"
+                  value={binding.command}
+                  onChange={(e) => {
+                    const next = [...keybindings];
+                    next[index] = { ...next[index], command: e.target.value };
+                    syncDraftFromKeybindings(next);
+                  }}
+                  className="bg-transparent border-none text-xs font-mono focus:ring-0 px-1"
+                  placeholder="command.id"
+                />
+                <input
+                  readOnly
+                  value={binding.key}
+                  onFocus={() => setRecordingRowIndex(index)}
+                  onBlur={() => setRecordingRowIndex(null)}
+                  onKeyDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!e.ctrlKey && !e.metaKey && !e.altKey && ['Backspace', 'Delete'].includes(e.key)) {
+                      const next = [...keybindings];
+                      next[index] = { ...next[index], key: '' };
+                      syncDraftFromKeybindings(next);
+                      return;
+                    }
+                    const recordedKey = normalizeRecordedKey(e);
+                    if (recordedKey) {
+                      const next = [...keybindings];
+                      next[index] = { ...next[index], key: recordedKey };
+                      syncDraftFromKeybindings(next);
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  className={cn(
+                    "text-center py-1 rounded bg-muted/50 text-[11px] font-mono",
+                    recordingRowIndex === index && "ring-2 ring-primary"
+                  )}
+                  placeholder="Record..."
+                />
+                <button
+                  onClick={() => syncDraftFromKeybindings(keybindings.filter((_, i) => i !== index))}
+                  className="p-1 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Advanced Runtime Configs */}
+      <ModelConfigSection localSettings={localSettings} setLocalSettings={setLocalSettings} />
+
+      <div className="space-y-4 pt-4 border-t">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Wrench className="w-4 h-4 text-primary" />
+          Runtime Config
+        </h3>
+        {/* GeminiIgnore */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium">.geminiignore Patterns</label>
+            <input
+              type="checkbox"
+              checked={geminiIgnore.enabled}
+              onChange={(e) => setGeminiIgnore({ ...geminiIgnore, enabled: e.target.checked })}
+              className="h-3.5 w-3.5"
+            />
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Add pattern..."
+              value={newIgnorePattern}
+              onChange={(e) => setNewIgnorePattern(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newIgnorePattern.trim()) {
+                  setGeminiIgnore({ ...geminiIgnore, patterns: [...geminiIgnore.patterns, newIgnorePattern.trim()] });
+                  setNewIgnorePattern('');
+                }
+              }}
+              className="flex-1 h-8 rounded border bg-transparent px-2 text-xs"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {geminiIgnore.patterns.map((p, i) => (
+              <span key={i} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">
+                {p}
+                <button onClick={() => setGeminiIgnore({ ...geminiIgnore, patterns: geminiIgnore.patterns.filter((_, idx) => idx !== i) })}>
+                  <X className="w-2.5 h-2.5 hover:text-red-500" />
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+      <CustomToolsSection customTools={customTools} setCustomTools={setCustomTools} />
+    </div>
+  );
+
+  const renderExtensionsTab = () => (
+    <div className="flex flex-col h-full space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Package className="w-4 h-4 text-primary" />
+            Extensions Gallery
+          </h3>
+          <p className="text-xs text-muted-foreground">Browse and install MCP servers</p>
+        </div>
+        <button onClick={loadGallery} className="p-1.5 rounded hover:bg-muted text-muted-foreground">
+          <RefreshCw className={cn("w-4 h-4", isLoadingGallery && "animate-spin")} />
+        </button>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search extensions..."
+          aria-label="Search extensions"
+          className="w-full pl-8 pr-4 py-2 rounded-lg border bg-muted/20 text-xs outline-none"
+        />
+      </div>
+
+      <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
+        {galleryError && <div className="p-3 rounded-lg bg-red-500/10 text-red-400 text-xs">{galleryError}</div>}
+        {isLoadingGallery ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary/50" /></div>
+        ) : filteredExtensions.length > 0 ? (
+          filteredExtensions.map(ext => {
+            const isInstalled = installedExtensionNames.has(ext.name.trim().toLowerCase());
+            return (
+              <div key={ext.id} className="p-3 rounded-lg border bg-muted/10 space-y-2 hover:bg-muted/20 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold truncate">{ext.name}</div>
+                    <div className="text-[10px] text-primary/70 font-medium uppercase">{ext.category}</div>
+                  </div>
+                  <button
+                    onClick={() => handleInstallExtension(ext)}
+                    disabled={installingExtension === ext.id || isInstalled}
+                    className={cn(
+                      "px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors",
+                      isInstalled ? "bg-emerald-500/10 text-emerald-500" : "bg-primary text-primary-foreground hover:bg-primary/90"
+                    )}
+                  >
+                    {installingExtension === ext.id ? "..." : isInstalled ? "Installed" : "Install"}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground leading-snug line-clamp-2">{ext.description}</p>
+              </div>
+            );
+          })
+        ) : (
+          <div className="flex flex-col items-center justify-center py-16 text-center opacity-40">
+            <Search className="w-12 h-12 mb-4" />
+            <h3 className="text-sm font-bold uppercase tracking-widest text-foreground">No extensions found</h3>
+            <p className="text-xs text-muted-foreground mt-1 mb-6 px-8 leading-relaxed">
+              We couldn&apos;t find any MCP servers matching &quot;{searchQuery}&quot;.
+            </p>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="px-4 py-2 rounded-lg bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider hover:bg-primary/20 transition-colors border border-primary/20"
+            >
+              Clear Search
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderDiagnosticsTab = () => (
+    <div className="flex flex-col h-full space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Activity className="w-4 h-4 text-primary" />
+            Diagnostics
+          </h3>
+          <p className="text-xs text-muted-foreground">Runtime state and boot performance</p>
+        </div>
+        <button onClick={fetchDiagnostics} className="p-1.5 rounded hover:bg-muted text-muted-foreground">
+          <RefreshCw className={cn("w-4 h-4", isLoadingDiagnostics && "animate-spin")} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin">
+        {diagnosticsError && <div className="p-3 rounded-lg bg-red-500/10 text-red-400 text-xs">{diagnosticsError}</div>}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 rounded-lg border bg-muted/20">
+            <div className="text-[10px] font-medium text-muted-foreground uppercase">Status</div>
+            <div className="text-sm font-mono mt-0.5">{diagnosticsData?.status || 'unknown'}</div>
+          </div>
+          <div className="p-3 rounded-lg border bg-muted/20">
+            <div className="text-[10px] font-medium text-muted-foreground uppercase">Port</div>
+            <div className="text-sm font-mono mt-0.5">{diagnosticsData?.port ?? 'unknown'}</div>
+          </div>
+          <div className="p-3 rounded-lg border bg-muted/20 col-span-2">
+            <div className="text-[10px] font-medium text-muted-foreground uppercase">Engine</div>
+            <div className="text-xs mt-0.5 text-muted-foreground truncate">{diagnosticsData?.engine || 'Not connected'}</div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-muted/20 overflow-hidden">
+          <div className="px-3 py-2 border-b bg-muted/30 text-[10px] font-bold uppercase tracking-wider">Boot Timeline</div>
+          <div className="max-h-48 overflow-y-auto divide-y divide-border/50">
+            {bootEvents.map((e, i) => (
+              <div key={i} className="flex items-center justify-between px-3 py-1.5 text-[11px] font-mono">
+                <span className="text-muted-foreground truncate mr-4">{e.name}</span>
+                <span className="text-primary shrink-0">{formatMs(e.elapsedMs)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAboutTab = () => (
+    <div className="space-y-6">
+      <div className="flex flex-col items-center py-8 text-center space-y-4">
+        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-xl">
+          <Zap className="w-10 h-10 text-white" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold">GGBond</h2>
+          <p className="text-sm text-muted-foreground">Premium Desktop AI Coding Assistant</p>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="p-4 rounded-xl border bg-muted/10 space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">App Version</span>
+            <span className="font-mono font-medium">v{packageJson.version}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Core Version</span>
+            <span className="font-mono font-medium">v{coreUpgradeStatus?.localCoreVersion || '0.35.2'}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm pt-2 border-t border-border/50">
+            <span className="text-muted-foreground">Build Platform</span>
+            <span className="capitalize">{typeof window !== 'undefined' ? (navigator as any).platform : 'unknown'}</span>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl border bg-muted/10 space-y-2">
+          <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">CLI Core Update</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Manage the upstream Gemini CLI core runtime. Upgrading may provide new models and improved reasoning capabilities.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={handleCoreUpgrade}
+              disabled={coreUpgradeRunning || coreUpgradeLoading}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wide hover:bg-primary/90 disabled:opacity-50 transition-all"
+            >
+              {coreUpgradeRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              {coreUpgradeRunning ? "Upgrading..." : "Update CLI Core"}
+            </button>
+            {coreUpgradeMessage && <p className="mt-2 text-[10px] text-center text-primary font-medium">{coreUpgradeMessage}</p>}
+          </div>
+        </div>
+      </div>
+
+      <div className="text-center">
+        <button className="text-[11px] text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1">
+          <Info className="w-3 h-3" />
+          View Licenses & Legal
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-background border rounded-2xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)] w-full max-w-4xl h-[640px] flex overflow-hidden animate-in zoom-in-95 duration-200">
+
+        {/* Sidebar Tabs */}
+        <div className="w-64 bg-muted/30 border-r flex flex-col">
+          <div className="p-6 flex items-center gap-2.5 font-bold text-lg tracking-tight">
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+              <Settings className="w-4 h-4 text-white" />
+            </div>
+            Settings
+          </div>
+
+          <nav className="flex-1 px-3 space-y-1">
+            <button
+              onClick={() => setActiveTab('general')}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                activeTab === 'general'
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <Monitor className="w-4 h-4" />
+              General
+            </button>
+            <button
+              onClick={() => setActiveTab('extensions')}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                activeTab === 'extensions'
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <Package className="w-4 h-4" />
+              Extensions
+            </button>
+            <button
+              onClick={() => setActiveTab('diagnostics')}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                activeTab === 'diagnostics'
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <Activity className="w-4 h-4" />
+              Diagnostics
+            </button>
+            <button
+              onClick={() => setActiveTab('about')}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                activeTab === 'about'
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <Info className="w-4 h-4" />
+              About
+            </button>
+          </nav>
+
+          <div className="p-4 border-t border-border/50">
+            <button
+              onClick={handleReset}
+              className="w-full flex items-center justify-center gap-2 py-2 text-xs font-medium text-muted-foreground hover:text-red-500 hover:bg-red-500/5 rounded-lg transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset Defaults
+            </button>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 flex flex-col bg-background/50">
+          {/* Header */}
+          <div className="h-14 border-b flex items-center justify-between px-6 bg-background/80 backdrop-blur-md">
+            <div className="text-sm font-bold uppercase tracking-widest text-muted-foreground/70">
+              {activeTab}
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1 overflow-y-auto p-8 scrollbar-thin">
+            <div className="max-w-2xl mx-auto h-full">
+              {activeTab === 'general' && renderGeneralTab()}
+              {activeTab === 'extensions' && renderExtensionsTab()}
+              {activeTab === 'diagnostics' && renderDiagnosticsTab()}
+              {activeTab === 'about' && renderAboutTab()}
+            </div>
+          </div>
+
+          {/* Footer Actions */}
+          <div className="h-20 border-t flex items-center justify-end px-8 gap-3 bg-background/80 backdrop-blur-md">
+            <button
+              onClick={onClose}
+              className="px-5 py-2.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="flex items-center gap-2 px-8 py-2.5 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-all font-bold shadow-xl shadow-primary/25 active:scale-[0.98]"
+            >
+              <Save className="w-4 h-4" />
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <datalist id="gemini-keybinding-commands">
+        {KEYBINDING_COMMAND_OPTIONS.map((option) => (
+          <option key={option.command} value={option.command}>
+            {option.group} - {option.label}
+          </option>
+        ))}
+      </datalist>
     </div>
   );
 }

@@ -181,7 +181,8 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
                 type="text"
                 value={installSource}
                 onChange={(e) => setInstallSource(e.target.value)}
-                placeholder="Enter skill path or URL (e.g., /path/to/skill or https://github.com/...)"
+                placeholder="Install a skill"
+                aria-label="Skill install path"
                 className="flex-1 px-3 py-2 text-sm rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
                 onKeyDown={(e) => e.key === 'Enter' && handleInstall()}
               />
@@ -209,6 +210,7 @@ export function SkillsDialog({ open, onClose }: SkillsDialogProps) {
               <input
                 type="text"
                 placeholder="Search skills..."
+                aria-label="Search skills"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-sm rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
