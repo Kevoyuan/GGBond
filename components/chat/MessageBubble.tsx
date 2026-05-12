@@ -119,8 +119,8 @@ const GeminiIcon = React.memo(function GeminiIcon({ className }: { className?: s
     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className}>
       <defs>
         <linearGradient id="gemini-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style={{ stopColor: '#4E79F5', stopOpacity: 1 }} />
-          <stop offset="100%" style={{ stopColor: '#D36767', stopOpacity: 1 }} />
+          <stop offset="0%" style={{ stopColor: 'var(--blue, #4E79F5)', stopOpacity: 1 }} />
+          <stop offset="100%" style={{ stopColor: 'var(--red, #D36767)', stopOpacity: 1 }} />
         </linearGradient>
       </defs>
       <path
@@ -177,9 +177,9 @@ export const MessageBubble = React.memo(function MessageBubble({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
+      transition={{ type: "spring", stiffness: 200, damping: 22, mass: 0.5 }}
       className={cn("flex gap-4 w-full group", isUser ? "justify-end" : "justify-start")}
     >
       {!isUser && (
@@ -198,8 +198,8 @@ export const MessageBubble = React.memo(function MessageBubble({
               "text-sm leading-relaxed max-w-full overflow-x-hidden",
               isUser
                 ? message.queued
-                  ? "relative bg-blue-600/50 text-blue-100 rounded-2xl px-4 py-2.5 shadow-sm font-medium italic opacity-70"
-                  : "relative bg-primary text-primary-foreground rounded-2xl px-4 py-2.5 shadow-sm font-medium"
+                  ? "relative bg-gradient-to-br from-blue-600/40 to-blue-700/30 text-blue-100 rounded-2xl px-4 py-2.5 shadow-sm font-medium italic opacity-70"
+                  : "relative bg-gradient-to-br from-[var(--accent)] to-[var(--accent-hover)] text-white rounded-2xl px-4 py-2.5 shadow-[0_2px_8px_rgba(124,92,252,0.25)] font-medium"
                 : "w-full"
             )}
           >
@@ -255,11 +255,11 @@ export const MessageBubble = React.memo(function MessageBubble({
               <div className="mt-2 pl-[30px]">
                 <button
                   onClick={() => onOpenArtifact(artifactPath)}
-                  className="group/artifact relative inline-flex items-center justify-center px-5 py-2 rounded-full border border-[#ccaee3]/30 bg-[#ccaee3]/10 hover:bg-[#ccaee3]/20 backdrop-blur-sm transition-colors duration-300 shadow-sm hover:shadow-md hover:border-[#ccaee3]/50 hover:-translate-y-[1px] overflow-hidden"
+                  className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
                   title="Open artifact preview"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#ccaee3]/0 via-[#ccaee3]/30 to-[#ccaee3]/0 translate-x-[-100%] group-hover/artifact:translate-x-[100%] transition-transform duration-700 ease-in-out" />
-                  <span className="text-xs font-semibold tracking-wider relative z-10 text-[#ccaee3] group-hover/artifact:text-[#e0cbf2] uppercase transition-colors duration-300">Open Artifact</span>
+                  <FileCode2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>Open artifact</span>
                 </button>
               </div>
             )}

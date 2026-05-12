@@ -53,8 +53,8 @@ function GeminiIcon({ className }: { className?: string }) {
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className}>
             <defs>
                 <linearGradient id="gemini-gradient-timeline" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style={{ stopColor: '#4E79F5', stopOpacity: 1 }} />
-                    <stop offset="100%" style={{ stopColor: '#D36767', stopOpacity: 1 }} />
+                    <stop offset="0%" style={{ stopColor: 'var(--blue, #4E79F5)', stopOpacity: 1 }} />
+                    <stop offset="100%" style={{ stopColor: 'var(--red, #D36767)', stopOpacity: 1 }} />
                 </linearGradient>
             </defs>
             <path

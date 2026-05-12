@@ -117,7 +117,7 @@ export const ToolCallBlock = React.memo(function ToolCallBlock({ toolName, args,
                 aria-expanded={expanded}
                 aria-label={`${verb} ${target || toolName}`}
                 tabIndex={0}
-                className="flex items-center gap-2 px-2 py-1.5 cursor-pointer text-[12px] font-mono select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-inset rounded"
+                className="flex items-center gap-2 px-2 py-1.5 cursor-pointer text-[12px] font-mono select-none rounded"
                 onClick={toggleExpanded}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {

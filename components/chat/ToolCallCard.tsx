@@ -247,7 +247,7 @@ export const ToolCallCard = React.memo(function ToolCallCard({
                     type="button"
                     onClick={() => setTodoExpanded((prev) => !prev)}
                     className={cn(
-                        "w-full px-3 py-2 bg-muted/20 hover:bg-muted/35 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                        "w-full px-3 py-2 bg-muted/20 hover:bg-muted/35 transition-colors",
                         todoExpanded && "border-b border-border/50"
                     )}
                     aria-expanded={todoExpanded}
