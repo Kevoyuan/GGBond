@@ -419,9 +419,21 @@ export const MCPPanel = memo(function MCPPanel({ className }: MCPPanelProps) {
                 })}
 
                 {orderedServers.length === 0 && !isLoading && (
-                    <div className="flex flex-col items-center justify-center h-48 opacity-20 grayscale">
-                        <Activity className="w-10 h-10 mb-3" />
-                        <p className="text-xs font-bold uppercase tracking-widest text-center">No active servers</p>
+                    <div className="flex flex-col items-center justify-center h-64 text-center px-6">
+                        <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center mb-4 opacity-40">
+                            <Plug className="w-8 h-8 text-primary" />
+                        </div>
+                        <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-tight">Connect to tools</h3>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed mb-6">
+                            Model Context Protocol allows Gemini to interact with external tools and services directly.
+                        </p>
+                        <button
+                            onClick={() => setShowAddForm(true)}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider hover:bg-primary/20 transition-colors border border-primary/20"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add First Server
+                        </button>
                     </div>
                 )}
 

@@ -859,10 +859,22 @@ export const HooksPanel = memo(function HooksPanel({
                                         </p>
                                     </>
                                 ) : (
-                                    <>
-                                        <Zap className="w-10 h-10 mb-2" />
-                                        <p className="text-xs uppercase tracking-widest font-bold">No active hooks</p>
-                                    </>
+                                    <div className="flex flex-col items-center justify-center h-64 text-center px-6">
+                                        <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center mb-4 opacity-40">
+                                            <Zap className="w-8 h-8 text-primary" />
+                                        </div>
+                                        <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-tight">Watch the system</h3>
+                                        <p className="text-[11px] text-muted-foreground leading-relaxed mb-6">
+                                            Hooks allow you to intercept and respond to system events in real-time.
+                                        </p>
+                                        <button
+                                            onClick={() => setActiveTab('config')}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider hover:bg-primary/20 transition-colors border border-primary/20"
+                                        >
+                                            <Settings className="w-3.5 h-3.5" />
+                                            Configure Hooks
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         )}
