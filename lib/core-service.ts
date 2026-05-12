@@ -1767,14 +1767,14 @@ When you are in planning phase:
 
     public getMemoryFiles() {
         if (!this.config) return [];
-        const contextManager = this.config.getContextManager();
+        const contextManager = this.config.getMemoryContextManager();
         if (!contextManager) return [];
         return Array.from(contextManager.getLoadedPaths());
     }
 
     public async refreshMemory() {
         if (!this.config) return;
-        const contextManager = this.config.getContextManager();
+        const contextManager = this.config.getMemoryContextManager();
         if (contextManager) {
             await contextManager.refresh();
         }
