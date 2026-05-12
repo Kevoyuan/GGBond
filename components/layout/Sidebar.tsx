@@ -1,24 +1,15 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare,
   Settings,
-  FolderOpen,
   Plug,
-  BarChart2,
   Zap,
   Activity,
   Database,
   Puzzle,
   Search,
   Command,
-  Moon,
-  Sun,
-  Boxes,
-  Network,
-  Clock,
-  BarChart
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -30,14 +21,13 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { ResizeHandle, useResize } from '@/components/ui/ResizeHandle';
 import packageJson from '../../package.json';
 
-const FileTree = dynamic(() => import('@/components/panels/FileTree').then((mod) => mod.FileTree), { ssr: false });
+
 const HooksPanel = dynamic(() => import('@/components/panels/HooksPanel').then((mod) => mod.HooksPanel), { ssr: false });
 const MCPPanel = dynamic(() => import('@/components/panels/MCPPanel').then((mod) => mod.MCPPanel), { ssr: false });
 const SkillsManager = dynamic(() => import('@/components/modules/SkillsManager').then((mod) => mod.SkillsManager), { ssr: false });
 const MemoryPanel = dynamic(() => import('@/components/panels/MemoryPanel').then((mod) => mod.MemoryPanel), { ssr: false });
 const AgentPanel = dynamic(() => import('@/components/agent/AgentPanel').then((mod) => mod.AgentPanel), { ssr: false });
 const QuotaPanel = dynamic(() => import('@/components/panels/QuotaPanel').then((mod) => mod.QuotaPanel), { ssr: false });
-const ModulesDialog = dynamic(() => import('@/components/dialogs/ModulesDialog').then((mod) => mod.ModulesDialog), { ssr: false });
 
 interface Session {
   id: string;
@@ -63,11 +53,7 @@ interface SidebarProps {
   onArchiveWorkspace?: (workspace: string) => void;
   onNewChatInWorkspace?: (workspace: string) => void;
   onOpenSettings: () => void;
-  onOpenDiagnostics?: () => void;
-  isDark: boolean;
-  toggleTheme: () => void;
   className?: string;
-  onShowStats?: () => void;
   currentWorkspace?: string;
   onAddWorkspace?: () => void;
   onFileSelect?: (file: { name: string; path: string }) => void;
@@ -76,8 +62,8 @@ interface SidebarProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSelectAgent?: (agent: any) => void;
   selectedAgentName?: string;
-  sidePanelType?: 'graph' | 'timeline' | 'artifact' | null;
-  onToggleSidePanel?: (type: 'graph' | 'timeline' | 'artifact' | null) => void;
+  sidePanelType?: 'graph' | 'timeline' | 'artifact' | 'tasks' | 'plan' | 'terminal' | 'files' | 'modules' | 'usage' | null;
+  onToggleSidePanel?: (type: 'graph' | 'timeline' | 'artifact' | 'tasks' | 'plan' | 'terminal' | 'files' | 'modules' | 'usage' | null) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   workspaceBranchSummary?: Record<string, { label: string; title: string; mixed: boolean } | null>;
@@ -85,16 +71,15 @@ interface SidebarProps {
   // External view control - allows parent to set active view
   sidebarView?: string | null;
   onSetSidebarView?: (view: string | null) => void;
-  showExtensionsDialog?: boolean;
-  onOpenExtensions?: () => void;
 }
 
-type SidebarView = 'chat' | 'files' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory';
+type SidebarView = 'chat' | 'skills' | 'hooks' | 'mcp' | 'agents' | 'quota' | 'memory';
 
 const getSearchPlaceholder = (view: SidebarView): string => {
   const placeholders: Record<SidebarView, string> = {
     chat: 'Search chats...',
-    files: 'Search files...',
+
+
     skills: 'Search skills...',
     hooks: 'Search hooks...',
     mcp: 'Search MCP servers...',
@@ -127,10 +112,6 @@ export const Sidebar = React.memo(function Sidebar({
   onArchiveWorkspace,
   onNewChatInWorkspace,
   onOpenSettings,
-  onOpenDiagnostics,
-  isDark,
-  toggleTheme,
-  onShowStats,
   currentWorkspace,
   onAddWorkspace,
   onFileSelect,
@@ -138,10 +119,7 @@ export const Sidebar = React.memo(function Sidebar({
   onClearHooks,
   onSelectAgent,
   selectedAgentName,
-  sidePanelType,
-  onToggleSidePanel,
   isCollapsed = false,
-  onToggleCollapse,
   workspaceBranchSummary = {},
   formatSessionAge = (session: Session) => {
     const date = new Date(session.created_at);
@@ -171,8 +149,6 @@ export const Sidebar = React.memo(function Sidebar({
   },
   sidebarView,
   onSetSidebarView,
-  showExtensionsDialog,
-  onOpenExtensions,
 }: SidebarProps) {
 
 
@@ -191,13 +167,12 @@ export const Sidebar = React.memo(function Sidebar({
   const handleChatClick = useCallback(() => handleViewClick('chat'), [handleViewClick]);
   const handleAgentsClick = useCallback(() => handleViewClick('agents'), [handleViewClick]);
   const handleSkillsClick = useCallback(() => handleViewClick('skills'), [handleViewClick]);
-  const handleFilesClick = useCallback(() => handleViewClick('files'), [handleViewClick]);
+
   const handleHooksClick = useCallback(() => handleViewClick('hooks'), [handleViewClick]);
   const handleMCPClick = useCallback(() => handleViewClick('mcp'), [handleViewClick]);
   const handleQuotaClick = useCallback(() => handleViewClick('quota'), [handleViewClick]);
   const handleMemoryClick = useCallback(() => handleViewClick('memory'), [handleViewClick]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showModulesDialog, setShowModulesDialog] = useState(false);
 
   // Use resize hooks for sidebar width and nav height
   const { size: sidePanelWidth, isResizing, handleProps: sidebarHandleProps } = useResize({
@@ -214,9 +189,6 @@ export const Sidebar = React.memo(function Sidebar({
     initialSize: DEFAULT_NAV_HEIGHT,
   });
 
-
-  // ... (rest of component)
-
   return (
     <div
       className={cn(
@@ -231,15 +203,31 @@ export const Sidebar = React.memo(function Sidebar({
         className={cn("flex flex-col shrink-0 overflow-y-auto min-h-[100px]", isCollapsed && "h-auto overflow-visible")}
         style={{ height: isCollapsed ? 'auto' : navHeight }}
       >
-        <div className="flex flex-col gap-0.5 px-2 py-2">
-          <NavListItem active={activeView === 'chat'} onClick={handleChatClick} icon={MessageSquare} label="Chats" count={unreadSessionIds.length} collapsed={isCollapsed} kbd="⌘1" />
-          <NavListItem active={activeView === 'agents'} onClick={handleAgentsClick} icon={AgentIcon} label="Agents" collapsed={isCollapsed} kbd="⌘2" />
-          <NavListItem active={activeView === 'skills'} onClick={handleSkillsClick} icon={Puzzle} label="Skills" collapsed={isCollapsed} kbd="⌘3" />
-          <NavListItem active={activeView === 'files'} onClick={handleFilesClick} icon={FolderOpen} label="Files" collapsed={isCollapsed} kbd="⌘4" />
-          <NavListItem active={activeView === 'hooks'} onClick={handleHooksClick} icon={Zap} label="Hooks" collapsed={isCollapsed} />
-          <NavListItem active={activeView === 'mcp'} onClick={handleMCPClick} icon={Plug} label="MCP" collapsed={isCollapsed} />
-          <NavListItem active={activeView === 'quota'} onClick={handleQuotaClick} icon={Activity} label="Quota" collapsed={isCollapsed} />
-          <NavListItem active={activeView === 'memory'} onClick={handleMemoryClick} icon={Database} label="Memory" collapsed={isCollapsed} />
+        <div className="flex flex-col gap-1 px-2 pt-2.5 pb-2">
+          <Tooltip content={isCollapsed ? "Chats (⌘1)" : undefined} side="right" triggerClassName="w-full">
+            <NavListItem active={activeView === 'chat'} onClick={handleChatClick} icon={MessageSquare} label="Chats" count={unreadSessionIds.length} collapsed={isCollapsed} kbd="⌘1" />
+          </Tooltip>
+          <Tooltip content={isCollapsed ? "Agents (⌘2)" : undefined} side="right" triggerClassName="w-full">
+            <NavListItem active={activeView === 'agents'} onClick={handleAgentsClick} icon={AgentIcon} label="Agents" collapsed={isCollapsed} kbd="⌘2" />
+          </Tooltip>
+          <Tooltip content={isCollapsed ? "Skills (⌘3)" : undefined} side="right" triggerClassName="w-full">
+            <NavListItem active={activeView === 'skills'} onClick={handleSkillsClick} icon={Puzzle} label="Skills" collapsed={isCollapsed} kbd="⌘3" />
+          </Tooltip>
+          <div className="mx-2 my-1">
+            <div className="h-px bg-[var(--border-subtle)]" />
+          </div>
+          <Tooltip content={isCollapsed ? "Hooks (⌘4)" : undefined} side="right" triggerClassName="w-full">
+            <NavListItem active={activeView === 'hooks'} onClick={handleHooksClick} icon={Zap} label="Hooks" collapsed={isCollapsed} kbd="⌘4" />
+          </Tooltip>
+          <Tooltip content={isCollapsed ? "MCP (⌘5)" : undefined} side="right" triggerClassName="w-full">
+            <NavListItem active={activeView === 'mcp'} onClick={handleMCPClick} icon={Plug} label="MCP" collapsed={isCollapsed} kbd="⌘5" />
+          </Tooltip>
+          <Tooltip content={isCollapsed ? "Quota (⌘6)" : undefined} side="right" triggerClassName="w-full">
+            <NavListItem active={activeView === 'quota'} onClick={handleQuotaClick} icon={Activity} label="Quota" collapsed={isCollapsed} kbd="⌘6" />
+          </Tooltip>
+          <Tooltip content={isCollapsed ? "Memory (⌘7)" : undefined} side="right" triggerClassName="w-full">
+            <NavListItem active={activeView === 'memory'} onClick={handleMemoryClick} icon={Database} label="Memory" collapsed={isCollapsed} kbd="⌘7" />
+          </Tooltip>
         </div>
       </div>
 
@@ -259,18 +247,19 @@ export const Sidebar = React.memo(function Sidebar({
           <div className="mx-4 h-px bg-[var(--border-subtle)] mb-1 shrink-0" />
 
           <div className="px-3 py-2 shrink-0">
-            <div className="relative group">
-              <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
+            <div className="relative group/search">
+              <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-[var(--text-tertiary)] transition-all duration-200 group-focus-within/search:text-[var(--accent)]" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder={getSearchPlaceholder(activeView)}
-                className="w-full bg-[var(--bg-tertiary)] border border-transparent rounded-md pl-8 pr-8 py-1.5 text-[13px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[var(--border)] focus:bg-[var(--bg-primary)] transition-colors shadow-sm"
+                aria-label={getSearchPlaceholder(activeView)}
+                className="w-full bg-[var(--bg-tertiary)] border border-transparent rounded-md pl-8 pr-8 py-1.5 text-[13px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)]/50 focus:outline-none focus:border-[var(--border)] focus:bg-[var(--bg-primary)] focus:shadow-sm transition-all duration-200"
               />
-              <div className="absolute right-2 top-2 text-[var(--text-tertiary)] flex items-center gap-0.5 pointer-events-none">
-                <Command className="w-3 h-3 opacity-50" />
-                <span className="text-[10px] font-medium opacity-50">K</span>
+              <div className="absolute right-2 top-2 text-[var(--text-tertiary)] flex items-center gap-0.5 pointer-events-none opacity-40 group-hover/search:opacity-70 transition-opacity">
+                <Command className="w-3 h-3" />
+                <span className="text-[10px] font-medium">K</span>
               </div>
             </div>
           </div>
@@ -278,8 +267,7 @@ export const Sidebar = React.memo(function Sidebar({
       )}
 
       {/* Content View */}
-      <div className={cn("flex-1 min-h-0 overflow-hidden flex flex-col relative", isCollapsed && "hidden")}>
-        {/* ... content remains same ... */}
+      <div key={activeView} className={cn("flex-1 min-h-0 overflow-hidden flex flex-col relative animate-fade-in", isCollapsed && "hidden")}>
         {activeView === 'chat' ? (
           <ChatView
             sessions={sessions}
@@ -293,14 +281,11 @@ export const Sidebar = React.memo(function Sidebar({
             onArchiveWorkspace={onArchiveWorkspace}
             onNewChatInWorkspace={onNewChatInWorkspace}
             onAddWorkspace={onAddWorkspace}
-            onShowStats={onShowStats}
             currentWorkspace={currentWorkspace}
             workspaceBranchSummary={workspaceBranchSummary}
             formatSessionAge={formatSessionAge}
             searchTerm={searchTerm}
           />
-        ) : activeView === 'files' ? (
-          <FileTree className="h-full" initialPath={currentWorkspace} onFileSelect={onFileSelect} searchTerm={searchTerm} />
         ) : activeView === 'skills' ? (
           <SkillsManager compact className="h-full" search={searchTerm} />
         ) : activeView === 'hooks' ? (
@@ -318,147 +303,39 @@ export const Sidebar = React.memo(function Sidebar({
 
       {/* Footer Toolbar */}
       <div className={cn(
-        "px-2 py-2 border-t border-[var(--border-subtle)] shrink-0 flex flex-col gap-2 bg-[var(--bg-secondary)]",
-        isCollapsed && "p-2"
+        "px-2 py-1.5 border-t border-[var(--border-subtle)] shrink-0 bg-gradient-to-b from-transparent to-muted/[0.02]",
+        isCollapsed ? "flex justify-center" : ""
       )}>
-        {/* Horizontal Action Bar */}
-        <div className={cn(
-          "flex items-center gap-1",
-          isCollapsed ? "flex-col" : "justify-between"
-        )}>
-          {/* Group 1: Insights & Modules */}
-          <div className={cn("flex items-center gap-1", isCollapsed && "flex-col")}>
-            <Tooltip content="Usage" side={isCollapsed ? "right" : "top"}>
-              <button
-                onClick={onShowStats}
-                aria-label="Usage statistics"
-                className={cn(
-                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
-                  isCollapsed && "w-9 h-9 flex items-center justify-center"
-                )}
+        {isCollapsed ? (
+          <Tooltip content="Settings" side="right">
+            <button
+              onClick={onOpenSettings}
+              aria-label="Open settings"
+              className="w-9 h-9 flex items-center justify-center rounded-md transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] active:scale-[0.95] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </Tooltip>
+        ) : (
+          <div className="flex items-center justify-between pl-1.5 pr-2 h-8">
+            <button
+              onClick={onOpenSettings}
+              aria-label="Open settings"
+              className="flex items-center gap-2 px-2 py-1 rounded-md transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-0"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span className="text-[12px] font-semibold tracking-tight">Settings</span>
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="w-px h-3.5 bg-[var(--border-subtle)]" />
+              <span
+                className="font-mono text-[9px] font-medium text-[var(--text-tertiary)] select-none opacity-50 hover:opacity-100 transition-opacity cursor-default"
+                title={`Gemini CLI v${GEMINI_CLI_CORE_VERSION}`}
               >
-                <BarChart className="w-4 h-4" />
-              </button>
-            </Tooltip>
-
-            <Tooltip content="Modules" side={isCollapsed ? "right" : "top"}>
-              <button
-                onClick={() => setShowModulesDialog(true)}
-                aria-label="Open modules"
-                className={cn(
-                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
-                  isCollapsed && "w-9 h-9 flex items-center justify-center"
-                )}
-              >
-                <Boxes className="w-4 h-4" />
-              </button>
-            </Tooltip>
-
-            <Tooltip content="Extensions" side={isCollapsed ? "right" : "top"}>
-              <button
-                onClick={onOpenExtensions}
-                aria-label="Open extensions"
-                className={cn(
-                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
-                  isCollapsed && "w-9 h-9 flex items-center justify-center"
-                )}
-              >
-                <Puzzle className="w-4 h-4" />
-              </button>
-            </Tooltip>
-          </div>
-
-          {!isCollapsed && <div className="w-px h-4 bg-[var(--border-subtle)] mx-0.5" />}
-
-          {/* Group 2: Visualization Panels */}
-          <div className={cn("flex items-center gap-1", isCollapsed && "flex-col")}>
-            <Tooltip content="Graph" side={isCollapsed ? "right" : "top"}>
-              <button
-                onClick={() => onToggleSidePanel?.('graph')}
-                aria-label="Toggle graph panel"
-                className={cn(
-                  "p-2 rounded-md transition-colors duration-200",
-                  sidePanelType === 'graph'
-                    ? "text-[var(--accent)] bg-[var(--accent)]/10"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
-                  isCollapsed && "w-9 h-9 flex items-center justify-center"
-                )}
-              >
-                <Network className="w-4 h-4" />
-              </button>
-            </Tooltip>
-
-            <Tooltip content="Timeline" side={isCollapsed ? "right" : "top"}>
-              <button
-                onClick={() => onToggleSidePanel?.('timeline')}
-                aria-label="Toggle timeline panel"
-                className={cn(
-                  "p-2 rounded-md transition-colors duration-200",
-                  sidePanelType === 'timeline'
-                    ? "text-[var(--accent)] bg-[var(--accent)]/10"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
-                  isCollapsed && "w-9 h-9 flex items-center justify-center"
-                )}
-              >
-                <Clock className="w-4 h-4" />
-              </button>
-            </Tooltip>
-          </div>
-
-          {!isCollapsed && <div className="w-px h-4 bg-[var(--border-subtle)] mx-0.5" />}
-
-          {/* Group 3: App Controls */}
-          <div className={cn("flex items-center gap-1", isCollapsed && "flex-col")}>
-            <Tooltip content={isDark ? "Light Mode" : "Dark Mode"} side={isCollapsed ? "right" : "top"}>
-              <button
-                onClick={toggleTheme}
-                aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-                className={cn(
-                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
-                  isCollapsed && "w-9 h-9 flex items-center justify-center"
-                )}
-              >
-                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              </button>
-            </Tooltip>
-
-            {onOpenDiagnostics && (
-              <Tooltip content="Diagnostics" side={isCollapsed ? "right" : "top"}>
-                <button
-                  onClick={onOpenDiagnostics}
-                  aria-label="Open diagnostics"
-                  className={cn(
-                    "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
-                    isCollapsed && "w-9 h-9 flex items-center justify-center"
-                  )}
-                >
-                  <Activity className="w-4 h-4" />
-                </button>
-              </Tooltip>
-            )}
-
-            <Tooltip content="Settings" side={isCollapsed ? "right" : "top"}>
-              <button
-                onClick={onOpenSettings}
-                aria-label="Open settings"
-                className={cn(
-                  "p-2 rounded-md transition-colors duration-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
-                  isCollapsed && "w-9 h-9 flex items-center justify-center"
-                )}
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-            </Tooltip>
-          </div>
-        </div>
-
-        {!isCollapsed && (
-          <>
-            <div className="w-full h-px bg-[var(--border-subtle)] mt-1 mb-0.5" />
-            <div className="w-full text-left font-mono text-[10px] font-medium text-[var(--text-tertiary)] select-none px-1">
-              CLI v{GEMINI_CLI_CORE_VERSION}
+                v{GEMINI_CLI_CORE_VERSION}
+              </span>
             </div>
-          </>
+          </div>
         )}
       </div>
 
@@ -472,13 +349,6 @@ export const Sidebar = React.memo(function Sidebar({
           indicatorClassName="bg-[var(--border-subtle)]"
         />
       )}
-
-      <ModulesDialog
-        open={showModulesDialog}
-        onOpenChange={setShowModulesDialog}
-        workspacePath={currentWorkspace || null}
-        currentSessionId={currentSessionId}
-      />
     </div>
   );
 });
